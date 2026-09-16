@@ -53,6 +53,9 @@ export interface GenerationViewModel extends StageViewModel {
   warnings?: string[];
   safeError: (SafeStageError & { retryable: boolean }) | null;
   retryAvailable?: boolean;
+  estimatedRemainingMs?: number;
+  estimatedTotalMs?: number;
+  estimateSource?: "configured_budget" | "observed_and_budget";
 }
 
 const STATUS_TEXT: Record<string, string> = {
@@ -91,6 +94,28 @@ function adaptPreview(value: unknown): GenerationPreviewVM | null {
     routeIds: strings(value.route_ids),
     routePaths: strings(value.route_paths),
     verificationStatus: value.verification_status === "unverified" ? "unverified" : "verified",
+  };
+}
+
+interface StageEstimateVM {
+  estimatedRemainingMs?: number;
+  estimatedTotalMs?: number;
+  estimateSource?: "configured_budget" | "observed_and_budget";
+}
+
+const EMPTY_STAGE_ESTIMATE: StageEstimateVM = {
+  estimatedRemainingMs: undefined,
+  estimatedTotalMs: undefined,
+  estimateSource: undefined,
+};
+
+function adaptStageEstimate(value: unknown): StageEstimateVM {
+  if (!isRecord(value)) return EMPTY_STAGE_ESTIMATE;
+  return {
+    estimatedRemainingMs: typeof value.estimated_remaining_ms === "number" ? value.estimated_remaining_ms : undefined,
+    estimatedTotalMs: typeof value.estimated_total_ms === "number" ? value.estimated_total_ms : undefined,
+    estimateSource:
+      value.source === "configured_budget" || value.source === "observed_and_budget" ? value.source : undefined,
   };
 }
 
@@ -149,6 +174,9 @@ export function adaptCodeGenerator(
       warnings: [],
       safeError: null,
       retryAvailable: false,
+      estimatedRemainingMs: undefined,
+      estimatedTotalMs: undefined,
+      estimateSource: undefined,
     };
   }
 
@@ -221,6 +249,10 @@ export function adaptCodeGenerator(
     ? raw.progress.current_attempt
     : 1;
 
+  const stageEstimate = adaptStageEstimate(
+    isRecord(raw.progress) ? raw.progress.stage_estimate : undefined,
+  );
+
   const traceId = typeof raw.trace_id === "string" ? raw.trace_id : "";
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
 
@@ -271,5 +303,8 @@ export function adaptCodeGenerator(
     warnings: warningMessages(raw.warnings ?? raw.advisories),
     safeError: safeError(raw, failedJob),
     retryAvailable: state === "attention" && !stale && raw.retry_available === true,
+    estimatedRemainingMs: stageEstimate.estimatedRemainingMs,
+    estimatedTotalMs: stageEstimate.estimatedTotalMs,
+    estimateSource: stageEstimate.estimateSource,
   };
 }

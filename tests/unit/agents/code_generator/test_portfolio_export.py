@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import oryxenai.agents.code_generator.core.portfolio_export as portfolio_export
 import oryxenai.jobs.handlers.code_generator_verification as code_generator_verification
 from oryxenai.agents.code_generator.core.portfolio_export import (
@@ -371,3 +373,140 @@ async def test_verification_handler_does_not_export_on_success(monkeypatch) -> N
 
     assert result["status"] == "succeeded"
     assert calls == []
+
+
+async def _create_bare_run(db_session):
+    """A minimal run row -- only what
+    `CodeGeneratorVerificationHandler.execute()`'s duration-recording block
+    itself needs (an id and a revision to read back and compare-and-swap)."""
+    from oryxenai.db.repositories.code_generator_development import (
+        CodeGeneratorDevelopmentRepository,
+    )
+
+    repo = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repo.create(input_reference={"kind": "test-fixture"}, idempotency_key=None)
+    await db_session.commit()
+    return run
+
+
+@pytest.mark.integration
+async def test_verification_handler_records_the_verify_duration_on_success(
+    monkeypatch, db_session
+) -> None:
+    """Fix Implementation item 2 (Part B): the verify stage's own wall time
+    -- from `execute()`'s entry through `_execute()`'s return, spanning any
+    internal repair recursion -- must land in `stage_durations_ms["verify"]`
+    on a real, non-reused success, via the same best-effort posture already
+    established for the export logic in this same method."""
+    from oryxenai.db.repositories.code_generator_development import (
+        CodeGeneratorDevelopmentRepository,
+    )
+
+    run = await _create_bare_run(db_session)
+
+    async def fake_execute(payload, **_kwargs):
+        return {"status": "succeeded", "run_id": str(run.id)}
+
+    monkeypatch.setattr(code_generator_verification, "_execute", fake_execute)
+
+    handler = code_generator_verification.CodeGeneratorVerificationHandler()
+    result = await handler.execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "succeeded"
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert "verify" in refreshed.stage_durations_ms
+    assert refreshed.stage_durations_ms["verify"] >= 0.0
+
+
+@pytest.mark.integration
+async def test_verification_handler_records_the_verify_duration_on_needs_attention(
+    monkeypatch, db_session
+) -> None:
+    """Recorded on both success AND failure -- a future VITE_NODE_SPAWN_EPERM
+    diagnostic's prior-duration comparison needs the *previous* attempt's
+    duration regardless of whether that attempt succeeded."""
+    from oryxenai.db.repositories.code_generator_development import (
+        CodeGeneratorDevelopmentRepository,
+    )
+
+    run = await _create_bare_run(db_session)
+
+    async def fake_execute(payload, **_kwargs):
+        return {
+            "status": "needs_attention",
+            "run_id": str(run.id),
+            "code": "SOURCE_CONTRACT_FAILED",
+        }
+
+    async def fake_export_failed_run(**kwargs):
+        return None
+
+    monkeypatch.setattr(code_generator_verification, "_execute", fake_execute)
+    monkeypatch.setattr(portfolio_export, "export_failed_run", fake_export_failed_run)
+
+    handler = code_generator_verification.CodeGeneratorVerificationHandler()
+    result = await handler.execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "needs_attention"
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert "verify" in refreshed.stage_durations_ms
+    assert refreshed.stage_durations_ms["verify"] >= 0.0
+
+
+@pytest.mark.integration
+async def test_verification_handler_skips_duration_recording_for_discarded_results(
+    monkeypatch, db_session
+) -> None:
+    """A "discarded" result (e.g. run not found, or a status this handler
+    declined to act on) is not a real verify attempt and must not pollute
+    `stage_durations_ms` with a near-zero no-op elapsed time."""
+    from oryxenai.db.repositories.code_generator_development import (
+        CodeGeneratorDevelopmentRepository,
+    )
+
+    run = await _create_bare_run(db_session)
+
+    async def fake_execute(payload, **_kwargs):
+        return {"status": "discarded", "run_id": str(run.id)}
+
+    monkeypatch.setattr(code_generator_verification, "_execute", fake_execute)
+
+    handler = code_generator_verification.CodeGeneratorVerificationHandler()
+    result = await handler.execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "discarded"
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert refreshed.stage_durations_ms == {}
+
+
+@pytest.mark.integration
+async def test_verification_handler_skips_duration_recording_for_reused_success(
+    monkeypatch, db_session
+) -> None:
+    """A `reused=True` success (the run was already `ready`; no new work was
+    performed this call) is likewise not a real verify attempt."""
+    from oryxenai.db.repositories.code_generator_development import (
+        CodeGeneratorDevelopmentRepository,
+    )
+
+    run = await _create_bare_run(db_session)
+
+    async def fake_execute(payload, **_kwargs):
+        return {"status": "succeeded", "run_id": str(run.id), "reused": True}
+
+    monkeypatch.setattr(code_generator_verification, "_execute", fake_execute)
+
+    handler = code_generator_verification.CodeGeneratorVerificationHandler()
+    result = await handler.execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "succeeded"
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert refreshed.stage_durations_ms == {}

@@ -5,7 +5,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-from collections.abc import Iterable
+import shutil
+import subprocess
+import sys
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +50,83 @@ def _normalize(value: str) -> str:
     value = re.sub(r"/(?:[^\n ]+/)+(?:src|node_modules|dist)/", "<workspace>/", value)
     value = re.sub(r"\x1b\[[0-9;]*m", "", value)
     return " ".join(value.split())[:4000]
+
+
+def _count_node_process_matches() -> int | None:
+    """Best-effort count of currently-running ``node``/``npm`` OS processes.
+
+    This exists only to give a future ``VITE_NODE_SPAWN_EPERM`` occurrence
+    enough context to distinguish a transient, contention-driven spawn
+    failure from a persistent one (see design.md's "Hypothesized Root
+    Cause"). Enumeration is stdlib-only (no ``psutil``) and strictly
+    best-effort: any denial, timeout, or platform quirk degrades to
+    ``None`` (unknown) rather than raising, following the same posture
+    already established for Windows enumeration denials in
+    ``fs_safe.remove_tree`` / the toolchain preflight cleanup path.
+    """
+
+    try:
+        if sys.platform == "win32":
+            tasklist = shutil.which("tasklist")
+            if not tasklist:
+                return None
+            result = subprocess.run(  # noqa: S603 - fixed command, resolved executable, no untrusted input
+                [tasklist, "/FO", "CSV", "/NH"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                timeout=5.0,
+                check=False,
+                text=True,
+            )
+            lines = result.stdout.splitlines() if result.stdout else []
+            return sum(
+                1
+                for line in lines
+                if line.strip().casefold().startswith(('"node.exe"', '"npm.exe"', '"npm.cmd"'))
+            )
+        ps_executable = shutil.which("ps")
+        if not ps_executable:
+            return None
+        result = subprocess.run(  # noqa: S603 - fixed command, resolved executable, no untrusted input
+            [ps_executable, "-eo", "comm"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=5.0,
+            check=False,
+            text=True,
+        )
+        lines = result.stdout.splitlines() if result.stdout else []
+        return sum(1 for line in lines if line.strip().casefold() in {"node", "npm"})
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def _prior_duration_note(stage_durations_ms: Mapping[str, float] | None, *, phase: str) -> str:
+    """Best-effort comparison of this attempt's elapsed time against the
+    previous recorded duration for the same phase on this run, if any.
+
+    ``stage_durations_ms`` is populated elsewhere (the coordinator, once
+    wired) and may legitimately be absent or missing this phase's entry —
+    most notably on the very first verify attempt of a run, or before that
+    wiring exists at all. Absence degrades to an empty note, never a raised
+    error.
+    """
+
+    if not stage_durations_ms:
+        return ""
+    try:
+        prior = stage_durations_ms.get(phase)
+    except AttributeError:
+        return ""
+    if prior is None:
+        return ""
+    try:
+        prior_seconds = float(prior) / 1000.0
+    except (TypeError, ValueError):
+        return ""
+    if prior_seconds < 0:
+        return ""
+    return f"the previous {phase} attempt on this run took {prior_seconds:.1f}s"
 
 
 def diagnostic(
@@ -121,6 +201,7 @@ async def _run(
     settings: Any,
     timeout_name: str,
     phase: str,
+    stage_durations_ms: Mapping[str, float] | None = None,
 ) -> tuple[ProcessResult | None, Diagnostic | None]:
     try:
         result = await run_command(
@@ -165,12 +246,24 @@ async def _run(
                 or "optimizesaferealpathsync" in normalized_output
             )
         ):
+            process_count = _count_node_process_matches()
+            context_parts = [
+                f"{process_count} node/npm process(es) were running concurrently at the "
+                "time of failure"
+                if process_count is not None
+                else "the concurrent node/npm process count could not be determined"
+            ]
+            duration_note = _prior_duration_note(stage_durations_ms, phase="verify")
+            if duration_note:
+                context_parts.append(duration_note)
+            context_suffix = f" ({'; '.join(context_parts)})."
             return result, diagnostic(
                 _VITE_WINDOWS_SPAWN_DENIED,
                 (
                     "The local Windows Node toolchain could not start Vite's required "
                     "path-resolution helper (spawn EPERM). Pause competing Node or build "
                     "activity, rerun the toolchain preflight, then retry verification."
+                    + context_suffix
                 ),
                 phase=phase,
                 command=" ".join(command),
@@ -190,6 +283,7 @@ async def run_clean_build(
     *,
     settings: Any,
     candidate_identity_hash: str,
+    stage_durations_ms: Mapping[str, float] | None = None,
 ) -> tuple[BuildManifest | None, list[Diagnostic]]:
     """Recreate dependencies and produce one verified production manifest."""
 
@@ -251,6 +345,7 @@ async def run_clean_build(
         settings=settings,
         timeout_name="build_timeout_seconds",
         phase="build",
+        stage_durations_ms=stage_durations_ms,
     )
     if issue is not None:
         diagnostics.append(issue)

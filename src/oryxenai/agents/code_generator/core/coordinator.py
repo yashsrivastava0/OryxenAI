@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -52,6 +53,7 @@ async def advance_after(
             return False
         if str(getattr(run, "coordinator_stage", "plan")) == stage:
             return False
+        completed_stage_duration_ms: float | None = None
         if completed_attempt_stage:
             completed_attempt = await repo.active_stage_attempt(run.id)
             if completed_attempt is not None:
@@ -68,6 +70,24 @@ async def advance_after(
                 )
                 if finalized is None:
                     return False
+                # `started_at` is only populated once a worker actually claims
+                # the attempt (`claim_stage_attempt`); no caller in this
+                # codebase invokes that method today, so it is reliably
+                # `None` in practice. `created_at` is always populated (set
+                # at `create_stage_attempt` time) and is a real, already-
+                # persisted timestamp on the same row — not a fabricated
+                # value — so it is used as the duration's start reference
+                # whenever `started_at` is unavailable. This slightly
+                # overstates the duration by whatever time the attempt spent
+                # queued before being claimed; that is an honest reflection
+                # of what data actually exists today, not an invented one.
+                started_reference = finalized.started_at or finalized.created_at
+                finished_reference = finalized.finished_at or datetime.now(UTC)
+                if started_reference is not None:
+                    completed_stage_duration_ms = max(
+                        0.0,
+                        (finished_reference - started_reference).total_seconds() * 1000.0,
+                    )
         key_material = {
             "planned": str((run.planner_receipt or {}).get("plan_hash", "")),
             "acquired": str((run.resource_ledger or {}).get("ledger_hash", "")),
@@ -146,6 +166,13 @@ async def advance_after(
             job_field: job.id,
             "active_attempt_id": next_attempt.id,
         }
+        if completed_attempt_stage and completed_stage_duration_ms is not None:
+            existing_durations = getattr(run, "stage_durations_ms", None)
+            merged_durations = (
+                dict(existing_durations) if isinstance(existing_durations, dict) else {}
+            )
+            merged_durations[completed_attempt_stage] = completed_stage_duration_ms
+            values["stage_durations_ms"] = merged_durations
         updated = await repo.compare_and_swap(run.id, expected_revision=run.revision, values=values)
         if updated is None:
             await db.rollback()

@@ -22,6 +22,21 @@ interface MilestoneDef {
   stoppedDesc: string;
 }
 
+/** Converts a millisecond duration into a small, human-readable "remaining"
+ * string for the active milestone (e.g. "About 6 minutes remaining"). Pure
+ * formatting only — the value itself always comes from
+ * `view.estimatedRemainingMs`, which traces back to backend-computed,
+ * non-fabricated sources (see adaptStageEstimate in data/adapters/generation.ts). */
+function formatEstimatedTimeRemaining(ms: number): string {
+  if (ms < 60_000) return "Less than a minute remaining";
+  const totalMinutes = Math.round(ms / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours < 1) return `About ${totalMinutes} minute${totalMinutes === 1 ? "" : "s"} remaining`;
+  if (minutes === 0) return `About ${hours} hour${hours === 1 ? "" : "s"} remaining`;
+  return `About ${hours} hour${hours === 1 ? "" : "s"} ${minutes} minute${minutes === 1 ? "" : "s"} remaining`;
+}
+
 const MILESTONES: MilestoneDef[] = [
   {
     id: "plan",
@@ -278,7 +293,9 @@ export function GenerationStage({
                     <span className={`step-tag tag--${stepStatus}`}>{timeText}</span>
                   </div>
                   <p className="step-desc">{descText}</p>
-
+                  {isWorking && idx === activeIndex && typeof view.estimatedRemainingMs === "number" && (
+                    <p className="step-estimate">{formatEstimatedTimeRemaining(view.estimatedRemainingMs)}</p>
+                  )}
                 </div>
               </div>
             );

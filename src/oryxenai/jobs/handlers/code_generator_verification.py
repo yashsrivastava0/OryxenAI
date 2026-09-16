@@ -6,6 +6,7 @@ import base64
 import hashlib
 import json
 import secrets
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -130,12 +131,59 @@ class CodeGeneratorVerificationHandler:
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         del instance_id
+        stage_started_monotonic = time.monotonic()
         result = await _execute(
             payload,
             model_factory=self._model_factory,
             runtime_verifier_factory=self._runtime_verifier_factory,
             storage_factory=self._storage_factory,
         )
+        # Best-effort, non-blocking: record this attempt's whole verify-stage
+        # wall time (admission through build/repair/promotion, matching the
+        # same scope `settings.worker.job.kind_timeouts
+        # ["code_generator.verify_and_preview"]` budgets, per its own
+        # config comment "clean build + Playwright journeys + repair") under
+        # `stage_durations_ms["verify"]`. Written on both success and
+        # failure so a future VITE_NODE_SPAWN_EPERM diagnostic has the
+        # *previous* attempt's duration available for comparison. Skipped
+        # for "discarded" results (no run found, or a status this handler
+        # declined to act on) and for an already-`ready` run reused without
+        # doing new work — neither represents a real verify attempt, and
+        # recording either would pollute the observed-duration data with a
+        # near-zero no-op elapsed time. A failure to record this must never
+        # affect the real result above.
+        elapsed_ms = max(0.0, (time.monotonic() - stage_started_monotonic) * 1000.0)
+        skip_duration_record = result.get("status") == "discarded" or bool(result.get("reused"))
+        try:
+            verify_run_id = str(
+                payload.get("code_generator_run_id") or payload.get("development_run_id", "")
+            )
+            if verify_run_id and not skip_duration_record:
+                from oryxenai.core.settings import get_settings
+
+                verify_settings = get_settings()
+                verify_sessionmaker = get_sessionmaker(verify_settings)
+                async with verify_sessionmaker() as verify_db:
+                    verify_repo = CodeGeneratorDevelopmentRepository(verify_db)
+                    current_run = await verify_repo.get(UUID(verify_run_id))
+                    if current_run is not None:
+                        existing_durations = getattr(current_run, "stage_durations_ms", None)
+                        merged_durations = (
+                            dict(existing_durations) if isinstance(existing_durations, dict) else {}
+                        )
+                        merged_durations["verify"] = elapsed_ms
+                        await verify_repo.compare_and_swap(
+                            UUID(verify_run_id),
+                            expected_revision=current_run.revision,
+                            values={"stage_durations_ms": merged_durations},
+                        )
+                        await verify_db.commit()
+        except Exception:
+            logger.warning(
+                "verify stage duration could not be recorded run_id=%s",
+                result.get("run_id"),
+                exc_info=True,
+            )
         if result.get("status") in {"needs_attention", "failed"}:
             # Best-effort: preserve whatever source/build tree exists even
             # though this run did not reach a promoted READY state. Never
@@ -158,27 +206,41 @@ class CodeGeneratorVerificationHandler:
                     failure_issues: list[dict[str, Any]] = []
                     failure_projection: dict[str, Any] | None = None
                     failure_terminal: dict[str, Any] | None = None
-                    async with sessionmaker() as db:
-                        repo = CodeGeneratorDevelopmentRepository(db)
-                        current = await repo.get(UUID(run_id))
-                        if current is not None:
-                            failure_issues = [
-                                item.model_dump(mode="json")
-                                if hasattr(item, "model_dump")
-                                else dict(item)
-                                for item in (current.issues or [])
-                                if isinstance(item, dict) or hasattr(item, "model_dump")
-                            ]
-                            failure_projection = (
-                                dict(current.generation_projection)
-                                if isinstance(current.generation_projection, dict)
-                                else None
-                            )
-                            failure_terminal = (
-                                dict(current.terminal_failure)
-                                if isinstance(current.terminal_failure, dict)
-                                else None
-                            )
+                    # This enrichment read is itself best-effort and scoped
+                    # to its own try/except, separate from the export call
+                    # below: it only supplies optional extra context to
+                    # `export_failed_run` (which already defaults each of
+                    # these to empty/None), so a DB failure here — missing
+                    # table, no connection, anything — must degrade to the
+                    # defaults above rather than skip the export entirely.
+                    try:
+                        async with sessionmaker() as db:
+                            repo = CodeGeneratorDevelopmentRepository(db)
+                            current = await repo.get(UUID(run_id))
+                            if current is not None:
+                                failure_issues = [
+                                    item.model_dump(mode="json")
+                                    if hasattr(item, "model_dump")
+                                    else dict(item)
+                                    for item in (current.issues or [])
+                                    if isinstance(item, dict) or hasattr(item, "model_dump")
+                                ]
+                                failure_projection = (
+                                    dict(current.generation_projection)
+                                    if isinstance(current.generation_projection, dict)
+                                    else None
+                                )
+                                failure_terminal = (
+                                    dict(current.terminal_failure)
+                                    if isinstance(current.terminal_failure, dict)
+                                    else None
+                                )
+                    except Exception:
+                        logger.warning(
+                            "failed-run export context could not be read run_id=%s",
+                            run_id,
+                            exc_info=True,
+                        )
                     exported = await export_failed_run(
                         settings=settings,
                         run_id=run_id,
@@ -479,9 +541,7 @@ async def _execute(
                         "context_receipts", []
                     )
                     context_receipts = (
-                        context_receipts_value
-                        if isinstance(context_receipts_value, list)
-                        else []
+                        context_receipts_value if isinstance(context_receipts_value, list) else []
                     )
                     known_context_hashes = {
                         str(item.get("context_hash", ""))
@@ -701,9 +761,7 @@ async def _execute(
                 if advisory not in projection.advisories:
                     projection.advisories.append(advisory)
         blocking_build_diagnostics = (
-            []
-            if preview_first_acceptance and runnable_build
-            else build_diagnostics
+            [] if preview_first_acceptance and runnable_build else build_diagnostics
         )
         build_failed = manifest is None or bool(blocking_build_diagnostics)
         projection.diagnostics.extend(build_diagnostics)
@@ -889,8 +947,7 @@ async def _execute(
         runtime_diagnostics = normalize_findings(runtime_diagnostics)
         if preview_first_acceptance:
             runtime_diagnostics = [
-                item.model_copy(update={"severity": "advisory"})
-                for item in runtime_diagnostics
+                item.model_copy(update={"severity": "advisory"}) for item in runtime_diagnostics
             ]
             blocking_runtime_diagnostics: list[Diagnostic] = []
         else:
@@ -1177,9 +1234,7 @@ async def _execute(
                 if active.public_readback is not None
                 else None
             ),
-            runtime_evidence=[
-                item.model_dump(mode="json") for item in projection.runtime_evidence
-            ],
+            runtime_evidence=[item.model_dump(mode="json") for item in projection.runtime_evidence],
         )
         return {"status": "succeeded", "run_id": str(run_id), "preview_url": active.url}
     except VerificationFailure as exc:
