@@ -582,6 +582,16 @@ async def test_engine() -> AsyncIterator[AsyncEngine]:
     reset_engine_cache()
 
     settings = get_settings()
+    if settings.database.database != "oryxenai_test":
+        raise RuntimeError(
+            "test_engine fixture refused to run: resolved database is "
+            f"{settings.database.database!r}, not the dedicated test database "
+            "'oryxenai_test'. This fixture drops and recreates every table, so "
+            "it will not run against anything else. Set "
+            "OryxenAI_CONFIG_OVERLAY=config/app.test.toml (see config/app.test.toml) "
+            "before running integration/worker tests."
+        )
+
     try:
         engine = get_engine(settings)
         async with engine.connect() as conn:

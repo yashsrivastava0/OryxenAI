@@ -9,6 +9,19 @@ export const generationWorking = {
   progress: { coordinator_stage: "generate", current_attempt: 1, plan_summary: {}, source_summary: {} },
 };
 
+export const generationWorkingWithEstimate = {
+  ...generationWorking,
+  progress: {
+    ...generationWorking.progress,
+    stage_estimate: {
+      elapsed_ms: 184000,
+      estimated_total_ms: 8100000,
+      estimated_remaining_ms: 7916000,
+      source: "configured_budget",
+    },
+  },
+};
+
 export const generationReady = {
   status: "ready",
   active_preview: {

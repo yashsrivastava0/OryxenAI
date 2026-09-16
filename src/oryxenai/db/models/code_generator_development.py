@@ -114,6 +114,9 @@ class CodeGeneratorRun(Base):
     )
     verification_job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     verification_projection: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    stage_durations_ms: Mapped[dict[str, float]] = mapped_column(
+        JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     candidate_artifact: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     pending_promotion: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     active_preview: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)

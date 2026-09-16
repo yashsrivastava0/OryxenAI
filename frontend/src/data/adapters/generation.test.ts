@@ -8,6 +8,7 @@ import {
   generationReady,
   generationStale,
   generationWorking,
+  generationWorkingWithEstimate,
 } from "./generation.fixtures";
 
 describe("adaptCodeGenerator", () => {
@@ -102,6 +103,27 @@ describe("adaptCodeGenerator", () => {
 
   it("fails closed on unknown status", () => {
     expect(adaptCodeGenerator({ status: "future" }, true).state).toBe("unsupported");
+  });
+
+  it("maps progress.stage_estimate into estimatedRemainingMs/estimatedTotalMs/estimateSource", () => {
+    const view = adaptCodeGenerator(generationWorkingWithEstimate, true);
+    expect(view.estimatedRemainingMs).toBe(7916000);
+    expect(view.estimatedTotalMs).toBe(8100000);
+    expect(view.estimateSource).toBe("configured_budget");
+  });
+
+  it("leaves estimate fields undefined when progress exists but stage_estimate is absent", () => {
+    const view = adaptCodeGenerator(generationWorking, true);
+    expect(view.estimatedRemainingMs).toBeUndefined();
+    expect(view.estimatedTotalMs).toBeUndefined();
+    expect(view.estimateSource).toBeUndefined();
+  });
+
+  it("leaves estimate fields undefined when no progress object exists at all", () => {
+    const view = adaptCodeGenerator(generationNotStarted, true);
+    expect(view.estimatedRemainingMs).toBeUndefined();
+    expect(view.estimatedTotalMs).toBeUndefined();
+    expect(view.estimateSource).toBeUndefined();
   });
 });
 
