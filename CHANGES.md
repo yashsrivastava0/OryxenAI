@@ -11,6 +11,24 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-16 11:10 +05:30 — Claude Code (Sonnet 5) — [9d2aa0b] — Commit stage-duration tracking, diagnostic context, and stale-stage navigation fix
+
+Committed the `.kiro` "code-generator-reliability-and-preview-integration"
+session's finished, tested work (tasks 1-11), which had been sitting
+uncommitted since 2026-09-15: per-stage duration recording on
+`code_generator_runs` (migration 0024), concurrent-process-count/prior-
+duration context on the `VITE_NODE_SPAWN_EPERM` diagnostic, a backend-only
+`stage_estimate` in `CodeGeneratorService.get_state()` sourced only from
+observed durations or `config/app.toml` budgets, and its frontend rendering.
+Also included an out-of-band `tests/conftest.py` guard (hard-fails
+`test_engine` against any database but `oryxenai_test`) and a fix for
+`AppShell.tsx`'s `refetchCurrentSession`, which had no forward-correction
+branch and left a session with already-approved stages frozen on stale
+Discovery content after a fresh `/app` load. Live end-to-end verification
+(the spec's tasks 12-13) remains blocked/incomplete from the prior session.
+Verified: 427 code-generator unit tests, 19 integration tests (real
+PostgreSQL), 131 frontend tests, tsc/ruff/mypy all pass.
+
 ### 2026-09-15 00:00 +05:30 — Codex (GPT-5) — [93cc34e] — Add beginner Azure deployment strategy
 
 Added the requested `doc/deployment strategy/` operator pack covering the
@@ -196,59 +214,14 @@ implementation-reference images for the Code Generator: split activity and
 composer workspace, bounded live preview while working, and preserved-preview
 attention recovery. Existing reference images were left unchanged.
 
-### 2026-09-13 19:56 +05:30 — Codex (GPT-5) — [15450bf] — Discovery question research handoff, evidence copies, and visual references
-
-Added the self-contained Discovery question research pack with forensic findings, official accessibility/form guidance, MCQ/free-text contracts, evidence mapping, implementation routing, two byte-for-byte screenshot copies, and two new UI references. Existing Code Generator visual files were preserved unchanged.
-
-### 2026-09-13 18:20 +05:30 - Codex (GPT-5) - [0e2b303] - stylesheet fallback for completed auth restore
-
-Added a cache-safe product-shell stylesheet that hides the temporary auth
-progress banner when the pending state clears or the Preact workspace mounts,
-covering partial/stale bootstrap paths that can otherwise leave the banner
-above a fully loaded stage.
-
-### 2026-09-13 18:14 +05:30 - Codex (GPT-5) - [f74d145] - hide completed auth bootstrap banner
-
-Fixed the successful `/app` restore path so the temporary “Restoring your
-workspace” progress banner is hidden once the authenticated workspace is
-ready, while retaining the existing accessible recovery behavior.
-
-### 2026-09-13 18:09 +05:30 - Codex (GPT-5) - [fd127de] - auth bootstrap timeout and recovery state
-
-Bound browser session restoration so a stalled Supabase/session/API check
-cannot leave `/app` on the initial "Restoring your workspace" progress copy
-forever. Auth runtime-load failures and unexpected bootstrap rejections now
-reveal a safe recovery message while preserving the existing session; added a
-regression test for a never-resolving session restore.
-
-### 2026-09-13 17:55 +05:30 — Antigravity (Gemini 3.8) — [aeb0fef] — frontend visual overhaul: full editorial parity with visual design references
-
-Overhauled the studio shell and stage components to match 100% of the 12 reference mockups (`docs/Fix Frontend/visuals/`). Removed conflicting 240px left activity rail, nested grids, and cramped columns in favor of a centered Swiss-editorial canvas (`#FBF9F5` warm paper, `#171A19` deep ink, `#1A56DB` cobalt accent, Newsreader serif headings). Centered the horizontal 5-stage stepper (`StageNavigator`) in the topbar, added in-flow `StageContextStrip`, implemented sticky glassmorphic `ActionDock` with step guidance and primary/secondary actions, and created slide-over `OutputInspector`. Fully modernized Discovery intake (`02`) with 3 starter prompt cards and live word counter, Discovery review (`03`) with 3-column key details and inline revision composer, Content review (`04`) with route tabs and section cards, Design storyboard (`05`) with 4 intent cards and SVG scene banners, Build Preparation (`06`) with 4 KPI cards and geometric evidence tiles, and Generation (`07`-`09`) with handoff summary, 5-phase pipeline, 5 semantic milestones, and preserved preview. Passes all 19 frontend Vitest test suites (114 tests) and TypeScript type checks with 0 errors.
-
-### 2026-09-13 15:20 +05:30 - Codex (GPT-5) - [bfea878] - frontend remediation: centered stage shell, safe handoffs, and responsive review states
-
-Implemented the Fix Frontend handoff in the existing Preact/TypeScript/Vite
-product shell. Added the centered five-stage journey/canvas composition with
-compact tablet/mobile stage selection, labeled intake/answer/revision
-composers, committed-approval then explicit destination-specific next-stage
-starts, server-driven job/retry projection, safe async attention states,
-metadata-only Build Preparation resource evidence, and a developer-only
-closed-by-default Output Inspector. Removed the creator topbar reset while
-retaining the admin account action and `/admin` access. Added Playwright
-viewport fixtures using the existing dependency; visual reference files were
-not changed.
-
-### 2026-09-12 18:45 +05:30 — Codex (configured runtime) — [df96f4d] — frontend remediation handoff detail and admin reference
-
-Extended `docs/Fix Frontend/` with explicit input/composer and destination-specific next-agent controls, partial-approval recovery guidance, administrator console specification, screen-to-source implementation map, admin evidence routing, responsive/admin acceptance checks, deferred enhancement notes, and the new `visuals/12-admin-control-center.png` reference. The original eleven visuals remain unchanged; no application source or unrelated worktree changes were modified.
-
-### 2026-09-12 18:24 +05:30 — Codex (configured runtime) — [7aa452b] — frontend remediation research pack, evidence map, screen references
-
-Created `docs/Fix Frontend/` as a self-contained implementation handoff for the audited frontend remediation: root-cause analysis, FE-001–FE-020 evidence mapping, runtime/API contract diagnosis, screen and component specifications, responsive/accessibility rules, acceptance matrix, implementation runbook, and eleven generated UI reference images. No application code, authentication boundary, CSP, or unrelated worktree changes were modified.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-13 — [15450bf] — Discovery question research handoff, evidence copies, and visual references.
+- 2026-09-13 — [0e2b303, f74d145, fd127de] — Auth bootstrap timeout/recovery state and completed-restore banner fixes.
+- 2026-09-13 — [aeb0fef] — Frontend visual overhaul: full editorial parity with the 12 visual design references (D-095 lineage).
+- 2026-09-13 — [bfea878] — Frontend remediation: centered stage shell, safe handoffs, responsive review states.
+- 2026-09-12 — [df96f4d, 7aa452b] — Authored the `docs/Fix Frontend/` remediation research pack, evidence map, and screen references.
 - 2026-09-11 — [pending commit] — Kiro: full frontend visual/UX revamp (D-095) — unified stage handoffs, curated per-stage views, theater-mode Generate & Preview, design-token/motion foundation, auth-page parity. Still uncommitted as of 2026-09-14.
 - 2026-09-11 — [now committed as a0cae30 on 2026-09-14] — Kiro: made native Code Generator acceptance preview-first (D-094); closed the live campaign at 2/4 with a browser-verified `ready` preview.
 - 2026-09-11 — [c8c9333] — Fixed Visual Design Director's recurring MODEL_OUTPUT_INVALID by inlining the missing content_ref rule for single-route pages.
@@ -308,7 +281,7 @@ Created `docs/Fix Frontend/` as a self-contained implementation handoff for the 
 
 ---
 
-## Summary (as of last compaction — 2026-09-14)
+## Summary (as of last compaction — 2026-09-16)
 
-- Recent detailed entries retained: 18
-- Compacted milestone bullets: 38
+- Recent detailed entries retained: 20
+- Compacted milestone bullets: 43
