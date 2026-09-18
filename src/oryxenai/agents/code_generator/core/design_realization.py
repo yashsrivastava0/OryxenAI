@@ -15,6 +15,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     RegionRuntimeCheckV1,
     ResourceRuntimeCheckV1,
 )
+from oryxenai.agents.code_generator.core.image_policy import required_image_placements
 
 
 def _policy_image_obligations(
@@ -23,6 +24,14 @@ def _policy_image_obligations(
     route_id: str,
     image_policy: ImagePolicySnapshotV1 | dict[str, Any] | None,
 ) -> list[Any]:
+    """Return this route's share of the site-wide required image placements.
+
+    Selection is site-wide (via `required_image_placements`), then filtered
+    to this route; a route with no required placement legitimately has none,
+    but an infeasible site-wide policy raises `ImagePolicyError` rather than
+    silently returning an empty obligation list for every route.
+    """
+
     if image_policy is None:
         return []
     policy = (
@@ -30,28 +39,8 @@ def _policy_image_obligations(
         if isinstance(image_policy, ImagePolicySnapshotV1)
         else ImagePolicySnapshotV1.model_validate(image_policy)
     )
-    if policy.text_only_exemption:
-        return []
-    approved = set(policy.approved_image_slot_ids)
-    route_placements = []
-    seen_slot_ids: set[str] = set()
-    for item in blueprint.resource_placements:
-        if item.route_id != route_id or item.resource_slot_id not in approved:
-            continue
-        if item.resource_slot_id in seen_slot_ids:
-            continue
-        seen_slot_ids.add(item.resource_slot_id)
-        route_placements.append(item)
-    if not route_placements:
-        return []
-    target_route = policy.primary_route_id or route_id
-    if route_id != target_route:
-        return []
-    required_count = max(
-        1 if policy.require_primary_route_image else 0,
-        policy.minimum_visible_images,
-    )
-    return route_placements[:required_count]
+    required = required_image_placements(blueprint.resource_placements, policy)
+    return [item for item in required if item.route_id == route_id]
 
 
 def _acquired_local_paths_by_slot(
