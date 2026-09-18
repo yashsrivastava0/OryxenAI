@@ -1503,3 +1503,122 @@ async def test_attempt_repair_stops_repeated_diagnostic_group_at_ceiling(
     assert projection.active_gate == "dom_runtime"
     assert projection.repair_rounds == 3
     assert _reconstruct_repair_unit_counts(projection.repair_receipts) == {"dom_runtime": 3}
+
+
+async def test_preview_first_acceptance_does_not_promote_a_source_contract_failure(
+    db_session, tmp_path, monkeypatch
+) -> None:
+    """T04/F03 regression: preview_first_acceptance must never downgrade a
+    required source-contract diagnostic to advisory and promote a broken
+    candidate. Before the D-094 supersession fix, this exact scenario
+    (preview_first_acceptance=True, a real blocking source diagnostic, and a
+    repair that cannot correct it) reached `ready` with a certified but
+    functionally broken candidate; it must now stop at `needs_attention`
+    without ever reaching the build/runtime stages.
+    """
+
+    settings = get_settings()
+    settings.code_generator_development.input_root = str(tmp_path / "inputs")
+    settings.code_generator_generation.workspace_root = str(tmp_path / "workspaces")
+    settings.code_generator_generation.checkpoint_root = str(tmp_path / "checkpoints")
+    settings.code_generator_acquisition.materials_root = str(tmp_path / "materials")
+    settings.code_generator_dependencies.workspaces_root = str(tmp_path / "dependencies")
+    settings.code_generator_verification.preview_root = str(tmp_path / "preview")
+    settings.code_generator_verification.preview_base_url = "http://127.0.0.1:4174/preview"
+    settings.code_generator_verification.preview_parent_origin = "http://test"
+    settings.code_generator_verification.preview_first_acceptance = True
+    settings.code_generator_generation.max_repair_rounds_total = 1
+    settings.code_generator_generation.max_repair_rounds_per_unit = 1
+
+    adapter = DevelopmentInputAdapter(settings)
+    reference = adapter.from_fixture("privacy-safe-v3")
+    receipt, projections = adapter.admit(reference)
+    repository = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repository.create(
+        input_reference=reference.model_dump(mode="json"), idempotency_key=None
+    )
+    plan = _plan()
+    plan.routes[0].section_ids = ["home:hero", "home:project"]
+    plan.work_graph.units[1].section_ids = ["home:hero", "home:project"]
+    workspace = GenerationWorkspace.open(
+        settings, run_id=str(run.id), admitted_identity=receipt.admitted_identity
+    )
+    from oryxenai.agents.code_generator.core.source_manifest import materialize_trusted_manifests
+
+    materialize_trusted_manifests(workspace, projections, plan)
+    # The build/browser stages must never even be reached in this test; a
+    # trivial route file is enough since validate_final_source is forced
+    # (below) to report a blocking diagnostic regardless of its content.
+    route_file = workspace.repo_dir / "src" / "routes" / "home" / "index.tsx"
+    route_file.parent.mkdir(parents=True, exist_ok=True)
+    route_file.write_text(
+        "export default function RoutePage() { return <main />; }\n", encoding="utf-8"
+    )
+    checkpoint = CheckpointStore(workspace, generation_id=str(run.id)).accept(
+        work_unit_id="phase4-source"
+    )
+    generation = GenerationProjection(
+        generation_id=f"generation-{run.id}",
+        input_receipt_hash=receipt.admitted_identity,
+        site_plan_hash="plan-hash",
+        phase="source_ready",
+        accepted_checkpoint=checkpoint,
+        source_ready=True,
+        work_units=[_unit_projection_dict(unit) for unit in plan.work_graph.units],
+    )
+    updated = await repository.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={
+            "status": "source_ready",
+            "plan": plan.model_dump(mode="json"),
+            "planner_receipt": {"plan_hash": "plan-hash"},
+            "input_receipt": receipt.model_dump(mode="json"),
+            "resource_ledger": projections["resources/ledger.json"],
+            "dependency_ledger": {"receipts": [], "dependency_ledger_hash": ""},
+            "generation_projection": generation.model_dump(mode="json"),
+            "source_checkpoint": checkpoint.model_dump(mode="json"),
+        },
+    )
+    assert updated is not None
+    await db_session.commit()
+
+    from oryxenai.agents.code_generator.core.final_repair import FinalRepairer, FinalRepairError
+
+    async def always_cannot_complete(self, **_kwargs):
+        raise FinalRepairError(
+            "REPAIR_NO_SOURCE_CHANGE",
+            "The repair operation did not return a bounded source correction.",
+        )
+
+    monkeypatch.setattr(FinalRepairer, "repair", always_cannot_complete)
+
+    import oryxenai.jobs.handlers.code_generator_verification as cgv_module
+
+    forced_diagnostic = Diagnostic(
+        diagnostic_id="diagnostic-forced-source-contract-break",
+        group="source_contract",
+        code="SOURCE_REQUIRED_CONTENT_MISSING",
+        phase="source_contract",
+        normalized_message="Forced regression diagnostic: required content is missing.",
+        fingerprint="fingerprint-forced-source-contract-break",
+    )
+    monkeypatch.setattr(
+        cgv_module, "validate_final_source", lambda *args, **kwargs: [forced_diagnostic]
+    )
+
+    storage = MemoryPreviewStorage()
+    result = await CodeGeneratorVerificationHandler(
+        model_factory=lambda _profile: _UnexpectedRepairModel(),
+        storage_factory=lambda _settings: storage,
+    ).execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "needs_attention", result
+    assert result.get("code") == "SOURCE_CONTRACT_FAILED", result
+
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert refreshed.status == "needs_attention"
+    assert refreshed.active_preview is None
+    assert refreshed.pending_promotion is None
