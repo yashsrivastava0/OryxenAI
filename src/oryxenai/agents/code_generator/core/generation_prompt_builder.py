@@ -27,7 +27,7 @@ _VERSIONS = {
     "route_compose": "code_generator.route_compose.v8",
     "integrate": "code_generator.integrate.v6",
     "integration_review": "code_generator.integration_review.v1",
-    "repair": "code_generator.repair.v8",
+    "repair": "code_generator.repair.v9",
 }
 _FILES = {
     "director": "director.md",
