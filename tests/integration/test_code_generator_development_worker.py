@@ -446,3 +446,101 @@ async def test_pinned_candidate_failure_with_no_fallback_still_hard_fails(
     assert refreshed is not None
     await db_session.refresh(refreshed)
     assert refreshed.issues[0]["code"] == "REQ_REQUIRED_PROVIDER_UNAVAILABLE"
+
+
+@pytest.mark.integration
+async def test_expired_searched_candidate_falls_back_to_next_ranked_alternate(
+    db_session, tmp_path
+) -> None:
+    """T03/F-series regression: when there is no Build Preparation pin at
+    all (a pure live-search request), the top-ranked candidate's materialize
+    failure must not end the request immediately -- the remaining
+    policy-approved candidates from the same search are tried in ranked
+    order before the request falls through to its fallback/reject handling.
+    """
+    settings = get_settings()
+    settings.code_generator_acquisition.materials_root = str(tmp_path / "materials")
+    settings.code_generator_dependencies.workspaces_root = str(tmp_path / "workspaces")
+    run = await _create_run(db_session, settings, _plan(resource_slot=False))
+
+    request = ResourceRequest(
+        request_id="deferred-hero-image",
+        based_on=RequestBasis(input_receipt_hash="input-hash", site_plan_hash="plan-hash"),
+        origin=RequestOrigin(work_unit_id="foundation", origin_kind="initial_gap"),
+        category="image",
+        placement=ResourcePlacement(route_id="home", purpose="editorial hero image"),
+        why_existing_is_insufficient="No existing binding satisfies this slot.",
+        query=ResourceQuery(positive_terms=["editorial", "hero"]),
+        technical_constraints=ResourceTechnicalConstraints(),
+        source_constraints=ResourceSourceConstraints(),
+        requiredness="preferred",
+        fallback=ResourceFallback.model_validate(
+            {"kind": "generated_local", "implementation": "decorative panel"}
+        ),
+        affected_work_unit_ids=["foundation"],
+    )
+
+    registry = OfflineResourceProviderRegistry()
+    # Ranks first: exact metadata overlap with the request's positive terms.
+    top_ranked = ResourceCandidate(
+        candidate_id="top-ranked-expired",
+        provider_key="fixture",
+        provider_resource_id="top-ranked-expired",
+        category="image",
+        title="Editorial hero image",
+        tags=["editorial", "hero"],
+        canonical_source="fixture://top-ranked-expired",
+        licence="Fixture License",
+        attribution="Fixture",
+        vendoring_policy="download and vendor",
+    )
+    # Ranks second: weaker metadata overlap, but still policy-approved.
+    next_ranked = ResourceCandidate(
+        candidate_id="next-ranked-alternate",
+        provider_key="fixture",
+        provider_resource_id="next-ranked-alternate",
+        category="image",
+        title="Editorial image",
+        tags=["editorial"],
+        canonical_source="fixture://next-ranked-alternate",
+        licence="Fixture License",
+        attribution="Fixture",
+        vendoring_policy="download and vendor",
+    )
+    registry.register(top_ranked, _png())
+    registry.register(next_ranked, _png())
+
+    materialize_attempts: list[str] = []
+
+    class ExpiredFirstCandidateAdapter(ImageAdapter):
+        async def materialize(self, candidate, request, *, storage_root, settings):
+            materialize_attempts.append(candidate.candidate_id)
+            if candidate.candidate_id == "top-ranked-expired":
+                raise ResourceProviderError(
+                    "the signed download URL has expired", provider="fixture"
+                )
+            return await super().materialize(
+                candidate, request, storage_root=storage_root, settings=settings
+            )
+
+    with patch(
+        "oryxenai.jobs.handlers.code_generator._build_initial_requests",
+        return_value=([request], {}),
+    ):
+        handler = CodeGeneratorAcquisitionHandler(
+            adapter_factory=lambda _settings: {
+                **default_adapters(registry=registry),
+                "image": ExpiredFirstCandidateAdapter(registry=registry),
+            }
+        )
+        result = await handler.execute({"development_run_id": str(run.id)}, "test-worker")
+
+    assert result["status"] == "succeeded"
+    assert materialize_attempts == ["top-ranked-expired", "next-ranked-alternate"]
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    receipts = refreshed.resource_ledger["receipts"]
+    assert len(receipts) == 1
+    assert receipts[0]["disposition"] == "admitted"
+    assert receipts[0]["selected_candidate_id"] == "next-ranked-alternate"
