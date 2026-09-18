@@ -11,6 +11,29 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [pending] — T09 live campaign attempt 1: environment fixes and a real content-generation finding
+
+Ran the first attempt of the docs/code-generator-repair-plan-2026-09-16.md
+T09 live campaign (user-authorized, real model spend) against pack
+`604405bb`. Diagnosed and fixed local environment blockers unrelated to the
+repair plan itself: stale multi-day-old dev processes occupying port 8000,
+`Start-Process`-spawned background windows resolving `node`/`npm` from a
+different environment than an interactive shell (making toolchain-preflight
+falsely report `node: false`), and a genuine `dependency_manager.py` lockfile
+defect where `npm install --package-lock-only --offline` can produce a
+lockfile with blank `version` fields for `@tailwindcss/oxide`'s nested
+optional multi-platform dependencies, which a later strict `npm ci --offline`
+then rejects. Traced a subsequent `SOURCE_REPAIR_EXHAUSTED` failure to a
+real, evidenced content-generation finding: the model declined to write an
+array-heavy content section (multiple experience entries) citing "no
+materialized runtime approved content values," even though the intentional
+`contentValue(id)` type-excerpt pattern (documented in `route_batch.md`)
+supplies every valid literal ID for exactly this purpose. Full narrative,
+evidence, and follow-ups in
+`docs/code-generator-repair-plan-campaign-2026-09-18.md`. Reverted the
+temporary `allow_network_install=true` diagnostic override and stopped the
+native stack cleanly. 1 of 5 campaign attempts consumed; attempts 2-5 remain.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [c3cfe3a] — Fix test_service.py module collision blocking a full-suite run
 
 Running the whole `tests/unit` tree in one `pytest` invocation (as the
