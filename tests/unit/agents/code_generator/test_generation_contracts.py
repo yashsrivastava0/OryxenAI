@@ -394,7 +394,24 @@ def test_repair_prompt_treats_unlisted_quality_findings_as_binding() -> None:
     assert "requested_outcome" in instructions
     assert "JSX/HTML source order is authoritative" in instructions
     assert "`order` rule alone does not repair" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.repair.v8"
+    assert receipt.prompt_versions["operation"] == "code_generator.repair.v9"
+
+
+def test_repair_prompt_forbids_hiding_the_evidence_of_a_failure() -> None:
+    """T05 (docs/code-generator-repair-plan-2026-09-16.md): a repair call
+    must never be told (or allowed to infer) that deleting/hiding a broken
+    image, removing a failed interaction's marker, or fabricating missing
+    text is a valid way to make a diagnostic stop firing."""
+
+    _system, instructions, _receipt = build_instructions(
+        "repair",
+        {"context_receipt_hash": "context"},
+    )
+
+    assert "Missing approved text cannot be fabricated" in instructions
+    assert "A broken image cannot be fixed by deleting its wrapper" in instructions
+    assert "cannot be fixed by removing its required" in instructions
+    assert "data-interaction-id" in instructions
 
 
 def test_final_repair_prompt_forbids_acceptance_after_a_failed_gate() -> None:

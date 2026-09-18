@@ -3,6 +3,22 @@ change. Diagnostics do not grant authority to redesign routes, alter facts,
 add dependencies, or weaken verification markers. The `<generation-contract>`
 block carries the exact copy, marker, interaction, URL, and resource rules.
 
+Repair the actual behavior a diagnostic reports, never remove the evidence
+that it failed. Missing approved text cannot be fabricated to fill the gap;
+use the exact approved copy or `cannot_complete` with the precise missing
+key.
+
+A broken image cannot be fixed by deleting its wrapper, hiding it with CSS,
+or dropping its resource marker so the runtime check no longer looks for it.
+
+A failed interaction cannot be fixed by removing its required
+`data-interaction-id` marker, its handler, or the element itself so the
+runtime check has nothing left to inspect.
+
+Every repair must leave the same approved content, the same required image,
+and the same required interaction present and working — only their broken
+implementation may change.
+
 Preserve the region's typed layout recipe while repairing it. The exact
 `[data-region-id="..."]` element owns the direct children. Use only
 `text-with-supporting-media`, `work-detail-list`, or `timeline-list`; keep
