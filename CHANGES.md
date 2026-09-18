@@ -11,6 +11,25 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [a64003a] — Fetch Code Generator state only when relevant (T07, F04)
+
+`AppShell.tsx`'s `refetchCurrentSession` fetched `getCodeGenerator`
+unconditionally alongside every other stage, so the backend's correct
+409 `ENTITLEMENT_BINDING_CONFLICT` for a not-yet-reachable Code
+Generator stage made the entire refetch report connection state
+"stale" for any session still in Discovery/Content/Design/Prepare —
+reproduced live in the prior session's walkthrough (ISSUE-01: console
+errors; ISSUE-02: a user-visible "latest check did not complete"
+banner right after Content Architect approval). Now fetches Code
+Generator only once Build Preparation is approved, or when a
+session-keyed ref shows generation was already started for this exact
+session (so a momentarily-stale upstream response can't hide an
+existing preview); connection freshness is computed only from requests
+actually attempted. Extracted the decision into a new pure, exported
+`shouldFetchGenerationState()`, matching the existing
+`resolveInitialStage()` testability pattern. Verified: 136 frontend
+tests (5 new), tsc clean, production build succeeds.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [9270762] — Forbid hiding failure evidence in the repair prompt (T05)
 
 Investigated T05 of `docs/code-generator-repair-plan-2026-09-16.md`
@@ -229,30 +248,11 @@ Each example opens a local native-dialog portfolio preview without authenticatio
 with an explicit path back to creating a portfolio. Added responsive styling,
 keyboard dismissal/focus restoration, and API coverage for the public markup.
 
-### 2026-09-14 11:15 +05:30 — Antigravity (Gemini 3.8) — [e53ebfb] — Administrator control plane matching reference specifications 12 and 18–24
-
-Implemented the role-gated administrator control plane at `/admin` matching `17-admin-screen-reference-spec.md` and 8 visual references (`12-admin-control-center.png` and `18-admin-users-ledger.png` through `24-admin-action-confirmation.png`):
-- Pinned topbar with live session indicator, workspace link, refresh, sign-out, and monogram administrator badge.
-- Editorial header with live announcement region and safe account details card.
-- Six-tab navigation strip (`Users`, `Projects`, `Legacy`, `Deleted`, `Operations`, `Audit`) with active indicators.
-- Four summary metric cards (`Active users`, `Projects`, `Running jobs`, `Pending operations`) populated via `GET /api/v1/admin/summary`.
-- High-fidelity ledgers with status pills (`● Active`, `● Running`, `● Paused`, `● Complete`, `● Failed`), role badges, safe date formatting, and legal action clusters.
-- Prominent Deletion Boundary warning banner for deleted identity tombstones with authorized readmission gating.
-- Operations ledger exposing `Resume safely` strictly when `resumable: true`.
-- Strictly read-only Audit Trail ledger with zero mutation affordances.
-- Accessible typed confirmation modal (`<dialog>`) with backdrop blur, dynamic action badge/title, exact target verification, optional reason field, and idempotency key safety.
-- Passes all 20 auth frontend unit tests and all 76 backend auth unit and API tests.
-
-### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [e37e302] - Deployment setup preflight improvements
-
-Made the deployment wizard derive active model credentials from
-`config/models.toml`, require those keys during setup/doctor, reject example
-hostnames, and recover a stopped Docker daemon through the official install
-path. Documented the database-migration limitation of application rollback.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-14 — [e53ebfb] — Role-gated administrator control plane at `/admin` matching the reference spec and 8 visuals.
+- 2026-09-14 — [e37e302] — Deployment wizard preflight: derive model credentials from config, reject example hostnames, recover stopped Docker.
 - 2026-09-14 — [88ba402] — Simple beginner-friendly Azure VM deployment contract (`azure-deploy.sh`, Compose, Caddy).
 - 2026-09-13 — [cdac290] — Discovery question experience redesign to full visual-reference parity.
 - 2026-09-13 — [f003023] — Code Generator split control room, preview theater, and traceability drawer.
@@ -323,5 +323,5 @@ path. Documented the database-migration limitation of application rollback.
 
 ## Summary (as of last compaction — 2026-09-18)
 
-- Recent detailed entries retained: 18
-- Compacted milestone bullets: 47
+- Recent detailed entries retained: 19
+- Compacted milestone bullets: 49
