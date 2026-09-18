@@ -11,6 +11,27 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [no code change] — Verified T08 portable exports against a real build (docs/code-generator-repair-plan-2026-09-16.md)
+
+Verified T08's export contract directly against a real, test-generated
+export (`output/code-gen-output/15-10-18-09-2026-a6fea704`, a synthetic
+fixture build with no real user data): copied `source/` to a fresh
+temp directory with no `node_modules`, ran `npm ci` from the committed
+`package-lock.json`, `npm run check` (source audit + typecheck), and
+`npm run build` — all succeeded independently with zero references
+back into this repository. Served the built `dist/` with
+`scripts/preview-codegen-export.py`: root URL, a static asset, and a
+nested SPA route all returned 200 with real content; a missing asset
+correctly returned a real 404 body instead of the SPA HTML fallback.
+Confirmed no local absolute paths or credentials in the exported
+source or `portfolio.json` (one grep hit was a false positive — a
+`../routes/home/index` import path, not a leaked filesystem path).
+Confirmed `ResourceUrl.ts` resolves all asset/route URLs from
+`document`/`window.location` only, with no application API or database
+dependency. Found no gap requiring a code change; the existing
+`portfolio_export.py`/scaffold README/package.json contract already
+satisfies the plan's Definition of Done for this item.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [a64003a] — Fetch Code Generator state only when relevant (T07, F04)
 
 `AppShell.tsx`'s `refetchCurrentSession` fetched `getCodeGenerator`
