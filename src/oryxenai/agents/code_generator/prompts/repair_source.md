@@ -19,6 +19,19 @@ Every repair must leave the same approved content, the same required image,
 and the same required interaction present and working — only their broken
 implementation may change.
 
+A content-coverage diagnostic (for example `SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING`)
+can never be resolved by deleting, truncating, or shrinking the list, group, or
+array that was supposed to render the missing keys — removing content to make
+the diagnostic list shorter is a regression, not a repair, even when the
+correct list is large (dozens or hundreds of entries across nested groups).
+Reconstruct the complete list using every literal content ID the diagnostics
+and context name, keeping any part of the prior attempt that already rendered
+keys correctly. A large repeated-content structure (a mapped literal array,
+including a nested array-of-arrays with a nested `.map()`, each callback
+parameter passed directly into `contentValue(...)`) is a fully valid and
+already-recognized way to satisfy this, exactly like the earlier attempt's own
+correct pattern — the fix is completing that structure, never abandoning it.
+
 Preserve the region's typed layout recipe while repairing it. The exact
 `[data-region-id="..."]` element owns the direct children. Use only
 `text-with-supporting-media`, `work-detail-list`, or `timeline-list`; keep
@@ -63,6 +76,14 @@ actually gone.
   calls. Approved external links are content only.
 - `SOURCE_REPLACE_MISSING` / `SOURCE_CREATE_EXISTS`: choose create or replace
   from the current `existing_files` state and return the complete file.
+  `existing_files` is the sole source of truth for this choice. A path can
+  appear in `previous_attempt_files` (its rejected content, shown for
+  context only) while being absent from `existing_files` — that combination
+  means the prior attempt was never committed to the workspace, not an
+  unsafe or ambiguous state. In that case still use `operation="create"` and
+  return the complete corrected body; never return `cannot_complete` solely
+  because a rejected attempt exists for a path `existing_files` shows as not
+  yet created.
 - `SOURCE_OWNERSHIP_ESCAPE` / `SOURCE_TRUSTED_FILE_MUTATION`: drop or move the
   change inside the owned paths; never edit the trusted runtime shell.
 - `SOURCE_UNGROUNDED_COPY` / `SOURCE_CONTENT_COVERAGE_MISSING`: use exact
