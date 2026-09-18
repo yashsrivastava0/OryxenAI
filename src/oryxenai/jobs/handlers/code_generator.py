@@ -1048,32 +1048,68 @@ async def _execute_acquisition(
                         resource_receipts.append(receipt)
                         bindings.append(_binding_for(request, receipt))
                         continue
-                    if selector is not None:
-                        selected_id, _ = select_candidate(
-                            request,
-                            filtered,
-                            prefer_model=True,
-                            model_callable=selector,
+                    # An expired or otherwise-unavailable candidate must not
+                    # end the request on its first attempt: try the
+                    # remaining policy-approved candidates deterministically,
+                    # bounded by this exact filtered list, before falling
+                    # through to the request's existing fallback/reject
+                    # handling below.
+                    remaining_candidates = list(filtered)
+                    materialize_error: Exception | None = None
+                    while remaining_candidates:
+                        if selector is not None:
+                            selected_id, _ = select_candidate(
+                                request,
+                                remaining_candidates,
+                                prefer_model=True,
+                                model_callable=selector,
+                            )
+                        elif scout is not None:
+                            selected_id, _ = await select_candidate_with_scout(
+                                scout,
+                                request,
+                                remaining_candidates,
+                                profile_name=str(
+                                    settings.code_generator_acquisition.resource_scout_profile
+                                ),
+                            )
+                        else:
+                            selected_id, _ = select_candidate(request, remaining_candidates)
+                        candidate = next(
+                            item
+                            for item in remaining_candidates
+                            if item.candidate_id == selected_id
                         )
-                    elif scout is not None:
-                        selected_id, _ = await select_candidate_with_scout(
-                            scout,
-                            request,
-                            filtered,
-                            profile_name=str(
-                                settings.code_generator_acquisition.resource_scout_profile
-                            ),
-                        )
-                    else:
-                        selected_id, _ = select_candidate(request, filtered)
-                    candidate = next(item for item in filtered if item.candidate_id == selected_id)
-                    await _validate_worker_payload(sessionmaker, payload)
-                    materialized = await adapter.materialize(
-                        candidate,
-                        request,
-                        storage_root=run_material_root,
-                        settings=settings,
-                    )
+                        await _validate_worker_payload(sessionmaker, payload)
+                        try:
+                            materialized = await adapter.materialize(
+                                candidate,
+                                request,
+                                storage_root=run_material_root,
+                                settings=settings,
+                            )
+                        except (ResourceProviderError, AcquisitionValidationError) as exc:
+                            logger.warning(
+                                "resource candidate failed to materialize; trying the next "
+                                "policy-approved alternate request_id=%s candidate_id=%s "
+                                "reason=%s",
+                                request.request_id,
+                                candidate.candidate_id,
+                                exc,
+                            )
+                            materialize_error = exc
+                            remaining_candidates = [
+                                item
+                                for item in remaining_candidates
+                                if item.candidate_id != candidate.candidate_id
+                            ]
+                            candidate = None
+                            continue
+                        materialize_error = None
+                        break
+                    if candidate is None:
+                        assert materialize_error is not None
+                        raise materialize_error
                 if candidate is None:
                     raise AcquisitionValidationError(
                         "COMPONENT_CANDIDATE_MISSING",
