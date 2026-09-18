@@ -11,6 +11,22 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [b361125] — Retry alternate resource candidates on materialize failure (T03)
+
+Investigated the Code Generator's acquisition-to-render chain per
+`docs/code-generator-repair-plan-2026-09-16.md` T03. Found that only
+the Build-Preparation-pinned candidate path fell back to a fresh live
+search on materialize failure; an ordinary search-based request (no
+pin) picked one ranked candidate and gave up immediately if it failed
+to materialize (expired URL, rejected request), even when other
+policy-approved candidates from the same search existed. Acquisition
+now retries across the same filtered candidate list, deterministically
+excluding each failed candidate, bounded entirely by that one search's
+results — no new network search, no second image client. Reviewed F05
+(images planned without rendering) and found no reproducible gap in
+the existing `LocalImage` binding check. Verified: 441 tests (1 new),
+ruff/mypy clean.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [c617449] — Make Code Generator verified success truthful, supersede D-094 (T04)
 
 Implemented T04 of `docs/code-generator-repair-plan-2026-09-16.md` (F03).
