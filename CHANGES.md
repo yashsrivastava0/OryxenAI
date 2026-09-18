@@ -11,6 +11,28 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [c617449] — Make Code Generator verified success truthful, supersede D-094 (T04)
+
+Implemented T04 of `docs/code-generator-repair-plan-2026-09-16.md` (F03).
+`config/app.native.toml`'s `preview_first_acceptance` flag, as
+implemented, downgraded *all* source-contract, build, and runtime
+diagnostics to advisory when enabled — not only the generated-output
+polish findings D-094 intended — and silently swallowed a
+runtime-verifier exception (zero browser evidence) while still
+promoting the run to `ready` with an `active_preview`. Removed the
+flag's ability to affect blocking status anywhere: source diagnostics
+are always blocking, a non-runnable build always gets its
+`BUILD_ARTIFACT_UNAVAILABLE` diagnostic, a runtime-verifier exception
+now raises `VerificationFailure("RUNTIME_VERIFIER_FAILED", ...)`
+instead of being swallowed, and runtime blocking status always follows
+`effective_finding_severity()`. Set native's `preview_first_acceptance
+= false`, matching every other overlay. The existing unconditional
+unverified-`candidate_preview` path is untouched — a safe-but-unverified
+build stays inspectable but can never reach `ready`. Recorded D-099,
+superseding D-094. Added an integration regression test proving the
+exact previously-broken scenario now stops at `needs_attention`.
+Verified: 458 tests, ruff/mypy clean.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [b087ca3] — Make Code Generator image policy feasible and site-wide (T02)
 
 Implemented T02 of `docs/code-generator-repair-plan-2026-09-16.md`
@@ -195,46 +217,13 @@ Made the deployment wizard derive active model credentials from
 hostnames, and recover a stopped Docker daemon through the official install
 path. Documented the database-migration limitation of application rollback.
 
-### 2026-09-14 00:00 +05:30 - Codex (GPT-5 / OpenAI) - [88ba402] - Simple Azure VM deployment path
-
-Implemented the beginner-friendly Azure deployment contract: one guided
-`azure-deploy.sh` command installs Docker, renders VM-local production config,
-builds exact-commit images, runs migrations, starts health-checked services,
-backs up and rolls back releases, and operates Compose-managed Caddy. Updated
-Compose port binding/logging/healthchecks, production configuration,
-deployment runbooks, AI-assisted operations guidance, and CI validation.
-
-### 2026-09-13 21:40 +05:30 — Antigravity (Gemini 3.8) — [cdac290] — Discovery question experience redesign and local review refactor
-
-Refactored the Discovery interview questioning surface for full parity with design references (`16-discovery-mcq-question.png` and `17-discovery-text-question.png`) and research guidance in `12-discovery-question-experience-research.md`:
-- Replaced unstyled inline controls with full-width interactive selectable cards (`.choice-tile`) for multi-select, single-select, and boolean modes, featuring hover lift, custom indicator icons, and active cobalt selection highlighting (`#f0f5ff` fill with `#1a56db` border).
-- Enforced local selection review for single-select and boolean questions (§2.2): choices update local state and selected styling without triggering immediate network requests; submission requires explicit user activation of `Next question` / `Submit answer`.
-- Implemented editorial layout hierarchy with clean `DISCOVERY` eyebrow, question progress counter, Newsreader serif prompt headline, subtle graphite help reason, and uppercase group cues (`SELECT ALL THAT APPLY`, `SELECT ONE`, `YOUR ANSWER`).
-- Refactored the free-text answer experience into a spacious, rounded composer with focus styling, contextual placeholder, and a real-time `✓ Draft saved` indicator persisted to `safeSessionStorage`.
-- Unified the reserved action dock with high-contrast cobalt `Next question` primary action, in-flight `Saving answer…` state, quiet `Skip question` secondary action, and non-destructive inline error recovery.
-- Scoped live-region accessibility: removed broad `aria-live` from the outer card and introduced a dedicated transition announcer to eliminate repetitive screen-reader announcements during typing or polling.
-- Added browser-test fixtures (`discovery-question-mcq`, `discovery-question-text`, `discovery-question-single`), verified live browser rendering at 1536×695 (zero overflow), and added unit test suite (`ConversationSurface.test.ts`). Passes all 20 frontend Vitest test suites (119 tests) and 158 backend Discovery unit tests.
-
-### 2026-09-13 20:50 +05:30 — Antigravity (Gemini 3.8) — [f003023] — Code Generator split control room, preview theater, and traceability drawer
-
-Implemented full editorial and functional parity with the Code Generator visual specifications (`13-code-generator-preview-workspace.png`, `14-code-generator-preview-working.png`, and `15-code-generator-preview-attention.png`):
-- Split control room layout with 420px activity and composer column on the left and full-width live preview theater on the right.
-- Vertical 5-milestone stepper (`Plan`, `Acquire`, `Build`, `Verify`, `Preview`) supporting `Available`, `Working` (with active progress bar and pulse indicator), `Attention` (with red exclamation badge and stopped milestone status), and `Complete` states.
-- Dedicated desktop-only preview viewport controls per explicit directive, omitting mobile toggle while preserving desktop fit/scale toggles and secure preview framing with status badges (`🛡️ Previous verified preview`, `⚠️ Candidate preview (unverified)`).
-- Preserved-preview Attention Card matching Image 15 with 3 status pillars (*Preview preserved*, *Polling stopped*, *Retry available*), one-click retry, and details trigger.
-- Traceability Pop-Up Drawer: Right-side slide-over drawer exposing session ID, trace ID, active job ID, failed coordinator stage, error codes, specific issue breakdowns, collapsible raw technical JSON, and a prominent one-click "📋 Copy diagnostic report" action formatting a comprehensive Markdown triage bundle for instant developer debugging and traceability.
-- Passes all 20 frontend Vitest test suites (119 tests), Vite production build, and all 410 Code Generator / API backend unit tests.
-
-### 2026-09-13 20:05 +05:30 — Codex (GPT-5) — [ff5acf7] — Code Generator preview theater research and references
-
-Added competitor-informed preview workspace research and three new 16:10
-implementation-reference images for the Code Generator: split activity and
-composer workspace, bounded live preview while working, and preserved-preview
-attention recovery. Existing reference images were left unchanged.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-14 — [88ba402] — Simple beginner-friendly Azure VM deployment contract (`azure-deploy.sh`, Compose, Caddy).
+- 2026-09-13 — [cdac290] — Discovery question experience redesign to full visual-reference parity.
+- 2026-09-13 — [f003023] — Code Generator split control room, preview theater, and traceability drawer.
+- 2026-09-13 — [ff5acf7] — Code Generator preview theater research and reference images.
 - 2026-09-13 — [15450bf] — Discovery question research handoff, evidence copies, and visual references.
 - 2026-09-13 — [0e2b303, f74d145, fd127de] — Auth bootstrap timeout/recovery state and completed-restore banner fixes.
 - 2026-09-13 — [aeb0fef] — Frontend visual overhaul: full editorial parity with the 12 visual design references (D-095 lineage).
@@ -299,7 +288,7 @@ attention recovery. Existing reference images were left unchanged.
 
 ---
 
-## Summary (as of last compaction — 2026-09-16)
+## Summary (as of last compaction — 2026-09-18)
 
-- Recent detailed entries retained: 20
-- Compacted milestone bullets: 43
+- Recent detailed entries retained: 18
+- Compacted milestone bullets: 47
