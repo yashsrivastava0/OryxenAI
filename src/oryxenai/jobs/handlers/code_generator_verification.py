@@ -649,21 +649,12 @@ async def _execute(
         )
         if prior_source_passed:
             source_diagnostics = []
-        if preview_first_acceptance and source_diagnostics:
-            source_diagnostics = [
-                item.model_copy(update={"severity": "advisory"}) for item in source_diagnostics
-            ]
-            for diagnostic in source_diagnostics:
-                advisory = SafeIssue(
-                    code=diagnostic.code,
-                    message=diagnostic.normalized_message[:500],
-                    next_action=(
-                        "Optional generated-source correction; it does not block this preview."
-                    ),
-                )
-                if advisory not in projection.advisories:
-                    projection.advisories.append(advisory)
-        blocking_source_diagnostics = [] if preview_first_acceptance else source_diagnostics
+        # D-094 permitted preview_first_acceptance to downgrade required
+        # source/content/navigation/image bindings to advisories so a build
+        # could still promote to `ready`. That policy is superseded (see
+        # DECISIONS.md): a configuration toggle must never certify a
+        # candidate that fails its required source contract.
+        blocking_source_diagnostics = source_diagnostics
         projection.diagnostics.extend(source_diagnostics)
         projection.gate_results.append(
             GateResult(
@@ -734,7 +725,11 @@ async def _execute(
         runnable_build = manifest is not None and _materialized_manifest_matches(
             workspace.repo_dir / "dist", manifest
         )
-        if preview_first_acceptance and not runnable_build:
+        if not runnable_build:
+            # A missing or incomplete build manifest/artifact closure is a
+            # required blocker regardless of preview_first_acceptance; an
+            # absent diagnostic here must never let an unusable artifact
+            # slip through as `build_failed = False`.
             build_diagnostics.append(
                 Diagnostic(
                     diagnostic_id="diagnostic-build-artifact-unavailable",
@@ -748,21 +743,7 @@ async def _execute(
                     fingerprint=hashlib.sha256(b"build-artifact-unavailable").hexdigest()[:24],
                 )
             )
-        if preview_first_acceptance and runnable_build and build_diagnostics:
-            build_diagnostics = [
-                item.model_copy(update={"severity": "advisory"}) for item in build_diagnostics
-            ]
-            for diagnostic in build_diagnostics:
-                advisory = SafeIssue(
-                    code=diagnostic.code,
-                    message=diagnostic.normalized_message[:500],
-                    next_action="Optional build cleanup; the runnable preview was retained.",
-                )
-                if advisory not in projection.advisories:
-                    projection.advisories.append(advisory)
-        blocking_build_diagnostics = (
-            [] if preview_first_acceptance and runnable_build else build_diagnostics
-        )
+        blocking_build_diagnostics = build_diagnostics
         build_failed = manifest is None or bool(blocking_build_diagnostics)
         projection.diagnostics.extend(build_diagnostics)
         projection.gate_results.append(
@@ -884,29 +865,19 @@ async def _execute(
         except AuthorizationFenceError:
             raise
         except Exception as exc:
-            if not preview_first_acceptance:
-                raise
+            # Absent runtime evidence is a required blocker (D-094
+            # superseded, see DECISIONS.md): a runtime verifier that could
+            # not run must never be treated as a passed gate.
             logger.warning(
-                "preview-first runtime verification unavailable run_id=%s error_type=%s",
+                "runtime verifier failed run_id=%s error_type=%s",
                 run_id,
                 type(exc).__name__,
             )
-            evidence = []
-            runtime_diagnostics = [
-                Diagnostic(
-                    diagnostic_id="diagnostic-runtime-verifier-unavailable",
-                    group="dom_runtime",
-                    code="RUNTIME_VERIFIER_UNAVAILABLE",
-                    severity="advisory",
-                    owner="infrastructure",
-                    phase="dom_runtime",
-                    normalized_message=(
-                        "The runtime verifier could not complete after the built candidate "
-                        "server started; preview-first acceptance retained the runnable preview."
-                    ),
-                    fingerprint=hashlib.sha256(b"runtime-verifier-unavailable").hexdigest()[:24],
-                )
-            ]
+            raise VerificationFailure(
+                "RUNTIME_VERIFIER_FAILED",
+                "The runtime verifier could not complete a required browser smoke test.",
+                owner="infrastructure",
+            ) from exc
         executed_runtime_check_ids = sorted(
             set(profile.runtime_check_ids).union(item.journey_id for item in evidence)
         )
@@ -944,20 +915,19 @@ async def _execute(
                     fingerprint=hashlib.sha256(b"runtime-evidence-empty").hexdigest()[:24],
                 )
             )
+        # A configuration toggle must never make page crashes, broken
+        # images, absent evidence, or unsafe navigation verified (D-094
+        # superseded, see DECISIONS.md). Blocking status always follows the
+        # shared finding-severity classification, regardless of
+        # preview_first_acceptance.
         runtime_diagnostics = normalize_findings(runtime_diagnostics)
-        if preview_first_acceptance:
-            runtime_diagnostics = [
-                item.model_copy(update={"severity": "advisory"}) for item in runtime_diagnostics
-            ]
-            blocking_runtime_diagnostics: list[Diagnostic] = []
-        else:
-            blocking_runtime_diagnostics = [
-                item
-                for item in runtime_diagnostics
-                if effective_finding_severity(item) == "blocking"
-            ]
+        blocking_runtime_diagnostics = [
+            diagnostic
+            for diagnostic in runtime_diagnostics
+            if effective_finding_severity(diagnostic) == "blocking"
+        ]
         for diagnostic in runtime_diagnostics:
-            if preview_first_acceptance or effective_finding_severity(diagnostic) == "advisory":
+            if effective_finding_severity(diagnostic) == "advisory":
                 advisory = SafeIssue(
                     code=diagnostic.code,
                     message=diagnostic.normalized_message[:500],
