@@ -6,9 +6,26 @@ from typing import Any
 
 from oryxenai.agents.code_generator.core.development_schemas import (
     ImagePolicySnapshotV1,
+    ResourcePlacementV4,
     SitePlan,
 )
 from oryxenai.agents.code_generator.core.resource_policy import is_image_category
+
+
+class ImagePolicyError(ValueError):
+    """Raised when no selection can satisfy the approved image policy.
+
+    Carries `.code`/`.message` following this codebase's existing
+    ValueError-subclass convention (`SitePlanValidationError`,
+    `GenerationError`) so callers that catch a broad `Exception` and read
+    `getattr(exc, "code", ...)` still surface the specific contract failure
+    instead of a generic fallback code.
+    """
+
+    def __init__(self, code: str) -> None:
+        self.code = code
+        self.message = code
+        super().__init__(code)
 
 
 def _approved_image_slots(
@@ -126,14 +143,66 @@ def build_image_policy_snapshot(
     primary_has_slot = bool(
         primary_route_id and any(route == primary_route_id for route in slot_routes.values())
     )
+    available_count = len(approved_ids)
+    effective_minimum = min(configured_minimum, available_count)
+    effective_preferred = min(
+        max(configured_preferred, effective_minimum),
+        available_count,
+    )
     return ImagePolicySnapshotV1(
-        minimum_visible_images=configured_minimum,
-        preferred_visible_images=max(configured_preferred, configured_minimum),
+        minimum_visible_images=effective_minimum,
+        preferred_visible_images=effective_preferred,
         require_primary_route_image=configured_primary and primary_has_slot,
         approved_image_slot_ids=approved_ids,
         primary_route_id=primary_route_id,
         text_only_exemption=False,
     )
+
+
+def required_image_placements(
+    placements: list[ResourcePlacementV4],
+    policy: ImagePolicySnapshotV1,
+) -> list[ResourcePlacementV4]:
+    """Select the site-wide set of placements that satisfy the image policy.
+
+    This chooses policy obligations only; it does not validate a placement's
+    route/section authority (blueprint validation already does that) and does
+    not download or otherwise touch resources. The blueprint is immutable
+    after acceptance, so its placement order makes selection deterministic
+    for one run. This deliberately counts distinct approved slot IDs; it does
+    not guarantee distinct photographic bytes, which is a separate
+    acquisition-quality concern.
+    """
+
+    if policy.text_only_exemption:
+        return []
+
+    approved = set(policy.approved_image_slot_ids)
+    eligible = [placement for placement in placements if placement.resource_slot_id in approved]
+    selected: list[ResourcePlacementV4] = []
+    selected_slots: set[str] = set()
+
+    if policy.require_primary_route_image:
+        primary = next(
+            (placement for placement in eligible if placement.route_id == policy.primary_route_id),
+            None,
+        )
+        if primary is None:
+            raise ImagePolicyError("IMAGE_POLICY_PRIMARY_PLACEMENT_MISSING")
+        selected.append(primary)
+        selected_slots.add(primary.resource_slot_id)
+
+    for placement in eligible:
+        if len(selected_slots) >= policy.minimum_visible_images:
+            break
+        if placement.resource_slot_id in selected_slots:
+            continue
+        selected.append(placement)
+        selected_slots.add(placement.resource_slot_id)
+
+    if len(selected_slots) < policy.minimum_visible_images:
+        raise ImagePolicyError("IMAGE_POLICY_SITE_PLACEMENT_MINIMUM_MISSING")
+    return selected
 
 
 def coerce_image_policy(value: Any) -> ImagePolicySnapshotV1 | None:
@@ -152,6 +221,8 @@ def coerce_image_policy(value: Any) -> ImagePolicySnapshotV1 | None:
 
 
 __all__ = [
+    "ImagePolicyError",
     "build_image_policy_snapshot",
     "coerce_image_policy",
+    "required_image_placements",
 ]
