@@ -11,6 +11,23 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [9270762] — Forbid hiding failure evidence in the repair prompt (T05)
+
+Investigated T05 of `docs/code-generator-repair-plan-2026-09-16.md`
+("make smaller-model generation easier to satisfy"). Found
+`generation_prompt_builder.py`'s input-packet/output-acceptance
+machinery already mature (mode enums, receipt hashing, context
+ceilings, prefix-caching key ordering, dozens of specific per-diagnostic
+repair rules refined from real failures) and satisfying most of the
+plan's checklist already. Found one real gap: `repair_source.md` had no
+blanket rule against satisfying a failing check by deleting the broken
+element instead of fixing it. Added explicit rules — missing text
+cannot be fabricated, a broken image cannot be fixed by hiding/deleting
+it, a failed interaction cannot be fixed by removing its marker/handler
+— and bumped the repair prompt version (v8 → v9) so old receipts aren't
+reused under the new contract. Verified: 435 tests (1 new), ruff/mypy
+clean.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [b361125] — Retry alternate resource candidates on materialize failure (T03)
 
 Investigated the Code Generator's acquisition-to-render chain per
