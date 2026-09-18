@@ -11,6 +11,24 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [b087ca3] — Make Code Generator image policy feasible and site-wide (T02)
+
+Implemented T02 of `docs/code-generator-repair-plan-2026-09-16.md`
+(F01/F02). `build_image_policy_snapshot()` now clamps
+`minimum_visible_images`/`preferred_visible_images` to the actual
+approved image slot count at creation, closing an impossible-floor
+bug where a brief with fewer approved slots than the configured
+minimum could never pass planning. Added a shared
+`required_image_placements()` selection helper (raising the new
+`ImagePolicyError`, a `.code`/`.message`-carrying `ValueError`) that
+`design_realization.py` and `final_source_validation.py` both now use
+instead of their own divergent, primary-route-only logic, so an image
+approved on a non-primary route (e.g. a case-study page) is actually
+selected and checked at every stage instead of being silently ignored
+by design realization and masked by final source validation. Added 13
+regression tests. Verified: 434 unit tests, 23 integration/API tests,
+ruff/mypy clean.
+
 ### 2026-09-16 11:10 +05:30 — Claude Code (Sonnet 5) — [9d2aa0b] — Commit stage-duration tracking, diagnostic context, and stale-stage navigation fix
 
 Committed the `.kiro` "code-generator-reliability-and-preview-integration"
