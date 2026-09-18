@@ -11,6 +11,21 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [c3cfe3a] — Fix test_service.py module collision blocking a full-suite run
+
+Running the whole `tests/unit` tree in one `pytest` invocation (as the
+repair plan's verification commands require) failed at collection:
+five different agent test directories each have their own
+`test_service.py`, but `tests/unit/agents/code_generator/` and
+`tests/unit/auth/` were missing the `__init__.py` that the sibling
+agent test directories already have. Added the same empty
+`__init__.py` to both, matching the existing convention. Also
+confirmed (not fixed, unrelated) that 10 other failures — 5
+`test_settings*.py`, 5 `build_preparation` component-retrieval tests —
+are a pre-existing config-overlay/test-invocation mismatch, not a
+regression: both pass cleanly with `OryxenAI_CONFIG_OVERLAY` unset.
+Full `tests/unit` now collects and runs (1176 passed).
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [no code change] — Verified T08 portable exports against a real build (docs/code-generator-repair-plan-2026-09-16.md)
 
 Verified T08's export contract directly against a real, test-generated
@@ -247,31 +262,11 @@ carve-out — a fenced-off run's rejection would have been silently
 swallowed. Added the missing re-raise and two regression tests, since
 `preview_first_acceptance` had zero test coverage before this commit.
 
-### 2026-09-14 11:54 +05:30 — Claude Sonnet 5 — [49d6e0d] — Fail-closed brief ingestion dispatch for post-67d5a75 wire shape
-
-Committed brief-ingestion compatibility work that had been sitting
-reviewed-and-approved but uncommitted since 2026-09-11.
-`brief_ingestion.py::_prepare_brief_indexes` now distinguishes current
-raw, current namespaced, legacy-declared namespaced, and unversioned
-compatibility Build Preparation inputs before applying format-specific
-validation and projection behavior, so old namespaced-plural inputs keep
-their historical topology while current formats get per-route owner
-expansion with synthesized-ID-collision rejection. Adds a privacy-safe
-post-67d5a75 regression fixture
-(`tests/fixtures/code_generator_build_preparation_post_67d5a75_v1/`).
-Reviewed across three rounds ending APPROVED
-(`semantic-review/2026-09-11-123024-pr-3.md`).
-
-### 2026-09-14 11:40 +05:30 — Codex (GPT-5) — [7e503f0] — Public portfolio examples before sign-in
-
-Added a public, fictional three-example showcase to the sign-in landing page.
-Each example opens a local native-dialog portfolio preview without authentication,
-with an explicit path back to creating a portfolio. Added responsive styling,
-keyboard dismissal/focus restoration, and API coverage for the public markup.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-14 — [49d6e0d] — Fail-closed brief ingestion dispatch distinguishing raw/namespaced/legacy Build Preparation wire shapes.
+- 2026-09-14 — [7e503f0] — Public fictional three-example portfolio showcase before sign-in.
 - 2026-09-14 — [e53ebfb] — Role-gated administrator control plane at `/admin` matching the reference spec and 8 visuals.
 - 2026-09-14 — [e37e302] — Deployment wizard preflight: derive model credentials from config, reject example hostnames, recover stopped Docker.
 - 2026-09-14 — [88ba402] — Simple beginner-friendly Azure VM deployment contract (`azure-deploy.sh`, Compose, Caddy).
@@ -345,4 +340,4 @@ keyboard dismissal/focus restoration, and API coverage for the public markup.
 ## Summary (as of last compaction — 2026-09-18)
 
 - Recent detailed entries retained: 19
-- Compacted milestone bullets: 49
+- Compacted milestone bullets: 51
