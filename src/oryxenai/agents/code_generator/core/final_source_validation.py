@@ -13,7 +13,11 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ExperienceBlueprintV4,
     SitePlan,
 )
-from oryxenai.agents.code_generator.core.image_policy import coerce_image_policy
+from oryxenai.agents.code_generator.core.image_policy import (
+    ImagePolicyError,
+    coerce_image_policy,
+    required_image_placements,
+)
 from oryxenai.agents.code_generator.core.path_policy import semantic_segment
 from oryxenai.agents.code_generator.core.resource_policy import is_image_category
 from oryxenai.agents.code_generator.core.source_lexing import strip_source_comments
@@ -340,50 +344,47 @@ def validate_final_source(
                 )
         elif not effective_policy.text_only_exemption:
             route_sources = _route_source_map(files, routes, blueprint_v4=True)
-            approved_ids = set(effective_policy.approved_image_slot_ids)
-            materialized = approved_ids & materialized_image_slots
-            target_route_id = effective_policy.primary_route_id or (
-                next((item.route_id for item in image_placements), "")
-            )
-            target_placements = [
-                item
-                for item in image_placements
-                if item.resource_slot_id in approved_ids and item.route_id == target_route_id
-            ]
-            referenced = {
-                item.resource_slot_id
-                for item in target_placements
-                if _source_references_image_slot(
-                    route_sources.get(target_route_id, ""), item.resource_slot_id
-                )
-            }
-            visible_candidates = referenced & materialized
-            minimum = max(
-                1 if effective_policy.require_primary_route_image else 0,
-                effective_policy.minimum_visible_images,
-            )
-            if len(visible_candidates) < minimum:
+            try:
+                required = required_image_placements(image_placements, effective_policy)
+            except ImagePolicyError as exc:
                 diagnostics.append(
                     _diag(
-                        "SOURCE_ROUTE_IMAGE_MINIMUM_MISSING",
-                        "The final route source does not contain enough distinct materialized approved image bindings for the effective image policy.",
-                        route_id=target_route_id,
+                        exc.code,
+                        f"The final source cannot satisfy the effective image policy: {exc.code}.",
+                        route_id=effective_policy.primary_route_id,
                         symbol="resource_placements",
                     )
                 )
-            if (
-                effective_policy.require_primary_route_image
-                and target_route_id
-                and not visible_candidates
-            ):
-                diagnostics.append(
-                    _diag(
-                        "SOURCE_PRIMARY_ROUTE_IMAGE_MISSING",
-                        "The primary route has no distinct materialized approved image binding in executable source.",
-                        route_id=target_route_id,
-                        symbol="resource_placements",
-                    )
+            else:
+                primary_slot_id = (
+                    required[0].resource_slot_id
+                    if effective_policy.require_primary_route_image and required
+                    else ""
                 )
+                for placement in required:
+                    referenced = _source_references_image_slot(
+                        route_sources.get(placement.route_id, ""), placement.resource_slot_id
+                    )
+                    materialized = placement.resource_slot_id in materialized_image_slots
+                    if referenced and materialized:
+                        continue
+                    is_primary = placement.resource_slot_id == primary_slot_id
+                    diagnostics.append(
+                        _diag(
+                            "SOURCE_PRIMARY_ROUTE_IMAGE_MISSING"
+                            if is_primary
+                            else "SOURCE_ROUTE_IMAGE_MINIMUM_MISSING",
+                            (
+                                "The primary route has no distinct materialized approved image "
+                                "binding in executable source."
+                                if is_primary
+                                else "A required approved image placement is not referenced and "
+                                "materialized in its own route's final source."
+                            ),
+                            route_id=placement.route_id,
+                            symbol=placement.resource_slot_id,
+                        )
+                    )
     content_keys = content_ids_by_section(
         [item for item in site.get("public_content", []) if isinstance(item, dict)],
         [item for item in site.get("facts", []) if isinstance(item, dict)],
