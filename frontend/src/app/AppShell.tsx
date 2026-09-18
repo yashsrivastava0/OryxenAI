@@ -116,6 +116,21 @@ export function resolveInitialStage(
   return { stage: null, corrected: false };
 }
 
+// Whether refetchCurrentSession should fetch Code Generator state at all
+// this pass. Fetching it unconditionally on every refresh (regardless of
+// whether generation was ever started) made the backend's correct 409
+// ENTITLEMENT_BINDING_CONFLICT rejection mark the whole refetch "stale" for
+// every session sitting in Discovery/Content/Design/Prepare. Pure and
+// exported for the same reason as resolveInitialStage.
+export function shouldFetchGenerationState(
+  preparationApproved: boolean,
+  knownGeneration: { sessionId: string; status: string } | null,
+  sessionId: string,
+): boolean {
+  if (preparationApproved) return true;
+  return knownGeneration !== null && knownGeneration.sessionId === sessionId && knownGeneration.status !== "not_started";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -162,6 +177,13 @@ export function AppShell({
   const pollerRef = useRef<PollCoordinator | null>(null);
   const invalidationChannelRef = useRef<InvalidationChannel | null>(null);
   const initialNormalizationDone = useRef(false);
+  // Tracks the last real (non-"not_started") Code Generator status seen for
+  // a session, so a later refetch keeps polling an already-started
+  // generation run even if an upstream stage's own state looks momentarily
+  // stale — a stale upstream edit must not hide a prior preview. Keyed by
+  // session id so switching sessions within one mounted AppShell (e.g. an
+  // administrator) never carries a prior session's generation state over.
+  const lastKnownGeneration = useRef<{ sessionId: string; status: string } | null>(null);
   const seenCacheReceipts = useRef(new Set<string>());
   const cacheNoticeId = useRef(0);
   const [cacheNotice, setCacheNotice] = useState<{ id: number; message: string } | null>(null);
@@ -206,13 +228,12 @@ export function AppShell({
     const sessionId = state.sessionId;
 
     try {
-      const [sessionResult, discoveryResult, contentResult, designResult, preparationResult, generationResult] = await Promise.allSettled([
+      const [sessionResult, discoveryResult, contentResult, designResult, preparationResult] = await Promise.allSettled([
         api.getSession(sessionId),
         api.getDiscovery(sessionId),
         api.getContentArchitect(sessionId),
         api.getVisualDesignDirector(sessionId),
         api.getBuildPreparation(sessionId),
-        api.getCodeGenerator(sessionId),
       ]);
 
       if (sessionResult.status === "fulfilled") {
@@ -271,15 +292,39 @@ export function AppShell({
         dispatch({ type: "preparation/set", view });
       }
 
-      if (generationResult.status === "fulfilled") {
+      // Fetch Code Generator state only when it is actually relevant: once
+      // Build Preparation is ready, or when a prior fetch for this exact
+      // session already showed a real (non-"not_started") generation
+      // status. Fetching it unconditionally (as before) speculatively
+      // polled a stage that had never been started for every session on
+      // every refresh, and the backend's correct 409
+      // ENTITLEMENT_BINDING_CONFLICT rejection made the *entire* refetch
+      // report "stale" even though every other stage had just loaded fine.
+      let generationResult: PromiseSettledResult<StageEnvelope> | null = null;
+      if (shouldFetchGenerationState(preparationApproved, lastKnownGeneration.current, sessionId)) {
+        generationResult = await api.getCodeGenerator(sessionId).then(
+          (value) => ({ status: "fulfilled", value }) as const,
+          (reason) => ({ status: "rejected", reason }) as const,
+        );
+      }
+
+      if (generationResult !== null && generationResult.status === "fulfilled") {
         inspectCacheReceipt("code_generator", generationResult.value);
+        const view = adaptCodeGenerator(
+          generationResult.value.code_generator,
+          preparationApproved,
+          generationResult.value.jobs,
+        );
+        dispatch({ type: "generation/set", view });
+        if (view.status !== "not_started") {
+          lastKnownGeneration.current = { sessionId, status: view.status };
+        }
+      } else if (generationResult === null) {
+        // Not started and not relevant yet -- use the explicit locked
+        // projection instead of leaving stale or absent generation state.
         dispatch({
           type: "generation/set",
-          view: adaptCodeGenerator(
-            generationResult.value.code_generator,
-            preparationApproved,
-            generationResult.value.jobs,
-          ),
+          view: adaptCodeGenerator({ status: "not_started" }, preparationApproved, []),
         });
       }
 
@@ -308,10 +353,19 @@ export function AppShell({
         }
       }
 
-      const results = [sessionResult, discoveryResult, contentResult, designResult, preparationResult, generationResult];
+      // Freshness reflects only the requests actually attempted this pass —
+      // an intentionally-skipped Code Generator fetch is not a failure.
+      const attemptedResults: PromiseSettledResult<unknown>[] = [
+        sessionResult,
+        discoveryResult,
+        contentResult,
+        designResult,
+        preparationResult,
+      ];
+      if (generationResult !== null) attemptedResults.push(generationResult);
       dispatch({
         type: "connection/set",
-        state: results.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
+        state: attemptedResults.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
       });
     } catch {
       dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });

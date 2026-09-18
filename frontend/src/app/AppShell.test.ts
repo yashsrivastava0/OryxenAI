@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveInitialStage } from "./AppShell";
+import { resolveInitialStage, shouldFetchGenerationState } from "./AppShell";
 
 // Covers the initial-load stage normalization performed once inside
 // refetchCurrentSession's `initialNormalizationDone` guard. Backward
@@ -81,5 +81,40 @@ describe("resolveInitialStage", () => {
       stage: null,
       corrected: false,
     });
+  });
+});
+
+// F04/ISSUE-01/ISSUE-02 regression: refetchCurrentSession used to fetch
+// Code Generator state unconditionally on every refresh, even for a session
+// where it had never been started. The backend correctly rejects that with
+// 409 ENTITLEMENT_BINDING_CONFLICT, which made the *whole* refetch report
+// connection state "stale" -- visible to the user as "The latest check did
+// not complete" immediately after approving Content Architect, long before
+// Build Preparation (let alone Code Generator) was ever reachable.
+describe("shouldFetchGenerationState", () => {
+  it("does not fetch for a session with no prior generation activity and preparation not yet approved", () => {
+    expect(shouldFetchGenerationState(false, null, "session-a")).toBe(false);
+  });
+
+  it("fetches once preparation is approved, regardless of prior generation state", () => {
+    expect(shouldFetchGenerationState(true, null, "session-a")).toBe(true);
+  });
+
+  it("keeps fetching a session's already-started generation even if preparation looks momentarily unapproved", () => {
+    expect(
+      shouldFetchGenerationState(false, { sessionId: "session-a", status: "verifying" }, "session-a"),
+    ).toBe(true);
+  });
+
+  it("does not fetch when the known generation state belongs to a different session", () => {
+    expect(
+      shouldFetchGenerationState(false, { sessionId: "session-b", status: "ready" }, "session-a"),
+    ).toBe(false);
+  });
+
+  it("does not fetch when the only known prior state for this session was itself not_started", () => {
+    expect(
+      shouldFetchGenerationState(false, { sessionId: "session-a", status: "not_started" }, "session-a"),
+    ).toBe(false);
   });
 });
