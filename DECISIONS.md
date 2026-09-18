@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-099 — Supersede D-094: preview-first acceptance may no longer certify a functionally broken candidate as `ready`
+
+- **Date & Time:** 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5)
+- **Status:** decided-implemented (supersedes D-094)
+- **Context:** `docs/code-generator-repair-plan-2026-09-16.md` (F03) found that D-094's `preview_first_acceptance` flag, as implemented, downgraded *all* source-contract, build, and runtime diagnostics to advisory whenever the flag was enabled — not just the narrow generated-output-polish findings D-094 intended. Concretely: `blocking_source_diagnostics`/`blocking_runtime_diagnostics` were unconditionally emptied under the flag regardless of diagnostic content, and a runtime-verifier exception (zero browser evidence) was silently swallowed into a single advisory and still allowed promotion to `ready` with an `active_preview`, consuming success entitlement. This let a page crash, a missing required image, or a completely unverified candidate reach the same "verified" status as a genuinely working portfolio.
+- **Decision:** `preview_first_acceptance` no longer affects whether source-contract, build, or runtime diagnostics are blocking; blocking status is now always computed the same way regardless of the flag (`effective_finding_severity(...) == "blocking"` for runtime findings; any source diagnostic is blocking; any non-runnable build artifact is blocking). A runtime-verifier exception is no longer swallowed — it now raises `VerificationFailure("RUNTIME_VERIFIER_FAILED", ..., owner="infrastructure")`, which fails closed to `needs_attention` without spending a source-model repair attempt. `config/app.native.toml` now sets `preview_first_acceptance = false` (matching every other overlay's already-strict default). The pre-existing, unconditional unverified-candidate-preservation path (`_store_unverified_candidate`, used whenever a blocking runtime finding is `_candidate_runtime_safe`) is untouched: a safe-but-unverified build can still surface as `candidate_preview` for inspection, but it can never become `active_preview` or reach `ready`. The narrower, unaffected uses of the flag — skipping the optional whole-site quality-review receipt requirement and skipping the optional post-repair re-review pass — are left as-is; neither one bypasses the required source/build/runtime gates.
+- **Rejected alternatives:** Removing the flag/native overlay override entirely was rejected — an inspectable, honestly-labeled `candidate_preview` for a safe-but-unverified build remains useful, per the original D-094 rationale, and that path did not need to change. Keeping the blanket advisory-downgrade behavior but only for `native` deployments was rejected — the plan's premise, confirmed in code, is that a configuration toggle must never make page crashes, broken images, or absent evidence "verified," in any overlay.
+- **Consequence:** A native campaign run with a genuinely broken candidate now correctly stops at `needs_attention` (or repairs, then stops if repair is exhausted) instead of silently reaching `ready`. Existing runs that were previously promoted under the old preview-first policy are not retroactively re-verified or downgraded; this only governs new verification attempts. See `CHANGES.md` for the implementing commit and regression test.
+
 ## D-097 - Use a dedicated deployment branch as the release pointer
 
 - **Date & Time:** 2026-09-15 00:00 +05:30 - Codex (GPT-5 / OpenAI)
@@ -63,7 +72,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 ## D-094 — Make native Code Generator acceptance preview-first
 
 - **Date & Time:** 2026-09-11 15:33 +05:30 — Kiro (configured runtime)
-- **Status:** decided-implemented
+- **Status:** superseded-by-D-099 — the flag as implemented downgraded functionally-required diagnostics, not only generated-output-polish findings; see D-099.
 - **Context:** D-085 and D-088 made generated source, quality, asset, and browser findings release blockers. In the bounded native campaign, Run 2 produced a complete runnable build but verification rejected it on a reconstructed image-policy finding, preventing the user from seeing the first preview despite an explicit instruction that generated-output defects must remain visible without failing a running site.
 - **Decision:** Add `code_generator_verification.preview_first_acceptance`, default it to `false`, and enable it only in the native overlay. Under that policy, integration/quality-review failures, final-source diagnostics, build diagnostics that coexist with a complete materialized artifact, and runtime/console/network/geometry/image/content/accessibility findings are durable advisories. A runtime-verifier exception after the candidate server starts is also advisory. Immutable input admission, authorization and worker fencing, stale-source/checkpoint integrity, production-build artifact creation, candidate-server startup, storage readback, and atomic preview promotion remain blocking.
 - **Rejected alternatives:** Removing verification entirely would discard ownership, integrity, build, and promotion guarantees; making fail-open behavior unconditional would silently weaken strict and hosted profiles; forcing `ready` without a materialized build or serveable candidate would create a false preview.
@@ -788,9 +797,8 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-09-08)
+## Summary (as of last update — 2026-09-18)
 
-- Total decisions logged: 77
-- Active decisions: 60
-- Compacted & superseded decisions: 16
-- Last updated: 2026-09-08 14:20 +05:30 — Codex (GPT-5 / OpenAI)
+- Total decisions logged: 99 (highest entry ID D-099)
+- Compacted & superseded decisions: 16 (see `## Compacted & Superseded History` below)
+- Last updated: 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5)
