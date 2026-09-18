@@ -23,7 +23,7 @@ _VERSIONS = {
     "planner_v4": "code_generator.planner.v15",
     "planner_legacy": "code_generator.planner.v7",
     "foundation": "code_generator.foundation_compat.v1",
-    "route_batch": "code_generator.route_batch.v10",
+    "route_batch": "code_generator.route_batch.v11",
     "route_compose": "code_generator.route_compose.v8",
     "integrate": "code_generator.integrate.v6",
     "integration_review": "code_generator.integration_review.v1",
