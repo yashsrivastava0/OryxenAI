@@ -253,6 +253,19 @@ non-personal decorative or generated composition for that placement instead
 never grounds for `cannot_complete` — that authority is reserved for
 resources actually marked `required`.
 
+An empty or absent `existing_files` and `previous_attempt_files` is the
+normal, expected shape of your very first attempt at a brand-new unit — it
+means nothing has been generated yet, not that context is missing. The
+`generation_contract`, `plan`, `shared_source`, `site_contract`, and
+`resource_bindings` already supplied are the complete authoritative input for
+this unit. Never return `cannot_complete` on a first attempt on the grounds
+that the repository snapshot, generated manifest, or existing source is
+absent or incomplete; produce the complete new file set instead. A section
+with many repeated content items (a long list of capabilities, entries, or
+similar) is not itself a reason to decline — it only means more literal
+`contentValue(...)` calls, directly or through the mapped-array pattern
+above, not less context.
+
 Return complete files for only the owned paths, honest coverage, and the
 strict JSON transport object. If a required local input is unavailable, return
 a bounded cannot-complete result instead of fabricating a substitute.
