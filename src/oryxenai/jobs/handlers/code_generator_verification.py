@@ -83,7 +83,7 @@ from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
 from oryxenai.preview.gateway import create_candidate_app
-from oryxenai.preview.promotion import PreviewPromoter
+from oryxenai.preview.promotion import PreviewPromoter, preview_urls
 from oryxenai.preview.reconciler import reconcile_pending_promotion
 from oryxenai.preview.server import EphemeralServer, start_ephemeral_server
 from oryxenai.storage.preview import create_preview_storage
@@ -363,13 +363,17 @@ async def _execute(
                 host = str(run.preview_host or _preview_host(str(run_id)))
                 await _validate_worker_payload(sessionmaker, payload)
                 await _validate_run_fence(sessionmaker, run_id)
+                preview_browser_url, preview_verifier_url = preview_urls(
+                    settings.code_generator_verification
+                )
                 active = await reconcile_pending_promotion(
                     storage=storage,
                     run_id=str(run_id),
                     host=host,
                     pending=pending,
                     manifest=pending_projection.build_manifest,
-                    preview_base_url=str(settings.code_generator_verification.preview_base_url),
+                    preview_base_url=preview_browser_url,
+                    readback_base_url=preview_verifier_url,
                     require_readback=bool(
                         getattr(
                             settings.code_generator_verification,
@@ -1034,9 +1038,13 @@ async def _execute(
             if storage_factory is not None
             else create_preview_storage(settings)
         )
+        preview_browser_url, preview_verifier_url = preview_urls(
+            settings.code_generator_verification
+        )
         promoter = PreviewPromoter(
             storage,
-            preview_base_url=str(settings.code_generator_verification.preview_base_url),
+            preview_base_url=preview_browser_url,
+            readback_base_url=preview_verifier_url,
             require_readback=bool(
                 getattr(
                     settings.code_generator_verification,
@@ -1331,9 +1339,13 @@ async def _store_unverified_candidate(
         if storage_factory is not None
         else create_preview_storage(settings)
     )
+    preview_browser_url, preview_verifier_url = preview_urls(
+        settings.code_generator_verification
+    )
     promoter = PreviewPromoter(
         storage,
-        preview_base_url=str(settings.code_generator_verification.preview_base_url),
+        preview_base_url=preview_browser_url,
+        readback_base_url=preview_verifier_url,
         require_readback=False,
     )
     candidate_id = f"candidate-{identity.identity_hash[:24]}"

@@ -46,6 +46,20 @@ class PromotionError(ValueError):
         super().__init__(message)
 
 
+def preview_urls(config: Any) -> tuple[str, str]:
+    """Resolve browser and worker-verifier preview bases from configuration."""
+
+    browser = str(
+        getattr(config, "preview_browser_base_url", "")
+        or getattr(config, "preview_base_url", "")
+        or "http://127.0.0.1:4174/preview"
+    ).rstrip("/")
+    verifier = str(
+        getattr(config, "preview_verifier_base_url", "") or browser
+    ).rstrip("/")
+    return browser, verifier
+
+
 PublicReadback = Callable[
     [str, str, CandidateArtifact, BuildManifest, str],
     Awaitable[PublicReadbackReceiptV1],
@@ -59,11 +73,13 @@ class PreviewPromoter:
         storage: PreviewStorage,
         *,
         preview_base_url: str = "http://127.0.0.1:4174/preview",
+        readback_base_url: str | None = None,
         require_readback: bool = False,
         public_readback: PublicReadback | None = None,
     ) -> None:
         self.storage = storage
         self.preview_base_url = preview_base_url.rstrip("/")
+        self.readback_base_url = (readback_base_url or preview_base_url).rstrip("/")
         self.require_readback = require_readback
         self.public_readback = public_readback
 
@@ -378,7 +394,7 @@ class PreviewPromoter:
                 try:
                     reader = self.public_readback or self._default_public_readback
                     public_readback = await reader(
-                        self.preview_base_url,
+                        self.readback_base_url,
                         host,
                         pending.candidate,
                         manifest,

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import shutil
 import signal
 import uuid
 from datetime import UTC, datetime
@@ -27,6 +28,8 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from oryxenai.agents.code_generator.core.development_service import browser_ready
+from oryxenai.agents.code_generator.core.process_runner import resolve_npm_executable
 from oryxenai.agents.shared.model_runtime import (
     close_model_runtime,
     get_model_runtime,
@@ -393,6 +396,10 @@ class Worker:
     def _worker_metadata(self) -> dict[str, object]:
         development = self._settings.code_generator_development
         generation = self._settings.code_generator_generation
+        verification = self._settings.code_generator_verification
+        npm = bool(resolve_npm_executable(self._settings))
+        node = bool(shutil.which("node"))
+        browser = bool(browser_ready(verification))
         return {
             "process": f"worker-{self._instance_id}",
             "release_id": str(getattr(development, "worker_release_id", "oryxenai-worker")),
@@ -402,7 +409,12 @@ class Worker:
             "artifact_store_provider": str(
                 getattr(generation, "artifact_store_provider", "local_fs")
             ),
-            "code_generator_capability": True,
+            "code_generator_capability": npm and node and browser,
+            "code_generator_toolchain": {
+                "node": node,
+                "npm": npm,
+                "browser": browser,
+            },
         }
 
     async def _renew_lease_loop(self, job: Any) -> None:

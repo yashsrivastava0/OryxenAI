@@ -10,6 +10,7 @@ from oryxenai.agents.build_preparation.schemas import (
     BuildPreparationState,
     BuildPreparationStatus,
 )
+from oryxenai.agents.code_generator import service as code_generator_service_module
 from oryxenai.agents.code_generator.service import (
     CodeGeneratorOperationError,
     CodeGeneratorService,
@@ -141,6 +142,50 @@ async def test_session_start_still_gates_on_build_preparation_readiness() -> Non
         await service.start(session_id, idempotency_key="start-once")
 
     assert exc_info.value.code == "CODE_GENERATOR_BUILD_PREPARATION_NOT_READY"
+
+
+@pytest.mark.asyncio
+async def test_session_start_rejects_ready_briefs_when_approved_upstream_changed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_id = uuid4()
+    repository = _Repository(session_id, _ready_preparation())
+    repository.session.current_state = {
+        "content_architect": {},
+        "visual_design_director": {},
+    }
+
+    monkeypatch.setattr(
+        code_generator_service_module.ContentArchitectState,
+        "model_validate",
+        lambda _value: SimpleNamespace(approved={}),
+    )
+    monkeypatch.setattr(
+        code_generator_service_module.VisualDesignDirectorState,
+        "model_validate",
+        lambda _value: SimpleNamespace(approved={}),
+    )
+
+    class _Integrator:
+        def __init__(self, _settings):
+            pass
+
+        def compose(self, _content, _visual):
+            return SimpleNamespace(
+                source_ref=SimpleNamespace(
+                    visual_design_director_direction_hash="new-visual-hash",
+                    input_projection_hash="new-input-hash",
+                )
+            )
+
+    monkeypatch.setattr(code_generator_service_module, "BuildPreparationInputIntegrator", _Integrator)
+    service = CodeGeneratorService(repository, _Jobs(), Settings())  # type: ignore[arg-type]
+
+    with pytest.raises(code_generator_service_module.CodeGeneratorOperationError) as exc_info:
+        await service.start(session_id, idempotency_key="stale-briefs")
+
+    assert exc_info.value.code == "CODE_GENERATOR_BUILD_PREPARATION_STALE"
+    assert exc_info.value.details["stale_reasons"] == ["approved_upstream_changed"]
 
 
 @pytest.mark.asyncio

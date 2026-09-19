@@ -818,7 +818,13 @@ class CodeGeneratorVerificationConfig(BaseModel):
         }
     )
     preview_root: str = ".workspace/code-generator-preview"
+    # The browser-facing URL is deliberately separate from the worker's
+    # service-to-service read-back URL.  In Docker, ``localhost`` inside the
+    # worker is not the host browser and the preview-gateway service name is
+    # not a URL a user's browser can resolve.
     preview_base_url: str = "http://127.0.0.1:4174/preview"
+    preview_browser_base_url: str = ""
+    preview_verifier_base_url: str = ""
     # Internal service-to-service liveness target.  Empty derives a dialable
     # native URL from preview_host/preview_port; Docker overlays must use the
     # preview-gateway service name because localhost is container-local and

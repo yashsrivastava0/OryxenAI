@@ -16,6 +16,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
+from oryxenai.agents.build_preparation.input_integrator import BuildPreparationInputIntegrator
 from oryxenai.agents.build_preparation.schemas import BuildPreparationStatus
 from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
@@ -43,14 +44,17 @@ from oryxenai.agents.code_generator.core.stage_attempt import (
     fingerprint_input,
     stage_idempotency_key,
 )
+from oryxenai.agents.code_generator.core.worker_readiness import worker_contract_readiness
 from oryxenai.agents.code_generator.session_schemas import (
     CodeGeneratorSessionState,
     CodeGeneratorSessionStatus,
     CodeGeneratorSourceRef,
     ProviderPreflightEnvelope,
 )
+from oryxenai.agents.content_architect.schemas import ContentArchitectState
 from oryxenai.agents.shared.model_client import build_provider_client, resolve_api_key
 from oryxenai.agents.shared.providers.errors import stable_provider_failure
+from oryxenai.agents.visual_design_director.schemas import VisualDesignDirectorState
 from oryxenai.auth.authorization import durable_snapshot
 from oryxenai.auth.domain import AuthRole
 from oryxenai.auth.errors import (
@@ -152,6 +156,15 @@ class CodeGeneratorService:
         visual_brief = str(getattr(preparation, "visual_brief_markdown", "") or "")
         if not content_brief.strip() or not visual_brief.strip():
             self._not_ready("Build Preparation has not produced both Markdown briefs.")
+        await self._ensure_build_preparation_current(session, preparation)
+        worker_readiness = await worker_contract_readiness(self._repo, self._settings)
+        if worker_readiness.get("checked") and not worker_readiness.get("ready"):
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_WORKER_NOT_READY",
+                "No compatible Code Generator worker is ready to claim this run.",
+                status_code=409,
+                details={"worker_contract": worker_readiness},
+            )
         profile = self._settings.code_generator_development.planner_profile
         if model_profile and model_profile != profile:
             raise CodeGeneratorOperationError(
@@ -1105,6 +1118,64 @@ class CodeGeneratorService:
         }:
             reasons.append("build_preparation_visual_brief_changed")
         return reasons
+
+    async def _ensure_build_preparation_current(self, session: Any, preparation: Any) -> None:
+        """Reject a ready brief pair whose approved upstream snapshot changed."""
+
+        raw_state = getattr(session, "current_state", {})
+        if not isinstance(raw_state, dict):
+            raw_state = {}
+        raw_content = raw_state.get("content_architect")
+        raw_visual = raw_state.get("visual_design_director")
+        if not isinstance(raw_content, dict) or not isinstance(raw_visual, dict):
+            # Lightweight repository doubles intentionally do not carry the
+            # complete upstream aggregate.  A real repository does, and must
+            # fail closed rather than admitting an unprovable handoff.
+            if getattr(self._repo, "_session", None) is None:
+                return
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BUILD_PREPARATION_STALE",
+                "The approved Build Preparation upstream snapshot is unavailable. Regenerate Build Preparation before generating.",
+                status_code=409,
+                details={"stale_reasons": ["approved_upstream_unavailable"]},
+            )
+        try:
+            content = ContentArchitectState.model_validate(raw_content)
+            visual = VisualDesignDirectorState.model_validate(raw_visual)
+            if content.approved is None or visual.approved is None:
+                raise ValueError("approved upstream snapshot is unavailable")
+            current_source_ref = BuildPreparationInputIntegrator(self._settings).compose(
+                content,
+                visual,
+            ).source_ref
+        except Exception as exc:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BUILD_PREPARATION_STALE",
+                "The approved Build Preparation upstream snapshot could not be revalidated. Regenerate Build Preparation before generating.",
+                status_code=409,
+                details={"stale_reasons": ["approved_upstream_unavailable"]},
+            ) from exc
+
+        persisted_source_ref = getattr(preparation, "source_ref", None)
+        mismatches: list[str] = []
+        if (
+            persisted_source_ref is None
+            or current_source_ref.visual_design_director_direction_hash
+            != persisted_source_ref.visual_design_director_direction_hash
+        ):
+            mismatches.append("approved_upstream_changed")
+        if (
+            persisted_source_ref is None
+            or current_source_ref.input_projection_hash != persisted_source_ref.input_projection_hash
+        ):
+            mismatches.append("approved_upstream_changed")
+        if mismatches:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BUILD_PREPARATION_STALE",
+                "The approved upstream handoff changed after Build Preparation. Regenerate Build Preparation before generating.",
+                status_code=409,
+                details={"stale_reasons": list(dict.fromkeys(mismatches))},
+            )
 
     async def _require_session(self, session_id: UUID) -> Any:
         session = await self._repo.get_session(session_id)
