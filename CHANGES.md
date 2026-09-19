@@ -11,6 +11,19 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 20:00 +05:30 — Antigravity (Gemini 3.8 Flash) — [763ddfb] — Unify auth fallback views into Living Draft Editorial Studio theme
+
+Consolidated all non-admin auth routes (`/`, `/sign-in`, `/auth/callback`,
+`/onboarding`, `/access-not-approved`, `/account-unavailable`) under the canonical
+Living Draft Editorial Studio shell (`.sign-in-workspace` with header and the
+6-stage interactive studio showcase). Completely removed the legacy unstyled
+`.auth-card-outer::before` pseudo-element and fallback layout that leaked
+unformatted `IDENTITY PROOF` text and unstyled progress steps. Extended
+`body:not([data-page="admin"])` flex styling and added dedicated styling for the
+progress, onboarding, access review, unavailable, and workspace-ready panels
+while strictly preserving all DOM IDs, form inputs, and test assertion hooks.
+Passed all 93 Python auth tests, 51 Node frontend tests, and 141 Vitest tests.
+
 ### 2026-09-19 19:44 +05:30 — Codex (GPT-5) — [08c6031] — Connect Build Preparation to the live preview control room
 
 Build Preparation completion now unlocks Code Generator in the same polling
