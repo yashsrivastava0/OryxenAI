@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveInitialStage, shouldFetchGenerationState } from "./AppShell";
+import {
+  resolveInitialStage,
+  shouldExposeGenerationAfterPreparation,
+  shouldFetchGenerationState,
+} from "./AppShell";
 
 // Covers the initial-load stage normalization performed once inside
 // refetchCurrentSession's `initialNormalizationDone` guard. Backward
@@ -116,5 +120,18 @@ describe("shouldFetchGenerationState", () => {
     expect(
       shouldFetchGenerationState(false, { sessionId: "session-a", status: "not_started" }, "session-a"),
     ).toBe(false);
+  });
+});
+
+describe("shouldExposeGenerationAfterPreparation", () => {
+  it("unlocks the generator when preparation polling completes", () => {
+    expect(shouldExposeGenerationAfterPreparation("locked")).toBe(true);
+    expect(shouldExposeGenerationAfterPreparation(null)).toBe(true);
+  });
+
+  it("does not erase an existing generation run or preview", () => {
+    expect(shouldExposeGenerationAfterPreparation("working")).toBe(false);
+    expect(shouldExposeGenerationAfterPreparation("complete")).toBe(false);
+    expect(shouldExposeGenerationAfterPreparation("attention")).toBe(false);
   });
 });

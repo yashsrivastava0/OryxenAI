@@ -56,6 +56,7 @@ describe("BuildPreparationStage — readiness is the primary view", () => {
     canMutate: true,
     onStart: async () => {},
     onRegenerate: async () => {},
+    onStartGeneration: async () => {},
   };
 
   it("renders the ready state inside the WorkspaceCanvas shell", () => {
@@ -105,7 +106,10 @@ describe("BuildPreparationStage — readiness is the primary view", () => {
     const node = BuildPreparationStage({ ...props, view: adaptBuildPreparation(preparationReady, true, true) });
     const serialized = JSON.stringify(node);
     expect(serialized).toContain("Routes bound");
-    expect(serialized).toContain("Resources found");
-    expect(serialized).toContain("Component suggestions");
+    expect(serialized).toContain("Resource needs");
+    expect(serialized).toContain("Resource roles");
+    expect(serialized).toContain("Component roles");
+    expect(serialized).not.toContain("Brand Positioning Deck");
+    expect(serialized).toContain("Start generating portfolio");
   });
 });

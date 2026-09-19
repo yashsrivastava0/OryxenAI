@@ -125,6 +125,7 @@ async def test_gateway_injects_mount_metadata_for_nested_asset_urls() -> None:
     assert (
         'name="oryxenai-preview-base" content="/preview/preview-bbbbbbbbbbbbbbbb/"' in response.text
     )
+    assert '<script src="/preview/preview-bbbbbbbbbbbbbbbb/__oryxenai/preview-bridge.js" defer></script>' in response.text
 
 
 @pytest.mark.asyncio
@@ -193,12 +194,17 @@ async def test_active_gateway_rewrites_assets_for_nested_spa_routes() -> None:
     ) as client:
         nested = await client.get(f"/preview/{host}/work/project")
         script = await client.get(f"/preview/{host}/assets/app.js")
+        bridge = await client.get(f"/preview/{host}/__oryxenai/preview-bridge.js")
         missing = await client.get(f"/preview/{host}/assets/missing.js")
     assert nested.status_code == 200
     assert f'src="/preview/{host}/assets/app.js"' in nested.text
     assert 'href="/preview/preview-cccccccccccccccc/assets/app.css"' in nested.text
     assert script.status_code == 200
     assert script.text == "console.log('active')"
+    assert bridge.status_code == 200
+    assert '"preview:init"' in bridge.text
+    assert "preview:ready" in bridge.text
+    assert bridge.headers["cache-control"] == "public, max-age=31536000, immutable"
     assert missing.status_code == 404
 
 
