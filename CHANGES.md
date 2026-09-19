@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 22:46 +05:30 — Codex (GPT-5) — [500e58c] — Reconcile Code Generator terminal state and add direct frontend acceptance
+
+Terminal Code Generator failures now reconcile the run to a safe
+`needs_attention` state only after automatic retries are exhausted, while the
+frontend uses the server retry flag, surfaces safe job diagnostics, and stops
+polling truthfully. Added a config-driven standalone-to-product Generate &
+Preview fixture, exact local preview origins, and deterministic regression
+coverage (D-104).
+
 ### 2026-09-19 20:00 +05:30 — Antigravity (Gemini 3.8 Flash) — [763ddfb] — Unify auth fallback views into Living Draft Editorial Studio theme
 
 Consolidated all non-admin auth routes (`/`, `/sign-in`, `/auth/callback`,
@@ -169,188 +178,32 @@ dependency. Found no gap requiring a code change; the existing
 `portfolio_export.py`/scaffold README/package.json contract already
 satisfies the plan's Definition of Done for this item.
 
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [a64003a] — Fetch Code Generator state only when relevant (T07, F04)
-
-`AppShell.tsx`'s `refetchCurrentSession` fetched `getCodeGenerator`
-unconditionally alongside every other stage, so the backend's correct
-409 `ENTITLEMENT_BINDING_CONFLICT` for a not-yet-reachable Code
-Generator stage made the entire refetch report connection state
-"stale" for any session still in Discovery/Content/Design/Prepare —
-reproduced live in the prior session's walkthrough (ISSUE-01: console
-errors; ISSUE-02: a user-visible "latest check did not complete"
-banner right after Content Architect approval). Now fetches Code
-Generator only once Build Preparation is approved, or when a
-session-keyed ref shows generation was already started for this exact
-session (so a momentarily-stale upstream response can't hide an
-existing preview); connection freshness is computed only from requests
-actually attempted. Extracted the decision into a new pure, exported
-`shouldFetchGenerationState()`, matching the existing
-`resolveInitialStage()` testability pattern. Verified: 136 frontend
-tests (5 new), tsc clean, production build succeeds.
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [9270762] — Forbid hiding failure evidence in the repair prompt (T05)
-
-Investigated T05 of `docs/code-generator-repair-plan-2026-09-16.md`
-("make smaller-model generation easier to satisfy"). Found
-`generation_prompt_builder.py`'s input-packet/output-acceptance
-machinery already mature (mode enums, receipt hashing, context
-ceilings, prefix-caching key ordering, dozens of specific per-diagnostic
-repair rules refined from real failures) and satisfying most of the
-plan's checklist already. Found one real gap: `repair_source.md` had no
-blanket rule against satisfying a failing check by deleting the broken
-element instead of fixing it. Added explicit rules — missing text
-cannot be fabricated, a broken image cannot be fixed by hiding/deleting
-it, a failed interaction cannot be fixed by removing its marker/handler
-— and bumped the repair prompt version (v8 → v9) so old receipts aren't
-reused under the new contract. Verified: 435 tests (1 new), ruff/mypy
-clean.
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [b361125] — Retry alternate resource candidates on materialize failure (T03)
-
-Investigated the Code Generator's acquisition-to-render chain per
-`docs/code-generator-repair-plan-2026-09-16.md` T03. Found that only
-the Build-Preparation-pinned candidate path fell back to a fresh live
-search on materialize failure; an ordinary search-based request (no
-pin) picked one ranked candidate and gave up immediately if it failed
-to materialize (expired URL, rejected request), even when other
-policy-approved candidates from the same search existed. Acquisition
-now retries across the same filtered candidate list, deterministically
-excluding each failed candidate, bounded entirely by that one search's
-results — no new network search, no second image client. Reviewed F05
-(images planned without rendering) and found no reproducible gap in
-the existing `LocalImage` binding check. Verified: 441 tests (1 new),
-ruff/mypy clean.
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [c617449] — Make Code Generator verified success truthful, supersede D-094 (T04)
-
-Implemented T04 of `docs/code-generator-repair-plan-2026-09-16.md` (F03).
-`config/app.native.toml`'s `preview_first_acceptance` flag, as
-implemented, downgraded *all* source-contract, build, and runtime
-diagnostics to advisory when enabled — not only the generated-output
-polish findings D-094 intended — and silently swallowed a
-runtime-verifier exception (zero browser evidence) while still
-promoting the run to `ready` with an `active_preview`. Removed the
-flag's ability to affect blocking status anywhere: source diagnostics
-are always blocking, a non-runnable build always gets its
-`BUILD_ARTIFACT_UNAVAILABLE` diagnostic, a runtime-verifier exception
-now raises `VerificationFailure("RUNTIME_VERIFIER_FAILED", ...)`
-instead of being swallowed, and runtime blocking status always follows
-`effective_finding_severity()`. Set native's `preview_first_acceptance
-= false`, matching every other overlay. The existing unconditional
-unverified-`candidate_preview` path is untouched — a safe-but-unverified
-build stays inspectable but can never reach `ready`. Recorded D-099,
-superseding D-094. Added an integration regression test proving the
-exact previously-broken scenario now stops at `needs_attention`.
-Verified: 458 tests, ruff/mypy clean.
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [b087ca3] — Make Code Generator image policy feasible and site-wide (T02)
-
-Implemented T02 of `docs/code-generator-repair-plan-2026-09-16.md`
-(F01/F02). `build_image_policy_snapshot()` now clamps
-`minimum_visible_images`/`preferred_visible_images` to the actual
-approved image slot count at creation, closing an impossible-floor
-bug where a brief with fewer approved slots than the configured
-minimum could never pass planning. Added a shared
-`required_image_placements()` selection helper (raising the new
-`ImagePolicyError`, a `.code`/`.message`-carrying `ValueError`) that
-`design_realization.py` and `final_source_validation.py` both now use
-instead of their own divergent, primary-route-only logic, so an image
-approved on a non-primary route (e.g. a case-study page) is actually
-selected and checked at every stage instead of being silently ignored
-by design realization and masked by final source validation. Added 13
-regression tests. Verified: 434 unit tests, 23 integration/API tests,
-ruff/mypy clean.
-
-### 2026-09-16 11:10 +05:30 — Claude Code (Sonnet 5) — [9d2aa0b] — Commit stage-duration tracking, diagnostic context, and stale-stage navigation fix
-
-Committed the `.kiro` "code-generator-reliability-and-preview-integration"
-session's finished, tested work (tasks 1-11), which had been sitting
-uncommitted since 2026-09-15: per-stage duration recording on
-`code_generator_runs` (migration 0024), concurrent-process-count/prior-
-duration context on the `VITE_NODE_SPAWN_EPERM` diagnostic, a backend-only
-`stage_estimate` in `CodeGeneratorService.get_state()` sourced only from
-observed durations or `config/app.toml` budgets, and its frontend rendering.
-Also included an out-of-band `tests/conftest.py` guard (hard-fails
-`test_engine` against any database but `oryxenai_test`) and a fix for
-`AppShell.tsx`'s `refetchCurrentSession`, which had no forward-correction
-branch and left a session with already-approved stages frozen on stale
-Discovery content after a fresh `/app` load. Live end-to-end verification
-(the spec's tasks 12-13) remains blocked/incomplete from the prior session.
-Verified: 427 code-generator unit tests, 19 integration tests (real
-PostgreSQL), 131 frontend tests, tsc/ruff/mypy all pass.
-
-### 2026-09-15 00:00 +05:30 — Codex (GPT-5) — [93cc34e] — Add beginner Azure deployment strategy
-
-Added the requested `doc/deployment strategy/` operator pack covering the
-current implementation and deployment gaps, VM-local setup, exact-SHA release
-workflow, deferred `deploy.me` activation, owner prerequisites, maintenance,
-AI-assisted troubleshooting, backups, cost controls, and first-party research.
-Recorded the dedicated `deployment` release pointer and the two-phase
-server/public-domain rollout decisions without changing application code.
-
 ## Compacted history
 
 ### 2026-09
-- 2026-09-14 — [f594a11] — Added the lossless Azure deployment session log with VM evidence, verification boundaries, and secret-safe handoff links.
-- 2026-09-14 — [d0894d6] — Made Generation previews truthful with verified/candidate labeling, regeneration, responsive behavior, and fixture coverage.
-- 2026-09-14 — [62c4ac7] — Added canonical project/deployment status documentation and aligned release-gate handoffs.
-- 2026-09-14 — [cf71c87] — Classified Windows Vite `spawn EPERM` as infrastructure and added preflight/retry diagnostics.
-- 2026-09-14 — [250417d, e7296f8] — Added art-directed public-preview motion and separated destructive admin reset from the creator shell.
-- 2026-09-14 — [5e96a52] — Turned public examples into scrollable fictional portfolio previews with distinct layouts, navigation, motion, responsive/reduced-motion behavior, and API assertions.
-- 2026-09-14 — [efb226e] — Kept intake actions accessible, expanded guidance limits, added approval acknowledgement, tightened mobile layering, and shared shell tokens with the browser fixture.
-- 2026-09-14 — [c6eaa33] — Namespaced generation receipts and retry state by explicit attempt epoch, deduplicated resource/dependency receipts, and standardized semantic decline handling.
-- 2026-09-14 — [a0cae30] — Implemented D-094 preview-first native verification with rebuilt acquisition ledgers and authorization-fence regression coverage.
-- 2026-09-14 — [49d6e0d] — Fail-closed brief ingestion dispatch distinguishing raw/namespaced/legacy Build Preparation wire shapes.
-- 2026-09-14 — [7e503f0] — Public fictional three-example portfolio showcase before sign-in.
-- 2026-09-14 — [e53ebfb] — Role-gated administrator control plane at `/admin` matching the reference spec and 8 visuals.
-- 2026-09-14 — [e37e302] — Deployment wizard preflight: derive model credentials from config, reject example hostnames, recover stopped Docker.
-- 2026-09-14 — [88ba402] — Simple beginner-friendly Azure VM deployment contract (`azure-deploy.sh`, Compose, Caddy).
-- 2026-09-13 — [cdac290] — Discovery question experience redesign to full visual-reference parity.
-- 2026-09-13 — [f003023] — Code Generator split control room, preview theater, and traceability drawer.
-- 2026-09-13 — [ff5acf7] — Code Generator preview theater research and reference images.
-- 2026-09-13 — [15450bf] — Discovery question research handoff, evidence copies, and visual references.
-- 2026-09-13 — [0e2b303, f74d145, fd127de] — Auth bootstrap timeout/recovery state and completed-restore banner fixes.
-- 2026-09-13 — [aeb0fef] — Frontend visual overhaul: full editorial parity with the 12 visual design references (D-095 lineage).
-- 2026-09-13 — [bfea878] — Frontend remediation: centered stage shell, safe handoffs, responsive review states.
-- 2026-09-12 — [df96f4d, 7aa452b] — Authored the `docs/Fix Frontend/` remediation research pack, evidence map, and screen references.
-- 2026-09-11 — [pending commit] — Kiro: full frontend visual/UX revamp (D-095) — unified stage handoffs, curated per-stage views, theater-mode Generate & Preview, design-token/motion foundation, auth-page parity. Still uncommitted as of 2026-09-14.
-- 2026-09-11 — [now committed as a0cae30 on 2026-09-14] — Kiro: made native Code Generator acceptance preview-first (D-094); closed the live campaign at 2/4 with a browser-verified `ready` preview.
-- 2026-09-11 — [c8c9333] — Fixed Visual Design Director's recurring MODEL_OUTPUT_INVALID by inlining the missing content_ref rule for single-route pages.
-- 2026-09-11 — [67d5a75] — Restored rich first-four-stage output and bounded Gemini recovery across Discovery/Content Architect/Visual Design Director/Build Preparation (D-093).
-- 2026-09-11 — [no commit; investigation only] — Disproved a suspected `_route_source_map` double-hash bug; the real gap was a model-output completeness defect (D-090 follow-up).
-- 2026-09-10 — [01e9ed0] — Named the exact empty field in `QualityFindingV2` validation errors for the bounded schema-correction retry.
-- 2026-09-10 — [882574e, 1563282] — Raised the default image floor to `minimum_visible_images=2`/`require_primary_route_image=true` (D-092).
-- 2026-09-10 — [11a8fe3] — Closed campaign B at slot 5 with a browser-verified `ready` result.
-- 2026-09-10 — [06eb2c0] — Fixed the selected-work lifecycle normalizer to resolve real per-run color tokens instead of hardcoded names.
-- 2026-09-10 — [e7d9284] — Recognized trusted catalogue motion patterns in the final V4 source audit.
-- 2026-09-10 — [6c22712] — Repaired a verification regression test's route-path mismatch left incomplete across a multi-agent handoff (D-090).
-- 2026-09-10 — [fd9669d] — Surfaced the real issue code in terminal-failure/export evidence instead of the generic `needs_attention` status (D-091).
-- 2026-09-10 — [d9caf30] — Added an idempotent host-side materializer for the selected-work lifecycle cue.
-- 2026-09-10 — [22db99c] — Normalized route motion contracts (CSS lengths, trusted selectors, custom-motion fallback, observer wiring) after live Pack A drift.
-- 2026-09-10 — [68e1693] — Reconciled Code Generator repair-budget defaults with `config/app.toml` and documented D-089's retained unused field.
-- 2026-09-10 — [39076d0] — Refreshed stale image pins by stable asset ID and hardened dist exports against partial/retry failures on Windows.
-- 2026-09-10 — [7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] — Closed desktop generation reliability gaps (preview/export, source/interaction ownership, contract ordering, static content-map, conditional-motion audit) from the five-run campaign.
-- 2026-09-10 — [90e8349] — Fixed fluid type-step token double-prefixing (`--type-type-heading-*` -> `--type-heading-*`) at the schema/compiler boundary.
-- 2026-09-09 — [9716681] — Caught inert disclosure panels (aria-hidden empty content) as a host-owned source diagnostic; aligned `columns_*` review guidance with D-076.
-- 2026-09-09 — [4da1ddb] — Made toolchain preflight cleanup best-effort so a Windows enumeration denial can't discard a valid toolchain proof.
-- 2026-09-09 — [14bb97c, c8a66e7, 80a925c] — Replaced keyword-based severity inference with explicit host-owned quality findings; Pack C stopped honestly at `INTEGRATION_REVIEW_UNRESOLVED`.
-- 2026-09-09 — [a503a4a] — Implemented the Code Generator reliability plan: pending-proposal completion, serial attempt accounting, hashed image obligations, marker-bound layout recipes, toolchain preflight, truthful atomic exports (D-0XX, R01-R12 in `code generator issues.md`).
-- 2026-09-09 — [66d8287] — Authored a 6-document frontend/agent integration reference suite under `docs/frontend/` for the major frontend revamp.
-- 2026-09-09 — [59409b5] — Fixed `run-worker.ps1` to use a writable repo-local `uv` cache instead of a lockable global one.
-- 2026-09-09 — [2f424e5] — Hardened brief-driven Code Generator: brief-mirror admission, planner retry/canonicalization, npm import scanning, host-owned quality findings, unverified-preview candidates, npm cache warmer, Azure VM Docker wiring.
-- 2026-09-09 — [78a9c77] — Retired the temporary static Discovery/pipeline shell; `/app` now requires the manifest-selected Preact bundle.
-- 2026-09-09 — [bc7b5a6] — Added an administrator-only pipeline reset capability (full session reset back to Discovery, admin-audited).
-- 2026-09-09 — [f20779f] — Clarified planner guidance distinguishing a brief's design-language words from literal `colors[*].name` tokens after a live naming collision.
-- 2026-09-09 — [051afa6] — Added undeclared-npm-import detection via source scan for pinned/deferred components, closing the empty-`dependency_metadata` gap.
-- 2026-09-08 — [a2ae087] — Checked in Azure production Compose/Caddy/TOML deployment overlays matching the VM runbook.
-- 2026-09-08 — [2790e9d] — Released the authenticated Generate & Preview stage with the promoted-preview iframe bridge and Build Preparation gate (D-081); detailed history remains in Git.
-- 2026-09-09 — [e99ed55] — Investigated five failed Code Generator runs and authored the implementation and five-slot campaign handoff for pending retention, accounting, visual quality, truthful exports, and preflight.
-- 2026-09-09 — [29fc598] — Reconciled stale `create`/`replace` repair tags against the owned candidate tree while preserving strict initial-generation semantics and bounded repair authority.
-- 2026-09-08 — [44304ff] — Added honest repair-decline handling, shared-cause runtime correlation, stable prompt-cache keys, tighter observed repair ceilings, and a dedicated Code Generator job-attempt policy.
-- 2026-09-08 — [ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, d6b6777, bb7078b, 5731cf5, 78eacc7] — Completed Build Preparation/frontend handoffs, safe output copy and cache behavior, provider-neutral routing, scoped telemetry, and false-identity/preflight handling; detailed history remains in Git.
-- 2026-09-07 — [7f09506, 5bef169, ac5543e, 3f5b2aa, 78117e7] — Added candidate previews, corrected live repair and export behavior, and closed scaffold/toolchain and generation-time authoring gaps.
-- 2026-09-06 — [446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce, 5768ce7, 618a038, fa9be97, f208540, ebfbc94, cdf8952, 1956d58, 7c94916, 83179f3, ae89b61, 68f1cd1, 861e981, cdf7a18] — Fixed Code Generator/runtime issues, delivered frontend studio/auth/output work, and hardened agent job lifecycle and cancellation.
-- 2026-09-05 — [903477a, a2a8a60, 963375b, 7a0c68f, caa8f33, 34c638b, d6cde91, 8a2066a, 5b86779, aedf96c, 0ce8ecd, 9fabd58] — Completed deployment/auth foundations, provider budgets/caching, resource and repair fixes, motion patterns, and canonical output cleanup.
+- 2026-09-18 — [a64003a] — Fetched Code Generator state only when reachable, preventing pre-approval entitlement conflicts from marking the product shell stale (T07, F04).
+- 2026-09-18 — [9270762] — Forbade hiding repair evidence by deleting broken elements and bumped the repair prompt version (T05).
+- 2026-09-18 — [b361125] — Retried alternate Code Generator resource candidates on materialize failure within one bounded search result set (T03).
+- 2026-09-18 — [c617449] — Made verified Code Generator success truthful, kept unverified candidates inspectable, and recorded D-099 (T04).
+- 2026-09-18 — [b087ca3] — Made the image policy feasible across approved slots and shared placement validation across realization and final-source checks (T02).
+- 2026-09-16 — [9d2aa0b] — Committed stage-duration tracking, diagnostic context, stale-stage navigation repair, and test-database protection.
+- 2026-09-15 — [93cc34e] — Added the beginner Azure deployment strategy and its release/rollout handoff decisions.
+- 2026-09-14 — [f594a11, d0894d6, 62c4ac7, cf71c87] — Consolidated Azure deployment evidence, truthful Generate previews, canonical status/release gates, and Windows Vite preflight diagnostics.
+- 2026-09-14 — [250417d, e7296f8, 5e96a52, efb226e, c6eaa33] — Delivered public-preview motion/examples, accessible intake/review states, shared shell tokens, and attempt-scoped generation receipts.
+- 2026-09-14 — [a0cae30, 49d6e0d, 7e503f0, e53ebfb, e37e302, 88ba402] — Hardened preview-first verification and brief ingestion, shipped public examples/admin control, and documented the beginner Azure VM contract.
+- 2026-09-13 — [cdac290, f003023, ff5acf7, 15450bf] — Refined Discovery research handoff and delivered the Code Generator control room, preview theater, traceability drawer, and reference pack.
+- 2026-09-13 — [0e2b303, f74d145, fd127de, aeb0fef, bfea878] — Hardened auth restore states and completed the editorial frontend overhaul with safe handoffs and responsive review states (D-095 lineage).
+- 2026-09-12 — [df96f4d, 7aa452b] — Authored the frontend remediation research pack, evidence map, and screen references.
+- 2026-09-11 — [pending commit, a0cae30, c8c9333, 67d5a75, no commit] — Completed the D-095/D-094 frontend and preview work, fixed Visual Design Director output recovery, restored rich first-four-stage output, and documented the D-090 model-completeness investigation.
+- 2026-09-10 — [01e9ed0, 882574e, 1563282, 11a8fe3] — Tightened QualityFindingV2/schema retries, image floors, and campaign-B acceptance evidence (D-090/D-092).
+- 2026-09-10 — [06eb2c0, e7d9284, 6c22712, fd9669d, d9caf30] — Corrected selected-work tokens, trusted motion recognition, verification evidence, route-path coverage, and host-side lifecycle materialization (D-090/D-091).
+- 2026-09-10 — [22db99c, 68e1693, 39076d0, 7a01ee9, 3f07609, f1e74d3, 40434cf, ed21a6a, c3fabdc, 5eca499] — Normalized motion/repair budgets, refreshed image pins, hardened Windows exports, and closed the five-run desktop generation gaps.
+- 2026-09-10 — [90e8349] — Fixed fluid type-step token double-prefixing at the schema/compiler boundary.
+- 2026-09-09 — [9716681, 4da1ddb, 14bb97c, c8a66e7, 80a925c] — Hardened host-owned quality findings and Windows toolchain preflight, leaving Pack C honestly blocked when unresolved.
+- 2026-09-09 — [a503a4a, 66d8287, 59409b5, 2f424e5] — Implemented the reliability plan, authored frontend/agent integration references, fixed worker-cache portability, and hardened brief-driven generation.
+- 2026-09-09 — [78a9c77, bc7b5a6, f20779f, 051afa6] — Retired the static pipeline shell, added audited pipeline reset, clarified planner tokens, and detected undeclared npm imports.
+- 2026-09-09/08 — [e99ed55, 29fc598, a2ae087, 2790e9d, 44304ff, ddc2e77, 3a6cf25, b07582d, 7f2fbd0, 9d256f3, d6b6777, bb7078b, 5731cf5, 78eacc7] — Established the Code Generator campaign handoff, bounded repair authority, Azure overlays, Generate & Preview gate, provider-neutral handoffs, and scoped telemetry.
+- 2026-09-07/06/05 — [7f09506, 5bef169, ac5543e, 3f5b2aa, 78117e7, 446d4c7, 87f97f4, 7578b9a, f7546d4, 6707cce, 5768ce7, 618a038, fa9be97, f208540, ebfbc94, cdf8952, 1956d58, 7c94916, 83179f3, ae89b61, 68f1cd1, 861e981, cdf7a18, 903477a, a2a8a60, 963375b, 7a0c68f, caa8f33, 34c638b, d6cde91, 8a2066a, 5b86779, aedf96c, 0ce8ecd, 9fabd58] — Closed candidate-preview, runtime, deployment/auth, provider, resource/repair, motion, and canonical-output foundations.
 
 ---
 
@@ -374,5 +227,5 @@ server/public-domain rollout decisions without changing application code.
 
 ## Summary (as of last compaction — 2026-09-19)
 
-- Recent detailed entries retained: 19
-- Compacted milestone bullets: 56
+- Recent detailed entries retained: 15
+- Compacted milestone bullets: 23
