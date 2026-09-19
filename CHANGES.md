@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [2976b91] — Consolidate deployment documentation
+
+Grouped the eight deployment documents into two canonical combined guides,
+preserved every source body, retained numbered compatibility stubs, and added
+canonical README navigation. Verified source parity and local Markdown links;
+no runtime behavior changed.
+
 ### 2026-09-19 00:00 +05:30 — Codex — [87d60a7] — Corrected Code Generator audit confidence
 
 Rechecked the Code Generator issue reports against the route-generation
@@ -248,63 +255,13 @@ Removed the destructive pipeline-reset control, modal, and styling from the
 creator workspace. Administrator access remains available through the
 authenticated `/admin` surface and the admin account entry point.
 
-### 2026-09-14 12:08 +05:30 — Codex (GPT-5) — [5e96a52] — Turn public examples into scrollable portfolio previews
-
-Expanded the three public sign-in examples into self-contained, fictional
-mini-portfolios: Devon Lee (software developer), Leila Ortiz (business
-developer), and Noa Park (creative director). Each preview now has a distinct
-palette, visual motif, four scrollable screens, sticky section navigation,
-hero-to-work jump links, hover/motion treatments, responsive layout, and
-reduced-motion support. Added route/content assertions to the public-shell API
-test and kept the preview entirely local and unauthenticated.
-
-### 2026-09-14 11:59 +05:30 — Codex (GPT-5) — [efb226e] — Keep intake actions and responsive shell accessible
-
-Reserved the Discovery intake action area in normal document flow, raised
-the UI guidance counter to 3,000 words while retaining the 30,000-character
-guard, added the committed-approval acknowledgement, and tightened mobile
-journey/inspector layering. The browser fixture now loads the same shared
-tokens as the product shell.
-
-### 2026-09-14 11:54 +05:30 — Claude Sonnet 5 — [c6eaa33] — Namespace generation retries and receipts by explicit attempt epoch
-
-Committed reliability work that had been sitting reviewed-and-passed but
-uncommitted since 2026-09-11. Added a shared `semantic_decline.py`
-boundary so generation, final repair, and integration polish interpret a
-model's honest `cannot_complete` response identically. Namespaced
-`GenerationCallReceipt` identity by `attempt_epoch` so redelivery within
-one epoch stays one logical attempt while an explicit retry starts
-separate call history. Deduplicated resource requests and dependency
-receipts by content key instead of naive list concatenation, so
-redelivery no longer re-appends receipts a prior attempt already
-recorded. `_reset_generation_projection_for_explicit_retry` now resets
-every work unit's transient state and bumps `attempt_epoch`, fixing
-checkpointed owners retaining rejected integration-polish source across
-an explicit retry. Reviewed across three rounds ending PASS
-(`semantic-review/2026-09-11-110557-pr-2.md`).
-
-### 2026-09-14 11:54 +05:30 — Claude Sonnet 5 — [a0cae30] — Make native verification acceptance preview-first (D-094)
-
-Committed D-094's implementation, also reviewed and already used in a
-real live campaign on 2026-09-11 but never previously committed.
-Downgrades several previously-blocking checks (missing quality receipt,
-source-contract diagnostics, build diagnostics once a runnable build
-exists, post-startup runtime-verifier exceptions) to advisories under a
-new `code_generator_verification.preview_first_acceptance` flag (native
-profile only). Rebuilds resource/dependency ledgers and a new
-`generated/resource-assets.json` from the durable run before
-verification so re-admission of the immutable brief doesn't lose mutable
-acquisition overlays. Also fixed a real gap found while committing this:
-`generation_orchestrator.py::_review_and_polish`'s preview-first return
-caught a bare `Exception` around `_integration_review` (which
-re-validates worker authorization) with no `AuthorizationFenceError`
-carve-out — a fenced-off run's rejection would have been silently
-swallowed. Added the missing re-raise and two regression tests, since
-`preview_first_acceptance` had zero test coverage before this commit.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-14 — [5e96a52] — Turned public examples into scrollable fictional portfolio previews with distinct layouts, navigation, motion, responsive/reduced-motion behavior, and API assertions.
+- 2026-09-14 — [efb226e] — Kept intake actions accessible, expanded guidance limits, added approval acknowledgement, tightened mobile layering, and shared shell tokens with the browser fixture.
+- 2026-09-14 — [c6eaa33] — Namespaced generation receipts and retry state by explicit attempt epoch, deduplicated resource/dependency receipts, and standardized semantic decline handling.
+- 2026-09-14 — [a0cae30] — Implemented D-094 preview-first native verification with rebuilt acquisition ledgers and authorization-fence regression coverage.
 - 2026-09-14 — [49d6e0d] — Fail-closed brief ingestion dispatch distinguishing raw/namespaced/legacy Build Preparation wire shapes.
 - 2026-09-14 — [7e503f0] — Public fictional three-example portfolio showcase before sign-in.
 - 2026-09-14 — [e53ebfb] — Role-gated administrator control plane at `/admin` matching the reference spec and 8 visuals.
