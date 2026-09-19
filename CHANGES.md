@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 00:00 +05:30 — Codex — [392277c] — Code Generator architecture and preview issue audit
+
+Added `codegen issues.md` and `codegen issues evidence.md`, documenting the
+highest-impact Build Preparation handoff, worker/toolchain, npm, generation,
+preview-promotion, browser-delivery, Windows-runtime, and configuration-gate
+failures found in the current Code Generator implementation. No implementation
+fixes were made; the pre-existing dirty worktree was preserved.
+
 ### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [f0b8d7a] — T09 live campaign attempt 1: environment fixes and a real content-generation finding
 
 Ran the first attempt of the docs/code-generator-repair-plan-2026-09-16.md
