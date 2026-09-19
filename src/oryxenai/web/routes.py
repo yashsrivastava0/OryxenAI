@@ -190,6 +190,10 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
                     ),
                     "css_version": _asset_version("code-generator-development.css"),
                     "js_version": _asset_version("code-generator-development.js"),
+                    "frontend_fixture_origin": str(
+                        getattr(settings.code_generator_verification, "frontend_fixture_origin", "")
+                        or ""
+                    ),
                 },
             )
             return _set_shell_headers(response, settings)

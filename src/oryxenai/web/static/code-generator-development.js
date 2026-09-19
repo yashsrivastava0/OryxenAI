@@ -396,6 +396,19 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   const render = ({ run, events, plan, acquisition, dependencies, generation, verification, preview }) => {
     activeRunId = run.run_id;
     activeRunStatus = run.status;
+    const productFixture = view('product-fixture-open');
+    if (productFixture) {
+      try {
+        const origin = String(root.dataset.frontendFixtureOrigin || '').trim();
+        const target = new URL('/', origin);
+        target.searchParams.set('fixture', 'generation-direct');
+        target.searchParams.set('run_id', activeRunId);
+        productFixture.href = target.toString();
+        productFixture.hidden = !activeRunId || !origin;
+      } catch {
+        productFixture.hidden = true;
+      }
+    }
     view('status').textContent = statusLabels[run.status] || run.status;
     view('status-pill').textContent = statusLabels[run.status] || run.status;
     view('status-pill').dataset.state = run.status === 'ready' ? 'ready' : run.status === 'needs_attention' ? 'error' : 'active';

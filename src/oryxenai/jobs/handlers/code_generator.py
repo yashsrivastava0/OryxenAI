@@ -113,6 +113,7 @@ from oryxenai.auth.worker_fence import AuthorizationFenceError, WorkerAuthorizat
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
+from oryxenai.jobs.handlers.code_generator_failure import reconcile_terminal_failure
 
 _KIND = "code_generator.plan"
 _V5_PLAN_KIND = stage_job_kind("plan", PIPELINE_V5)
@@ -311,6 +312,13 @@ class CodeGeneratorPlanningHandler:
 
     def __init__(self, planner_factory: Callable[[], Any] | None = None) -> None:
         self._planner_factory = planner_factory
+
+    async def on_terminal_failure(
+        self,
+        payload: dict[str, Any],
+        error: dict[str, Any],
+    ) -> None:
+        await reconcile_terminal_failure(payload, error)
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         del instance_id
@@ -819,6 +827,13 @@ class CodeGeneratorAcquisitionHandler:
         self._selector_factory = selector_factory
         self._adapter_factory = adapter_factory
         self._dependency_manager_factory = dependency_manager_factory
+
+    async def on_terminal_failure(
+        self,
+        payload: dict[str, Any],
+        error: dict[str, Any],
+    ) -> None:
+        await reconcile_terminal_failure(payload, error)
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         del instance_id
@@ -2242,6 +2257,13 @@ class CodeGeneratorGenerationHandler:
     ) -> None:
         self._model_factory = model_factory
         self._adapter_factory = adapter_factory
+
+    async def on_terminal_failure(
+        self,
+        payload: dict[str, Any],
+        error: dict[str, Any],
+    ) -> None:
+        await reconcile_terminal_failure(payload, error)
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         from oryxenai.agents.code_generator.core.generation_orchestrator import (

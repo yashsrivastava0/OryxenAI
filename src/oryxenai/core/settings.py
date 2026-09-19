@@ -836,6 +836,10 @@ class CodeGeneratorVerificationConfig(BaseModel):
     preview_embed_origins: list[str] = Field(
         default_factory=lambda: ["http://127.0.0.1:8000", "http://localhost:8000"]
     )
+    # Development-only bridge to the Vite browser fixture. It is rendered
+    # into the standalone control room as a convenience link and is never
+    # used by authenticated production preview routing.
+    frontend_fixture_origin: str = "http://127.0.0.1:4178"
     preview_retention_days: int = 3
     preview_route_prefix: str = "/preview"
     # Production promotion must prove the public gateway URL. Offline tests
