@@ -46,6 +46,11 @@ export function createCodeGeneratorDevelopmentController({
     return run;
   };
 
+  const startAfterPreflights = async (createRun) => {
+    if (api.runPreflights) await api.runPreflights();
+    return activate(await createRun());
+  };
+
   const loadRun = async () => {
     if (!activeRun) return null;
     const run = await api.getRun(activeRun);
@@ -86,9 +91,9 @@ export function createCodeGeneratorDevelopmentController({
     setAutoAdvance,
     loadRun,
     loadPacks: async () => (await api.getBuildPreparationPacks()).packs || [],
-    startFixture: async (fixtureId) => activate(await api.createFixture(fixtureId)),
-    startUpload: async (file) => activate(await api.createUpload(file)),
-    startBuildPreparation: async (pack) => activate(await api.createBuildPreparation(pack)),
+    startFixture: async (fixtureId) => startAfterPreflights(() => api.createFixture(fixtureId)),
+    startUpload: async (file) => startAfterPreflights(() => api.createUpload(file)),
+    startBuildPreparation: async (pack) => startAfterPreflights(() => api.createBuildPreparation(pack)),
     acquire: async () => {
       if (!activeRun || !api.runAcquire) return null;
       const run = await api.runAcquire(activeRun);
