@@ -278,6 +278,16 @@ async def test_planner_worker_redelivery_reuses_plan(db_session) -> None:
         values={"status": "created", "plan": None, "planner_receipt": None, "issues": []},
     )
     assert updated is not None
+    # Production starts with a queued plan attempt. Keeping that row here
+    # makes this redelivery test exercise the same active-attempt uniqueness
+    # guard as the session workflow.
+    await repository.create_stage_attempt(
+        run.id,
+        stage="plan",
+        input_fingerprint="planner-redelivery-input",
+        idempotency_key=f"test:{run.id}:plan:redelivery",
+        expected_run_revision=updated.revision,
+    )
     await db_session.commit()
     handler = CodeGeneratorPlanningHandler(planner_factory=FakePlanner)
     payload = {"development_run_id": str(run.id)}

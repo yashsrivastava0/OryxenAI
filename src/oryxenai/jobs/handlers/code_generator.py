@@ -340,6 +340,12 @@ async def _execute(
         if run is None:
             return {"status": "discarded", "run_id": str(run_id)}
         if run.status == DevelopmentRunStatus.PLANNED.value and run.planner_receipt and run.plan:
+            # A worker can die after the plan CAS commits but before the
+            # successor Acquire job is queued. Redelivery must resume the
+            # durable handoff instead of returning success and stranding the
+            # run in planning.
+            await db.rollback()
+            await advance_after(sessionmaker, run_id, completed_stage="planned")
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
         if (
             run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value
@@ -404,6 +410,8 @@ async def _execute(
         if run is None:
             return {"status": "discarded", "run_id": str(run_id)}
         if run.planner_receipt and run.plan:
+            await db.rollback()
+            await advance_after(sessionmaker, run_id, completed_stage="planned")
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
         run = await _cas_status(
             repo,
@@ -869,6 +877,10 @@ async def _execute_acquisition(
             and run.resource_ledger
             and run.dependency_ledger
         ):
+            # Resume the handoff when the acquisition checkpoint was saved but
+            # the worker stopped before queueing Generate.
+            await db.rollback()
+            await advance_after(sessionmaker, run_id, completed_stage="acquired")
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
         if run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value and run.acquire_receipt:
             return {"status": "needs_attention", "run_id": str(run_id), "reused": True}
@@ -1478,6 +1490,8 @@ async def _execute_acquisition(
         if current is None:
             return {"status": "discarded", "run_id": str(run_id)}
         if current.status == DevelopmentRunStatus.ACQUIRED.value and current.acquire_receipt:
+            await db.rollback()
+            await advance_after(sessionmaker, run_id, completed_stage="acquired")
             return {"status": "succeeded", "run_id": str(run_id), "reused": True}
         await _cas_status(
             repo,

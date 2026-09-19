@@ -71,6 +71,61 @@ async def _create_acquired_run(db_session: AsyncSession, *, prior_durations: dic
     return updated, attempt
 
 
+async def _create_planned_run(db_session: AsyncSession):
+    """Create the production-shaped plan checkpoint and active plan attempt."""
+
+    repo = CodeGeneratorDevelopmentRepository(db_session)
+    run = await repo.create(
+        input_reference={"kind": "test-fixture"}, idempotency_key=None, auto_advance=True
+    )
+    updated = await repo.compare_and_swap(
+        run.id,
+        expected_revision=run.revision,
+        values={
+            "status": "planned",
+            "plan": {"plan_id": "plan-fixture"},
+            "planner_receipt": {"plan_hash": "plan-hash-fixture"},
+        },
+    )
+    assert updated is not None
+    attempt = await repo.create_stage_attempt(
+        run.id,
+        stage="plan",
+        input_fingerprint="fingerprint-plan-1",
+        idempotency_key=f"test:{run.id}:plan:1",
+        expected_run_revision=updated.revision,
+    )
+    await db_session.commit()
+    return updated, attempt
+
+
+@pytest.mark.integration
+async def test_advance_after_finalizes_plan_before_queueing_acquire(
+    db_session: AsyncSession,
+) -> None:
+    """The production plan attempt must not block the next active attempt."""
+
+    run, plan_attempt = await _create_planned_run(db_session)
+
+    advanced = await advance_after(
+        _sessionmaker_over(db_session), run.id, completed_stage="planned"
+    )
+
+    assert advanced is True
+    refreshed = await CodeGeneratorDevelopmentRepository(db_session).get(run.id)
+    assert refreshed is not None
+    await db_session.refresh(refreshed)
+    assert refreshed.status == "acquiring"
+    assert refreshed.coordinator_stage == "acquire"
+    assert refreshed.acquire_job_id is not None
+    assert refreshed.active_attempt_id is not None
+    finalized_plan = await CodeGeneratorDevelopmentRepository(db_session).get_stage_attempt(
+        plan_attempt.id
+    )
+    assert finalized_plan is not None
+    assert finalized_plan.status == "succeeded"
+
+
 @pytest.mark.integration
 async def test_advance_after_writes_a_non_negative_duration_for_the_completed_stage(
     db_session: AsyncSession,

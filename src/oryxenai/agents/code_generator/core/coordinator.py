@@ -40,9 +40,14 @@ async def advance_after(
     if transition is None:
         return False
     stage, status, job_field = transition
-    completed_attempt_stage = {"acquired": "acquire", "source_ready": "generate"}.get(
-        completed_stage
-    )
+    # Production runs create the plan attempt before the first job is
+    # enqueued. Finalize it before creating Acquire, otherwise the partial
+    # unique index for active attempts rejects the handoff.
+    completed_attempt_stage = {
+        "planned": "plan",
+        "acquired": "acquire",
+        "source_ready": "generate",
+    }.get(completed_stage)
     async with sessionmaker() as db:
         repo = CodeGeneratorDevelopmentRepository(db)
         run = await repo.get(run_id)
