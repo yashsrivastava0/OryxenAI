@@ -60,7 +60,7 @@ describe("adaptCodeGenerator", () => {
     ]);
     expect(withoutPreview.state).toBe("attention");
     expect(withoutPreview.preview).toBeNull();
-    expect(withoutPreview.retryAvailable).toBe(false);
+    expect(withoutPreview.retryAvailable).toBe(true);
   });
 
   it("converges a planning response with a failed active job to attention", () => {
@@ -78,7 +78,7 @@ describe("adaptCodeGenerator", () => {
     expect(view.status).toBe("planning");
     expect(view.safeError?.summary).toBe("The background job handler failed.");
     expect(view.safeError?.retryable).toBe(false);
-    expect(view.retryAvailable).toBe(false);
+    expect(view.retryAvailable).toBe(true);
   });
 
   it("does not confuse current_run_id with a job id", () => {

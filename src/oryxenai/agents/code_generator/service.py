@@ -495,6 +495,11 @@ class CodeGeneratorService:
                 "The current Code Generator run no longer exists.",
                 status_code=409,
             )
+        # A failed worker can leave the run row on its previous stage status
+        # for a short window. Reconcile that terminal job before applying the
+        # retry-state guard so the recovery button can actually requeue the
+        # same run instead of reporting that generation is still in progress.
+        run = await self._reconcile_terminal_active_job(run)
         normal_entitlement = await self._normal_owner_entitlement(session_id)
         if normal_entitlement is not None:
             if normal_entitlement.successful_run_id is not None:
@@ -884,6 +889,14 @@ class CodeGeneratorService:
                 (job for job in jobs if job["id"] == str(active_job_id)),
                 None,
             )
+            active_job_terminal = active_job is not None and active_job["status"] in {
+                "failed",
+                "cancelled",
+            }
+            run_retryable = str(getattr(run, "status", "")) in {
+                DevelopmentRunStatus.NEEDS_ATTENTION.value,
+                DevelopmentRunStatus.PREVIEW_PENDING.value,
+            }
             # These are additive fields on the existing state response; they
             # do not introduce a second polling endpoint or alter run state.
             payload["active_job_id"] = str(active_job_id) if active_job_id is not None else None
@@ -891,11 +904,7 @@ class CodeGeneratorService:
             payload["retry_available"] = bool(
                 not stale_reasons
                 and _manual_retry_allowed(run)
-                and str(getattr(run, "status", ""))
-                in {
-                    DevelopmentRunStatus.NEEDS_ATTENTION.value,
-                    DevelopmentRunStatus.PREVIEW_PENDING.value,
-                }
+                and (run_retryable or active_job_terminal)
             )
         else:
             payload["active_job_id"] = None

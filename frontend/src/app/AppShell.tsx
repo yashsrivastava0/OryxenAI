@@ -1024,7 +1024,8 @@ export function AppShell({
       !state.sessionId ||
       mutatingStage ||
       state.preparation?.state !== "complete" ||
-      state.generation?.retryAvailable !== true
+      state.generation?.state !== "attention" ||
+      state.generation.stale
     ) return;
     const sessionId = state.sessionId;
     setMutatingStage("generate");

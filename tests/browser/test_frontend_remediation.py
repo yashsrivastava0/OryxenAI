@@ -127,8 +127,8 @@ def test_generation_working_uses_human_milestones_and_attention_preserves_previe
     page.goto(f"{BASE_URL}/?fixture=generation-planning-failed", wait_until="networkidle")
     assert page.get_by_role("heading", name="Generation needs attention").is_visible()
     assert page.get_by_text("The background job handler failed.").is_visible()
-    assert page.get_by_role("button", name="Refresh state").is_visible()
-    assert page.get_by_role("button", name="Retry generation").count() == 0
+    assert page.get_by_role("button", name="Refresh state").count() == 0
+    assert page.get_by_role("button", name="Retry generation").is_visible()
     assert_no_horizontal_overflow(page)
 
 

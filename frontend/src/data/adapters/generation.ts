@@ -285,6 +285,15 @@ export function adaptCodeGenerator(
 
   if (failedJob) state = "attention";
 
+  // A terminal Code Generator job is itself a retryable failure signal. Older
+  // workers can return the previous planning status or omit the additive
+  // retry flag before the read-path reconciliation runs, but the product
+  // still needs to offer the same-run recovery action in that window.
+  const retryAvailable =
+    state === "attention" &&
+    !stale &&
+    (raw.retry_available === true || status === "needs_attention" || failedJob);
+
   const statusText = stale
     ? "The build handoff changed since this portfolio was generated"
     : status === "not_started" && state === "locked"
@@ -314,7 +323,7 @@ export function adaptCodeGenerator(
     candidatePreview,
     warnings: warningMessages(raw.warnings ?? raw.advisories),
     safeError: safeError(raw, failedJob, job),
-    retryAvailable: state === "attention" && !stale && raw.retry_available === true,
+    retryAvailable,
     estimatedRemainingMs: stageEstimate.estimatedRemainingMs,
     estimatedTotalMs: stageEstimate.estimatedTotalMs,
     estimateSource: stageEstimate.estimateSource,
