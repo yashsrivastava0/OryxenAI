@@ -4,7 +4,7 @@ import test from 'node:test';
 import { createCodeGeneratorDevelopmentController } from '../../src/oryxenai/web/static/code-generator-development-controller.mjs';
 import { formatReadinessBlocker, generationCanResume } from '../../src/oryxenai/web/static/code-generator-development.js';
 
-function harness({ search = '', storedRun = null, status = 'planned', autoAdvance = 'false' } = {}) {
+function harness({ search = '', storedRun = null, status = 'planned', autoAdvance = 'false', preflight = false } = {}) {
   const calls = [];
   const renders = [];
   const scheduled = [];
@@ -81,6 +81,7 @@ function harness({ search = '', storedRun = null, status = 'planned', autoAdvanc
       return { run_id: 'bp-run', status: 'queued' };
     },
   };
+  if (preflight) api.runPreflights = async () => calls.push(['runPreflights']);
   return {
     calls,
     renders,
@@ -195,10 +196,11 @@ test('verify action invokes the durable verification endpoint', async () => {
 });
 
 test('build-preparation start uses the mirror endpoint and activates the run', async () => {
-  const subject = harness({ status: 'queued' });
+  const subject = harness({ status: 'queued', preflight: true });
   await subject.controller.startBuildPreparation('13-49-14-08-65fc8e47');
   assert.equal(subject.controller.activeRun(), 'bp-run');
-  assert.deepEqual(subject.calls.slice(0, 3), [
+  assert.deepEqual(subject.calls.slice(0, 4), [
+    ['runPreflights'],
     ['createBuildPreparation', '13-49-14-08-65fc8e47'],
     ['replaceState', '?run=bp-run'],
     ['getRun', 'bp-run'],
@@ -271,6 +273,10 @@ test('readiness blocker labels explain preview configuration failures', () => {
   assert.equal(
     formatReadinessBlocker('preview_gateway_unreachable'),
     'preview gateway is unreachable',
+  );
+  assert.equal(
+    formatReadinessBlocker('toolchain_preflight_required'),
+    'disposable toolchain preflight',
   );
   assert.equal(formatReadinessBlocker('unknown_blocker'), 'unknown_blocker');
 });
