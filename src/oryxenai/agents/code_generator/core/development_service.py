@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import os
 import shutil
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -46,10 +45,10 @@ from oryxenai.agents.code_generator.core.toolchain_preflight import (
     run_toolchain_preflight,
     toolchain_preflight_status,
 )
+from oryxenai.agents.code_generator.core.worker_readiness import worker_contract_readiness
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
-from oryxenai.jobs.heartbeat import HeartbeatRepository
 from oryxenai.jobs.service import JobService
 from oryxenai.storage.preview import PreviewStorageError, create_preview_storage
 
@@ -215,116 +214,7 @@ class CodeGeneratorDevelopmentService:
         return self._toolchain_preflight_result
 
     async def _worker_contract_readiness(self) -> dict[str, Any]:
-        """Check that a fresh worker can execute the active pipeline.
-
-        The API and worker are separate processes and may be restarted at
-        different times. A heartbeat is the existing durable liveness
-        boundary; its non-secret metadata also carries the release and
-        pipeline contract. Development service fixtures without a database
-        session keep the historical optimistic behavior.
-        """
-
-        session = getattr(self._repo, "_session", None)
-        if session is None:
-            return {
-                "checked": False,
-                "ready": True,
-                "expected_pipeline_contract_version": str(
-                    getattr(
-                        self._settings.code_generator_development,
-                        "pipeline_contract_version",
-                        "",
-                    )
-                    or ""
-                ),
-                "expected_worker_release_id": str(
-                    getattr(self._settings.code_generator_development, "worker_release_id", "")
-                    or ""
-                ),
-                "active_workers": [],
-                "blocker": "",
-            }
-        expected_version = str(
-            getattr(self._settings.code_generator_development, "pipeline_contract_version", "")
-            or ""
-        )
-        expected_release = str(
-            getattr(self._settings.code_generator_development, "worker_release_id", "") or ""
-        )
-        try:
-            rows = await HeartbeatRepository(session).get_recent(limit=25)
-        except Exception:
-            return {
-                "checked": True,
-                "ready": False,
-                "expected_pipeline_contract_version": expected_version,
-                "expected_worker_release_id": expected_release,
-                "active_workers": [],
-                "blocker": "code_generator_worker_heartbeat_unavailable",
-            }
-        try:
-            stale_after = max(
-                float(
-                    getattr(
-                        getattr(self._settings, "diagnostics", None),
-                        "heartbeat_staleness",
-                        60.0,
-                    )
-                ),
-                float(
-                    getattr(
-                        getattr(self._settings, "worker", None),
-                        "heartbeat_interval",
-                        30.0,
-                    )
-                )
-                * 2,
-            )
-        except (TypeError, ValueError):
-            stale_after = 60.0
-        now = datetime.now(UTC)
-        active_workers: list[dict[str, Any]] = []
-        for row in rows:
-            last_seen = getattr(row, "last_seen_at", None)
-            if getattr(row, "stopped_at", None) is not None or last_seen is None:
-                continue
-            age = max(0.0, (now - last_seen).total_seconds())
-            if age > stale_after:
-                continue
-            metadata = getattr(row, "service_metadata", {})
-            metadata = metadata if isinstance(metadata, dict) else {}
-            active_workers.append(
-                {
-                    "instance_id": str(getattr(row, "instance_id", "")),
-                    "release_id": str(metadata.get("release_id", "")),
-                    "pipeline_contract_version": str(metadata.get("pipeline_contract_version", "")),
-                    "age_seconds": round(age, 1),
-                }
-            )
-        compatible = [
-            worker
-            for worker in active_workers
-            if worker["release_id"] == expected_release
-            and worker["pipeline_contract_version"] == expected_version
-        ]
-        incompatible = [worker for worker in active_workers if worker not in compatible]
-        blocker = ""
-        if not active_workers:
-            blocker = "code_generator_worker_unavailable"
-        elif incompatible:
-            # A legacy worker's claim query predates the queue namespace and
-            # can still pick up a migrated job. Do not advertise readiness
-            # while any fresh worker has a different release/contract; the
-            # operator must drain it before starting new portfolio work.
-            blocker = "code_generator_worker_contract_mismatch"
-        return {
-            "checked": True,
-            "ready": bool(compatible) and not incompatible,
-            "expected_pipeline_contract_version": expected_version,
-            "expected_worker_release_id": expected_release,
-            "active_workers": active_workers,
-            "blocker": blocker,
-        }
+        return await worker_contract_readiness(self._repo, self._settings)
 
     async def readiness(self) -> dict[str, Any]:
         """Return non-secret prerequisites so the developer UI never implies readiness."""
@@ -535,6 +425,14 @@ class CodeGeneratorDevelopmentService:
                         "diagnostics": (toolchain_preflight or {}).get("diagnostics", [])[:8],
                     }
                 },
+            )
+        worker_readiness = await self._worker_contract_readiness()
+        if worker_readiness.get("checked") and not worker_readiness.get("ready"):
+            raise DevelopmentRunError(
+                "WORKER_NOT_READY",
+                "No compatible Code Generator worker is ready to claim this run.",
+                status_code=409,
+                details={"worker_contract": worker_readiness},
             )
         pipeline_contract_version = str(
             self._settings.code_generator_development.pipeline_contract_version

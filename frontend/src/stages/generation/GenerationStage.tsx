@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { GenerationViewModel } from "../../data/adapters/generation";
 import { copyJson } from "../../data/clipboard";
 
@@ -98,6 +98,66 @@ export function GenerationStage({
   const [showTraceabilityDrawer, setShowTraceabilityDrawer] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [zoomFit, setZoomFit] = useState(true);
+  const [previewEmbedState, setPreviewEmbedState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [previewEmbedMessage, setPreviewEmbedMessage] = useState("");
+  const previewFrameRef = useRef<HTMLIFrameElement>(null);
+  const previewUrl = view?.preview?.url || view?.candidatePreview?.url || "";
+
+  useEffect(() => {
+    setPreviewEmbedState(previewUrl ? "loading" : "idle");
+    setPreviewEmbedMessage("");
+    if (!previewUrl) return;
+
+    let expectedOrigin = "";
+    try {
+      expectedOrigin = new URL(previewUrl).origin;
+    } catch {
+      setPreviewEmbedState("error");
+      setPreviewEmbedMessage("The preview URL is invalid.");
+      return;
+    }
+
+    const onMessage = (event: MessageEvent) => {
+      const frame = previewFrameRef.current;
+      const data = event.data;
+      if (event.source !== frame?.contentWindow || event.origin !== expectedOrigin) return;
+      if (
+        !data ||
+        data.type !== "preview:ready" ||
+        data.version !== "preview-bridge-v1"
+      ) return;
+      setPreviewEmbedState("ready");
+      setPreviewEmbedMessage("");
+    };
+
+    window.addEventListener("message", onMessage);
+    const timer = window.setTimeout(() => {
+      setPreviewEmbedState((current) => {
+        if (current === "ready") return current;
+        setPreviewEmbedMessage("The preview loaded but did not complete its browser handshake.");
+        return "error";
+      });
+    }, 8000);
+
+    return () => {
+      window.removeEventListener("message", onMessage);
+      window.clearTimeout(timer);
+    };
+  }, [previewUrl]);
+
+  const sendPreviewInit = () => {
+    if (!previewUrl) return;
+    try {
+      const origin = new URL(previewUrl).origin;
+      previewFrameRef.current?.contentWindow?.postMessage(
+        { type: "preview:init", version: "preview-bridge-v1" },
+        origin,
+      );
+    } catch {
+      setPreviewEmbedState("error");
+      setPreviewEmbedMessage("The preview URL is invalid.");
+    }
+  };
 
   // 1. Locked State
   if (!view || view.state === "locked") {
@@ -144,7 +204,6 @@ export function GenerationStage({
   const failedIndex = isAttention ? (activeIndex >= 0 ? activeIndex : 3) : -1;
 
   // Active preview URL
-  const previewUrl = view.preview?.url || view.candidatePreview?.url || "";
   const hasVerifiedPreview = Boolean(view.preview?.url);
 
   // Headline and subtitle for left panel
@@ -569,8 +628,11 @@ export function GenerationStage({
                   type="button"
                   className="nav-arrow"
                   onClick={() => {
-                    const iframe = document.querySelector(".preview-iframe") as HTMLIFrameElement;
-                    if (iframe && previewUrl) iframe.src = previewUrl;
+                    if (previewFrameRef.current && previewUrl) {
+                      previewFrameRef.current.src = previewUrl;
+                      setPreviewEmbedState("loading");
+                      setPreviewEmbedMessage("");
+                    }
                   }}
                   title="Reload preview"
                 >
@@ -600,12 +662,21 @@ export function GenerationStage({
             {/* Inner iframe or blueprint surface */}
             <div className="browser-content-viewport">
               {previewUrl ? (
-                <iframe
-                  src={previewUrl}
-                  title="Generated portfolio preview"
-                  className="preview-iframe"
-                  sandbox="allow-scripts allow-same-origin allow-forms"
-                />
+                <>
+                  <iframe
+                    ref={previewFrameRef}
+                    src={previewUrl}
+                    title="Generated portfolio preview"
+                    className="preview-iframe"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    onLoad={sendPreviewInit}
+                  />
+                  {previewEmbedState === "error" && (
+                    <p className="preview-embed-error" role="alert">
+                      {previewEmbedMessage || "The generated preview is unavailable."} Open it in a new tab to inspect the diagnostic response.
+                    </p>
+                  )}
+                </>
               ) : isWorking ? (
                 <div className="preview-placeholder preview-placeholder--working">
                   <div className="wireframe-skeleton">

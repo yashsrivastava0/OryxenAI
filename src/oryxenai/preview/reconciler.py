@@ -17,6 +17,7 @@ async def reconcile_pending_promotion(
     pending: PendingPromotion,
     manifest: BuildManifest,
     preview_base_url: str,
+    readback_base_url: str | None = None,
     require_readback: bool = True,
 ) -> Any:
     """Resume the receipt/pointer boundary without inventing new bytes."""
@@ -24,6 +25,7 @@ async def reconcile_pending_promotion(
     promoter = PreviewPromoter(
         storage,
         preview_base_url=preview_base_url,
+        readback_base_url=readback_base_url,
         require_readback=require_readback,
     )
     pointer = {
