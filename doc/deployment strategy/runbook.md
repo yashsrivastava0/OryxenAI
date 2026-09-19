@@ -1,5 +1,7 @@
 # Beginner deployment runbook
 
+Preparation audit recorded: 2026-09-15 20:26:26 +05:30 (Asia/Kolkata).
+
 Follow the phases in order. A phase is not complete because containers merely
 start; use its stated checks.
 
@@ -32,6 +34,10 @@ release branch:
 git switch -c deployment <CLEAN_SHA>
 git push -u origin deployment
 ```
+
+Until the VM has successfully recorded the deployment branch in its ignored
+deployment state, always pass the exact release SHA to the deploy command.
+This avoids relying on the script's historical no-argument branch default.
 
 Do not use `git add .` or include `.env`, caches, `node_modules`, build output,
 `.kiro`, `.playwright-mcp`, or another contributor's unreviewed work.
@@ -93,6 +99,9 @@ VM-local `.env` has restrictive permissions.
 ## 4. Deploy the server before the domain
 
 Deploy the exact release SHA selected in Step 0:
+
+The SHA argument is intentional. It makes the running image, logs, rollback
+record, and later diagnosis point to one reviewed commit.
 
 ```bash
 ./scripts/azure-deploy.sh deploy <CLEAN_SHA>

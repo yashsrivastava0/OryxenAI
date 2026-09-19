@@ -1,7 +1,9 @@
 # OryxenAI deployment strategy
 
-Status: deployment documentation added on 2026-09-15. The Azure release itself
-has not been executed or accepted yet.
+Status: preparation audit recorded on 2026-09-15 20:26:26 +05:30
+(Asia/Kolkata). The Azure release itself has not been executed or accepted.
+The evidence-based gate is summarized in
+[readiness-matrix.md](readiness-matrix.md).
 
 This folder is the beginner-facing operator guide requested for OryxenAI. It
 contains no credentials. The repository's engineering deployment documents and
@@ -24,7 +26,7 @@ generated artifacts and previews.
 ```
 
 This is intentionally small and reversible. It does not add Kubernetes,
-Redis, a container registry, a managed database, GitHub Actions deployment, or
+Redis, a container registry, a managed database, a PaaS control plane, or
 another paid Azure service.
 
 ## Current state from the repository audit
@@ -66,10 +68,10 @@ literal `deploy.me` domain will be available to the owner.
 
 ## Release workflow
 
-Create a `deployment` branch only from a clean, reviewed release commit. Do
-not push the present dirty worktree. The branch is a stable release pointer;
-development continues on working branches and is merged into `deployment`
-after checks pass.
+GitHub Actions already supplies the quality gate. Create a `deployment` branch
+only from a clean, reviewed release commit. Do not push the present dirty
+worktree. The branch is a stable release pointer; development continues on
+working branches and is merged into `deployment` after checks pass.
 
 The VM should deploy an exact commit, not an unreviewed moving branch tip:
 
@@ -77,13 +79,20 @@ The VM should deploy an exact commit, not an unreviewed moving branch tip:
 ./scripts/azure-deploy.sh deploy <commit-sha>
 ```
 
-There is no automatic deployment. This keeps the process understandable for a
-small two- or three-person installation and makes a release or rollback
-identifiable.
+The first release uses a human-approved exact-SHA deployment over the existing
+restricted SSH path. There is no automatic deploy-on-push workflow yet. This
+keeps the process understandable for a small two- or three-person
+installation, avoids putting a VM SSH key in GitHub, and makes a release or
+rollback identifiable. A future one-click workflow is described in
+[github-and-ci.md](github-and-ci.md), but it is deliberately deferred until
+the first manual release works.
 
 ## Read next
 
 - [Owner checklist](owner-checklist.md) — information and dashboard actions required from the owner.
+- [Readiness matrix](readiness-matrix.md) — evidence, blockers, and release gates.
+- [GitHub and CI/CD](github-and-ci.md) — branch protection and future automation.
+- [AI/open-source research](ai-and-open-source-research.md) — tool comparison and safe AI policy.
 - [Beginner runbook](runbook.md) — the ordered deployment procedure.
 - [Operations guide](operations.md) — updates, backups, costs, rollback, and AI assistance.
 - [Research sources](research-sources.md) — first-party external guidance reviewed for this strategy.
