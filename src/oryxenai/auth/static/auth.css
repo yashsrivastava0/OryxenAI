@@ -1948,6 +1948,17 @@ body:not([data-page="admin"])::before {
   align-items: stretch;
 }
 
+.studio-input-row .studio-field-prefix {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.studio-input-row .studio-submit-btn {
+  flex: 0 0 auto;
+  width: auto !important;
+  min-width: 170px;
+}
+
 .studio-field-prefix {
   position: relative;
   flex: 1;
