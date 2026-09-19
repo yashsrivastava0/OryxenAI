@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 19:44 +05:30 — Codex (GPT-5) — [08c6031] — Connect Build Preparation to the live preview control room
+
+Build Preparation completion now unlocks Code Generator in the same polling
+cycle, and its primary action starts generation directly while navigating to
+the control room. Replaced fabricated preparation evidence with the actual
+route/resource/component indexes, removed unsupported follow-up chat controls,
+and added exact-origin preview protocol helpers, reload/degraded states, and a
+gateway-injected fallback bridge. Verified the frontend build, full Vitest
+suite, gateway tests, Ruff, and preview-handshake regression.
+
 ### 2026-09-19 19:41 +05:30 — Codex (GPT-5) — [ac1fb98] — Run required toolchain preflight before Code Generator admission
 
 The static Code Generator control room now runs the disposable toolchain
