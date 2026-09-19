@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 19:41 +05:30 — Codex (GPT-5) — [ac1fb98] — Run required toolchain preflight before Code Generator admission
+
+The static Code Generator control room now runs the disposable toolchain
+preflight before provider compatibility and paid planning, keeps the launch
+button busy during the proof, and explains pending preflight readiness without
+leaking the raw blocker code. The same sequencing covers fixture and upload
+fallback starts. Focused static tests and the local disposable preflight pass.
+
 ### 2026-09-19 16:35 +05:30 — Codex (GPT-5) — [761a5d8] — Preserve bounded repair evidence and resolve JSX motion targets
 
 The repair loop now carries restricted source bodies into the next bounded
@@ -257,51 +265,14 @@ AI-assisted troubleshooting, backups, cost controls, and first-party research.
 Recorded the dedicated `deployment` release pointer and the two-phase
 server/public-domain rollout decisions without changing application code.
 
-### 2026-09-14 00:00 +05:30 — Codex (GPT-5) — [f594a11] — lossless Azure deployment session log
-
-Added an append-only deployment session record covering the Azure VM wizard,
-review corrections, VM creation, SSH evidence, bootstrap packages, repository
-implementation context, compilation and verification boundaries, mistakes, and
-unconfirmed Docker/application steps. Linked it from the deployment index and
-project-status handoff without recording secret values.
-
-### 2026-09-14 15:09 +05:30 — Codex (GPT-5) — [d0894d6] — Make Generation previews truthful
-
-Removed invented build progress, timestamps, and Publish/Deploy UI from the
-Generation workspace. Added explicit verified-versus-candidate preview labels,
-a regeneration action, preview-first tablet layout, reduced-motion-safe stage
-transition, and fixture/browser coverage for those states.
-
-### 2026-09-14 14:52 +05:30 — Codex (GPT-5) — [62c4ac7] — Refresh project and deployment status documentation
-
-Added the canonical `docs/project-status.md` handoff and aligned `AGENTS.md`,
-`README.md`, architecture notes, and deployment documents with the current
-committed implementation, Azure VM checkpoint, R2/Supabase readiness, dirty
-worktree release gate, and pending Azure end-to-end acceptance.
-
-### 2026-09-14 14:05 +05:30 — Codex (GPT-5) — [cf71c87] — Code Generator Windows build diagnostics
-
-Classified Vite's Windows `spawn EPERM` path-resolution failure as infrastructure rather than generated-source failure, bypassed source repair for that condition, and provided a preflight-and-retry recovery action with regression tests.
-
-### 2026-09-14 12:24 +05:30 — Codex (GPT-5) — [250417d] — Add art-directed motion to public portfolio previews
-
-Upgraded the three public sample portfolios with distinct interaction systems:
-Devon's telemetry grid and console scan, Leila's animated market signals and
-offset proof layout, and Noa's layered paper/poster collage. Added subtle
-grain, pointer-responsive lighting, scroll-aware section state, staggered
-screen reveals, responsive overflow protection, and reduced-motion fallbacks.
-The preview controller now returns every newly opened sample to Home before
-showing it.
-
-### 2026-09-14 12:14 +05:30 — Codex (GPT-5) — [e7296f8] — Separate destructive admin reset from creator shell
-
-Removed the destructive pipeline-reset control, modal, and styling from the
-creator workspace. Administrator access remains available through the
-authenticated `/admin` surface and the admin account entry point.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-14 — [f594a11] — Added the lossless Azure deployment session log with VM evidence, verification boundaries, and secret-safe handoff links.
+- 2026-09-14 — [d0894d6] — Made Generation previews truthful with verified/candidate labeling, regeneration, responsive behavior, and fixture coverage.
+- 2026-09-14 — [62c4ac7] — Added canonical project/deployment status documentation and aligned release-gate handoffs.
+- 2026-09-14 — [cf71c87] — Classified Windows Vite `spawn EPERM` as infrastructure and added preflight/retry diagnostics.
+- 2026-09-14 — [250417d, e7296f8] — Added art-directed public-preview motion and separated destructive admin reset from the creator shell.
 - 2026-09-14 — [5e96a52] — Turned public examples into scrollable fictional portfolio previews with distinct layouts, navigation, motion, responsive/reduced-motion behavior, and API assertions.
 - 2026-09-14 — [efb226e] — Kept intake actions accessible, expanded guidance limits, added approval acknowledgement, tightened mobile layering, and shared shell tokens with the browser fixture.
 - 2026-09-14 — [c6eaa33] — Namespaced generation receipts and retry state by explicit attempt epoch, deduplicated resource/dependency receipts, and standardized semantic decline handling.
@@ -378,7 +349,7 @@ authenticated `/admin` surface and the admin account entry point.
 
 ---
 
-## Summary (as of last compaction — 2026-09-18)
+## Summary (as of last compaction — 2026-09-19)
 
 - Recent detailed entries retained: 19
-- Compacted milestone bullets: 51
+- Compacted milestone bullets: 56

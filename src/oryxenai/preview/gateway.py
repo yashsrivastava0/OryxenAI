@@ -52,6 +52,28 @@ _ASSET_SUFFIXES = {
     ".txt",
     ".xml",
 }
+_PREVIEW_BRIDGE_PATH = "__oryxenai/preview-bridge.js"
+_PREVIEW_BRIDGE_JS = b"""(() => {
+  const VERSION = "preview-bridge-v1";
+  if (window.parent === window || window.__ORYXENAI_PREVIEW_BRIDGE__) return;
+  window.__ORYXENAI_PREVIEW_BRIDGE__ = true;
+  let parentOrigin = "";
+  const route = () => window.location.pathname;
+  const announce = (type) => {
+    if (!parentOrigin) return;
+    window.parent.postMessage(
+      { type, version: VERSION, path: route(), route: route(), title: document.title },
+      parentOrigin,
+    );
+  };
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent || !event.data || event.data.type !== "preview:init" || event.data.version !== VERSION) return;
+    parentOrigin = event.origin;
+    announce("preview:ready");
+  });
+  window.addEventListener("popstate", () => announce("preview:route"));
+})();
+"""
 
 
 def _safe_path(value: str) -> str:
@@ -111,17 +133,35 @@ def _headers(*, embed_origins: tuple[str, ...], asset: bool) -> dict[str, str]:
 
 
 def _inject_preview_base(data: bytes, base_path: str) -> bytes:
-    """Add the runtime mount prefix without changing the immutable artifact."""
+    """Add runtime mount metadata and the deterministic browser bridge.
+
+    The stored artifact remains immutable; both additions are response-only
+    gateway behavior. The bridge is external rather than inline so the
+    artifact keeps the strict ``script-src 'self'`` policy.
+    """
 
     if not base_path or b"<head" not in data.lower():
         return data
     marker = f'<meta name="oryxenai-preview-base" content="{base_path}">'.encode()
+    bridge_src = f'{base_path.rstrip("/")}/{_PREVIEW_BRIDGE_PATH}'.encode()
+    bridge_marker = b'<script src="' + bridge_src + b'" defer></script>'
+    injection = (b"" if marker in data else marker) + (b"" if bridge_marker in data else bridge_marker)
+    if not injection:
+        return data
     lowered = data.lower()
     head_index = lowered.find(b"<head")
     close_index = data.find(b">", head_index)
     if close_index < 0:
         return data
-    return data[: close_index + 1] + marker + data[close_index + 1 :]
+    return data[: close_index + 1] + injection + data[close_index + 1 :]
+
+
+def _preview_bridge_response(*, method: str, embed_origins: tuple[str, ...]) -> Response:
+    return Response(
+        content=b"" if method == "HEAD" else _PREVIEW_BRIDGE_JS,
+        media_type="text/javascript",
+        headers=_headers(embed_origins=embed_origins, asset=True),
+    )
 
 
 def _preview_asset_url(value: str, mount_path: str) -> str:
@@ -265,6 +305,8 @@ class PreviewGateway:
             PreviewStorageError,
         ):
             return JSONResponse({"status": "unavailable"}, status_code=503)
+        if requested == _PREVIEW_BRIDGE_PATH:
+            return _preview_bridge_response(method=request.method, embed_origins=self.embed_origins)
         asset = requested in entries
         if not asset:
             if (
@@ -345,6 +387,8 @@ class PreviewGateway:
             }
         except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
             return JSONResponse({"status": "unavailable"}, status_code=503)
+        if requested == _PREVIEW_BRIDGE_PATH:
+            return _preview_bridge_response(method=request.method, embed_origins=self.embed_origins)
         if requested not in entries:
             if (
                 requested != "index.html"
@@ -481,6 +525,8 @@ class CandidateGateway:
                 status_code=404,
                 headers={"X-OryxenAI-Candidate-404": "path"},
             )
+        if relative == _PREVIEW_BRIDGE_PATH:
+            return _preview_bridge_response(method=request.method, embed_origins=self.embed_origins)
         target = (self.dist_dir / relative).resolve()
         if not target.is_relative_to(self.dist_dir) or not target.is_file():
             if PurePosixPath(relative).suffix.casefold() in _ASSET_SUFFIXES:

@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { GenerationViewModel } from "../../data/adapters/generation";
 import { copyJson } from "../../data/clipboard";
+import {
+  getPreviewOrigin,
+  isPreviewReadyMessage,
+  isPreviewRouteMessage,
+  PREVIEW_BRIDGE_VERSION,
+  previewRouteFromMessage,
+  type PreviewEmbedState,
+  withPreviewReloadToken,
+} from "../../data/preview-bridge";
 
 export interface GenerationStageProps {
   view: GenerationViewModel | null;
@@ -94,24 +103,25 @@ export function GenerationStage({
   onRetry,
   onRegenerate,
 }: GenerationStageProps) {
-  const [instructionText, setInstructionText] = useState("");
   const [showTraceabilityDrawer, setShowTraceabilityDrawer] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [zoomFit, setZoomFit] = useState(true);
-  const [previewEmbedState, setPreviewEmbedState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [previewEmbedState, setPreviewEmbedState] = useState<PreviewEmbedState>("idle");
   const [previewEmbedMessage, setPreviewEmbedMessage] = useState("");
+  const [previewRoute, setPreviewRoute] = useState<string | null>(null);
   const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const previewUrl = view?.preview?.url || view?.candidatePreview?.url || "";
+  const [previewSrc, setPreviewSrc] = useState(previewUrl);
 
   useEffect(() => {
+    setPreviewSrc(previewUrl);
     setPreviewEmbedState(previewUrl ? "loading" : "idle");
     setPreviewEmbedMessage("");
+    setPreviewRoute(null);
     if (!previewUrl) return;
 
-    let expectedOrigin = "";
-    try {
-      expectedOrigin = new URL(previewUrl).origin;
-    } catch {
+    const expectedOrigin = getPreviewOrigin(previewUrl);
+    if (!expectedOrigin) {
       setPreviewEmbedState("error");
       setPreviewEmbedMessage("The preview URL is invalid.");
       return;
@@ -119,22 +129,21 @@ export function GenerationStage({
 
     const onMessage = (event: MessageEvent) => {
       const frame = previewFrameRef.current;
-      const data = event.data;
-      if (event.source !== frame?.contentWindow || event.origin !== expectedOrigin) return;
-      if (
-        !data ||
-        data.type !== "preview:ready" ||
-        data.version !== "preview-bridge-v1"
-      ) return;
-      setPreviewEmbedState("ready");
-      setPreviewEmbedMessage("");
+      if (isPreviewReadyMessage(event, frame?.contentWindow ?? null, expectedOrigin)) {
+        setPreviewEmbedState("ready");
+        setPreviewEmbedMessage("");
+        return;
+      }
+      if (isPreviewRouteMessage(event, frame?.contentWindow ?? null, expectedOrigin)) {
+        setPreviewRoute(previewRouteFromMessage(event.data));
+      }
     };
 
     window.addEventListener("message", onMessage);
     const timer = window.setTimeout(() => {
       setPreviewEmbedState((current) => {
-        if (current === "ready") return current;
-        setPreviewEmbedMessage("The preview loaded but did not complete its browser handshake.");
+        if (current === "ready" || current === "degraded") return current;
+        setPreviewEmbedMessage("The preview did not finish loading. Open it in a new tab to inspect the diagnostic response.");
         return "error";
       });
     }, 8000);
@@ -147,12 +156,25 @@ export function GenerationStage({
 
   const sendPreviewInit = () => {
     if (!previewUrl) return;
+    const origin = getPreviewOrigin(previewUrl);
+    if (!origin) {
+      setPreviewEmbedState("error");
+      setPreviewEmbedMessage("The preview URL is invalid.");
+      return;
+    }
+    setPreviewEmbedState((current) => current === "ready" ? current : "degraded");
+    previewFrameRef.current?.contentWindow?.postMessage(
+      { type: "preview:init", version: PREVIEW_BRIDGE_VERSION },
+      origin,
+    );
+  };
+
+  const reloadPreview = () => {
+    if (!previewUrl) return;
     try {
-      const origin = new URL(previewUrl).origin;
-      previewFrameRef.current?.contentWindow?.postMessage(
-        { type: "preview:init", version: "preview-bridge-v1" },
-        origin,
-      );
+      setPreviewEmbedState("loading");
+      setPreviewEmbedMessage("");
+      setPreviewSrc(withPreviewReloadToken(previewUrl));
     } catch {
       setPreviewEmbedState("error");
       setPreviewEmbedMessage("The preview URL is invalid.");
@@ -194,7 +216,7 @@ export function GenerationStage({
     ) : ""
   );
 
-  let activeIndex = 0;
+  let activeIndex = -1;
   if (coordStage) {
     const idx = stageKeys.indexOf(coordStage);
     if (idx >= 0) activeIndex = idx;
@@ -243,7 +265,7 @@ export function GenerationStage({
       `- Active Job ID: ${view.activeJobId || view.job?.id || "N/A"}`,
       `- Coordinator Stage: ${coordStage || "verify"}`,
       `- Status: ${view.status}`,
-      `- Attempt: ${view.currentAttempt || 1} of 2`,
+      `- Attempt: ${view.currentAttempt || 1}${view.job?.maxAttempts ? ` of ${view.job.maxAttempts}` : ""}`,
       ``,
       `#### Error Summary`,
       `- Code: ${errorCode}`,
@@ -363,131 +385,46 @@ export function GenerationStage({
 
         {/* Bottom Instruction Composer Section matching images 13, 14, 15 */}
         <div className="codegen-composer-area">
-          <label htmlFor="codegen-instruction-input" className="composer-eyebrow">
-            {isAvailable && "TELL ORYXENAI WHAT TO DO NEXT"}
-            {isWorking && "Add a follow-up instruction"}
-            {isAttention && "Next step"}
-            {isComplete && "Refine your portfolio"}
-          </label>
+          <p className="composer-eyebrow">
+            {isAvailable && "APPROVED BUILD HANDOFF"}
+            {isWorking && "GENERATION IN PROGRESS"}
+            {isAttention && "RECOVERY ACTION"}
+            {isComplete && "PREVIEW CONTROLS"}
+          </p>
 
-          {isAttention && (
-            <p className="composer-subprompt">
-              Tell the agent what to fix, or retry with a new instruction.
-            </p>
-          )}
-
-          <div className="composer-box">
-            <textarea
-              id="codegen-instruction-input"
-              className="composer-textarea"
-              rows={3}
-              placeholder={
-                isAvailable
-                  ? "Describe the next change..."
-                  : isWorking
-                    ? "Describe a change or ask about this build..."
-                    : isAttention
-                      ? "Tell the agent what to fix..."
-                      : "Describe a change to make to your portfolio..."
-              }
-              value={instructionText}
-              onInput={(e) => setInstructionText((e.target as HTMLTextAreaElement).value)}
-              disabled={inFlight}
-            />
-
-            {isAttention && (
-              <div className="composer-char-count">{instructionText.length}/500</div>
-            )}
-          </div>
+          <p className="composer-subprompt">
+            {isAvailable && "The approved Build Preparation briefs are the complete input for this generation."}
+            {isWorking && "The worker is progressing through planning, acquisition, build, verification, and preview promotion."}
+            {isAttention && "Retry the durable generation with the same approved handoff, or open the diagnostic record."}
+            {isComplete && "The promoted preview is ready. Regenerating creates a new verified candidate."}
+          </p>
 
           <div className="composer-actions-row">
             {isAvailable && (
-              <>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm"
-                  onClick={() => setInstructionText("Focus on projects, leadership, and clean visual typography.")}
-                >
-                  + Add context
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary btn-cobalt"
-                  onClick={onStart}
-                  disabled={!canMutate || inFlight}
-                >
-                  {inFlight ? "Starting…" : "Generate Portfolio →"}
-                </button>
-              </>
+              <button type="button" className="btn-primary btn-cobalt" onClick={onStart} disabled={!canMutate || inFlight}>
+                {inFlight ? "Starting..." : "Generate Portfolio →"}
+              </button>
             )}
 
             {isWorking && (
-              <>
-                <span className="composer-quiet-hint">You can keep working while we build.</span>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={!instructionText.trim()}
-                  onClick={() => setInstructionText("")}
-                >
-                  Send
-                </button>
-              </>
+              <span className="composer-quiet-hint">Generation is running from the approved handoff.</span>
             )}
 
             {isAttention && (
-              <>
-                <button
-                  type="button"
-                  className="btn-primary btn-cobalt"
-                  onClick={onRetry}
-                  disabled={!canMutate || inFlight}
-                >
-                  {inFlight ? "Sending fix…" : "Send →"}
-                </button>
-              </>
+              <button type="button" className="btn-primary btn-cobalt" onClick={onRetry} disabled={!canMutate || inFlight}>
+                {inFlight ? "Retrying..." : "Retry generation →"}
+              </button>
             )}
 
             {isComplete && (
-              <>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={onRegenerate}
-                  disabled={!canMutate || inFlight}
-                >
-                  Regenerate
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary btn-cobalt"
-                  disabled={!instructionText.trim() || inFlight}
-                  onClick={onRegenerate}
-                >
-                  Send →
-                </button>
-              </>
+              <button type="button" className="btn-secondary" onClick={onRegenerate} disabled={!canMutate || inFlight}>
+                Regenerate portfolio
+              </button>
             )}
           </div>
 
-          {isAvailable && (
-            <p className="composer-footnote">
-              Be specific. You can mention sections, content, or style changes.
-            </p>
-          )}
-
-          {isWorking && (
-            <div className="composer-stop-row">
-              <button
-                type="button"
-                className="btn-secondary btn-stop"
-                onClick={() => {}}
-                title="Stop current generation"
-              >
-                ■ Stop generation
-              </button>
-            </div>
-          )}
+          {isAvailable && <p className="composer-footnote">The generator consumes the immutable brief pair; no extra prompt is required.</p>}
+          {isWorking && <p className="composer-footnote">This screen updates from durable job state. It will remain available if you refresh.</p>}
 
           {isAttention && (
             <div className="composer-details-link-row">
@@ -501,6 +438,7 @@ export function GenerationStage({
             </div>
           )}
         </div>
+
       </aside>
 
       {/* ===================================================================
@@ -627,13 +565,7 @@ export function GenerationStage({
                 <button
                   type="button"
                   className="nav-arrow"
-                  onClick={() => {
-                    if (previewFrameRef.current && previewUrl) {
-                      previewFrameRef.current.src = previewUrl;
-                      setPreviewEmbedState("loading");
-                      setPreviewEmbedMessage("");
-                    }
-                  }}
+                  onClick={reloadPreview}
                   title="Reload preview"
                 >
                   ⟳
@@ -665,12 +597,21 @@ export function GenerationStage({
                 <>
                   <iframe
                     ref={previewFrameRef}
-                    src={previewUrl}
+                    src={previewSrc}
                     title="Generated portfolio preview"
                     className="preview-iframe"
                     sandbox="allow-scripts allow-same-origin allow-forms"
                     onLoad={sendPreviewInit}
+                    onError={() => {
+                      setPreviewEmbedState("error");
+                      setPreviewEmbedMessage("The generated preview could not be loaded.");
+                    }}
                   />
+                  {previewEmbedState === "degraded" && (
+                    <p className="preview-embed-status" role="status">
+                      {previewEmbedMessage || "Preview loaded. Waiting for an optional readiness signal."}
+                    </p>
+                  )}
                   {previewEmbedState === "error" && (
                     <p className="preview-embed-error" role="alert">
                       {previewEmbedMessage || "The generated preview is unavailable."} Open it in a new tab to inspect the diagnostic response.
@@ -714,7 +655,7 @@ export function GenerationStage({
                 <span className="theater-subfooter-left">
                   Preview updates after each verified backend milestone
                 </span>
-                <span className="theater-subfooter-right">Current attempt {view.currentAttempt || 1}</span>
+                <span className="theater-subfooter-right">{previewRoute ? `Route ${previewRoute}` : `Current attempt ${view.currentAttempt || 1}`}</span>
               </div>
             )}
           </div>
@@ -824,7 +765,7 @@ export function GenerationStage({
                   </div>
                   <div className="drawer-metric">
                     <span className="metric-label">Attempt</span>
-                    <strong className="metric-value">{view.currentAttempt || 1} of 2</strong>
+                    <strong className="metric-value">{view.currentAttempt || 1}{view.job?.maxAttempts ? ` of ${view.job.maxAttempts}` : ""}</strong>
                   </div>
                   <div className="drawer-metric">
                     <span className="metric-label">Status</span>
