@@ -27,8 +27,8 @@
   <a class="skip-link" href="#auth-root">Skip to access controls</a>
   <div class="auth-structure-line" aria-hidden="true"></div>
 
-{% if page == "sign-in" %}
-  <!-- SCREEN 1: APPROVED REDESIGNED /sign-in STUDIO SHELL -->
+{% if page != "admin" %}
+  <!-- APPROVED REDESIGNED STUDIO SHELL (sign-in, controller, callback, onboarding, access-not-approved, account-unavailable) -->
   <header class="sign-in-header">
     <div class="header-brand">
       <img class="brand-logo-img" src="/auth-static/brand-mark.png" width="24" height="24" alt="OryxenAI logo" />
@@ -38,74 +38,273 @@
     </div>
     <div class="header-status-pill">
       <span class="cobalt-dot" aria-hidden="true"></span>
-      <span class="status-label">Review before publish</span>
+      <span class="status-label">
+        {%- if page == "access-not-approved" -%}Access review
+        {%- elif page == "account-unavailable" -%}Workspace paused
+        {%- elif page == "onboarding" -%}Workspace setup
+        {%- elif page in ["controller", "callback"] -%}Secure verification
+        {%- else -%}Review before publish{%- endif -%}
+      </span>
     </div>
   </header>
 
   <main id="auth-root" class="sign-in-root" tabindex="-1">
-    <section id="sign-in-panel" class="sign-in-workspace" aria-labelledby="sign-in-title">
-      <!-- LEFT COLUMN: AUTHENTICATION, VALUE, TRUST -->
+    <div class="sign-in-workspace">
+      <!-- LEFT COLUMN: AUTHENTICATION, VALUE, TRUST, PANELS -->
       <div class="sign-in-left-col">
         <div class="left-col-inner">
-          <div class="verified-eyebrow-row">
-            <span class="eyebrow">VERIFIED IDENTITY</span>
-            <span class="eyebrow-rule" aria-hidden="true"></span>
-          </div>
 
-          <h1 id="sign-in-title" class="sign-in-headline">Open your private portfolio workspace.</h1>
+          <!-- PANEL 1: SIGN IN -->
+          <section id="sign-in-panel" class="studio-panel" {% if page != "sign-in" %}hidden{% endif %} aria-labelledby="sign-in-title">
+            <div class="verified-eyebrow-row">
+              <span class="eyebrow">VERIFIED IDENTITY</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
+            </div>
 
-          <p class="sign-in-lede">
-            Turn resumes, work history, and project notes into a reviewable portfolio. Discovery asks what is missing, structure follows, and nothing advances without your approval.
-          </p>
+            <h1 id="sign-in-title" class="sign-in-headline">Open your private portfolio workspace.</h1>
 
-          <div class="cta-block">
-            <button id="google-sign-in" class="google-auth-cta" type="button" aria-label="Continue with Google">
-              <span class="google-icon-badge" aria-hidden="true">
-                <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                  <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
-                  <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-                  <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-                  <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+            <p class="sign-in-lede">
+              Turn resumes, work history, and project notes into a reviewable portfolio. Discovery asks what is missing, structure follows, and nothing advances without your approval.
+            </p>
+
+            <div class="cta-block">
+              <button id="google-sign-in" class="google-auth-cta" type="button" aria-label="Continue with Google">
+                <span class="google-icon-badge" aria-hidden="true">
+                  <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                    <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
+                    <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
+                    <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+                    <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+                  </svg>
+                </span>
+                <span class="cta-label">Continue with Google</span>
+                <svg class="cta-arrow" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="4" y1="10" x2="16" y2="10"/>
+                  <polyline points="11 5 16 10 11 15"/>
                 </svg>
-              </span>
-              <span class="cta-label">Continue with Google</span>
-              <svg class="cta-arrow" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <line x1="4" y1="10" x2="16" y2="10"/>
-                <polyline points="11 5 16 10 11 15"/>
-              </svg>
-            </button>
+              </button>
 
-            <p id="sign-in-error" class="error-text" role="alert" hidden></p>
-            <p id="sign-in-guidance" class="sign-in-guidance">Google confirms who you are. OryxenAI decides workspace access.</p>
-          </div>
+              <p id="sign-in-error" class="error-text" role="alert" hidden></p>
+              <p id="sign-in-guidance" class="sign-in-guidance">Google confirms who you are. OryxenAI decides workspace access.</p>
+            </div>
 
-          <div class="trust-divider" aria-hidden="true"></div>
+            <div class="trust-divider" aria-hidden="true"></div>
 
-          <div class="trust-features-row">
-            <div class="trust-item">
-              <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span>Private workspace</span>
+            <div class="trust-features-row">
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Private workspace</span>
+              </div>
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <polyline points="9 12 11 14 15 10"/>
+                </svg>
+                <span>Explicit approval at every stage</span>
+              </div>
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="16 18 22 12 16 6"/>
+                  <polyline points="8 6 2 12 8 18"/>
+                </svg>
+                <span>Production source code output</span>
+              </div>
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                  <circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+                <span>No public publishing without approval</span>
+              </div>
             </div>
-            <div class="trust-item">
-              <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                <polyline points="9 12 11 14 15 10"/>
-              </svg>
-              <span>Explicit approval at every stage</span>
+          </section>
+
+          <!-- PANEL 2: SESSION RESTORE PROGRESS -->
+          <section id="progress-panel" class="studio-panel progress-panel" {% if page != "controller" and page != "callback" %}hidden{% endif %} aria-labelledby="progress-title">
+            <div class="verified-eyebrow-row">
+              <span class="eyebrow">SECURE ACCESS</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
             </div>
-            <div class="trust-item">
-              <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-              <span>No public publishing without approval</span>
+
+            <div class="studio-progress-header">
+              <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
+              <h1 id="progress-title" class="sign-in-headline">Restoring your session</h1>
+              <p id="progress-detail" class="sign-in-lede" aria-live="polite">Checking browser credentials safely.</p>
             </div>
-          </div>
+
+            <ol class="progress-steps studio-progress-steps" aria-label="Authentication progress">
+              <li data-progress-step="restore">Restoring your session</li>
+              <li data-progress-step="google">Completing Google sign-in</li>
+              <li data-progress-step="verify">Verifying OryxenAI access</li>
+              <li data-progress-step="workspace">Preparing your workspace</li>
+            </ol>
+
+            <div class="trust-divider" aria-hidden="true"></div>
+
+            <div class="trust-features-row">
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Private workspace</span>
+              </div>
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <polyline points="9 12 11 14 15 10"/>
+                </svg>
+                <span>Encrypted local session state</span>
+              </div>
+            </div>
+            <p class="sign-in-guidance">Google confirms who you are. OryxenAI decides workspace access. Your portfolio remains private.</p>
+          </section>
+
+          <!-- PANEL 3: USERNAME ONBOARDING -->
+          <section id="onboarding-panel" class="studio-panel gate-panel" {% if page != "onboarding" %}hidden{% endif %} aria-labelledby="onboarding-title">
+            <div class="verified-eyebrow-row">
+              <span class="eyebrow">ONE-TIME SETUP</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
+            </div>
+
+            <h1 id="onboarding-title" class="sign-in-headline">Choose your handle</h1>
+            <p class="sign-in-lede">Use 3–30 lowercase letters, numbers, underscores, or hyphens. This is how your workspace is identified.</p>
+
+            <form id="username-form" class="gate-form studio-onboarding-form" novalidate>
+              <label for="username" class="studio-label">Username</label>
+              <div class="input-row studio-input-row">
+                <div class="field-with-prefix studio-field-prefix">
+                  <span class="field-prefix" aria-hidden="true">@</span>
+                  <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" placeholder="alex-dev" required>
+                </div>
+                <button class="primary-button google-auth-cta studio-submit-btn" type="submit">
+                  <span class="cta-label">Claim handle</span>
+                  <svg class="cta-arrow" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="4" y1="10" x2="16" y2="10"/>
+                    <polyline points="11 5 16 10 11 15"/>
+                  </svg>
+                </button>
+              </div>
+              <p id="username-error" class="error-text" role="alert" hidden></p>
+            </form>
+
+            <div class="trust-divider" aria-hidden="true"></div>
+
+            <div class="trust-features-row">
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Personal workspace identifier</span>
+              </div>
+              <div class="trust-item">
+                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  <polyline points="9 12 11 14 15 10"/>
+                </svg>
+                <span>Unique identity within OryxenAI</span>
+              </div>
+            </div>
+
+            <div class="gate-actions">
+              <button class="secondary-button studio-sign-out-btn" data-action="logout" type="button">Sign out</button>
+            </div>
+          </section>
+
+          <!-- PANEL 4: ACCESS REVIEW / PENDING ADMISSION -->
+          <section id="access-panel" class="studio-panel gate-panel" {% if page != "access-not-approved" %}hidden{% endif %} aria-labelledby="access-title">
+            <div class="verified-eyebrow-row">
+              <span class="eyebrow">ACCESS REVIEW</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
+            </div>
+
+            <h1 id="access-title" class="sign-in-headline">Account pending admission</h1>
+            <p id="access-detail" class="sign-in-lede">Capacity is currently full, or this deployment uses a restricted admission list.</p>
+
+            <ul class="gate-notes" aria-label="What this means">
+              <li class="gate-note">
+                <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Normal-user capacity is limited by design.</span>
+              </li>
+              <li class="gate-note">
+                <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Your Google identity stays private until admitted.</span>
+              </li>
+            </ul>
+
+            <div class="trust-divider" aria-hidden="true"></div>
+
+            <div class="gate-actions">
+              <button class="secondary-button studio-sign-out-btn" data-action="logout" type="button">Sign out</button>
+            </div>
+          </section>
+
+          <!-- PANEL 5: WORKSPACE UNAVAILABLE -->
+          <section id="unavailable-panel" class="studio-panel gate-panel" {% if page != "account-unavailable" %}hidden{% endif %} aria-labelledby="unavailable-title">
+            <div class="verified-eyebrow-row">
+              <span class="eyebrow">UNAVAILABLE</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
+            </div>
+
+            <h1 id="unavailable-title" class="sign-in-headline">Workspace temporarily unavailable</h1>
+            <p class="sign-in-lede">Access is paused locally. Sign out or reach out to the workspace administrator.</p>
+
+            <ul class="gate-notes" aria-label="What this means">
+              <li class="gate-note">
+                <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                <span>This pause is enforced by OryxenAI, not by Google.</span>
+              </li>
+              <li class="gate-note">
+                <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                <span>Your existing work stays intact while paused.</span>
+              </li>
+            </ul>
+
+            <div class="trust-divider" aria-hidden="true"></div>
+
+            <div class="gate-actions">
+              <button class="secondary-button studio-sign-out-btn" data-action="logout" type="button">Sign out</button>
+            </div>
+          </section>
+
+          <!-- PANEL 6: WORKSPACE READY -->
+          <section id="app-panel" class="studio-panel" hidden aria-labelledby="app-title">
+            <div class="verified-eyebrow-row">
+              <span class="eyebrow">WORKSPACE READY</span>
+              <span class="eyebrow-rule" aria-hidden="true"></span>
+            </div>
+
+            <h1 id="app-title" class="sign-in-headline">Welcome, <span data-user="username">there</span></h1>
+            <div class="studio-user-status">
+              <span class="status-pill studio-active-pill" data-user="status">active</span>
+            </div>
+
+            <dl class="safe-details">
+              <div><dt>Username</dt><dd data-user="username">—</dd></div>
+              <div><dt>Role</dt><dd data-user="role">—</dd></div>
+              <div><dt>Status</dt><dd data-user="status">—</dd></div>
+            </dl>
+
+            <p class="sign-in-lede">Your authenticated workspace is ready for the three-stage editorial process.</p>
+
+            <div class="button-row">
+              <a class="primary-button google-auth-cta" href="/app" style="justify-content:center; text-align:center;">
+                <span class="cta-label">Open workspace</span>
+                <svg class="cta-arrow" width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="4" y1="10" x2="16" y2="10"/>
+                  <polyline points="11 5 16 10 11 15"/>
+                </svg>
+              </a>
+              <a id="admin-link" class="secondary-button studio-sign-out-btn" href="/admin" hidden>Open admin shell</a>
+              <button class="secondary-button studio-sign-out-btn" data-action="logout" type="button">Sign out</button>
+            </div>
+          </section>
 
           <footer class="sign-in-left-footer">
             <span class="brand-signature"><strong>{{ app_name }}</strong> The Living Draft.</span>
@@ -419,21 +618,7 @@
           <span>PRIVATE BY DESIGN. MORE WITH INTENTION.</span>
         </footer>
       </div>
-    </section>
-
-    <!-- HIDDEN PROGRESS PANEL (Kept for compatibility with auth-controller DOM hooks) -->
-    <section id="progress-panel" class="panel progress-panel" hidden aria-labelledby="progress-title">
-      <p class="panel-eyebrow">Secure access</p>
-      <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
-      <h2 id="progress-title">Restoring your session</h2>
-      <p id="progress-detail" class="muted" aria-live="polite">Checking browser credentials safely.</p>
-      <ol class="progress-steps" aria-label="Authentication progress">
-        <li data-progress-step="restore">Restoring your session</li>
-        <li data-progress-step="google">Completing Google sign-in</li>
-        <li data-progress-step="verify">Verifying OryxenAI access</li>
-        <li data-progress-step="workspace">Preparing your workspace</li>
-      </ol>
-    </section>
+    </div>
 
     <!-- Public, fictional examples: previewable before authentication. -->
     <section class="outcome-showcase" aria-labelledby="outcome-showcase-title">
@@ -651,7 +836,7 @@
     <p id="global-error" class="error-text" role="alert" hidden></p>
   </main>
 
-{% elif page == "admin" %}
+{% else %}
   <!-- SCREEN: APPROVED REDESIGNED /admin WORKSPACE ADMINISTRATION CONSOLE -->
   <header class="admin-topbar">
     <div class="admin-topbar-brand">
@@ -751,102 +936,121 @@
                 </div>
                 <div class="account-card-row">
                   <span class="account-card-label">Status</span>
-                  <span class="account-card-value status-active-val">
-                    <span class="status-dot-active" aria-hidden="true">●</span>
-                    <span data-user="status">Active</span>
-                  </span>
+                  <span class="account-card-value" data-user="status">—</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 6-TAB NAVIGATION STRIP -->
-        <div class="admin-nav-bar">
-          <nav class="admin-tabs" role="tablist" aria-label="Administrator data">
-            <button class="admin-tab-btn active" type="button" role="tab" aria-selected="true" data-admin-tab="users">Users</button>
-            <button class="admin-tab-btn" type="button" role="tab" aria-selected="false" data-admin-tab="projects">Projects</button>
-            <button class="admin-tab-btn" type="button" role="tab" aria-selected="false" data-admin-tab="legacy">Legacy</button>
-            <button class="admin-tab-btn" type="button" role="tab" aria-selected="false" data-admin-tab="deleted">Deleted</button>
-            <button class="admin-tab-btn" type="button" role="tab" aria-selected="false" data-admin-tab="operations">Operations</button>
-            <button class="admin-tab-btn" type="button" role="tab" aria-selected="false" data-admin-tab="audit">Audit</button>
-          </nav>
-        </div>
+        <div class="admin-divider" aria-hidden="true"></div>
 
-        <!-- FOUR SUMMARY METRIC CARDS -->
-        <div id="admin-summary" class="admin-summary-grid" aria-label="Summary"></div>
-
-        <!-- LEDGER CARD -->
-        <div class="admin-ledger-card">
-          <div class="admin-ledger-header">
-            <div class="ledger-header-titles">
-              <h2 id="admin-view-title" class="ledger-title">Users</h2>
-              <p id="admin-view-subtitle" class="ledger-subtitle">Manage workspace users and their access, roles, and entitlements.</p>
-            </div>
-            <div id="admin-view-pill" class="ledger-header-pill" hidden></div>
-          </div>
-
-          <!-- DYNAMIC CONTENT (Table or empty state) -->
-          <div id="admin-content" class="admin-content" aria-live="polite"></div>
-
-          <!-- LEDGER FOOTER WITH ITEM COUNTER AND LOAD MORE -->
-          <div class="admin-ledger-footer">
-            <span id="admin-item-count" class="admin-item-count"></span>
-            <button class="admin-load-more-btn" id="admin-load-more" type="button" hidden>
-              <span>Load more</span>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="4 6 8 10 12 6"/>
+        <!-- CONTROLS ROW: PRIMARY VIEW NAVIGATION (TABS) & GLOBAL ACTIONS -->
+        <div class="admin-controls-row">
+          <nav class="admin-tabs" role="tablist" aria-label="Administrator navigation tabs">
+            <button class="admin-tab active" type="button" role="tab" aria-selected="true" data-admin-tab="users">
+              <svg class="tab-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
+              <span>Users</span>
+            </button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" data-admin-tab="projects">
+              <svg class="tab-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                <line x1="8" y1="21" x2="16" y2="21"/>
+                <line x1="12" y1="17" x2="12" y2="21"/>
+              </svg>
+              <span>Projects</span>
+            </button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" data-admin-tab="legacy">
+              <svg class="tab-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 8v13H3V8"/>
+                <path d="M1 3h22v5H1z"/>
+                <path d="M10 12h4"/>
+              </svg>
+              <span>Legacy</span>
+            </button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" data-admin-tab="deleted">
+              <svg class="tab-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+              <span>Deleted</span>
+            </button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" data-admin-tab="operations">
+              <svg class="tab-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+              <span>Operations</span>
+            </button>
+            <button class="admin-tab" type="button" role="tab" aria-selected="false" data-admin-tab="audit">
+              <svg class="tab-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span>Audit</span>
+            </button>
+          </nav>
+
+          <div class="admin-actions-group">
+            <button id="admin-reset-pipeline-cta" class="admin-reset-btn" type="button">
+              <svg class="reset-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+                <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                <path d="M3 21v-5h5"/>
+              </svg>
+              <span>Reset active project</span>
             </button>
           </div>
-
-          <!-- DELETION BOUNDARY WARNING BANNER (Shown for Deleted identities) -->
-          <div id="admin-deletion-boundary" class="admin-deletion-banner" hidden>
-            <div class="boundary-label">
-              <svg class="boundary-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                <line x1="12" y1="9" x2="12" y2="13"/>
-                <line x1="12" y1="17" x2="12.01" y2="17"/>
-              </svg>
-              <span>Deletion boundary</span>
-            </div>
-            <span class="boundary-pipe" aria-hidden="true">|</span>
-            <p class="boundary-text">These identities are deleted and cannot be used to access OryxenAI. Readmission, if approved, must be completed through an authorized administrative process.</p>
-          </div>
         </div>
 
-        <!-- TYPED ACTION CONFIRMATION MODAL -->
-        <dialog id="admin-confirm-dialog" class="admin-confirm-dialog" aria-labelledby="admin-confirm-title">
+        <!-- SUMMARY CARDS GRID -->
+        <div id="admin-summary" class="admin-summary-grid" aria-label="Administrator metrics summary">
+          <!-- Summary cards populated dynamically via auth-admin.mjs -->
+        </div>
+
+        <!-- MAIN DATA LEDGER CONTAINER -->
+        <div id="admin-content" class="admin-ledger-container" aria-live="polite">
+          <!-- Tab tables rendered dynamically via auth-admin.mjs -->
+        </div>
+
+        <div class="admin-pagination-row">
+          <button class="secondary-button" id="admin-load-more" type="button" hidden>Load more</button>
+        </div>
+
+        <!-- DESTRUCTIVE CONFIRMATION MODAL -->
+        <dialog id="admin-confirm-dialog" class="admin-modal-dialog" aria-labelledby="admin-confirm-title">
           <form method="dialog" id="admin-confirm-form" class="admin-modal-form">
             <div class="admin-modal-header">
-              <h3 id="admin-confirm-title" class="admin-modal-title">Confirm administrator action</h3>
-              <button type="button" class="admin-modal-close-btn" id="admin-confirm-close" aria-label="Close dialog">✕</button>
+              <div class="modal-warning-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <h3 id="admin-confirm-title" class="admin-modal-title">Confirm administrative action</h3>
             </div>
+
             <div class="admin-modal-body">
-              <div class="admin-modal-action-card" id="admin-modal-action-card">
-                <div class="admin-modal-icon-badge" id="admin-modal-icon-badge">
-                  <svg class="modal-badge-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </div>
-                <div class="admin-modal-action-meta">
-                  <h4 class="modal-action-heading" id="admin-action-name">Delete project</h4>
-                  <p class="modal-action-target">Target: <strong id="admin-action-target-val">Atlas Analysis</strong></p>
-                </div>
+              <p id="admin-confirm-copy" class="modal-instruction-text"></p>
+
+              <div class="modal-field-group">
+                <label for="admin-confirm-input" class="modal-field-label">Type confirmation phrase to proceed:</label>
+                <input id="admin-confirm-input" class="modal-input" autocomplete="off" required placeholder="Type required target value...">
               </div>
 
-              <p id="admin-confirm-copy" class="modal-warning-text">
-                This action is server-authorized and may be irreversible. Please confirm the exact project name to continue.
-              </p>
-
-              <div class="modal-field">
-                <label for="admin-confirm-input" id="admin-confirm-label">Type target confirmation to continue</label>
-                <input id="admin-confirm-input" class="modal-input" autocomplete="off" required spellcheck="false" placeholder="">
-              </div>
-
-              <div class="modal-field">
-                <label for="admin-reason">Reason (optional)</label>
+              <div class="modal-field-group">
+                <label for="admin-reason" class="modal-field-label">Audit reason (optional):</label>
                 <input id="admin-reason" class="modal-input" maxlength="500" autocomplete="off" placeholder="Tell us why you're performing this action...">
               </div>
 
@@ -880,203 +1084,11 @@
 
     <p id="global-error" class="error-text" role="alert" hidden></p>
   </main>
-
-{% else %}
-    <header class="brand-block">
-      <div class="auth-brand-badge">
-        <span class="auth-beacon-dot" aria-hidden="true"></span>
-        <span class="eyebrow">{{ app_name }} / private workspace</span>
-      </div>
-      <h1>Make the work legible before making it public.</h1>
-      <p class="lede">Shape your source material through Discovery, Content Architecture, and Visual Direction. You approve every handoff.</p>
-    </header>
-
-    <div class="auth-card-outer">
-      <div class="auth-card-core">
-        <section id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
-          <p class="panel-eyebrow">Secure access</p>
-          <span id="draft-mark-slot" class="brand-mark" aria-hidden="true"></span>
-          <h2 id="progress-title">Restoring your session</h2>
-          <p id="progress-detail" class="muted" aria-live="polite">Checking browser credentials safely.</p>
-          <ol class="progress-steps" aria-label="Authentication progress">
-            <li data-progress-step="restore">Restoring your session</li>
-            <li data-progress-step="google">Completing Google sign-in</li>
-            <li data-progress-step="verify">Verifying OryxenAI access</li>
-            <li data-progress-step="workspace">Preparing your workspace</li>
-          </ol>
-        </section>
-
-        <section id="sign-in-panel" class="panel" hidden aria-labelledby="sign-in-title">
-          <p class="panel-eyebrow">Verified identity</p>
-          <h2 id="sign-in-title">Open your portfolio workspace</h2>
-          <p id="sign-in-guidance" class="muted">Continue with Google to create an account or return to your existing work. OryxenAI never stores a Google password.</p>
-          <button id="google-sign-in" class="primary-button google-auth-btn" type="button">
-            <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
-              <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/>
-              <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707 0-.59.102-1.167.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
-              <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
-            </svg>
-            <span>Continue with Google</span>
-          </button>
-          <p id="sign-in-error" class="error-text" role="alert" hidden></p>
-          <p class="fine-print">Your browser session is managed by the configured identity provider. Portfolio access remains enforced by OryxenAI.</p>
-        </section>
-
-        <section id="access-panel" class="panel gate-panel" hidden aria-labelledby="access-title">
-          <div class="gate-eyebrow-row">
-            <span class="panel-icon panel-icon-attention" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-            </span>
-            <p class="panel-eyebrow">Access review</p>
-            <span class="gate-eyebrow-rule" aria-hidden="true"></span>
-          </div>
-          <h2 id="access-title" class="gate-title">Account pending admission</h2>
-          <p id="access-detail" class="gate-lede">Capacity is currently full, or this deployment uses a restricted admission list.</p>
-          <ul class="gate-notes" aria-label="What this means">
-            <li class="gate-note">
-              <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span>Normal-user capacity is limited by design.</span>
-            </li>
-            <li class="gate-note">
-              <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span>Your Google identity stays private until admitted.</span>
-            </li>
-          </ul>
-          <div class="gate-actions">
-            <button class="secondary-button" data-action="logout" type="button">Sign out</button>
-          </div>
-        </section>
-
-        <section id="unavailable-panel" class="panel gate-panel" hidden aria-labelledby="unavailable-title">
-          <div class="gate-eyebrow-row">
-            <span class="panel-icon panel-icon-neutral" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            </span>
-            <p class="panel-eyebrow">Unavailable</p>
-            <span class="gate-eyebrow-rule" aria-hidden="true"></span>
-          </div>
-          <h2 id="unavailable-title" class="gate-title">Workspace temporarily unavailable</h2>
-          <p class="gate-lede">Access is paused locally. Sign out or reach out to the workspace administrator.</p>
-          <ul class="gate-notes" aria-label="What this means">
-            <li class="gate-note">
-              <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
-              <span>This pause is enforced by OryxenAI, not by Google.</span>
-            </li>
-            <li class="gate-note">
-              <svg class="gate-note-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
-              <span>Your existing work stays intact while paused.</span>
-            </li>
-          </ul>
-          <div class="gate-actions">
-            <button class="secondary-button" data-action="logout" type="button">Sign out</button>
-          </div>
-        </section>
-
-        <section id="onboarding-panel" class="panel gate-panel" hidden aria-labelledby="onboarding-title">
-          <div class="gate-eyebrow-row">
-            <span class="panel-icon panel-icon-signal" aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20c4.4 0 8-1.8 8-4a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4c0 2.2 3.6 4 8 4Z"/><circle cx="12" cy="8" r="4"/></svg>
-            </span>
-            <p class="panel-eyebrow">One-time setup</p>
-            <span class="gate-eyebrow-rule" aria-hidden="true"></span>
-          </div>
-          <h2 id="onboarding-title" class="gate-title">Choose your handle</h2>
-          <p class="gate-lede">Use 3–30 lowercase letters, numbers, underscores, or hyphens. This is how your workspace is identified.</p>
-          <form id="username-form" class="gate-form" novalidate>
-            <label for="username">Username</label>
-            <div class="input-row">
-              <div class="field-with-prefix">
-                <span class="field-prefix" aria-hidden="true">@</span>
-                <input id="username" name="username" autocomplete="username" minlength="3" maxlength="30" placeholder="alex-dev" required>
-              </div>
-              <button class="primary-button" type="submit">Claim handle</button>
-            </div>
-            <p id="username-error" class="error-text" role="alert" hidden></p>
-          </form>
-          <div class="gate-actions">
-            <button class="text-button" data-action="logout" type="button">Sign out</button>
-          </div>
-        </section>
-
-        <section id="app-panel" class="panel" hidden aria-labelledby="app-title">
-          <div class="panel-heading">
-            <div>
-              <p class="panel-eyebrow">Workspace ready</p>
-              <h2 id="app-title">Welcome, <span data-user="username">there</span></h2>
-            </div>
-            <span class="status-pill" data-user="status">active</span>
-          </div>
-          <dl class="safe-details">
-            <div><dt>Username</dt><dd data-user="username">—</dd></div>
-            <div><dt>Role</dt><dd data-user="role">—</dd></div>
-            <div><dt>Status</dt><dd data-user="status">—</dd></div>
-          </dl>
-          <p class="muted">Your authenticated workspace is ready for the three-stage editorial process.</p>
-          <div class="button-row">
-            <a class="primary-button" href="/app">Open workspace</a>
-            <a id="admin-link" class="secondary-button" href="/admin" hidden>Open admin shell</a>
-            <button class="text-button" data-action="logout" type="button">Sign out</button>
-          </div>
-        </section>
-
-        <section id="admin-panel" class="panel" hidden aria-labelledby="admin-title">
-          <div class="panel-heading">
-            <div>
-              <p class="panel-eyebrow">Administration</p>
-              <h2 id="admin-title">Workspace administration</h2>
-            </div>
-            <span class="status-pill">admin</span>
-          </div>
-          <p class="muted" id="admin-live" aria-live="polite">Loading administrator metrics.</p>
-          <dl class="safe-details">
-            <div><dt>Username</dt><dd data-user="username">—</dd></div>
-            <div><dt>Role</dt><dd data-user="role">—</dd></div>
-            <div><dt>Status</dt><dd data-user="status">—</dd></div>
-          </dl>
-          <div class="admin-toolbar button-row">
-            <a class="secondary-button" href="/app">Workspace</a>
-            <button class="secondary-button" id="admin-refresh" type="button">Refresh</button>
-            <button class="text-button" data-action="logout" type="button">Sign out</button>
-          </div>
-          <div class="admin-tabs" role="tablist" aria-label="Administrator data">
-            <button class="secondary-button" type="button" role="tab" aria-selected="true" data-admin-tab="users">Users</button>
-            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="projects">Projects</button>
-            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="legacy">Legacy</button>
-            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="deleted">Deleted</button>
-            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="operations">Operations</button>
-            <button class="secondary-button" type="button" role="tab" aria-selected="false" data-admin-tab="audit">Audit</button>
-          </div>
-          <div id="admin-summary" class="admin-summary" aria-label="Summary"></div>
-          <div id="admin-content" class="admin-content" aria-live="polite"></div>
-          <div class="button-row">
-            <button class="secondary-button" id="admin-load-more" type="button" hidden>Load more</button>
-          </div>
-          <dialog id="admin-confirm-dialog" aria-labelledby="admin-confirm-title">
-            <form method="dialog" id="admin-confirm-form">
-              <h3 id="admin-confirm-title">Confirm administrator action</h3>
-              <p id="admin-confirm-copy" class="muted"></p>
-              <label for="admin-confirm-input">Type target confirmation</label>
-              <input id="admin-confirm-input" autocomplete="off" required>
-              <label for="admin-reason">Reason (optional)</label>
-              <input id="admin-reason" maxlength="500" autocomplete="off">
-              <div class="button-row">
-                <button class="secondary-button" value="cancel" type="submit">Cancel</button>
-                <button class="primary-button" id="admin-confirm-submit" value="confirm" type="submit">Confirm</button>
-              </div>
-            </form>
-          </dialog>
-        </section>
-
-        <p id="global-error" class="error-text" role="alert" hidden></p>
-      </div>
-    </div>
-  </main>
 {% endif %}
 
   <script src="/auth-static/auth-client.js?v={{ auth_client_version }}"></script>
   <script type="module" src="/auth-static/auth-page.mjs?v={{ auth_page_version }}"></script>
-  {% if page == "sign-in" %}
+  {% if page != "admin" %}
   <script type="module" src="/auth-static/sign-in-showcase.mjs?v={{ sign_in_showcase_version }}"></script>
   {% endif %}
   <script type="module" src="/auth-static/auth-admin.mjs?v={{ auth_admin_version }}"></script>

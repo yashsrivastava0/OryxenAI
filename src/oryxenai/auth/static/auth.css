@@ -102,13 +102,6 @@ a { color: var(--signal); }
   border-top: 1px solid var(--ink);
   border-bottom: 1px solid var(--rule);
 }
-.auth-card-outer::before {
-  padding: 2rem 2rem 3rem 0;
-  color: var(--graphite);
-  font: var(--type-small);
-  white-space: pre-line;
-  content: "IDENTITY PROOF\A\A Google confirms who you are.\A OryxenAI decides workspace access.\A Your portfolio remains private.";
-}
 .auth-card-core {
   min-width: 0;
   border-left: 1px solid var(--rule);
@@ -1525,10 +1518,11 @@ body[data-page="admin"]::before {
 }
 
 /* ==========================================================================
-   SCREEN 1: EDITORIAL SWISS /sign-in REDESIGN
+   EDITORIAL SWISS STUDIO AUTHENTICATION & WORKSPACE SHELL
+   Applied to all authenticated product/auth pages (except the admin console).
    ========================================================================== */
 
-body[data-page="sign-in"] {
+body:not([data-page="admin"]) {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
@@ -1536,8 +1530,8 @@ body[data-page="sign-in"] {
   overflow-x: hidden;
 }
 
-body[data-page="sign-in"] .auth-structure-line,
-body[data-page="sign-in"]::before {
+body:not([data-page="admin"]) .auth-structure-line,
+body:not([data-page="admin"])::before {
   display: none;
 }
 
@@ -1856,6 +1850,219 @@ body[data-page="sign-in"]::before {
 .footer-pipe {
   color: var(--rule);
   user-select: none;
+}
+
+/* STUDIO WORKSPACE PANELS */
+.studio-panel {
+  display: flex;
+  flex-direction: column;
+  animation: fadeInUp 0.35s var(--ease-snappy) backwards;
+  animation-delay: 0.05s;
+}
+
+.studio-panel[hidden] {
+  display: none !important;
+}
+
+/* SESSION RESTORE PROGRESS PANEL */
+.studio-progress-header {
+  margin-bottom: 1.5rem;
+}
+
+.studio-progress-header .brand-mark {
+  margin-bottom: 1.25rem;
+}
+
+.studio-progress-steps {
+  margin: 1.75rem 0 2rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.studio-progress-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 0.5rem;
+  border-bottom: 1px solid var(--rule-subtle);
+  font-size: 0.92rem;
+  color: var(--graphite);
+  transition: color var(--duration-fast), background var(--duration-fast);
+}
+
+.studio-progress-steps li:last-child {
+  border-bottom: none;
+}
+
+.studio-progress-steps li::before {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--graphite-dim);
+  content: "○";
+  display: inline-block;
+  width: 1.25rem;
+  text-align: center;
+}
+
+.studio-progress-steps li.current {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--canvas-subtle, rgba(23, 26, 25, 0.025));
+  border-left: 2px solid var(--signal);
+  padding-left: 0.65rem;
+}
+
+.studio-progress-steps li.current::before {
+  color: var(--signal);
+  content: "●";
+  animation: cobaltPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.studio-progress-steps li.complete {
+  color: var(--ink-secondary);
+}
+
+.studio-progress-steps li.complete::before {
+  color: var(--positive);
+  content: "✓";
+  font-weight: 700;
+}
+
+/* USERNAME ONBOARDING PANEL */
+.studio-onboarding-form {
+  margin-bottom: 1.75rem;
+}
+
+.studio-label {
+  display: block;
+  font: var(--type-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite);
+  margin-bottom: 0.6rem;
+}
+
+.studio-input-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.studio-field-prefix {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.studio-field-prefix input {
+  width: 100%;
+  padding-left: 2.2rem;
+  padding-right: 0.85rem;
+  min-height: 52px;
+  font-size: 1rem;
+  font-family: var(--font-mono);
+  border: 1px solid var(--rule-active);
+  border-radius: var(--radius-sheet);
+  background: var(--paper);
+  color: var(--ink);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.studio-field-prefix input:focus {
+  border-color: var(--signal);
+  box-shadow: 0 0 0 3px var(--signal-glow);
+  outline: none;
+}
+
+.studio-field-prefix .field-prefix {
+  position: absolute;
+  left: 0.85rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--graphite);
+  user-select: none;
+  pointer-events: none;
+}
+
+.studio-submit-btn {
+  flex-shrink: 0;
+  min-width: 160px;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* SIGN OUT AFFORDANCE & BUTTONS */
+.studio-sign-out-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--graphite);
+  background: transparent;
+  border: 1px solid var(--rule-active);
+  border-radius: var(--radius-sheet);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--duration-fast) var(--ease-snappy);
+}
+
+.studio-sign-out-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: var(--canvas-subtle, rgba(23, 26, 25, 0.04));
+}
+
+/* WORKSPACE READY (APP) PANEL */
+.studio-user-status {
+  margin: -0.5rem 0 1.25rem;
+}
+
+.studio-active-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font: var(--type-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--positive);
+  background: var(--positive-subtle);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.safe-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.75rem 0;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.safe-details div {
+  min-width: 0;
+}
+
+.safe-details dt {
+  color: var(--graphite);
+  font: var(--type-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.safe-details dd {
+  margin: 0.45rem 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--ink);
 }
 
 /* RIGHT COLUMN: INTERACTIVE SIX-STAGE PRODUCT SHOWCASE */
