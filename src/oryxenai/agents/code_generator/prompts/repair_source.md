@@ -257,8 +257,14 @@ bodies in `files`; never replace these arrays with sentences describing what
 was preserved. Keep `self_check` truthful but do not omit the required envelope
 arrays.
 
-When rejected file bodies are supplied, return the complete corrected file.
-Preserve public truth, route ownership, resource bindings, accessibility,
-responsive behavior, and reduced-motion behavior. Re-check the diagnostic and
-return only changed owned files with honest coverage. If it cannot be repaired
-within the supplied authority, return `cannot_complete` with the precise gap.
+When rejected file bodies are supplied, return a complete body for every file
+you change. If `pending_file_inventory.pending_paths` is non-empty, the host
+will retain unchanged pending bodies and merge them with the returned files;
+do not spend response capacity echoing a large unchanged file set. At least
+one changed file is required while blocking diagnostics remain. If there is
+no pending candidate, return every owned file needed to make the correction
+complete. Preserve public truth, route ownership, resource bindings,
+accessibility, responsive behavior, and reduced-motion behavior. Re-check the
+diagnostic and return only changed owned files with honest coverage. If it
+cannot be repaired within the supplied authority, return `cannot_complete`
+with the precise gap.
