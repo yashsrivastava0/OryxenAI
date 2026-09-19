@@ -1954,7 +1954,7 @@ class CodeGeneratorGenerationOrchestrator:
             # transcription near-miss; waiting for TypeScript first only
             # reports the opaque union error and causes the repair model to
             # repeat the same typo.
-            diagnostics: list[SourceDiagnostic] = (
+            route_batch_diagnostics: list[SourceDiagnostic] = (
                 _route_batch_contract_diagnostics(
                     workspace=workspace,
                     plan=plan,
@@ -1964,8 +1964,8 @@ class CodeGeneratorGenerationOrchestrator:
                 if unit.kind == "route_batch"
                 else []
             )
-            if not diagnostics:
-                diagnostics = await run_source_checks(
+            if not route_batch_diagnostics:
+                route_batch_diagnostics = await run_source_checks(
                     workspace.repo_dir,
                     allowed_packages=allowed_packages,
                     public_text=public_text,
@@ -1985,19 +1985,19 @@ class CodeGeneratorGenerationOrchestrator:
                     # wave and integration checks remain whole-repository.
                     source_paths=list(unit.owns_paths) if unit.kind == "route_batch" else None,
                 )
-            if diagnostics:
+            if route_batch_diagnostics:
                 _rollback_candidate(workspace, unit.unit_id)
-                _record_source_diagnostics(projection, unit_projection, diagnostics)
+                _record_source_diagnostics(projection, unit_projection, route_batch_diagnostics)
                 _record_pending_diagnostics(
                     workspace,
                     unit=unit,
                     projection=unit_projection,
                     files=pending_files,
-                    diagnostic_ids=[item.diagnostic_id for item in diagnostics],
+                    diagnostic_ids=[item.diagnostic_id for item in route_batch_diagnostics],
                 )
                 _consume_repair_budget(
                     projection,
-                    diagnostics,
+                    route_batch_diagnostics,
                     repair_round=repair_round,
                     settings=settings,
                 )
