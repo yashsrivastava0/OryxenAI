@@ -24,6 +24,16 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-102 — Preserve bounded rejected source evidence and resolve equivalent selector forms
+
+- **Date & Time:** 2026-09-19 16:35 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The second live run generated a valid `id="featured-projects"` motion owner, but the host compared only the CSS spelling `#featured-projects` and emitted a false motion failure. In the same repair sequence, CSS bodies rejected only for stale operation tags were stored as restricted evidence and then dropped from the next repair context, preventing reliable sibling recovery.
+- **Decision:** Treat a bounded CSS ID selector as executable evidence when the owner TSX contains the equivalent static JSX `id` value. Preserve restricted response bodies alongside admitted pending bodies across source-repair iterations; they remain context-only and can never enter the candidate tree without passing normal ownership and source validation.
+- **Rejected alternatives:** Requiring models to duplicate CSS selector text in TSX would create non-executable marker noise; trusting any selector-like text would weaken the contract; discarding rejected bodies would force the repair model to reconstruct unrelated files from prose and waste bounded calls.
+- **Consequence:** Motion checks reason about the rendered DOM element rather than representation spelling, and bounded repair retains enough evidence to recover stale-tag siblings without broadening write authority. The live failure is fixed deterministically; no third full pipeline run is authorized or required for this contract-level correction.
+
+## D-101 — Keep source-contract validation semantically aligned with the runtime audit
 ## D-101 — Keep source-contract validation semantically aligned with the runtime audit
 
 - **Date & Time:** 2026-09-19 16:15 +05:30 — Codex (GPT-5 / OpenAI)
