@@ -13,6 +13,23 @@ The application has **not** been deployed to Azure: Docker, the repository,
 PostgreSQL, migrations, Caddy, the worker, and the preview gateway have not
 yet been started on the VM.
 
+For the current beginner-facing GitHub, Azure, R2, authentication, model
+runtime, and deferred-domain readiness analysis, read the
+[deployment strategy pack](<../../doc/deployment strategy/README.md>) before
+using this historical deployment index.
+
+## Consolidated deployment documents
+
+The canonical deployment material is grouped into two documents:
+
+- [Deployment guide](./deployment-guide.md) — research, setup, runbook,
+  acceptance, and AI-assisted operations.
+- [Deployment status and history](./deployment-status-and-history.md) — Azure
+  status checkpoints and the live deployment session log.
+
+The numbered files below remain compatibility entry points for older links;
+their complete content is preserved in the two canonical documents.
+
 The repository now contains the guided production Compose path and
 `scripts/azure-deploy.sh`, but the shared development worktree is not clean.
 Select and record an exact reviewed Git commit before deploying. Read the
