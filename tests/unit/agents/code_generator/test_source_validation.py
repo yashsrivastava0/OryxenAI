@@ -625,6 +625,48 @@ export default function Featured() {{
     assert not any(item.code == "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING" for item in diagnostics)
 
 
+def test_route_batch_contract_accepts_indexed_tuple_maps(tmp_path) -> None:
+    """Generated section rows may pass approved tuple cells by index."""
+
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Experience.tsx"
+    values = [
+        "content:home:experience:dates-12345678",
+        "content:home:experience:description-23456789",
+        "content:home:experience:organization-3456789a",
+        "content:home:experience:role-456789ab",
+    ]
+    (tmp_path / path).write_text(
+        f'''const contentValue = (key: string) => key;
+const entries = [[{", ".join(f'"{value}"' for value in values)}]] as const;
+export default function Experience() {{
+  return <section id="experience" data-content-id="home:experience">
+    {{entries.map((item, index) => <article key={{index}}>
+      <time>{{contentValue(item[0])}}</time>
+      <p>{{contentValue(item[1])}}</p>
+      <p>{{contentValue(item[2])}}</p>
+      <p>{{contentValue(item[3])}}</p>
+    </article>)}}
+  </section>;
+}}
+''',
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [path],
+        route_id="home",
+        section_ids=["home:experience"],
+        content_ids_by_section={"home:experience": values},
+        section_selectors_by_section={"home:experience": "#experience"},
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_CONTENT_KEY_MISSING" for item in diagnostics)
+
+
 def test_route_batch_contract_requires_materialized_images_motion_and_state(tmp_path) -> None:
     section = tmp_path / "src" / "routes" / "home" / "sections"
     section.mkdir(parents=True)

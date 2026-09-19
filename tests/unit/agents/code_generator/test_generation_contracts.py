@@ -394,7 +394,8 @@ def test_repair_prompt_treats_unlisted_quality_findings_as_binding() -> None:
     assert "requested_outcome" in instructions
     assert "JSX/HTML source order is authoritative" in instructions
     assert "`order` rule alone does not repair" in instructions
-    assert receipt.prompt_versions["operation"] == "code_generator.repair.v10"
+    assert "pending_file_inventory.pending_paths" in instructions
+    assert receipt.prompt_versions["operation"] == "code_generator.repair.v11"
 
 
 def test_repair_prompt_forbids_hiding_the_evidence_of_a_failure() -> None:

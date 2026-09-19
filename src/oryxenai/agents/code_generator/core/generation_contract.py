@@ -982,9 +982,10 @@ def render_contract_instructions(contract: dict[str, Any]) -> str:
                 f"- {field} = {json.dumps(required_coverage.get(field, []), ensure_ascii=False)}"
             )
         lines.append(
-            "- A coverage-only repair still requires the complete corrected rejected file "
-            "bodies. result=changes with files=[] is invalid because rejected source has "
-            "not been accepted into the repository."
+            "- A coverage-only repair still requires at least one complete corrected "
+            "file body. result=changes with files=[] is invalid while blocking "
+            "diagnostics remain; when pending_file_inventory.pending_paths is present, "
+            "the host retains unchanged pending bodies and merges them with returned files."
         )
         lines.append(
             "- Every content_ids entry assigned to a route batch must also appear as a "

@@ -2671,6 +2671,104 @@ _MAPPED_ARRAY_DECLARATION_RE = re.compile(
 _QUOTED_ARRAY_ITEM_RE = re.compile(r"[\"']([^\"'\\]+)[\"']")
 
 
+def _balanced_array_body(source: str, opening_index: int) -> tuple[str, int] | None:
+    """Return one bounded JavaScript array body and its closing index.
+
+    Generated sections commonly keep repeated approved content in nested
+    literal tuples (for example ``entries = [[date, description], ...]``).
+    A regex that stops at the first closing bracket cannot recover that tuple
+    shape and makes the pre-toolchain contract disagree with the source audit.
+    This small scanner is deliberately limited to balanced literals; it is not
+    intended to parse JavaScript generally.
+    """
+
+    if opening_index >= len(source) or source[opening_index] != "[":
+        return None
+    depth = 0
+    quote = ""
+    escaped = False
+    index = opening_index
+    while index < len(source):
+        character = source[index]
+        if quote:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = ""
+            index += 1
+            continue
+        if character in {"'", '"', "`"}:
+            quote = character
+        elif character == "[":
+            depth += 1
+        elif character == "]":
+            depth -= 1
+            if depth == 0:
+                return source[opening_index + 1 : index], index
+        index += 1
+    return None
+
+
+def _split_literal_items(source: str) -> list[str]:
+    """Split a literal body on top-level commas without interpreting code."""
+
+    items: list[str] = []
+    start = 0
+    stack: list[str] = []
+    quote = ""
+    escaped = False
+    pairs = {"[": "]", "{": "}", "(": ")"}
+    for index, character in enumerate(source):
+        if quote:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = ""
+            continue
+        if character in {"'", '"', "`"}:
+            quote = character
+        elif character in pairs:
+            stack.append(pairs[character])
+        elif stack and character == stack[-1]:
+            stack.pop()
+        elif character == "," and not stack:
+            items.append(source[start:index])
+            start = index + 1
+    items.append(source[start:])
+    return items
+
+
+def _indexed_tuple_content_positions(owner_text: str) -> dict[str, set[int]]:
+    """Map literal content IDs to indexes in top-level tuple collections."""
+
+    positions: dict[str, set[int]] = {}
+    declaration_pattern = re.compile(
+        r"(?:const|let)\s+(?P<name>[A-Za-z_$][\w$]*)\s*"
+        r"(?:\:\s*[^=;]+?)?=\s*\["
+    )
+    for declaration in declaration_pattern.finditer(owner_text):
+        balanced = _balanced_array_body(owner_text, declaration.end() - 1)
+        if balanced is None:
+            continue
+        body, _closing_index = balanced
+        for item in _split_literal_items(body):
+            row = item.strip()
+            if not row.startswith("["):
+                continue
+            row_balanced = _balanced_array_body(row, 0)
+            if row_balanced is None:
+                continue
+            row_body, _row_closing_index = row_balanced
+            for index, cell in enumerate(_split_literal_items(row_body)):
+                for content_id in _QUOTED_ARRAY_ITEM_RE.findall(cell):
+                    positions.setdefault(content_id, set()).add(index)
+    return positions
+
+
 def _content_key_covered_by_mapped_array(content_id: str, owner_text: str) -> bool:
     """A bounded, statically-known alternative to a direct literal
     contentValue("id") call: a top-level `const NAME = [...]` array whose
@@ -2685,6 +2783,43 @@ def _content_key_covered_by_mapped_array(content_id: str, owner_text: str) -> bo
     authoritative npm audit instead of rejecting safe repeated-content
     rendering patterns.
     """
+
+    # A frequent generated shape is ``rows.map((row, index) =>
+    # contentValue(row[0]))`` over a literal tuple collection. Resolve the
+    # tuple index instead of requiring the model to repeat every opaque key as
+    # a separate call; the runtime still receives the exact approved string.
+    tuple_positions = _indexed_tuple_content_positions(owner_text)
+    required_indexes = tuple_positions.get(content_id, set())
+    if required_indexes:
+        declaration_pattern = re.compile(
+            r"(?:const|let)\s+(?P<name>[A-Za-z_$][\w$]*)\s*"
+            r"(?:\:\s*[^=;]+?)?=\s*\["
+        )
+        for declaration in declaration_pattern.finditer(owner_text):
+            balanced = _balanced_array_body(owner_text, declaration.end() - 1)
+            if balanced is None:
+                continue
+            body, _closing_index = balanced
+            if not any(content_id in item for item in _split_literal_items(body)):
+                continue
+            array_name = declaration.group("name")
+            map_pattern = re.compile(
+                rf"\b{re.escape(array_name)}\s*\.\s*map\s*\(\s*"
+                r"(?:\(\s*)?(?P<param>[A-Za-z_$][\w$]*)"
+                r"(?:\s*,[^)]*)?\s*\)?\s*=>"
+            )
+            for mapped in map_pattern.finditer(owner_text):
+                parameter = mapped.group("param")
+                window = owner_text[mapped.end() : mapped.end() + 12000]
+                if any(
+                    re.search(
+                        rf"\bcontentValue\s*\(\s*{re.escape(parameter)}\s*"
+                        rf"\[\s*{index}\s*\]\s*\)",
+                        window,
+                    )
+                    for index in required_indexes
+                ):
+                    return True
 
     for declaration in _MAPPED_ARRAY_DECLARATION_RE.finditer(owner_text):
         items = set(_QUOTED_ARRAY_ITEM_RE.findall(declaration.group("items")))
