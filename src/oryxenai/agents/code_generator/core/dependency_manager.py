@@ -269,6 +269,18 @@ class DependencyManager:
             await self._create_lock(stage_dir, settings)
             lock_file = stage_dir / "package-lock.json"
             await self._install(stage_dir, settings)
+            verification_command = _verification_install_command(settings, stage_dir)
+            await _run_npm(
+                verification_command,
+                stage_dir,
+                settings,
+                stage="clean-install-verification",
+            )
+            if not (stage_dir / "node_modules").is_dir():
+                raise DependencyPolicyError(
+                    "DEPENDENCY_CLEAN_INSTALL_FAILED",
+                    "The exact verification install did not create node_modules.",
+                )
             # npm may add platform-compatible optional transitive entries
             # during the offline install (notably the Tailwind WASM helpers
             # on Windows), so hash the lock that is actually committed.
@@ -289,7 +301,10 @@ class DependencyManager:
             else "allowed_by_config",
             manifest_hash=manifest_hash,
             lock_hash=lock_hash,
-            cache_receipt={"mode": "offline" if not config.allow_network_install else "configured"},
+            cache_receipt={
+                "mode": "offline" if not config.allow_network_install else "configured",
+                "clean_install": "verified",
+            },
         )
 
     @staticmethod
@@ -356,6 +371,34 @@ class DependencyManager:
             raise DependencyPolicyError(
                 "DEPENDENCY_INSTALL_FAILED", "The package manager did not create node_modules."
             )
+
+
+def _verification_install_command(settings: Any, repo_dir: Path) -> list[str]:
+    """Return the exact clean-install command used by verification.
+
+    Acquisition is allowed to use ``npm install`` to repair npm's
+    platform-aware optional dependency projection.  That is only safe when
+    the resulting lockfile is immediately proven by the same clean install
+    that later verification will run.  Keep the command construction in one
+    place so native ``npm.cmd`` resolution and the configured offline policy
+    cannot diverge between the two stages.
+    """
+
+    verification = getattr(settings, "code_generator_verification", None)
+    configured = getattr(verification, "install_command", None) if verification else None
+    command = [str(item) for item in configured] if configured else [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--offline",
+        "--no-audit",
+        "--no-fund",
+    ]
+    if command and Path(command[0]).name.casefold() in {"npm", "npm.cmd", "npm.exe"}:
+        command[0] = _npm_executable(settings)
+    if "--prefix" not in command:
+        command.extend(["--prefix", str(repo_dir)])
+    return command
 
 
 def _npm_executable(settings: Any) -> str:
