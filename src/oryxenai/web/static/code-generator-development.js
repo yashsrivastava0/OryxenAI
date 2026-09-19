@@ -13,6 +13,8 @@ export const READINESS_BLOCKER_LABELS = Object.freeze({
   build_preparation_briefs: 'eligible Build Preparation brief pair',
   preview_gateway_not_configured: 'preview gateway is not configured',
   preview_gateway_unreachable: 'preview gateway is unreachable',
+  provider_preflight_required: 'provider compatibility preflight',
+  toolchain_preflight_required: 'disposable toolchain preflight',
 });
 
 export function formatReadinessBlocker(code) {
@@ -80,6 +82,7 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   let previewLoadTimer = 0;
   let previewBridgeReady = false;
   let sourceManifestLoadedFor = '';
+  let preflightRunning = false;
 
   const clearPreviewLoadTimer = () => {
     if (previewLoadTimer) window.clearTimeout(previewLoadTimer);
@@ -95,8 +98,12 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   const updateLaunchButton = () => {
     const button = view('start-build-preparation');
     const busy = activeStatuses.has(activeRunStatus);
-    button.disabled = !selectedPack || !readinessReady || busy;
-    button.querySelector('span').textContent = busy ? 'Generation in progress' : activeRunStatus === 'ready' ? 'Generate again' : 'Generate portfolio';
+    button.disabled = !selectedPack || !readinessReady || busy || preflightRunning;
+    button.querySelector('span').textContent = preflightRunning
+      ? 'Running preflight'
+      : busy
+        ? 'Generation in progress'
+        : activeRunStatus === 'ready' ? 'Generate again' : 'Generate portfolio';
   };
 
   const renderReadiness = (readiness) => {
@@ -116,20 +123,35 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
     if (!(readiness.build_preparation_briefs_ready ?? readiness.build_preparation_pack_ready)) {
       fallbackBlockers.push('build_preparation_briefs');
     }
-    const staticReady = readiness.can_start_best ?? fallbackBlockers.length === 0;
-    const preflightRequired = readiness.provider_preflight?.status === 'required';
-    readinessReady = Boolean(staticReady || (preflightRequired && fallbackBlockers.length === 0));
-    const blockerCodes = blockerCodesFromServer.length
-      ? blockerCodesFromServer.filter((item) => item !== 'provider_preflight_required')
-      : fallbackBlockers;
-    const blockers = blockerCodes.map(formatReadinessBlocker);
+    const preflightCodes = new Set(['provider_preflight_required', 'toolchain_preflight_required']);
+    const serverBlockers = blockerCodesFromServer.length ? blockerCodesFromServer : fallbackBlockers;
+    const staticBlockerCodes = [...new Set([
+      ...fallbackBlockers,
+      ...serverBlockers.filter((item) => !preflightCodes.has(item)),
+    ])];
+    const pendingPreflightCodes = [...new Set([
+      ...serverBlockers.filter((item) => preflightCodes.has(item)),
+      ...(readiness.provider_preflight && readiness.provider_preflight.status !== 'ready'
+        ? ['provider_preflight_required']
+        : []),
+      ...(readiness.toolchain_preflight && readiness.toolchain_preflight.status !== 'ready'
+        ? ['toolchain_preflight_required']
+        : []),
+    ])];
+    const staticReady = readiness.can_start_best ?? staticBlockerCodes.length === 0;
+    const preflightReadyToRun = staticBlockerCodes.length === 0 && pendingPreflightCodes.length > 0;
+    readinessReady = Boolean(staticReady || preflightReadyToRun);
+    const blockers = staticBlockerCodes.map(formatReadinessBlocker);
+    const pendingPreflights = pendingPreflightCodes.map(formatReadinessBlocker);
     const status = view('readiness');
-    if (readinessReady && !blockers.length) {
+    if (readinessReady && pendingPreflights.length) {
+      status.textContent = `Static checks ready; ${pendingPreflights.join(' and ')} will run when you start.`;
+    } else if (readinessReady && !blockers.length) {
       status.textContent = 'Ready to run. The first model preflight happens when you start.';
     } else if (readinessReady) {
       status.textContent = `Static checks ready; preflight will confirm the provider (${blockers.join(', ')}).`;
     } else {
-      status.textContent = `Blocked by ${blockers.join(', ') || 'local readiness checks'}.`;
+      status.textContent = `Blocked by ${blockers.join(', ') || pendingPreflights.join(', ') || 'local readiness checks'}.`;
     }
     updateLaunchButton();
   };
@@ -511,11 +533,27 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
       createFixture: (fixture_id) => request('/runs', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ fixture_id }) }),
       createUpload: (file) => request('/runs/upload', { method: 'POST', headers: { 'content-type': 'application/json', 'X-Upload-Filename': file.name, 'Idempotency-Key': requestKey() }, body: file }),
       getBuildPreparationPacks: () => request('/build-preparation-packs'),
-      providerPreflight: () => request('/provider-preflight', { method: 'POST' }),
-      createBuildPreparation: async (pack) => {
-        await request('/provider-preflight', { method: 'POST' });
-        return request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ brief_set: pack || 'best' }) });
+      runPreflights: async () => {
+        try {
+          const toolchain = await request('/toolchain-preflight', { method: 'POST' });
+          if (toolchain.status !== 'ready' || toolchain.ready !== true) {
+            const diagnostic = Array.isArray(toolchain.diagnostics) ? toolchain.diagnostics[0] : null;
+            const detail = diagnostic?.message || 'Run the disposable toolchain preflight successfully before starting paid planning.';
+            const prefix = diagnostic?.code ? `${diagnostic.code}: ` : '';
+            throw new Error(`TOOLCHAIN_PREFLIGHT_REQUIRED: ${prefix}${detail}`);
+          }
+          view('readiness').textContent = 'Toolchain preflight passed; confirming the provider...';
+          const provider = await request('/provider-preflight', { method: 'POST' });
+          if (provider.status !== 'ready') {
+            throw new Error('PROVIDER_PREFLIGHT_REQUIRED: Run provider preflight successfully before starting paid planning.');
+          }
+          return { toolchain, provider };
+        } catch (error) {
+          view('readiness').textContent = 'Preflight failed; resolve the diagnostic below and retry.';
+          throw error;
+        }
       },
+      createBuildPreparation: (pack) => request('/runs/from-build-preparation', { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': requestKey() }, body: JSON.stringify({ brief_set: pack || 'best' }) }),
     },
     storage: localStorage,
     location,
@@ -538,7 +576,15 @@ export async function bootCodeGeneratorDevelopment({ request: requestImpl } = {}
   });
   view('auto-advance').checked = controller.autoAdvance();
   view('auto-advance').addEventListener('change', (event) => controller.setAutoAdvance(event.target.checked));
-  view('start-build-preparation').addEventListener('click', () => runAction(() => controller.startBuildPreparation(selectedPack || 'best')));
+  view('start-build-preparation').addEventListener('click', () => {
+    preflightRunning = true;
+    view('readiness').textContent = 'Running the disposable toolchain preflight...';
+    updateLaunchButton();
+    runAction(() => controller.startBuildPreparation(selectedPack || 'best')).finally(() => {
+      preflightRunning = false;
+      updateLaunchButton();
+    });
+  });
   view('pack').addEventListener('change', (event) => { selectedPack = event.target.value; updateLaunchButton(); });
   view('start-fixture').addEventListener('click', () => runAction(() => controller.startFixture(view('fixture').value)));
   view('start-upload').addEventListener('click', () => {
