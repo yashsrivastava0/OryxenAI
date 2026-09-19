@@ -1912,7 +1912,20 @@ class CodeGeneratorGenerationOrchestrator:
                     # repair context for this in-process iteration.
                     pending_files = dict(rejected_attempt_files)
                 if pending_files:
+                    # Keep invalid response bodies in restricted evidence as
+                    # repair context too. They are not admitted into the
+                    # candidate tree, but dropping them here means the next
+                    # repair call cannot recover a sibling whose only defect
+                    # was a stale create/replace tag. This was observable in
+                    # a live route batch where a CSS body was discarded as
+                    # evidence, then omitted from both bounded repairs.
                     rejected_attempt_files = dict(pending_files)
+                    with contextlib.suppress(GenerationError):
+                        rejected_attempt_files.update(
+                            _pending_rejected_files_from_ledger(
+                                workspace, unit_projection
+                            )
+                        )
                 _record_pending_diagnostics(
                     workspace,
                     unit=unit,

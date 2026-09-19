@@ -1182,6 +1182,7 @@ def _exact_selector_declarations(
 
 
 _ATTR_SELECTOR_LITERAL_RE = re.compile(r'^\[([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2\]$')
+_CSS_ID_SELECTOR_RE = re.compile(r"^#([A-Za-z_][\w-]*)$")
 _JSX_ATTR_MARKER_LITERAL_RE = re.compile(
     r'^([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2$'
 )
@@ -1203,10 +1204,24 @@ def _literal_present(literal: str, source: str) -> bool:
     attribute (for example, ``data-motion={index === 0 ? "current-role" :
     undefined}``); accept that equivalent form so a repeated section map does
     not burn repair rounds on a lexical-only mismatch.
+
+    A CSS ID selector is also executable evidence when the owner renders the
+    equivalent JSX ``id="..."`` attribute. The source checker receives TSX
+    and CSS together, so demanding the CSS spelling in the TSX file would
+    reject a valid element-level motion target.
     """
 
     if literal in source:
         return True
+    id_selector = _CSS_ID_SELECTOR_RE.match(literal)
+    if id_selector is not None:
+        value = id_selector.group(1)
+        return bool(
+            re.search(
+                rf"\bid\s*=\s*(?:[\"']{re.escape(value)}[\"']|\{{\s*[\"']{re.escape(value)}[\"']\s*\}})",
+                source,
+            )
+        )
     match = _ATTR_SELECTOR_LITERAL_RE.match(literal)
     if match is None:
         marker = _JSX_ATTR_MARKER_LITERAL_RE.match(literal)
