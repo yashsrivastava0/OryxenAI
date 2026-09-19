@@ -58,8 +58,14 @@ _log_prefix = "[oryxenai.worker]"
 logger = get_logger("oryxenai.jobs.worker")
 
 
-def _safe_handler_error(error: Any) -> Any:
-    """Convert provider credit exhaustion to the stable public job contract."""
+def _safe_handler_error(error: Any, *, job_kind: str = "") -> Any:
+    """Convert unexpected handler errors to the stable public job contract.
+
+    Code Generator handlers persist checkpoints before queueing their next
+    stage. An unexpected process/runtime error in that narrow handoff window
+    is therefore safe to redeliver and must not strand a run as a permanent
+    failure. Other job families retain the existing fail-closed policy.
+    """
 
     if isinstance(error, ProviderError) or is_provider_credit_error(error):
         code, message = stable_provider_failure(error)
@@ -70,6 +76,11 @@ def _safe_handler_error(error: Any) -> Any:
         )
     if hasattr(error, "retryable") and hasattr(error, "code") and hasattr(error, "message"):
         return error
+    if str(job_kind).startswith("code_generator."):
+        return retryable(
+            "HANDLER_ERROR",
+            "The Code Generator worker hit a transient execution error and will retry.",
+        )
     return permanent("HANDLER_ERROR", "The background job handler failed.")
 
 
@@ -362,7 +373,7 @@ class Worker:
         except Exception as exc:
             if not (hasattr(exc, "code") and hasattr(exc, "message") and hasattr(exc, "retryable")):
                 logger.warning("job handler failed kind=%s error=%s", kind, type(exc).__name__)
-            error = _safe_handler_error(exc)
+            error = _safe_handler_error(exc, job_kind=kind)
             await self._fail_job(
                 job,
                 error,

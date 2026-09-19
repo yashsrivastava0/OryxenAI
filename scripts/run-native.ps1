@@ -29,7 +29,10 @@ switch ($Service) {
         if ($LASTEXITCODE -ne 0 -or $values.Count -lt 2) {
             throw "Could not read the native app host and port from settings."
         }
-        uv run uvicorn oryxenai.main:app --host $values[0] --port $values[1] --reload
+        # Keep the Windows ProactorEventLoop. Uvicorn's reload supervisor can
+        # select SelectorEventLoop, which cannot spawn Node/Playwright
+        # subprocesses used by Code Generator verification.
+        uv run uvicorn oryxenai.main:app --host $values[0] --port $values[1]
     }
     "worker" {
         uv run python -m oryxenai.jobs.worker

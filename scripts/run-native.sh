@@ -30,7 +30,7 @@ case "$1" in
       echo "Could not read the native app host and port from settings." >&2
       exit 1
     fi
-    exec uv run uvicorn oryxenai.main:app --host "$APP_HOST" --port "$APP_PORT" --reload
+    exec uv run uvicorn oryxenai.main:app --host "$APP_HOST" --port "$APP_PORT"
     ;;
   worker)
     exec uv run python -m oryxenai.jobs.worker

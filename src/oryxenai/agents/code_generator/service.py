@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from oryxenai.agents.build_preparation.input_integrator import BuildPreparationInputIntegrator
 from oryxenai.agents.build_preparation.schemas import BuildPreparationStatus
+from oryxenai.agents.code_generator.core.coordinator import advance_after
 from oryxenai.agents.code_generator.core.design_variant import create_design_variant_receipt
 from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
 from oryxenai.agents.code_generator.core.development_schemas import (
@@ -63,7 +64,9 @@ from oryxenai.auth.errors import (
     PortfolioReadOnlyError,
 )
 from oryxenai.auth.models import AppUser
+from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
+from oryxenai.db.session import get_sessionmaker
 from oryxenai.jobs.handlers.code_generator_failure import reconcile_terminal_failure
 from oryxenai.jobs.service import JobService
 from oryxenai.storage.artifacts import (
@@ -75,6 +78,7 @@ from oryxenai.storage.artifacts import (
 
 _PREFLIGHT_TTL_SECONDS = 300.0
 _PREFLIGHT_CACHE: dict[str, float] = {}
+logger = get_logger("oryxenai.agents.code_generator.service")
 
 
 class CodeGeneratorOperationError(Exception):
@@ -954,6 +958,39 @@ class CodeGeneratorService:
         code = str(error.get("code") or "").upper()
         if code.startswith(("AUTHORIZATION", "ENTITLEMENT", "SECURITY", "PORTFOLIO_READ_ONLY")):
             return run
+
+        # A stage checkpoint is authoritative evidence that the failed job
+        # completed its own work. Repair the missing successor handoff before
+        # projecting a user-facing attention state. This self-heals runs
+        # created by older workers (and failures between checkpoint commit and
+        # enqueue) without requiring the user to leave the frontend and
+        # manually launch the application.
+        completed_stage = _checkpointed_completion_stage(run, stage)
+        if completed_stage is not None:
+            try:
+                advanced = await advance_after(
+                    get_sessionmaker(self._settings),
+                    run.id,
+                    completed_stage=completed_stage,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "checkpointed Code Generator handoff recovery deferred run_id=%s "
+                    "stage=%s error=%s",
+                    run.id,
+                    stage,
+                    type(exc).__name__,
+                )
+                advanced = False
+            if advanced:
+                local_session = getattr(self._repo, "_session", None)
+                refresh = getattr(local_session, "refresh", None)
+                if refresh is not None:
+                    with suppress(Exception):
+                        await refresh(run)
+                refreshed = await self._repo.runs.get(run.id)
+                return refreshed or run
+
         await reconcile_terminal_failure(
             {
                 "code_generator_run_id": str(run.id),
@@ -1429,6 +1466,34 @@ def _retry_stage(run: Any) -> str:
     ):
         return "generate"
     return "verify"
+
+
+def _checkpointed_completion_stage(run: Any, stage: str) -> str | None:
+    """Return the durable completion marker that can resume a failed handoff."""
+
+    if (
+        stage == "plan"
+        and str(getattr(run, "status", "")) == DevelopmentRunStatus.PLANNED.value
+        and getattr(run, "plan", None)
+        and getattr(run, "planner_receipt", None)
+    ):
+        return "planned"
+    if (
+        stage == "acquire"
+        and str(getattr(run, "status", "")) == DevelopmentRunStatus.ACQUIRED.value
+        and getattr(run, "acquire_receipt", None)
+        and getattr(run, "resource_ledger", None)
+        and getattr(run, "dependency_ledger", None)
+    ):
+        return "acquired"
+    if (
+        stage == "generate"
+        and str(getattr(run, "status", "")) == DevelopmentRunStatus.SOURCE_READY.value
+        and getattr(run, "source_checkpoint", None)
+        and getattr(run, "generation_projection", None)
+    ):
+        return "source_ready"
+    return None
 
 
 def _retry_stage_material(run: Any, stage: str) -> str:

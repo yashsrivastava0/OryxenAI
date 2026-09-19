@@ -305,6 +305,48 @@ async def test_retry_reconciles_a_failed_active_job_before_requeue(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_reconcile_self_heals_a_failed_plan_handoff(monkeypatch) -> None:
+    session_id = uuid4()
+    repository = _Repository(session_id, _ready_preparation())
+    jobs = _Jobs()
+    jobs.job.status = "failed"
+    jobs.job.error_payload = {
+        "code": "HANDLER_ERROR",
+        "message": "The background job handler failed.",
+    }
+    run = SimpleNamespace(
+        id=uuid4(),
+        status="planned",
+        coordinator_stage="plan",
+        background_job_id=jobs.job.id,
+        acquire_job_id=None,
+        plan={"plan_id": "plan-recovery"},
+        planner_receipt={"plan_hash": "plan-recovery-hash"},
+    )
+    repository.runs.items[run.id] = run
+    service = CodeGeneratorService(repository, jobs, Settings())  # type: ignore[arg-type]
+    advanced: list[str] = []
+
+    async def resume(_sessionmaker, run_id, *, completed_stage):
+        assert run_id == run.id
+        advanced.append(completed_stage)
+        run.status = "acquiring"
+        run.coordinator_stage = "acquire"
+        return True
+
+    monkeypatch.setattr(code_generator_service_module, "advance_after", resume)
+    monkeypatch.setattr(
+        code_generator_service_module, "get_sessionmaker", lambda _settings: object()
+    )
+
+    recovered = await service._reconcile_terminal_active_job(run)
+
+    assert recovered is run
+    assert advanced == ["planned"]
+    assert run.status == "acquiring"
+
+
+@pytest.mark.asyncio
 async def test_get_state_projects_active_job_and_safe_retry_fields() -> None:
     session_id = uuid4()
     repository = _Repository(session_id, _ready_preparation())
