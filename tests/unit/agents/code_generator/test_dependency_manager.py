@@ -10,6 +10,7 @@ from oryxenai.agents.code_generator.core.dependency_manager import (
     DependencyPolicyError,
     _create_stage_dir,
     _npm_executable,
+    _verification_install_command,
     detect_import_dependencies,
     detect_supported_import_dependencies,
     detect_unsupported_import_dependencies,
@@ -124,6 +125,47 @@ def test_offline_install_repairs_platform_lock_projection(tmp_path, monkeypatch)
 
     assert commands[0][1] == "install"
     assert "--offline" in commands[0]
+
+
+def test_dependency_acquisition_exposes_the_same_clean_install_contract(tmp_path) -> None:
+    settings = Settings()
+    command = _verification_install_command(settings, tmp_path / "repo")
+
+    assert command[1:6] == [
+        "ci",
+        "--ignore-scripts",
+        "--offline",
+        "--no-audit",
+        "--no-fund",
+    ]
+    assert command[-2:] == ["--prefix", str(tmp_path / "repo")]
+
+
+def test_resolve_commits_only_after_clean_install_proof(tmp_path, monkeypatch) -> None:
+    commands: list[list[str]] = []
+
+    async def fake_run(command, repo_dir, settings, *, stage):
+        del settings, stage
+        commands.append(command)
+        (repo_dir / "package-lock.json").write_text('{"packages": {}}', encoding="utf-8")
+        (repo_dir / "node_modules").mkdir(exist_ok=True)
+
+    monkeypatch.setattr(dependency_manager, "_run_npm", fake_run)
+    settings = Settings()
+    receipt = ResourceReceipt(request_hash="resource-1", disposition="admitted", licence="MIT")
+    result = asyncio.run(
+        DependencyManager([receipt]).resolve(
+            _request(),
+            repo_dir=tmp_path / "repo",
+            prior_manifest={},
+            prior_lock={},
+            settings=settings,
+        )
+    )
+
+    assert result.decision == "admitted"
+    assert result.cache_receipt["clean_install"] == "verified"
+    assert [command[1] for command in commands] == ["install", "install", "ci"]
 
 
 def test_install_script_dependency_is_rejected_by_policy(tmp_path) -> None:
