@@ -11,6 +11,12 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-20 00:03 +05:30 — Codex (GPT-5) — [c3e1f17] — Make auth shell test deterministic under test overlay
+
+The API shell test helper now explicitly selects the local `open` admission
+mode instead of inheriting the integration overlay's restricted `allowlist`
+setting. The focused production-shell test passes with the CI overlay enabled.
+
 ### 2026-09-19 23:50 +05:30 — Codex (GPT-5) — [50bf74d] — Clear Code Generator diagnostics name collision
 
 Renamed the route-batch diagnostics local in the generation orchestrator so
