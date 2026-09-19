@@ -21,16 +21,16 @@ Build Preparation state
 
 The pipeline has multiple independent identity and environment boundaries. A portfolio can be valid at one boundary and still be unusable at the next one.
 
-## Failure trace A — Docker preview never reaches the browser
+## Failure trace A — Docker preview may use the wrong network namespace
 
 | Boundary | Current value/behavior | Result |
 | --- | --- | --- |
 | Worker health probe | `http://preview-gateway:4174/health/live` | Can reach the gateway through Compose DNS |
-| Worker public readback | `http://localhost:4174/preview` in `app.docker.toml` | Resolves inside the worker container, not the gateway |
+| Worker public readback | `http://localhost:4174/preview` in `app.docker.toml` | Resolves inside the worker container; it is not the gateway service address |
 | Promotion policy | `preview_public_readback_required = true` | Failed readback restores the pointer and blocks active promotion |
 | Frontend URL | Receives the configured base URL from `ActivePreview` | Even a returned localhost URL is not the user's gateway URL |
 
-The failure is a topology/configuration mismatch, not a generated React defect. The preview origin must be defined from the browser's perspective, while internal health/readback must use a separately configured reachable path or an explicit gateway validation service.
+This is a configuration risk for the affected Docker overlay. The production template has a rendered public host placeholder, so the effective overlay and deployment rendering must be checked before declaring the production path broken. The preview origin must be defined from the browser's perspective, while internal health/readback must use a separately configured reachable path or an explicit gateway validation service.
 
 ## Failure trace B — stale upstream approval is discovered too late
 
@@ -41,7 +41,8 @@ Content/Visual approval changes
   -> status is still READY, Markdown is nonempty
   -> plan/acquire/generate/build work is allowed
   -> verification handler finally calls _session_source_is_current()
-  -> stale candidate is not promoted
+  -> brief metadata may be checked, but current upstream approval is not recomputed
+  -> stale candidate may be rejected late or remain tied to an obsolete approval
 ```
 
 The system has a stale detector, but it is not placed at the admission boundary. This turns a cheap handoff check into a late terminal generation failure.
@@ -74,18 +75,18 @@ Verification run_clean_build()
 
 The receipt currently records a lock hash, but the important acceptance property is not only “a lockfile exists.” It is “the exact lockfile survives the exact clean install used by verification on the worker's platform.”
 
-## Failure trace E — approved content is present in the workspace but not usable by the route model
+## Failure trace E — approved content is presented through competing route-generation contracts
 
-The foundation writes the approved content module. Route context then deliberately compacts that module to:
+The foundation writes the approved content module. Route context also includes scoped `site_contract.public_content`, while the shared source deliberately compacts the generated module to:
 
 ```ts
 export type ApprovedContentId = "...literal ids...";
 export declare function contentValue(contentId: ApprovedContentId): string;
 ```
 
-This protects privacy/context size and prevents the model from retyping approved prose, but it leaves the model responsible for placing every exact literal ID into a large array-heavy JSX implementation. The live campaign showed the model returning a semantic `cannot_complete` response even though the approved values existed in the trusted workspace and the ID union was supplied.
+This protects context size and prevents the model from retyping approved prose, but it leaves the model responsible for reconciling two representations and placing every exact literal ID into a large array-heavy JSX implementation. The live campaign showed the model returning a semantic `cannot_complete` response even though approved-content context and the ID union were supplied.
 
-The problem is a missing host-owned intermediate step: the model is choosing layout and code structure while also acting as a high-volume compiler for approved content bindings. A repair prompt cannot reliably eliminate this class of failure.
+The problem is an unresolved context-contract question: the model is choosing layout and code structure while also acting as a high-volume compiler for approved content bindings. The captured context must be replayed before choosing between simplifying the prompt and adding a host-owned binding step.
 
 ## Preview state semantics that must remain distinct
 
@@ -107,10 +108,10 @@ The current frontend intentionally renders a candidate when no active preview ex
 - [ ] Run source reference includes the exact current upstream approved hashes and contract version.
 - [ ] Worker readiness receipt covers Node/npm/browser/cache/gateway and is tied to run admission.
 - [ ] Lockfile generated by acquisition passes the same clean install path as verification.
-- [ ] Route generation does not require a model to hand-emit dozens of approved content bindings.
-- [ ] Windows build concurrency is bounded before Vite starts child processes.
+- [ ] Route-generation context has one clear approved-content authority, or a proven binding step preserves the current coverage guarantees.
+- [ ] Windows build concurrency and executable resolution have been compared in controlled reproductions before changing process scheduling.
 - [ ] Disabled verification is an enforced capability state, not an unused TOML flag.
-- [ ] Frontend iframe reports load, timeout, HTTP/CSP, and origin failures in traceability diagnostics.
+- [ ] Frontend iframe reports successful preview handshake, timeout, and the effective preview origin in traceability diagnostics.
 
 ## Evidence sources
 
