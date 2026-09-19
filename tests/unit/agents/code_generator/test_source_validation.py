@@ -1170,6 +1170,43 @@ export default function Hero() {
     assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
 
 
+def test_route_batch_motion_accepts_css_id_selector_from_jsx_id(tmp_path) -> None:
+    """A CSS ``#id`` target may be proven by the owner JSX id attribute."""
+
+    section = tmp_path / "src" / "routes" / "home" / "sections"
+    section.mkdir(parents=True)
+    path = "src/routes/home/sections/Featured.tsx"
+    (tmp_path / path).write_text(
+        """import { Reveal } from "../../../components/generated/SharedSystems";
+export default function Featured() {
+  return <Reveal id="featured-projects" data-content-id="home:featured-projects"
+    data-motion="projects-orientation"><p>Approved</p></Reveal>;
+}
+""",
+        encoding="utf-8",
+    )
+
+    diagnostics = validate_route_batch_contract(
+        tmp_path,
+        [path],
+        route_id="home",
+        section_ids=["home:featured-projects"],
+        section_selectors_by_section={"home:featured-projects": "#featured-projects"},
+        motion_beats=[
+            {
+                "motion_id": "motion:home:projects-orientation",
+                "section_id": "home:featured-projects",
+                "target_marker": 'data-motion="projects-orientation"',
+                "target_selector": "#featured-projects",
+                "pattern_id": "reveal-fade-rise",
+            }
+        ],
+        work_unit_id="route-home-batch-1",
+    )
+
+    assert not any(item.code == "SOURCE_ROUTE_BATCH_MOTION_INVALID" for item in diagnostics)
+
+
 def test_route_batch_motion_accepts_a_static_conditional_marker(tmp_path) -> None:
     section = tmp_path / "src" / "routes" / "home" / "sections"
     section.mkdir(parents=True)
