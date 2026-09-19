@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-20 00:38 +05:30 — Codex (GPT-5) — [2224697] — Always expose Code Generator retry after terminal job failure
+
+The Generate & Preview recovery action now remains available for any
+non-stale attention state, including a failed active job that still reports
+its previous planning status. The production retry capability reconciles that
+terminal job before queueing the same-run stage again, with route, service,
+adapter, and browser regression coverage.
+
 ### 2026-09-20 00:03 +05:30 — Codex (GPT-5) — [c3e1f17] — Make auth shell test deterministic under test overlay
 
 The API shell test helper now explicitly selects the local `open` admission
@@ -132,76 +140,13 @@ the route-context failure as requiring reproduction, qualify Docker preview
 behavior by effective overlay, and downgrade the Windows process-contention
 finding until its cause is isolated.
 
-### 2026-09-19 00:00 +05:30 — Codex — [392277c] — Code Generator architecture and preview issue audit
-
-Added `codegen issues.md` and `codegen issues evidence.md`, documenting the
-highest-impact Build Preparation handoff, worker/toolchain, npm, generation,
-preview-promotion, browser-delivery, Windows-runtime, and configuration-gate
-failures found in the current Code Generator implementation. No implementation
-fixes were made; the pre-existing dirty worktree was preserved.
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [f0b8d7a] — T09 live campaign attempt 1: environment fixes and a real content-generation finding
-
-Ran the first attempt of the docs/code-generator-repair-plan-2026-09-16.md
-T09 live campaign (user-authorized, real model spend) against pack
-`604405bb`. Diagnosed and fixed local environment blockers unrelated to the
-repair plan itself: stale multi-day-old dev processes occupying port 8000,
-`Start-Process`-spawned background windows resolving `node`/`npm` from a
-different environment than an interactive shell (making toolchain-preflight
-falsely report `node: false`), and a genuine `dependency_manager.py` lockfile
-defect where `npm install --package-lock-only --offline` can produce a
-lockfile with blank `version` fields for `@tailwindcss/oxide`'s nested
-optional multi-platform dependencies, which a later strict `npm ci --offline`
-then rejects. Traced a subsequent `SOURCE_REPAIR_EXHAUSTED` failure to a
-real, evidenced content-generation finding: the model declined to write an
-array-heavy content section (multiple experience entries) citing "no
-materialized runtime approved content values," even though the intentional
-`contentValue(id)` type-excerpt pattern (documented in `route_batch.md`)
-supplies every valid literal ID for exactly this purpose. Full narrative,
-evidence, and follow-ups in
-`docs/code-generator-repair-plan-campaign-2026-09-18.md`. Reverted the
-temporary `allow_network_install=true` diagnostic override and stopped the
-native stack cleanly. 1 of 5 campaign attempts consumed; attempts 2-5 remain.
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [c3cfe3a] — Fix test_service.py module collision blocking a full-suite run
-
-Running the whole `tests/unit` tree in one `pytest` invocation (as the
-repair plan's verification commands require) failed at collection:
-five different agent test directories each have their own
-`test_service.py`, but `tests/unit/agents/code_generator/` and
-`tests/unit/auth/` were missing the `__init__.py` that the sibling
-agent test directories already have. Added the same empty
-`__init__.py` to both, matching the existing convention. Also
-confirmed (not fixed, unrelated) that 10 other failures — 5
-`test_settings*.py`, 5 `build_preparation` component-retrieval tests —
-are a pre-existing config-overlay/test-invocation mismatch, not a
-regression: both pass cleanly with `OryxenAI_CONFIG_OVERLAY` unset.
-Full `tests/unit` now collects and runs (1176 passed).
-
-### 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5) — [no code change] — Verified T08 portable exports against a real build (docs/code-generator-repair-plan-2026-09-16.md)
-
-Verified T08's export contract directly against a real, test-generated
-export (`output/code-gen-output/15-10-18-09-2026-a6fea704`, a synthetic
-fixture build with no real user data): copied `source/` to a fresh
-temp directory with no `node_modules`, ran `npm ci` from the committed
-`package-lock.json`, `npm run check` (source audit + typecheck), and
-`npm run build` — all succeeded independently with zero references
-back into this repository. Served the built `dist/` with
-`scripts/preview-codegen-export.py`: root URL, a static asset, and a
-nested SPA route all returned 200 with real content; a missing asset
-correctly returned a real 404 body instead of the SPA HTML fallback.
-Confirmed no local absolute paths or credentials in the exported
-source or `portfolio.json` (one grep hit was a false positive — a
-`../routes/home/index` import path, not a leaked filesystem path).
-Confirmed `ResourceUrl.ts` resolves all asset/route URLs from
-`document`/`window.location` only, with no application API or database
-dependency. Found no gap requiring a code change; the existing
-`portfolio_export.py`/scaffold README/package.json contract already
-satisfies the plan's Definition of Done for this item.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-19 — [392277c] — Audited the Code Generator architecture and preview issue surface, preserving the findings for implementation follow-up.
+- 2026-09-18 — [f0b8d7a] — Ran the first live repair campaign attempt, fixed local environment blockers, and documented an evidenced content-generation finding.
+- 2026-09-18 — [c3cfe3a] — Fixed test module-name collisions so the full unit tree could collect, while documenting unrelated overlay mismatches.
+- 2026-09-18 — [no code change] — Verified portable Code Generator exports with clean install, build, route, asset, and secret/path checks (T08).
 - 2026-09-18 — [a64003a] — Fetched Code Generator state only when reachable, preventing pre-approval entitlement conflicts from marking the product shell stale (T07, F04).
 - 2026-09-18 — [9270762] — Forbade hiding repair evidence by deleting broken elements and bumped the repair prompt version (T05).
 - 2026-09-18 — [b361125] — Retried alternate Code Generator resource candidates on materialize failure within one bounded search result set (T03).
@@ -246,7 +191,7 @@ satisfies the plan's Definition of Done for this item.
 
 ---
 
-## Summary (as of last compaction — 2026-09-19)
+## Summary (as of last compaction — 2026-09-20)
 
 - Recent detailed entries retained: 15
-- Compacted milestone bullets: 23
+- Compacted milestone bullets: 27
