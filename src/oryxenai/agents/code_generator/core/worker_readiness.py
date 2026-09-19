@@ -82,12 +82,12 @@ async def worker_contract_readiness(repository: Any, settings: Any) -> dict[str,
                 "release_id": str(metadata.get("release_id", "")),
                 "pipeline_contract_version": str(metadata.get("pipeline_contract_version", "")),
                 "code_generator_capability": bool(
-                    metadata.get("code_generator_capability", True)
+                    metadata.get("code_generator_capability", False)
                 ),
                 "code_generator_toolchain": {
-                    "node": bool(toolchain.get("node", True)),
-                    "npm": bool(toolchain.get("npm", True)),
-                    "browser": bool(toolchain.get("browser", True)),
+                    "node": bool(toolchain.get("node", False)),
+                    "npm": bool(toolchain.get("npm", False)),
+                    "browser": bool(toolchain.get("browser", False)),
                 },
                 "age_seconds": round(age, 1),
             }
