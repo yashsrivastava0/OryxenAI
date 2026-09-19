@@ -11,6 +11,21 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 23:50 +05:30 — Codex (GPT-5) — [50bf74d] — Clear Code Generator diagnostics name collision
+
+Renamed the route-batch diagnostics local in the generation orchestrator so
+the strict mypy check no longer reports a same-scope redefinition. Runtime
+behavior is unchanged; the type-check failure is removed without a broad
+formatting rewrite.
+
+### 2026-09-19 23:48 +05:30 — Codex (GPT-5) — [f2f4aba] — Reconcile deployment preparation artifacts
+
+Committed the deployment-strategy audit documents, readiness and GitHub CI/CD
+guidance, the project-status cross-link, and the repository ignore rules for
+browser captures and pytest temp directories. The release guidance continues
+to require a clean exact-SHA deployment pointer and does not include secrets,
+caches, or browser/tool artifacts.
+
 ### 2026-09-19 22:46 +05:30 — Codex (GPT-5) — [500e58c] — Reconcile Code Generator terminal state and add direct frontend acceptance
 
 Terminal Code Generator failures now reconcile the run to a safe
