@@ -34,7 +34,6 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Consequence:** Motion checks reason about the rendered DOM element rather than representation spelling, and bounded repair retains enough evidence to recover stale-tag siblings without broadening write authority. The live failure is fixed deterministically; no third full pipeline run is authorized or required for this contract-level correction.
 
 ## D-101 — Keep source-contract validation semantically aligned with the runtime audit
-## D-101 — Keep source-contract validation semantically aligned with the runtime audit
 
 - **Date & Time:** 2026-09-19 16:15 +05:30 — Codex (GPT-5 / OpenAI)
 - **Status:** decided-implemented
