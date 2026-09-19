@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [pending] — Prove generated dependency locks with the verification install
+### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [a1f7fde] — Prove generated dependency locks with the verification install
 
 The Code Generator dependency stage now runs the exact configured clean
 verification install against its staged package manifest and lockfile before
