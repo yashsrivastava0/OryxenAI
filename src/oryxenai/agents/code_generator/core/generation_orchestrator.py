@@ -760,6 +760,11 @@ class CodeGeneratorGenerationOrchestrator:
             if run is None:
                 return {"status": "discarded", "run_id": str(run_id)}
             if run.status == DevelopmentRunStatus.SOURCE_READY.value and run.generation_projection:
+                # Source readiness is persisted before Verify is queued. If a
+                # worker interruption lands in that gap, redelivery should
+                # continue the durable handoff rather than report a no-op.
+                await db.rollback()
+                await advance_after(sessionmaker, run_id, completed_stage="source_ready")
                 return {"status": "succeeded", "run_id": str(run_id), "reused": True}
             if run.status not in {
                 DevelopmentRunStatus.QUEUED.value,
