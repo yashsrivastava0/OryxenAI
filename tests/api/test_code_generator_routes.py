@@ -33,6 +33,10 @@ class _Service:
         self.calls.append(("regenerate", str(session_id), idempotency_key))
         return _payload(session_id, status="queued")
 
+    async def retry(self, session_id, *, idempotency_key: str):
+        self.calls.append(("retry", str(session_id), idempotency_key))
+        return _payload(session_id, status="queued")
+
 
 def _payload(session_id, *, status: str = "not_started"):
     return {
@@ -67,6 +71,7 @@ async def test_production_code_generator_routes_are_exposed_and_forward_idempote
     assert "/api/v1/sessions/{session_id}/code-generator" in paths
     assert "/api/v1/sessions/{session_id}/code-generator/start" in paths
     assert "/api/v1/sessions/{session_id}/code-generator/regenerate" in paths
+    assert "/api/v1/sessions/{session_id}/code-generator/retry" in paths
 
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -82,6 +87,11 @@ async def test_production_code_generator_routes_are_exposed_and_forward_idempote
             headers={"Idempotency-Key": "second-attempt"},
             json={},
         )
+        retry = await client.post(
+            f"/api/v1/sessions/{session_id}/code-generator/retry",
+            headers={"Idempotency-Key": "third-attempt"},
+            json={},
+        )
         override = await client.post(
             f"/api/v1/sessions/{session_id}/code-generator/start",
             json={"model_profile": "request-controlled-profile"},
@@ -90,9 +100,11 @@ async def test_production_code_generator_routes_are_exposed_and_forward_idempote
     assert start.status_code == 202
     assert state.status_code == 200
     assert regenerate.status_code == 202
+    assert retry.status_code == 202
     assert override.status_code == 422
     assert service.calls == [
         ("start", str(session_id), "first-attempt"),
         ("get", str(session_id), ""),
         ("regenerate", str(session_id), "second-attempt"),
+        ("retry", str(session_id), "third-attempt"),
     ]

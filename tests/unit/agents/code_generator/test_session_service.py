@@ -238,6 +238,73 @@ async def test_retry_requeues_the_existing_run_and_preserves_its_variant() -> No
 
 
 @pytest.mark.asyncio
+async def test_retry_reconciles_a_failed_active_job_before_requeue(monkeypatch) -> None:
+    session_id = uuid4()
+    repository = _Repository(session_id, _ready_preparation())
+    jobs = _Jobs()
+    jobs.job.status = "failed"
+    jobs.job.error_payload = {
+        "code": "HANDLER_ERROR",
+        "message": "The background job handler failed.",
+    }
+    run = SimpleNamespace(
+        id=uuid4(),
+        revision=4,
+        status="planning",
+        issues=[],
+        terminal_failure=None,
+        active_preview=None,
+        coordinator_stage="plan",
+        current_attempt=3,
+        plan_summary={},
+        source_summary={},
+        plan=None,
+        planner_receipt=None,
+        acquire_receipt=None,
+        resource_ledger=None,
+        dependency_ledger=None,
+        source_checkpoint=None,
+        generation_projection=None,
+        pending_promotion=None,
+        creative_direction={"variant_receipt": {"variant_id": "variant-retry"}},
+        pipeline_contract_version="code-generator-v4",
+        trace_id="trace-retry",
+        background_job_id=jobs.job.id,
+        acquire_job_id=None,
+        generation_job_id=None,
+        verification_job_id=None,
+    )
+    repository.runs.items[run.id] = run
+    repository.state = CodeGeneratorSessionState(
+        status="planning",
+        current_run_id=str(run.id),
+    )
+    service = CodeGeneratorService(repository, jobs, Settings())  # type: ignore[arg-type]
+
+    async def enqueue_retry(kind, payload, **kwargs):
+        jobs.job.status = "queued"
+        return await _Jobs.enqueue(jobs, kind, payload, **kwargs)
+
+    monkeypatch.setattr(jobs, "enqueue", enqueue_retry)
+
+    async def reconcile(current):
+        assert current is run
+        if run.status == "queued":
+            return run
+        run.status = "needs_attention"
+        run.terminal_failure = {"terminal_code": "HANDLER_ERROR"}
+        return run
+
+    monkeypatch.setattr(service, "_reconcile_terminal_active_job", reconcile)
+
+    result = await service.retry(session_id, idempotency_key="failed-plan-retry")
+
+    assert run.status == "queued"
+    assert result["code_generator"]["status"] == "queued"
+    assert jobs.payload == {"code_generator_run_id": str(run.id)}
+
+
+@pytest.mark.asyncio
 async def test_get_state_projects_active_job_and_safe_retry_fields() -> None:
     session_id = uuid4()
     repository = _Repository(session_id, _ready_preparation())

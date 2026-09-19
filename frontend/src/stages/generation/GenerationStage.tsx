@@ -202,7 +202,10 @@ export function GenerationStage({
   const isWorking = view.state === "working";
   const isAvailable = view.state === "available";
   const isComplete = view.state === "complete";
-  const retryEnabled = view.retryAvailable === true;
+  // Any non-stale attention state is recoverable through the same-run retry
+  // action. The server still validates ownership, freshness, and entitlement
+  // before it queues the next durable stage attempt.
+  const retryEnabled = isAttention && !view.stale;
 
   const coordStage = view.coordinatorStage || (
     view.status === "planning" ? "plan" :
@@ -874,7 +877,7 @@ export function GenerationStage({
               >
                 Close
               </button>
-              {isAttention && view.retryAvailable && (
+              {isAttention && retryEnabled && (
                 <button
                   type="button"
                   className="btn-primary btn-cobalt"
