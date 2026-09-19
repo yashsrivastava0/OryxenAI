@@ -1,6 +1,12 @@
 # Deployment research sources
 
-Checked 2026-09-15. Recheck provider pages before execution because prices,
+Research recorded: 2026-09-15 20:26:26 +05:30 (Asia/Kolkata).
+
+Five workstreams were searched with Exa during this preparation pass:
+GitHub automation, open-source deployment platforms, AI-assisted operations,
+Azure/container/authentication/storage, and infrastructure-as-code alternatives.
+The review covered 76 search-result slots; the links below are the selected
+first-party sources. Recheck provider pages before execution because prices,
 student offers, product limits, and dashboards can change.
 
 ## Azure
@@ -63,6 +69,63 @@ student offers, product limits, and dashboards can change.
 - [GitHub deploy keys](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys)
   explains repository-scoped server access and why a read-only key is the
   appropriate default for a simple pull-based deployment.
+- [GitHub deployments and environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
+  documents environment protection rules, required reviewers, branch
+  restrictions, and environment secrets. Its current plan note says required
+  reviewers and wait timers on Free, Pro, and Team are limited to public
+  repositories.
+- [Controlling deployments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments)
+  documents push, pull-request, and manual workflow triggers, environment
+  gates, and the use of concurrency for deployment control.
+- [Workflow concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
+  explains how one concurrency group prevents overlapping releases.
+- [Using GitHub Actions secrets](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
+  explains repository/environment secret storage and access boundaries.
+- [Available repository rules](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)
+  lists pull-request, status-check, linear-history, signed-commit, and
+  force-push/deletion controls for a release branch.
+
+## AI-assisted operations
+
+- [Claude Code headless/programmatic mode](https://docs.anthropic.com/en/docs/claude-code/headless)
+  documents non-interactive runs, `--bare`, exit codes, output formats, and
+  restricting tools for scripts and CI.
+- [Claude Code CLI reference](https://docs.anthropic.com/en/docs/claude-code/cli-reference)
+  documents permission modes and tool allow/deny controls.
+- [Claude Code hooks](https://docs.anthropic.com/en/docs/claude-code/hooks-guide)
+  documents pre-tool-call hooks that can enforce additional guardrails.
+- [Claude Code GitHub Actions](https://docs.anthropic.com/en/docs/claude-code/github-actions)
+  documents PR/issue automation and the credentials it requires; it is treated
+  here as an optional review assistant, not as a production deploy authority.
+- [GitHub Copilot cloud-agent risks and mitigations](https://docs.github.com/en/copilot/concepts/agents/cloud-agent/risks-and-mitigations)
+  describes the human review and workflow-approval boundaries for agent output.
+
+## Open-source deployment platforms and automation
+
+- [Coolify overview](https://coolify.io/docs/core/what-is-coolify) describes a
+  self-hosted PaaS/control plane that manages Docker resources, servers,
+  domains, HTTPS, health checks, and deployments.
+- [Coolify Docker Compose](https://coolify.io/docs/applications/builds/docker-compose)
+  confirms Git-based Compose support, service/domain configuration, and
+  branch/webhook automation.
+- [Coolify Git-provider CI/CD](https://coolify.io/docs/applications/ci-cd)
+  describes automatic redeployments and private-repository access methods.
+- [Dokku installation and model](https://dokku.com/docs/getting-started/installation/)
+  describes a single-server open-source PaaS centered on `git push`,
+  Dockerfile/buildpack builds, web processes, and routing.
+- [Kamal deploy](https://kamal-deploy.org/docs/commands/deploy/) describes its
+  registry push/pull, SSH, proxy cutover, and release-version flow.
+- [Watchtower introduction](https://containrrr.dev/watchtower/introduction/)
+  describes registry polling and automatic container restarts when an image
+  changes.
+- [Ansible playbooks](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_intro.html)
+  describes repeatable configuration management and multi-machine
+  orchestration.
+- [Ansible Docker Compose v2 module](https://docs.ansible.com/projects/ansible/latest/collections/community/docker/docker_compose_v2_module.html)
+  confirms that Ansible can orchestrate an existing Compose project through the
+  Docker Compose CLI plugin.
+- [Terraform introduction](https://developer.hashicorp.com/terraform/intro)
+  describes declarative infrastructure, plans, applies, providers, and state.
 
 ## Repository conclusions
 
@@ -73,3 +136,12 @@ storage adapters, authentication settings, and the existing
 `docs/deployment` runbook. The production path is implemented but not proven
 until the live VM, domain, provider integrations, and browser acceptance all
 pass.
+
+The research conclusion is to keep the existing Compose/script path, use a
+protected deployment release pointer, and defer automatic GitHub-to-VM
+deployment until the first manual release and the GitHub plan/network
+constraints are understood.
+
+For the reasoning and operator policy, see
+[ai-and-open-source-research.md](ai-and-open-source-research.md) and
+[github-and-ci.md](github-and-ci.md).

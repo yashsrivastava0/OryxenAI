@@ -1,5 +1,7 @@
 # Operations and AI-assisted maintenance
 
+Preparation audit recorded: 2026-09-15 20:26:26 +05:30 (Asia/Kolkata).
+
 The normal operating model is: make a reviewed change, merge it to
 `deployment`, deploy its exact SHA, verify, and keep the previous good SHA
 available for rollback.
@@ -77,6 +79,18 @@ Before sharing output, remove API keys, bearer tokens, cookies, private URLs,
 OAuth secrets, database passwords, SSH material, and complete environment
 files. AI must not invent a successful deployment from local tests or a green
 container status.
+
+## Tooling boundary
+
+Claude Code, Codex, and OpenCode are optional development/operator tools. The
+production image does not install or invoke a CLI session. OryxenAI routes
+model calls through the configured provider adapters and the ModelClient
+boundary; the active profile and fallback list must be read from
+config/models.toml at release time.
+
+For the safe AI workflow, GitHub branch controls, and open-source platform
+comparison, see [github-and-ci.md](github-and-ci.md) and
+[ai-and-open-source-research.md](ai-and-open-source-research.md).
 
 The owner remains responsible for Azure billing decisions, secret entry,
 domain registration, Google/Supabase/R2 dashboard changes, and final

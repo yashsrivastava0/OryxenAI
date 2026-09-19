@@ -58,6 +58,10 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Browser/tool captures and root-level pytest temp directories
+.playwright-mcp/
+pytest-cache-files-*/
+
 # Docker
 # compose.yaml is COMMITTED intentionally
 

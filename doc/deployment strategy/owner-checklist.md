@@ -1,5 +1,7 @@
 # Owner checklist
 
+Preparation audit recorded: 2026-09-15 20:26:26 +05:30 (Asia/Kolkata).
+
 This list separates actions that require the owner's browser, account, or
 secret from work that can be performed through the repository and VM.
 
@@ -12,6 +14,11 @@ JWTs, or R2 secret keys into chat or these documents.
 - [ ] Confirm access to the VM SSH private key. Keep it outside the repository.
 - [ ] Confirm the private GitHub repository URL and access method. If using a
       VM deploy key, add a repository-scoped read-only key.
+- [ ] After a clean release SHA is selected, create the deployment branch and
+      configure its pull-request/status-check/force-push protections. Do not
+      create or push it from the current dirty worktree.
+- [ ] Check the GitHub repository visibility and plan before relying on
+      environment approval or environment-only secret features.
 - [ ] Confirm the two bootstrap administrator email addresses.
 - [ ] Confirm the intended normal-user allowlist. Keep it limited to the
       two- or three-person trial; administrators and normal users must not
@@ -22,6 +29,9 @@ JWTs, or R2 secret keys into chat or these documents.
 - [ ] Confirm every active model-provider credential requested by the current
       `config/models.toml`. The deployment script discovers these names; do
       not rely on model names written in documentation.
+- [ ] Treat Claude Code, Codex, and OpenCode as local operator tools only. The
+      production image uses configured provider adapters and does not need a
+      CLI session on Azure.
 - [ ] Decide whether at least one image-provider key should be supplied. It is
       optional for startup but recommended for image-backed portfolio output.
 - [ ] Inspect the local `.env` privately. If the malformed token-like line is
