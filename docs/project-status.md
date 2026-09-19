@@ -1,6 +1,6 @@
 # OryxenAI — current implementation and deployment status
 
-**Snapshot date:** 2026-09-14 (Asia/Kolkata)
+**Snapshot date:** 2026-09-15 (Asia/Kolkata)
 
 **Purpose:** This is the short, current handoff for the human owner and any
 AI coding/deployment assistant. It answers three questions: what exists,
@@ -12,6 +12,11 @@ The working tree is currently dirty because another contributor has
 uncommitted and untracked work in progress. That work is not a deployment
 release and is not counted as complete here. Re-run `git status --short
 --branch` and choose a clean release commit before deploying.
+
+The latest deployment-preparation audit is the
+[deployment strategy pack](<../doc/deployment strategy/README.md>). It records
+the current GitHub, Azure, R2, authentication, model-runtime, domain, and
+release gates without claiming that live deployment has been performed.
 
 ## Executive status
 
