@@ -82,6 +82,7 @@ from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.session import get_sessionmaker
+from oryxenai.jobs.handlers.code_generator_failure import reconcile_terminal_failure
 from oryxenai.preview.gateway import create_candidate_app
 from oryxenai.preview.promotion import PreviewPromoter, preview_urls
 from oryxenai.preview.reconciler import reconcile_pending_promotion
@@ -128,6 +129,13 @@ class CodeGeneratorVerificationHandler:
         self._model_factory = model_factory
         self._runtime_verifier_factory = runtime_verifier_factory
         self._storage_factory = storage_factory
+
+    async def on_terminal_failure(
+        self,
+        payload: dict[str, Any],
+        error: dict[str, Any],
+    ) -> None:
+        await reconcile_terminal_failure(payload, error)
 
     async def execute(self, payload: dict[str, Any], instance_id: str) -> dict[str, Any]:
         del instance_id

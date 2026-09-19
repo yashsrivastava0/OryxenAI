@@ -377,7 +377,7 @@ preview_base_url = "http://127.0.0.1:4174/preview"
 preview_host = "127.0.0.1"
 preview_port = 4174
 preview_parent_origin = "http://127.0.0.1:8000"
-preview_embed_origins = ["http://127.0.0.1:8000", "http://localhost:8000"]
+preview_embed_origins = ["http://127.0.0.1:8000", "http://localhost:8000", "http://127.0.0.1:4178", "http://localhost:4178"]
 preview_retention_days = 3
 preview_route_prefix = "/preview"
 # Local runs may use the in-process/filesystem preview without a public

@@ -22,6 +22,17 @@ export const generationWorkingWithEstimate = {
   },
 };
 
+export const generationPlanningWithFailedJob = {
+  status: "planning",
+  active_job_id: "job-plan-failed",
+  active_job_kind: "code_generator.v5.plan",
+  progress: { coordinator_stage: "plan", current_attempt: 3, plan_summary: {}, source_summary: {} },
+  trace_id: "trace-plan-failed",
+  latest_error: null,
+  issues: [],
+  retry_available: false,
+};
+
 export const generationReady = {
   status: "ready",
   active_preview: {

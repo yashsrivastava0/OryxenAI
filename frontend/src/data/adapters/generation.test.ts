@@ -5,6 +5,7 @@ import {
   generationNeedsAttentionWithCandidate,
   generationNeedsAttentionWithPreview,
   generationNotStarted,
+  generationPlanningWithFailedJob,
   generationReady,
   generationStale,
   generationWorking,
@@ -60,6 +61,24 @@ describe("adaptCodeGenerator", () => {
     expect(withoutPreview.state).toBe("attention");
     expect(withoutPreview.preview).toBeNull();
     expect(withoutPreview.retryAvailable).toBe(false);
+  });
+
+  it("converges a planning response with a failed active job to attention", () => {
+    const view = adaptCodeGenerator(generationPlanningWithFailedJob, true, [
+      {
+        id: "job-plan-failed",
+        kind: "code_generator.v5.plan",
+        status: "failed",
+        attempt: 3,
+        max_attempts: 3,
+        error: { code: "HANDLER_ERROR", message: "The background job handler failed." },
+      },
+    ]);
+    expect(view.state).toBe("attention");
+    expect(view.status).toBe("planning");
+    expect(view.safeError?.summary).toBe("The background job handler failed.");
+    expect(view.safeError?.retryable).toBe(false);
+    expect(view.retryAvailable).toBe(false);
   });
 
   it("does not confuse current_run_id with a job id", () => {

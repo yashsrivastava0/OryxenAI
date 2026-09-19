@@ -1020,7 +1020,12 @@ export function AppShell({
   };
 
   const retryGeneration = async () => {
-    if (!state.sessionId || mutatingStage || state.preparation?.state !== "complete") return;
+    if (
+      !state.sessionId ||
+      mutatingStage ||
+      state.preparation?.state !== "complete" ||
+      state.generation?.retryAvailable !== true
+    ) return;
     const sessionId = state.sessionId;
     setMutatingStage("generate");
     try {
@@ -1208,6 +1213,7 @@ export function AppShell({
                     onStart={() => runGenerationMutation("start")}
                     onRetry={retryGeneration}
                     onRegenerate={() => runGenerationMutation("regenerate")}
+                    onRefresh={refetchCurrentSession}
                   />
                 ) : null}
               </div>

@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-104 — Reuse the product Generate & Preview surface for standalone run acceptance
+
+- **Date & Time:** 2026-09-19 22:30 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** The standalone Code Generator harness can exercise planning, acquisition, generation, verification, and preview without upstream agents, but its control room is not the authenticated product surface. Testing only one surface allowed a durable run to succeed while the product UI still showed a stale working state or an unusable preview.
+- **Decision:** Add a development-only, read-only Preact fixture that accepts a standalone run ID, reads the existing development run and preview projections through the Vite `/api` proxy, maps them into the same `GenerationStage` adapter, and polls only while the run is active. Configure the native preview gateway's exact embed allowlist for the fixture origin and expose a config-driven link from the standalone control room. Keep production session routes, auth, preview URL construction, and stage chaining unchanged.
+- **Rejected alternatives:** Running Discovery, Content Architect, Visual Design Director, and Build Preparation for every frontend check is slow and couples a Code Generator regression to unrelated agents; duplicating the product theater in the legacy harness would create two UI contracts; accepting an arbitrary URL query parameter would bypass the preview gateway's origin and verification boundaries; auto-chaining the upstream agents would violate the explicit stage handoff contract.
+- **Consequence:** A real standalone run can be inspected in the product theater without upstream setup, deterministic fixtures cover failure-state rendering, and the same adapter contract is exercised before production browser acceptance. The fixture is intentionally development-only and cannot create or mutate a production session.
+
 ## D-103 — Make the approved handoff the single generation start contract
 
 - **Date & Time:** 2026-09-19 19:44 +05:30 — Codex (GPT-5 / OpenAI)
