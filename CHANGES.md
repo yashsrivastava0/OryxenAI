@@ -11,6 +11,13 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 16:20 +05:30 — Codex (GPT-5) — [ddab99a] — Fail closed on legacy worker capability receipts
+
+Worker readiness no longer treats missing Code Generator capability or
+toolchain metadata as implicitly healthy. A worker must explicitly report the
+active contract plus Node, npm, and browser support before new generation work
+is admitted; this completes the worker side of D-100.
+
 ### 2026-09-19 16:15 +05:30 — Codex (GPT-5) — [188af32] — Align mapped content validation with generated source
 
 The route-batch pre-toolchain gate now recognizes bounded indexed tuple maps
