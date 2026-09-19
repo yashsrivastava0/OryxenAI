@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-101 — Keep source-contract validation semantically aligned with the runtime audit
+
+- **Date & Time:** 2026-09-19 16:15 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** A live route batch rendered approved content through literal tuple collections and indexed map values (`contentValue(item[0])`). The runtime/source audit could resolve that bounded static shape, but the Python pre-toolchain gate could not, so it emitted false blocking diagnostics and exhausted repair on an otherwise usable portfolio.
+- **Decision:** Extend the host gate with a bounded balanced-literal scanner that maps exact approved IDs to tuple indexes and accepts only the corresponding mapped `contentValue(item[index])` call. Keep the repair envelope strict for each returned file, but retain unchanged bodies from a durable pending proposal so a repair is a delta over an already captured candidate rather than an unnecessarily repeated whole-unit response.
+- **Rejected alternatives:** Requiring every opaque key to be repeated as a direct literal would reject readable, valid generated code; evaluating arbitrary JavaScript would be unsafe and would make the host validator too permissive; removing the pre-toolchain check would defer deterministic contract failures to a later and less actionable stage.
+- **Consequence:** Generated repeated-content sections can use compact typed tuple maps without false failures, while approved content coverage remains exact, bounded, and executable. Prompt version `code_generator.repair.v11` invalidates stale repair-call caches after the contract change.
+
 ## D-100 — Gate Code Generator admission on current handoffs and worker/preview capability
 
 - **Date & Time:** 2026-09-19 00:00 +05:30 — Codex (GPT-5 / OpenAI)
