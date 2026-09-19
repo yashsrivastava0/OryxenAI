@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="{{ request.scope.get('root_path', '') }}/static/code-generator-development.css?v={{ css_version }}">
 </head>
 <body>
-  <main class="cg-dev" data-code-generator-development>
+  <main class="cg-dev" data-code-generator-development data-frontend-fixture-origin="{{ frontend_fixture_origin }}">
     <header class="cg-dev__topbar">
       <a class="cg-dev__brand" href="/dev" aria-label="OryxenAI developer workspace">
         <span class="cg-dev__brand-mark" aria-hidden="true">O</span>
@@ -91,6 +91,7 @@
         </div>
         <div class="cg-dev__preview-actions">
           <button type="button" data-preview-refresh disabled>Refresh frame</button>
+          <a data-product-fixture-open target="_blank" rel="noopener noreferrer" hidden>Open product preview fixture</a>
           <a data-preview-open target="_blank" rel="noopener noreferrer" hidden>Open preview ↗</a>
         </div>
         <div class="cg-dev__preview-empty" data-preview-empty>

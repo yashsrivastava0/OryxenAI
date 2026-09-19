@@ -19,6 +19,7 @@ export interface GenerationStageProps {
   onStart: () => Promise<void>;
   onRetry: () => Promise<void>;
   onRegenerate: () => Promise<void>;
+  onRefresh?: () => Promise<void>;
 }
 
 interface MilestoneDef {
@@ -102,6 +103,7 @@ export function GenerationStage({
   onStart,
   onRetry,
   onRegenerate,
+  onRefresh,
 }: GenerationStageProps) {
   const [showTraceabilityDrawer, setShowTraceabilityDrawer] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
@@ -200,6 +202,7 @@ export function GenerationStage({
   const isWorking = view.state === "working";
   const isAvailable = view.state === "available";
   const isComplete = view.state === "complete";
+  const retryEnabled = view.retryAvailable === true;
 
   const coordStage = view.coordinatorStage || (
     view.status === "planning" ? "plan" :
@@ -395,7 +398,11 @@ export function GenerationStage({
           <p className="composer-subprompt">
             {isAvailable && "The approved Build Preparation briefs are the complete input for this generation."}
             {isWorking && "The worker is progressing through planning, acquisition, build, verification, and preview promotion."}
-            {isAttention && "Retry the durable generation with the same approved handoff, or open the diagnostic record."}
+            {isAttention && retryEnabled
+              ? "Retry the durable generation with the same approved handoff, or open the diagnostic record."
+              : isAttention
+                ? "This run is preserved for diagnosis. Refresh the state or open the diagnostic record."
+                : ""}
             {isComplete && "The promoted preview is ready. Regenerating creates a new verified candidate."}
           </p>
 
@@ -410,15 +417,15 @@ export function GenerationStage({
               <span className="composer-quiet-hint">Generation is running from the approved handoff.</span>
             )}
 
-            {isAttention && (
+            {isAttention && retryEnabled && (
               <button type="button" className="btn-primary btn-cobalt" onClick={onRetry} disabled={!canMutate || inFlight}>
-                {inFlight ? "Retrying..." : "Retry generation →"}
+                {inFlight ? "Retrying..." : "Retry"}
               </button>
             )}
 
             {isComplete && (
               <button type="button" className="btn-secondary" onClick={onRegenerate} disabled={!canMutate || inFlight}>
-                Regenerate portfolio
+                Regenerate
               </button>
             )}
           </div>
@@ -462,7 +469,7 @@ export function GenerationStage({
               </div>
 
               <div className="attention-cta-group">
-                <button
+                {retryEnabled && <button
                   type="button"
                   className="btn-primary btn-cobalt attention-retry-btn"
                   onClick={onRetry}
@@ -470,7 +477,17 @@ export function GenerationStage({
                 >
                   <span className="retry-symbol">↻</span>
                   {inFlight ? "Retrying generation…" : "Retry generation"}
-                </button>
+                </button>}
+                {!retryEnabled && (
+                  <button
+                    type="button"
+                    className="btn-secondary attention-refresh-btn"
+                    onClick={onRefresh}
+                    disabled={!onRefresh || inFlight}
+                  >
+                    Refresh state
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-secondary attention-open-details-btn"
@@ -504,9 +521,9 @@ export function GenerationStage({
               <div className="attention-pillar">
                 <div className="pillar-header">
                   <span className="pillar-icon" aria-hidden="true">↻</span>
-                  <strong>Retry available</strong>
+                  <strong>{retryEnabled ? "Retry available" : "Manual retry unavailable"}</strong>
                 </div>
-                <p>You can retry generation with the same settings.</p>
+                <p>{retryEnabled ? "You can retry generation with the same settings." : "This diagnostic state must be reviewed before another run can be queued."}</p>
               </div>
             </div>
           </div>
@@ -586,7 +603,11 @@ export function GenerationStage({
                   </span>
                 )}
                 <span className="address-url">
-                  {previewUrl ? previewUrl.replace(/^https?:\/\//, "") : "preview.oryxenai.local/"}
+                  {previewUrl
+                    ? previewUrl.replace(/^https?:\/\//, "")
+                    : isAttention
+                      ? "No preview promoted yet"
+                      : "preview.oryxenai.local/"}
                 </span>
               </div>
             </div>
@@ -695,7 +716,11 @@ export function GenerationStage({
 
               {isWorking && <span className="preview-unready-note">Verification is in progress</span>}
 
-              {isAttention && <span className="preview-unready-note">Use the recovery action above to continue.</span>}
+              {isAttention && (
+                <span className="preview-unready-note">
+                  {retryEnabled ? "Use the recovery action above to continue." : "No manual retry is available for this run."}
+                </span>
+              )}
 
               {isComplete && (
                 <button

@@ -64,6 +64,7 @@ from oryxenai.auth.errors import (
 )
 from oryxenai.auth.models import AppUser
 from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
+from oryxenai.jobs.handlers.code_generator_failure import reconcile_terminal_failure
 from oryxenai.jobs.service import JobService
 from oryxenai.storage.artifacts import (
     ArtifactReference,
@@ -767,6 +768,7 @@ class CodeGeneratorService:
                 )
             ):
                 raise EntitlementBindingConflictError()
+        run = await self._reconcile_terminal_active_job(run)
         stale_reasons = await self._stale_reasons(session_id, state)
         payload = state.model_dump(mode="json")
         jobs: list[dict[str, Any]] = []
@@ -871,6 +873,7 @@ class CodeGeneratorService:
                 "acquire": "acquire_job_id",
                 "generate": "generation_job_id",
                 "verify": "verification_job_id",
+                "preview": "verification_job_id",
             }
             coordinator_stage = str(getattr(run, "coordinator_stage", "") or "")
             active_job_field = stage_job_fields.get(coordinator_stage)
@@ -887,6 +890,7 @@ class CodeGeneratorService:
             payload["active_job_kind"] = active_job["kind"] if active_job is not None else None
             payload["retry_available"] = bool(
                 not stale_reasons
+                and _manual_retry_allowed(run)
                 and str(getattr(run, "status", ""))
                 in {
                     DevelopmentRunStatus.NEEDS_ATTENTION.value,
@@ -905,6 +909,58 @@ class CodeGeneratorService:
             "code_generator": payload,
             "jobs": jobs,
         }
+
+    async def _reconcile_terminal_active_job(self, run: Any | None) -> Any | None:
+        """Repair legacy/stuck runs whose selected durable job is terminal.
+
+        New failures are reconciled by the worker hook.  This read-path repair
+        is intentionally idempotent and covers rows created before that hook
+        existed or a worker process that exited between job failure and the
+        hook.  Authorization failures remain fail-closed and are not turned
+        into a manual retry affordance.
+        """
+
+        if run is None or str(getattr(run, "status", "")) == DevelopmentRunStatus.READY.value:
+            return run
+        stage_job_fields = {
+            "plan": "background_job_id",
+            "acquire": "acquire_job_id",
+            "generate": "generation_job_id",
+            "verify": "verification_job_id",
+            "preview": "verification_job_id",
+        }
+        stage = str(getattr(run, "coordinator_stage", "") or "")
+        job_field = stage_job_fields.get(stage)
+        job_id = getattr(run, job_field, None) if job_field is not None else None
+        if job_id is None:
+            return run
+        job = await self._jobs.get(job_id)
+        if job is None or str(getattr(job, "status", "")) not in {"failed", "cancelled"}:
+            return run
+        error = _safe_job_error(getattr(job, "error_payload", None)) or {
+            "code": "CODE_GENERATOR_JOB_FAILED",
+            "message": "Code Generator stopped before this stage completed.",
+            "retryable": False,
+        }
+        code = str(error.get("code") or "").upper()
+        if code.startswith(("AUTHORIZATION", "ENTITLEMENT", "SECURITY", "PORTFOLIO_READ_ONLY")):
+            return run
+        await reconcile_terminal_failure(
+            {
+                "code_generator_run_id": str(run.id),
+                "development_run_id": str(run.id),
+                "job_id": str(job.id),
+                "job_kind": str(getattr(job, "job_kind", "")),
+            },
+            {**error, "retryable": False, "will_retry": False},
+        )
+        local_session = getattr(self._repo, "_session", None)
+        refresh = getattr(local_session, "refresh", None)
+        if refresh is not None:
+            with suppress(Exception):
+                await refresh(run)
+        refreshed = await self._repo.runs.get(run.id)
+        return refreshed or run
 
     async def _is_admin_run_override(self, session_id: UUID, run: Any | None) -> bool:
         """Allow a durable admin-on-owner run without weakening normal entitlement state."""
@@ -1320,6 +1376,24 @@ def _safe_job_error(value: Any) -> dict[str, Any] | None:
     if value.get("retryable") is True:
         result["retryable"] = True
     return result or None
+
+
+def _manual_retry_allowed(run: Any) -> bool:
+    """Keep retry UI fail-closed for security/contract terminal reports."""
+
+    report = getattr(run, "terminal_failure", None)
+    if not isinstance(report, dict):
+        return True
+    code = str(report.get("terminal_code") or report.get("code") or "").upper()
+    return not code.startswith(
+        (
+            "AUTHORIZATION",
+            "ENTITLEMENT",
+            "SECURITY",
+            "PORTFOLIO_READ_ONLY",
+            "CODE_GENERATOR_WORKER_CONTRACT",
+        )
+    )
 
 
 def _variant_id(run: Any) -> str:

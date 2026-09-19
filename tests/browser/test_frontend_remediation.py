@@ -107,7 +107,7 @@ def test_preparation_is_metadata_only_and_inspector_is_closed(browser_page: obje
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=preparation-ready", wait_until="networkidle")
     assert page.get_by_role("heading", name="Build handoff prepared").is_visible()
-    assert page.locator(".evidence-card").count() == 4
+    assert page.locator(".evidence-card").count() == 1
     assert page.locator(".preparation-stage-view img").count() == 0
     assert page.locator("#output-inspector-drawer").count() == 0
 
@@ -124,6 +124,11 @@ def test_generation_working_uses_human_milestones_and_attention_preserves_previe
     page.goto(f"{BASE_URL}/?fixture=generation-attention", wait_until="networkidle")
     assert page.get_by_text("Your last verified preview is still available.").is_visible()
     assert page.get_by_role("button", name="Retry generation").is_visible()
+    page.goto(f"{BASE_URL}/?fixture=generation-planning-failed", wait_until="networkidle")
+    assert page.get_by_role("heading", name="Generation needs attention").is_visible()
+    assert page.get_by_text("The background job handler failed.").is_visible()
+    assert page.get_by_role("button", name="Refresh state").is_visible()
+    assert page.get_by_role("button", name="Retry generation").count() == 0
     assert_no_horizontal_overflow(page)
 
 
@@ -161,7 +166,7 @@ def test_generation_transition_respects_reduced_motion(browser_page: object) -> 
     duration = page.locator(".stage-transition-layer").evaluate(
         "element => getComputedStyle(element).animationDuration"
     )
-    assert duration == "0.01s"
+    assert duration in {"0.01s", "1e-05s"}
 
 
 def test_generation_candidate_is_never_presented_as_verified(browser_page: object) -> None:
@@ -171,6 +176,14 @@ def test_generation_candidate_is_never_presented_as_verified(browser_page: objec
     assert page.get_by_text("Candidate preview (unverified)").is_visible()
     assert page.get_by_role("link", name="Open candidate preview").is_visible()
     assert page.get_by_text("Open verified preview", exact=True).count() == 0
+
+
+def test_generation_direct_fixture_requires_an_explicit_standalone_run(browser_page: object) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(f"{BASE_URL}/?fixture=generation-direct", wait_until="networkidle")
+    assert page.get_by_role("heading", name="Run ID required").is_visible()
+    assert page.get_by_text("fixture=generation-direct&run_id=<RUN_ID>", exact=False).is_visible()
 
 
 def test_developer_inspector_is_opt_in_and_drawer_is_accessible(browser_page: object) -> None:

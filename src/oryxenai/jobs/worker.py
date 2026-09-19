@@ -355,6 +355,8 @@ class Worker:
             await self._fail_job(
                 job,
                 timeout_error,
+                handler=handler,
+                payload=payload,
             )
             return
         except Exception as exc:
@@ -364,6 +366,8 @@ class Worker:
             await self._fail_job(
                 job,
                 error,
+                handler=handler,
+                payload=payload,
             )
             return
         finally:
@@ -374,6 +378,11 @@ class Worker:
         if result.get("status") == "cancelled":
             # The API already made the durable row terminal. Do not turn a
             # user cancellation into a success/failure transition.
+            await self._notify_terminal_failure(
+                handler,
+                payload,
+                permanent("JOB_CANCELLED", "The Code Generator job was cancelled."),
+            )
             return
         if result.get("status") == "failed":
             raw_error = result.get("error")
@@ -384,12 +393,19 @@ class Worker:
             await self._fail_job(
                 job,
                 error,
+                handler=handler,
+                payload=payload,
             )
             return
         result_code = result.get("code")
         if is_provider_credit_error({"code": result_code}):
             code, message = stable_provider_failure({"code": result_code})
-            await self._fail_job(job, permanent(code, message))
+            await self._fail_job(
+                job,
+                permanent(code, message),
+                handler=handler,
+                payload=payload,
+            )
             return
         await self._complete_job(job, result)
 
@@ -455,12 +471,22 @@ class Worker:
             )
             await session.commit()
 
-    async def _fail_job(self, job: Any, error: Any) -> None:
+    async def _fail_job(
+        self,
+        job: Any,
+        error: Any,
+        *,
+        handler: Any | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> bool:
+        marked = False
+        will_retry = False
+        job_error = error if hasattr(error, "retryable") else permanent("UNKNOWN", str(error))
         async with self._sessionmaker() as session:
             repo = JobRepository(session)
             retry = self._settings.worker_retry
-            job_error = error if hasattr(error, "retryable") else permanent("UNKNOWN", str(error))
-            if should_retry(job_error, job.attempt, job.max_attempts):
+            will_retry = should_retry(job_error, job.attempt, job.max_attempts)
+            if will_retry:
                 delay = delay_for_attempt(
                     job.attempt, retry.base_delay, retry.max_delay, retry.jitter
                 )
@@ -468,12 +494,14 @@ class Worker:
                 from datetime import timedelta
 
                 available_at = available_at + timedelta(seconds=delay)
-                await repo.mark_failed(
+                marked = await repo.mark_failed(
                     job.id,
                     {
                         "code": job_error.code,
                         "message": job_error.message,
                         "retryable": job_error.retryable,
+                        "details": getattr(job_error, "details", {}),
+                        "will_retry": True,
                     },
                     available_at=available_at,
                     worker_instance=self._instance_id,
@@ -481,18 +509,51 @@ class Worker:
                     lease_token=job.lease_token,
                 )
             else:
-                await repo.mark_failed(
+                marked = await repo.mark_failed(
                     job.id,
                     {
                         "code": job_error.code,
                         "message": job_error.message,
                         "retryable": False,
+                        "details": getattr(job_error, "details", {}),
+                        "will_retry": False,
                     },
                     worker_instance=self._instance_id,
                     attempt=job.attempt,
                     lease_token=job.lease_token,
                 )
             await session.commit()
+        if marked and not will_retry and handler is not None and payload is not None:
+            await self._notify_terminal_failure(handler, payload, job_error)
+        return will_retry
+
+    async def _notify_terminal_failure(
+        self,
+        handler: Any,
+        payload: dict[str, Any],
+        error: Any,
+    ) -> None:
+        hook = getattr(handler, "on_terminal_failure", None)
+        if hook is None:
+            return
+        error_payload = {
+            "code": str(getattr(error, "code", "HANDLER_ERROR")),
+            "message": str(getattr(error, "message", "Code Generator could not complete.")),
+            # The job has already exhausted its automatic retry budget when
+            # this hook runs.  The run-level report must not be mistaken for
+            # another transient failure by the reconciler.
+            "retryable": False,
+            "details": getattr(error, "details", {}),
+            "will_retry": False,
+        }
+        try:
+            await hook(payload, error_payload)
+        except Exception as exc:
+            logger.warning(
+                "terminal failure hook failed kind=%s error=%s",
+                payload.get("job_kind", "unknown"),
+                type(exc).__name__,
+            )
 
     # ── shutdown ───────────────────────────────────────────────────────────
 

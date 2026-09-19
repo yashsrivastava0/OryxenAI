@@ -128,19 +128,31 @@ function warningMessages(value: unknown): string[] {
   });
 }
 
-function safeError(raw: Record<string, unknown>, failedJob: boolean): GenerationViewModel["safeError"] {
+function safeError(
+  raw: Record<string, unknown>,
+  failedJob: boolean,
+  failedJobView: StageViewModel["job"],
+): GenerationViewModel["safeError"] {
   const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
-  if (!latestError && !failedJob) return null;
+  const jobError = failedJobView?.error
+    ? {
+        code: failedJobView.error.code,
+        message: failedJobView.error.message,
+      }
+    : null;
+  const sourceError = latestError ?? jobError;
+  if (!sourceError && !failedJob) return null;
+  const sourceRecord: Record<string, unknown> = isRecord(sourceError) ? sourceError : {};
   return {
     ...readSafeStageError(
-      latestError,
-      typeof latestError?.message === "string"
-        ? latestError.message
-        : typeof latestError?.safe_user_summary === "string"
-          ? latestError.safe_user_summary
+      sourceRecord,
+      typeof sourceRecord.message === "string"
+        ? sourceRecord.message
+        : typeof sourceRecord.safe_user_summary === "string"
+          ? sourceRecord.safe_user_summary
           : "Code Generator could not complete.",
     ),
-    retryable: latestError?.retryable === true,
+    retryable: sourceRecord.retryable === true,
   };
 }
 
@@ -301,7 +313,7 @@ export function adaptCodeGenerator(
     preview,
     candidatePreview,
     warnings: warningMessages(raw.warnings ?? raw.advisories),
-    safeError: safeError(raw, failedJob),
+    safeError: safeError(raw, failedJob, job),
     retryAvailable: state === "attention" && !stale && raw.retry_available === true,
     estimatedRemainingMs: stageEstimate.estimatedRemainingMs,
     estimatedTotalMs: stageEstimate.estimatedTotalMs,

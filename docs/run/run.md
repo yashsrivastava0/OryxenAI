@@ -381,6 +381,41 @@ preflight. A real run also needs configured Code Generator credentials,
 Node/npm, a valid Build Preparation pack or privacy-safe fixture, and the
 configured browser.
 
+### Product Generate & Preview without upstream stages
+
+The standalone control room and the authenticated product shell are separate
+surfaces. To validate the product Generate & Preview UI against a real
+standalone run, start the browser fixture server in another terminal:
+
+```powershell
+Set-Location frontend
+npx vite --config vite.browser-test.config.ts
+```
+
+After the standalone control room creates a run, use its **Open product
+preview fixture** link. It opens
+`http://127.0.0.1:4178/?fixture=generation-direct&run_id=<RUN_ID>`.
+The fixture reads only the existing development run and preview projections,
+polls while the run is active, stops on `ready` or `needs_attention`, and
+renders the same Preact `GenerationStage` used by the product shell. The Vite
+`/api` proxy and preview embed allowlist are already configured for the native
+ports.
+
+For a deterministic UI-only failure check that does not call the API, open:
+
+```text
+http://127.0.0.1:4178/?fixture=generation-planning-failed
+```
+
+That fixture reproduces the important regression shape: the run still says
+`planning`, its active job is `failed`, and the run-level error is absent. The
+adapter must show **Generation needs attention**, surface the safe job error,
+stop polling, and avoid offering a retry when `retry_available` is false.
+This gives us a two-layer test strategy: real standalone runs validate the
+run/preview projection and preview origin, while deterministic fixtures and
+unit tests validate failure convergence and control behavior without needing
+to execute Discovery, Content Architect, or Visual Design Director first.
+
 ### Isolated Docker Code Generator
 
 The standalone Docker workflow uses a separate database and Compose project.
