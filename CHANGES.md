@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-20 01:59 +05:30 — Codex (GPT-5) — [55e5692] — Recover Code Generator stage handoffs and native preview execution
+
+The durable coordinator now finalizes the completed Plan attempt before
+creating Acquire, redelivers checkpointed stage handoffs safely, and
+self-heals stranded terminal jobs before exposing attention in the product.
+Unexpected Code Generator worker errors receive one bounded redelivery, and
+native API launch no longer enables Windows reload mode that blocks
+Node/Playwright preview subprocesses (D-042).
+
 ### 2026-09-20 00:38 +05:30 — Codex (GPT-5) — [2224697] — Always expose Code Generator retry after terminal job failure
 
 The Generate & Preview recovery action now remains available for any
