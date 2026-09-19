@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 16:35 +05:30 — Codex (GPT-5) — [761a5d8] — Preserve bounded repair evidence and resolve JSX motion targets
+
+The repair loop now carries restricted source bodies into the next bounded
+repair context, so a sibling rejected only for a stale create/replace tag is
+recoverable. The route contract also treats a CSS `#id` motion target as
+proven by the equivalent owner JSX `id` attribute; this removes the second
+live-run false diagnostic that exhausted repair on an otherwise correctly
+marked `Reveal` section.
+
 ### 2026-09-19 16:20 +05:30 — Codex (GPT-5) — [ddab99a] — Fail closed on legacy worker capability receipts
 
 Worker readiness no longer treats missing Code Generator capability or
