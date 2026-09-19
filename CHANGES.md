@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 16:15 +05:30 — Codex (GPT-5) — [188af32] — Align mapped content validation with generated source
+
+The route-batch pre-toolchain gate now recognizes bounded indexed tuple maps
+such as `entries.map((item) => contentValue(item[0]))`, matching the existing
+runtime/source audit instead of spending repair budget on a false missing-key
+diagnostic. The v4 repair contract also allows unchanged pending candidate
+bodies to be retained while the model returns only complete bodies it actually
+changes; related architectural rule: D-101.
+
 ### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [e713ff2] — Enforce Code Generator handoff, worker, and preview contracts
 
 Code Generator admission now re-composes the approved Content Architect and
