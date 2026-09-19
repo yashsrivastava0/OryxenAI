@@ -109,7 +109,7 @@ describe("authenticated product stages", () => {
     expect(availHtml).toContain("Ready to build your portfolio.");
     expect(availHtml).toContain("BUILD WORKSPACE");
     expect(availHtml).toContain("Desktop");
-    expect(availHtml).toContain("TELL ORYXENAI WHAT TO DO NEXT");
+    expect(availHtml).toContain("APPROVED BUILD HANDOFF");
     expect(availHtml).toContain("Generate Portfolio →");
     expect(availHtml).toContain("Plan");
     expect(availHtml).toContain("Acquire");
@@ -124,7 +124,8 @@ describe("authenticated product stages", () => {
     expect(workingHtml).toContain("codegen-workspace");
     expect(workingHtml).toContain("Building your site");
     expect(workingHtml).toContain("Building pages...");
-    expect(workingHtml).toContain("■ Stop generation");
+    expect(workingHtml).toContain("Generation is running from the approved handoff.");
+    expect(workingHtml).not.toContain("Stop generation");
     expect(workingHtml).toContain("Preview updates after each verified backend milestone");
     expect(workingHtml).not.toContain("62%");
     expect(workingHtml).not.toContain("1m ago");

@@ -131,6 +131,16 @@ export function shouldFetchGenerationState(
   return knownGeneration !== null && knownGeneration.sessionId === sessionId && knownGeneration.status !== "not_started";
 }
 
+// Build Preparation completion is also the handoff that unlocks Code
+// Generator. The poller can finish the handoff between full session refetches,
+// so expose the available projection immediately instead of leaving the
+// navigator and Generate screen on the old locked projection until refresh.
+export function shouldExposeGenerationAfterPreparation(
+  currentState: string | null | undefined,
+): boolean {
+  return currentState === null || currentState === undefined || currentState === "locked";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -498,6 +508,12 @@ export function AppShell({
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
           if (view.state === "complete") {
+            if (shouldExposeGenerationAfterPreparation(state.generation?.state)) {
+              dispatch({
+                type: "generation/set",
+                view: adaptCodeGenerator({ status: "not_started" }, true, []),
+              });
+            }
             dispatch({ type: "announce", message: "Build handoff ready for generation." });
           }
         } catch (error) {
@@ -966,6 +982,10 @@ export function AppShell({
       return;
     }
     const sessionId = state.sessionId;
+    // Move to the generation control room before the network round trip so a
+    // one-click handoff never appears to do nothing while the durable job is
+    // being enqueued.
+    selectStage("generate");
     setMutatingStage("generate");
     try {
       const action = `code-generator-${operation}`;
@@ -991,7 +1011,6 @@ export function AppShell({
           : "Portfolio generation started.",
       });
       notifyMutation(sessionId);
-      selectStage("generate");
     } catch (error) {
       void refetchCurrentSession();
       throw error;
@@ -1165,9 +1184,19 @@ export function AppShell({
                     view={state.preparation}
                     canMutate={!state.readOnly && mutatingStage === null}
                     inFlight={mutatingStage === "prepare"}
+                    generationInFlight={mutatingStage === "generate"}
                     onStart={() => runPreparationMutation("start")}
                     onRegenerate={() => runPreparationMutation("regenerate")}
-                    onContinueToGenerate={() => selectStage("generate")}
+                    onStartGeneration={async () => {
+                      try {
+                        await runGenerationMutation("start");
+                      } catch (error) {
+                        dispatch({
+                          type: "announce",
+                          message: `Portfolio generation could not start: ${error instanceof Error ? error.message : "try again."}`,
+                        });
+                      }
+                    }}
                   />
                 ) : null}
                 {state.sessionId && activeStage === "generate" ? (

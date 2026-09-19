@@ -180,7 +180,7 @@ function StageFixture() {
     return <DesignStage view={adaptVisualDesignDirector(designFixtureReview, true)} canMutate onStart={noop} onApproveAndContinue={noop} onRevise={noop} />;
   }
   if (fixture === "preparation-ready") {
-    return <BuildPreparationStage view={adaptBuildPreparation(preparationReady, true, true)} canMutate onStart={noop} onRegenerate={noop} />;
+    return <BuildPreparationStage view={adaptBuildPreparation(preparationReady, true, true)} canMutate onStart={noop} onRegenerate={noop} onStartGeneration={noop} />;
   }
   if (fixture === "generation-working") {
     return <GenerationStage view={adaptCodeGenerator(generationWorking, true, [])} canMutate onStart={noop} onRetry={noop} onRegenerate={noop} />;
