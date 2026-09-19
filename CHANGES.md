@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [pending] — Prove generated dependency locks with the verification install
+
+The Code Generator dependency stage now runs the exact configured clean
+verification install against its staged package manifest and lockfile before
+publishing `node_modules` and the lock. This closes the acquisition/verification
+contract gap that allowed npm optional-platform lock entries to fail only after
+generation. Added focused tests for the command contract and atomic admission.
+
 ### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [2976b91] — Consolidate deployment documentation
 
 Grouped the eight deployment documents into two canonical combined guides,
