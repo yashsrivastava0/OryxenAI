@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-103 — Make the approved handoff the single generation start contract
+
+- **Date & Time:** 2026-09-19 19:44 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Build Preparation could finish during polling while the product still showed Code Generator as locked, and its ready screen displayed invented asset/count evidence. The generation screen also exposed follow-up chat and stop controls that have no corresponding production API operation, while a generated preview could depend on a model-authored bridge script.
+- **Decision:** Treat Build Preparation completion as the UI unlock event, make its primary action call the existing idempotent Code Generator start operation and navigate immediately, render only actual handoff index data, and keep the generation panel limited to durable start/retry/regenerate actions. Add a small exact-origin preview protocol module plus a response-only gateway bridge fallback; the stored artifact remains immutable and the iframe never trusts messages from an unexpected source or origin.
+- **Rejected alternatives:** Requiring a refresh before generation would make durable progress appear lost; retaining fabricated evidence would misrepresent the generator input; keeping no-op chat/stop controls would promise unsupported behavior; relying only on model-generated bridge code would make preview availability depend on optional generated source; accepting iframe load or any `postMessage` would not prove the intended preview frame initialized safely.
+- **Consequence:** The approved brief pair is the complete handoff boundary, users receive a continuous Prepare → Generate → Preview path, and a preview can show a truthful loaded/degraded/error state even when the optional handshake is unavailable. Follow-up editing remains a separate future contract rather than an implied UI capability.
+
 ## D-102 — Preserve bounded rejected source evidence and resolve equivalent selector forms
 
 - **Date & Time:** 2026-09-19 16:35 +05:30 — Codex (GPT-5 / OpenAI)
