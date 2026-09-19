@@ -12,8 +12,25 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     PendingPromotion,
 )
 from oryxenai.preview import promotion as promotion_module
-from oryxenai.preview.promotion import PreviewPromoter, PromotionError
+from oryxenai.preview.promotion import PreviewPromoter, PromotionError, preview_urls
 from oryxenai.storage.preview import MemoryPreviewStorage
+
+
+def test_preview_urls_keep_browser_and_worker_origins_separate() -> None:
+    browser, verifier = preview_urls(
+        type(
+            "Config",
+            (),
+            {
+                "preview_base_url": "http://localhost:4174/preview",
+                "preview_browser_base_url": "http://127.0.0.1:4174/preview",
+                "preview_verifier_base_url": "http://preview-gateway:4174/preview",
+            },
+        )()
+    )
+
+    assert browser == "http://127.0.0.1:4174/preview"
+    assert verifier == "http://preview-gateway:4174/preview"
 
 
 @pytest.mark.asyncio

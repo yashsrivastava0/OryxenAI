@@ -74,6 +74,10 @@ typecheck_command = ["npm", "run", "typecheck"]
 build_command = ["npm", "run", "build"]
 preview_root = "/app/.workspace/code-generator-preview"
 preview_base_url = "https://<PREVIEW_HOST>/preview"
+preview_browser_base_url = "https://<PREVIEW_HOST>/preview"
+# The worker cannot use the public hostname as a reliable internal proof
+# target; the shared gateway is reachable by Compose service DNS.
+preview_verifier_base_url = "http://preview-gateway:4174/preview"
 preview_health_url = "http://preview-gateway:4174/health/live"
 preview_host = "0.0.0.0"
 preview_port = 4174
