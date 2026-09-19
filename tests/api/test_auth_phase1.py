@@ -23,6 +23,9 @@ def _settings() -> Settings:
         allowed_user_emails="user@example.com",
     )
     settings.auth.pipeline_mode = "attached"
+    # Keep this helper independent of the integration overlay's restricted
+    # allowlist policy; these shell tests assert the local base policy.
+    settings.auth.admission_mode = "open"
     return settings
 
 
