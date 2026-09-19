@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-100 — Gate Code Generator admission on current handoffs and worker/preview capability
+
+- **Date & Time:** 2026-09-19 00:00 +05:30 — Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** Code Generator could accept a persisted `ready` Build Preparation pair after an approved upstream edit, queue work before a compatible worker was alive, and use one preview URL for both a Docker worker and the user's browser. These independent process boundaries produced stale portfolios, jobs stranded in the queue, or previews that passed one read-back path but were unreachable in the frontend.
+- **Decision:** Recompose the approved Content Architect + Visual Design Director source reference at production admission and reject changed/unavailable upstream state. Require a fresh heartbeat with the active pipeline/release contract and explicit Node/npm/browser capability before standalone or production admission. Configure separate browser-facing and worker-verifier preview bases; preserve `preview_base_url` as the fallback. Require the authenticated frontend iframe to complete the exact-origin `preview-bridge-v1` handshake and report a timeout visibly.
+- **Rejected alternatives:** Trusting the persisted Build Preparation status would preserve the stale-input race; checking only API/provider preflight would not prove a worker can execute; returning the internal Docker DNS URL would make the browser fail; accepting an iframe `load` event alone would not prove that the generated app initialized.
+- **Consequence:** Starts fail early with actionable readiness/staleness details, Docker workers can verify through service DNS while users receive a resolvable preview URL, and a browser-visible preview is distinguished from an HTTP-only promotion. The worker capability receipt is intentionally model-free and non-secret; full live generation still requires the configured provider preflight.
+
 ## D-099 — Supersede D-094: preview-first acceptance may no longer certify a functionally broken candidate as `ready`
 
 - **Date & Time:** 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5)

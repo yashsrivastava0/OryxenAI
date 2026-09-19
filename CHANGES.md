@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [e713ff2] — Enforce Code Generator handoff, worker, and preview contracts
+
+Code Generator admission now re-composes the approved Content Architect and
+Visual Design Director handoff before queuing work, and both production and
+standalone starts require a fresh worker heartbeat with the matching pipeline
+release plus Node/npm/browser capability. Preview promotion now separates the
+browser-facing URL from the worker-verifier URL for Docker, while the product
+frontend completes the generated preview postMessage handshake and surfaces a
+timeout instead of silently showing a blank iframe. Added focused regression
+coverage and configuration overlays for the split preview origins.
+
 ### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [a1f7fde] — Prove generated dependency locks with the verification install
 
 The Code Generator dependency stage now runs the exact configured clean
