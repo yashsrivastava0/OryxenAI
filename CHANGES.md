@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-19 00:00 +05:30 — Codex — [87d60a7] — Corrected Code Generator audit confidence
+
+Rechecked the Code Generator issue reports against the route-generation
+context, stale-source validator, preview bridge, and configuration overlays.
+Corrected the report to preserve approved-content context as evidence, mark
+the route-context failure as requiring reproduction, qualify Docker preview
+behavior by effective overlay, and downgrade the Windows process-contention
+finding until its cause is isolated.
+
 ### 2026-09-19 00:00 +05:30 — Codex — [392277c] — Code Generator architecture and preview issue audit
 
 Added `codegen issues.md` and `codegen issues evidence.md`, documenting the
