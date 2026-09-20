@@ -405,7 +405,7 @@ After Azure infrastructure exists, configure all of the following:
 
 - production `.env`;
 - production TOML configuration;
-- production Docker Compose overlay;
+- the self-contained production Docker Compose stack;
 - Caddy configuration;
 - Supabase configuration;
 - Cloudflare R2 configuration;
@@ -1373,8 +1373,10 @@ of live Azure acceptance.
 The current repository status documents report that these deployment pieces
 are present:
 
-- `compose.yaml` for PostgreSQL, migrations, API, worker, and preview gateway;
-- `compose.production.yaml` for production service configuration and Caddy;
+- `compose.yaml` for local development with loopback ports and optional
+  validation profiles;
+- `compose.production.yaml` for the self-contained production stack: PostgreSQL,
+  migrations, API, worker, preview gateway, and Caddy;
 - `config/app.production.toml` for non-secret production settings;
 - `Caddyfile` for application and preview host routing;
 - `scripts/azure-deploy.sh` with setup, configure, doctor, deploy, status,
