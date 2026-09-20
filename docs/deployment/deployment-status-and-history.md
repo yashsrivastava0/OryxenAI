@@ -133,8 +133,9 @@ Azure indicated that managed disks are encrypted at rest. Encryption at host
 was not registered for the selected subscription, so it is not being enabled.
 Do not create a customer-managed key or KMS configuration for this demo.
 
-The demo will use the main OS disk for PostgreSQL and local working data.
-Generated artifacts and previews are intended to move to Cloudflare R2 later.
+The demo will use the main OS disk for PostgreSQL, local working data,
+generated artifacts, and previews. The first release does not use Cloudflare
+R2; Docker-backed VM storage is the selected artifact/preview boundary.
 
 Keep **Delete with VM** on to reduce the chance of leaving a billable managed
 disk behind if the VM is intentionally deleted.
@@ -1377,6 +1378,8 @@ are present:
   validation profiles;
 - `compose.production.yaml` for the self-contained production stack: PostgreSQL,
   migrations, API, worker, preview gateway, and Caddy;
+- VM-local persistent storage for PostgreSQL, generated artifacts, previews,
+  worker state, and Caddy data, subject to backup, retention, and disk checks;
 - `config/app.production.toml` for non-secret production settings;
 - `Caddyfile` for application and preview host routing;
 - `scripts/azure-deploy.sh` with setup, configure, doctor, deploy, status,

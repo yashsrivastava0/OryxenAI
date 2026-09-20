@@ -23,7 +23,8 @@ that the complete agent-to-preview flow works.
 ## Decision
 
 Use one Azure Linux VM with the repository's Docker Compose stack, Supabase
-Google authentication, Cloudflare R2, and an optional Student Pack domain.
+Google authentication, VM-local persistent storage, and an optional Student
+Pack domain.
 
 This is the best fit because the current application is not one stateless web
 process. It is an API, a PostgreSQL-backed durable queue, a separate worker,
@@ -59,7 +60,7 @@ this plan.
 | Render Free | Free web services sleep, free disks are ephemeral, free PostgreSQL expires, and there is no suitable free Background Worker | Reject |
 | Railway | Very easy Docker deployment, but post-trial free resources are too small for the generator and the project/service limits make the topology awkward | Temporary experiment only |
 | Supabase-hosted PostgreSQL | Good managed database, but the current settings and Compose flow are VM/PostgreSQL-oriented; moving it adds connection-pooling and migration work | Keep Supabase for Auth only initially |
-| Cloudflare R2 | S3-compatible storage matches the current artifact and preview adapters; small demo usage should fit the free allowance | Use |
+| VM-local persistent storage | The selected single-VM topology already provides Docker-backed volumes and avoids a second storage service | **Use** |
 | Cloudflare Workers | Cheap edge hosting, but the current Python preview gateway would need a rewrite and the worker has tight CPU/memory limits | Reject |
 | GitHub Pages | Static-only | Future optional output host, not the application host |
 
@@ -105,7 +106,7 @@ limits are not a comfortable match for this image and its three long-running
 services. It remains useful for a short throwaway test, not the stable first
 deployment.
 
-## Supabase and R2 roles
+## Supabase and VM-local storage roles
 
 Supabase Free is sufficient for Google identity and two users; see
 [Supabase pricing](https://supabase.com/pricing). Use a separate production
@@ -117,49 +118,22 @@ Keep PostgreSQL on the VM for the first deployment. The application already
 expects the durable queue and application state to be in the same PostgreSQL
 deployment, and the current Docker migration service is ready for that shape.
 
-Use a private R2 bucket for:
+Store generated source/build artifacts and promoted preview objects on the
+VM's persistent Docker-backed storage. The worker and shared preview gateway
+must share the durable preview root; PostgreSQL, Code Generator workspaces,
+checkpoints, caches, and Caddy state use separate persistent volumes as
+appropriate.
 
-- temporary Build Preparation material where configured;
-- generated source/build artifacts; and
-- promoted preview objects under the configured preview prefix.
-
-R2 currently advertises a free Standard storage/operation allowance and free
-internet egress; see [R2 pricing](https://developers.cloudflare.com/r2/pricing/).
-R2 is still usage-metered and may require a payment method. Configure a budget
-alert and a short lifecycle for temporary objects; see [R2 billing policy](https://developers.cloudflare.com/billing/understand/billing-policy/).
-
-### Why R2 instead of Azure Blob for the first release?
-
-This is not only a price decision. The current repository already stores
-artifacts and previews through an S3-compatible adapter using `boto3` and a
-configurable endpoint. Cloudflare R2 exposes that S3-compatible API, so the
-existing code can be used with an endpoint, bucket, access key ID, and secret
-access key. See the repository adapters in
-[`src/oryxenai/storage/artifacts.py`](../../src/oryxenai/storage/artifacts.py)
-and [`src/oryxenai/storage/preview.py`](../../src/oryxenai/storage/preview.py).
-
-Azure Blob Storage is a valid alternative, but its native integration uses
-Azure Blob REST/SDK interfaces and Azure authorization choices. It is not a
-drop-in replacement for the current `boto3` S3 endpoint configuration. Moving
-would require an Azure Blob adapter, settings and credential changes, URL or
-readback adjustments, tests, and another production acceptance pass.
-
-For this two-user demo, R2's current Standard allowance includes 10 GB-month
-of storage, 1 million Class A operations, and 10 million Class B operations,
-with no R2 egress charge; usage is still metered. See the current
-[R2 pricing](https://developers.cloudflare.com/r2/pricing/). Azure Blob is
-also usage-priced by storage, operations, redundancy, and transfer; see
-[Azure Blob pricing](https://azure.microsoft.com/en-us/pricing/details/storage/blobs/).
-Using R2 leaves the Azure student credit primarily for the VM and avoids
-adding another Azure storage resource and provider-specific deployment path.
-
-Therefore the first deployment keeps R2. Azure Blob can be introduced later
-if an all-Azure requirement becomes more important than preserving the
-already-tested adapter boundary and the simplest initial release.
+This removes R2 credentials, endpoints, buckets, lifecycle policies, and
+external readback from the first release. The Docker/config follow-up must
+select the existing local-filesystem providers, enforce non-root ownership,
+monitor disk capacity, and prove filesystem backup/restore plus restart
+readback before deployment. Existing R2-compatible adapters are compatibility
+code only and are not the selected production path.
 
 ## What remains outside host credits
 
-Azure, Supabase, and R2 do not automatically cover:
+Azure and Supabase do not automatically cover:
 
 - model provider requests;
 - Pexels, Pixabay, or other image-provider quotas;
@@ -261,17 +235,12 @@ Redirect URL:  https://app.<DOMAIN>/auth/callback
 
 Use the exact same `https://app.<DOMAIN>` origin in the VM configuration.
 
-### Cloudflare R2
+### VM-local storage
 
-Create one bucket for generated artifacts and previews. Keep these values
-ready for the setup prompts:
-
-- account ID;
-- bucket name;
-- access key ID; and
-- secret access key.
-
-The bucket endpoint is generated by the deployment script from the account ID.
+Use the VM's persistent disk through the production Compose volumes. Define the
+storage root, expected free-space threshold, retention policy, ownership, and
+backup destination before setup. The worker and preview gateway must be able to
+write/read the shared preview root as the non-root application user.
 
 ### GitHub checkout access
 
@@ -333,12 +302,12 @@ The wizard will:
 1. install Docker Engine and the Docker Compose plugin from Docker's official
    Ubuntu repository;
 2. copy `.env.example` to the ignored `.env` file;
-3. ask for the two hostnames, Supabase values, R2 values, administrator emails,
-   normal-user allowlist, and a PostgreSQL password;
+3. ask for the two hostnames, Supabase values, VM-storage settings,
+   administrator emails, normal-user allowlist, and a PostgreSQL password;
 4. require keys used by the active routing profiles and offer optional prompts
    for the other provider keys named in `config/models.toml`; and
-5. render the ignored `config/app.production.local.toml` file with the host,
-   R2 account, and bucket values.
+5. render the ignored `config/app.production.local.toml` file with the host
+   and VM-local storage values.
 
 The active keys are derived from the model configuration rather than
 hardcoded in the deployment script. The model/profile mapping remains in
@@ -588,10 +557,10 @@ service. Do not bypass those rules in the browser while testing.
 | App does not load | `./scripts/azure-deploy.sh status`, DNS, ports `80`/`443`, `app` and `caddy` logs |
 | Auth callback fails | Supabase callback URL and exact production origin |
 | App is ready but jobs do not move | `worker` logs, worker heartbeat, `/health/ready`, database connectivity |
-| Build Preparation fails | R2 credentials, resource-provider keys, worker logs |
+| Build Preparation fails | VM storage permissions/capacity, resource-provider keys, worker logs |
 | Code Generator stops before preview | Active model profile credential, provider quota, worker memory, Code Generator logs |
-| Preview promotion fails | R2 bucket/prefix, preview public URL, preview gateway logs |
-| Preview opens but is blank | Preview gateway logs, generated `dist` contents, browser console, R2 object listing |
+| Preview promotion fails | VM storage permissions/capacity, preview public URL, preview gateway logs |
+| Preview opens but is blank | Preview gateway logs, generated `dist` contents, browser console, preview volume contents |
 | VM becomes slow or kills the worker | VM memory, Docker stats, worker concurrency, active generation count |
 
 Useful commands:
@@ -613,7 +582,7 @@ Perform these after the first successful generation:
 - [ ] Reboot the VM and confirm Docker services return through
   `restart: unless-stopped`.
 - [ ] Confirm the PostgreSQL named volume remains present.
-- [ ] Confirm preview objects remain available in R2.
+- [ ] Confirm preview objects remain available after a worker/gateway restart and VM reboot.
 
 For a normal restart or a code fix, use `./scripts/azure-deploy.sh deploy`.
 Never use `docker compose down -v` for ordinary maintenance.
@@ -628,8 +597,8 @@ Run a PostgreSQL dump before repository or migration changes:
 ```
 
 Keep the dump outside the repository and periodically copy one known-good dump
-off the VM. R2 remains the source for generated preview objects; do not delete
-the active preview prefix while diagnosing an application issue.
+off the VM. Back up the VM-local artifact/preview roots separately; do not
+delete the active preview directory while diagnosing an application issue.
 
 ## I. Cost and lifecycle checks
 
@@ -637,13 +606,13 @@ Once per week while using the demo:
 
 - [ ] Check remaining Azure student credit and VM status.
 - [ ] Check that the Azure spending limit remains enabled.
-- [ ] Check R2 usage and budget alerts.
-- [ ] Remove temporary artifacts according to the configured lifecycle.
+- [ ] Check VM disk usage and backup freshness.
+- [ ] Remove temporary artifacts according to the configured retention policy.
 - [ ] Open the app periodically so the Supabase Free project does not become
   inactive.
 - [ ] Record the domain renewal date.
 
-Model-provider usage must be checked separately from Azure, Supabase, and R2.
+Model-provider usage must be checked separately from Azure and Supabase.
 
 <!-- END SOURCE: 03-acceptance-and-operations.md -->
 
@@ -718,7 +687,7 @@ Interaction rules:
 7. Do not create Azure Database for PostgreSQL, App Service, AKS, Load
    Balancer, Application Gateway, Front Door, or a second VM.
 8. Do not ask the human to paste a password, private SSH key, model key,
-   Supabase secret, R2 secret, or other production secret into chat.
+   Supabase secret, provider key, or other production secret into chat.
 9. If Azure generates an SSH private key, download it directly to the human's
    computer. Never upload, display, copy, or paste the private key into chat.
 10. Pause at every pause point in this document and wait for the human to
@@ -789,8 +758,8 @@ When the VM is successfully created, stop and report:
 - NSG name
 - whether the three intended NSG rules exist
 
-Do not proceed to SSH, Docker, DNS, Caddy, Supabase, R2, or application
-deployment until the human explicitly starts the next phase.
+Do not proceed to SSH, Docker, DNS, Caddy, Supabase, or application deployment
+until the human explicitly starts the next phase.
 ```
 
 ## Detailed browser sequence
@@ -889,8 +858,9 @@ Set:
 | Ultra Disk compatibility | Off |
 | Data disks | None |
 
-Do not create or attach a data disk for the first demo. Generated portfolio
-objects will later use R2.
+Do not create or attach a data disk for the first demo unless the selected VM
+disk cannot provide the required capacity. Generated portfolio objects use the
+VM's persistent Docker-backed storage.
 
 ### 5 — Networking tab
 
@@ -1072,8 +1042,8 @@ Check that:
 - no unwanted public application/database ports are open.
 
 **Pause:** stop here. Do not SSH, install Docker, configure DNS, configure
-Supabase, configure R2, or start application deployment until the human gives
-the next instruction.
+Supabase, or start application deployment until the human gives the next
+instruction.
 
 ## What the browser agent must not request in chat
 
@@ -1084,7 +1054,6 @@ Azure account password
 private SSH key contents
 POSTGRES_PASSWORD
 SUPABASE_SECRET_KEY
-R2_SECRET_ACCESS_KEY
 model-provider API keys
 image-provider API keys
 Google OAuth client secret
@@ -1100,7 +1069,7 @@ After the VM is created and the human explicitly starts the next phase, use
 the existing runbook to:
 
 1. SSH into the VM using the downloaded private key.
-2. Configure Supabase Google OAuth, the exact HTTPS callback, Cloudflare R2,
+2. Configure Supabase Google OAuth, the exact HTTPS callback, VM-local storage,
    and DNS for `app.<DOMAIN>` and `preview.<DOMAIN>`.
 3. Clone the current deployment branch and make the deployment script
    executable.
@@ -1145,7 +1114,7 @@ You:         provide credentials privately, approve/push the release,
 ```
 
 Never give an AI assistant the contents of `.env`, a private SSH key, a
-Supabase secret key, an R2 secret key, or a provider API key. It can work from
+Supabase secret key, or a provider API key. It can work from
 `.env.example`, configuration names, redacted logs, and commit IDs.
 
 ## The repeatable release loop

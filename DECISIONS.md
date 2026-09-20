@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-106 - Use VM-local persistent storage for the first Azure release
+
+- **Date & Time:** 2026-09-20 22:37 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-not-yet-implemented
+- **Context:** The first release is intentionally a single Azure VM and a small demo. Adding R2 would introduce a second storage service, credentials, lifecycle policy, and another live acceptance boundary while the VM already provides persistent disk and Docker-backed volumes.
+- **Decision:** Store PostgreSQL data, generated artifacts, preview objects, required worker workspaces/checkpoints/caches, and Caddy state on VM-local persistent storage. The worker and shared preview gateway use the same durable preview root where required. Supabase remains the authentication service; R2 endpoints, buckets, and keys are not part of the first-release production configuration.
+- **Rejected alternatives:** R2 was rejected for the first release because it adds external credentials and readback dependencies; Azure Blob was rejected because it would add another provider-specific adapter and deployment path. Per-portfolio containers were rejected because the shared preview gateway already provides the required boundary.
+- **Consequence:** The Docker/config follow-up must select the available local-filesystem providers, remove R2-only setup and preflight requirements, enforce non-root ownership, and add disk monitoring plus filesystem backup/restore and restart-readback checks. Existing R2-compatible code may remain for compatibility, but it is not the selected production path. Reintroducing object storage requires a new decision.
+
 ## D-105 - Keep quality-review defects previewable without certifying them
 
 - **Date & Time:** 2026-09-20 14:45 +05:30 - Codex (GPT-5 / OpenAI)

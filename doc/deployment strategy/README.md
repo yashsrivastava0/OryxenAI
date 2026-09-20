@@ -20,14 +20,34 @@ Internet
          +-- app :8000
          +-- preview-gateway :4174
 
-PostgreSQL, worker, caches, and preview data stay on the VM's persistent
-Docker volumes. Supabase provides Google authentication. Cloudflare R2 stores
-generated artifacts and previews.
+PostgreSQL, worker, caches, generated artifacts, and preview data stay on the
+VM's persistent Docker-backed storage. Supabase provides Google
+authentication. The first release does not use Cloudflare R2.
 ```
 
 This is intentionally small and reversible. It does not add Kubernetes,
 Redis, a container registry, a managed database, a PaaS control plane, or
 another paid Azure service.
+
+## Storage decision: VM-local persistent storage
+
+The first Azure release uses the VM's persistent disk for generated artifacts
+and preview objects. Compose-managed volumes or bind-backed directories under
+the VM's OryxenAI data root must survive container replacement and ordinary
+restarts. The worker writes the generated files and the shared preview
+gateway reads them; no per-portfolio container is created.
+
+The storage handoff must include explicit ownership for the non-root app and
+worker, disk-usage checks, retention/cleanup rules, a PostgreSQL dump plus
+filesystem backup procedure, and a restore/readback test. Never use
+`docker compose down -v` during normal operations.
+
+Cloudflare R2 credentials, endpoints, buckets, and lifecycle checks are not
+part of this first-release path. Existing R2-compatible adapters may remain as
+legacy compatibility, but the production configuration must select the
+available local-filesystem path before deployment. If any required artifact
+contract still has no local-filesystem implementation, treat that as a
+release blocker rather than silently claiming VM storage is complete.
 
 ## Current state from the repository audit
 
@@ -38,7 +58,7 @@ another paid Azure service.
 | Deployment tooling | `scripts/azure-deploy.sh`, production Compose, Caddy, migrations, health checks, backup, and rollback paths exist. | Run setup and deploy a clean release SHA. |
 | Production configuration | `config/app.production.toml` is a template; the ignored local production overlay is rendered from VM-local values. | Create a fresh VM `.env` and render the overlay. |
 | Authentication | Supabase Google-only auth, admission, ownership, and admin controls exist. | Configure production origins and complete browser acceptance. |
-| Preview storage | R2-compatible storage and readback verification are implemented. | Confirm bucket credentials, lifecycle policy, upload, readback, and preview serving. |
+| Artifact and preview storage | VM-local persistent Docker-backed storage is selected for the first release. | Configure the local-filesystem providers, shared volumes, ownership, disk checks, backup/restore, restart survival, and preview readback. |
 | Release | The current worktree contains unrelated uncommitted Code Generator/frontend work and untracked tool artifacts. | Reconcile contributors, run checks, and select one clean SHA. |
 
 The last documented live VM confirmation is historical; it is not proof that

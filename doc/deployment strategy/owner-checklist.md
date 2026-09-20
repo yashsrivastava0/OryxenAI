@@ -6,7 +6,7 @@ This list separates actions that require the owner's browser, account, or
 secret from work that can be performed through the repository and VM.
 
 Do not paste secrets, private SSH keys, `.env` contents, OAuth client secrets,
-JWTs, or R2 secret keys into chat or these documents.
+JWTs, or provider secret keys into chat or these documents.
 
 ## Required before the first server deployment
 
@@ -24,8 +24,8 @@ JWTs, or R2 secret keys into chat or these documents.
       two- or three-person trial; administrators and normal users must not
       overlap.
 - [ ] Confirm the Supabase project and its Google provider configuration.
-- [ ] Confirm the Cloudflare R2 bucket, account ID, and a bucket-scoped
-      Object Read & Write credential.
+- [ ] Confirm the VM storage root, available capacity, non-root ownership,
+      retention policy, backup destination, and restore procedure.
 - [ ] Confirm every active model-provider credential requested by the current
       `config/models.toml`. The deployment script discovers these names; do
       not rely on model names written in documentation.
@@ -46,8 +46,7 @@ ignored production overlay. Enter these values at the prompts:
 | --- | --- |
 | Application hostname | `app.deploy.me` for the future public hostname |
 | Preview hostname | `preview.deploy.me` for the future public hostname |
-| R2 account/bucket | The Cloudflare R2 account and private bucket chosen for OryxenAI |
-| R2 access/secret | A bucket-scoped Object Read & Write credential; never reuse a broad account token |
+| VM storage | Persistent VM-backed Docker storage for PostgreSQL, artifacts, previews, workspaces, and Caddy state; record capacity and backup policy |
 | Supabase URL/keys | The existing project coordinates, entered privately |
 | Bootstrap administrators | Exactly the two owner-selected admin emails required by production validation |
 | Normal-user allowlist | Only the intended trial accounts |
@@ -77,7 +76,7 @@ production configuration is ready for Phase B.
 ## What the owner must do versus what AI can do
 
 The owner must approve Azure account/billing actions, claim the domain, enter
-secrets, configure Google/Supabase/R2 dashboards, and perform the final
+secrets, configure Google/Supabase dashboards, and perform the final
 real-browser login and two-user acceptance. AI can prepare the repository,
 run checks, execute the guided VM commands when access is available, inspect
 redacted logs, and explain failures.
