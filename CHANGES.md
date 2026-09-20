@@ -11,6 +11,18 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-20 14:55 +05:30 - Codex (GPT-5) - [743a4e4] - Keep Code Generator previews available through quality-review failures
+
+Whole-site quality-review output is now an advisory gate when the generated
+source passes the strict source, build, and runtime checks. The verification
+worker stores an owner-scoped unverified candidate preview instead of hiding a
+buildable portfolio, while active-preview promotion and success entitlement
+remain fail-closed until the receipt is valid. Added one bounded, model-free
+retry for the classified Windows Vite child-process spawn race. Deterministic
+Code Generator, integration, frontend, and generated-portfolio build checks
+pass; the two permitted live attempts were consumed during diagnosis and no
+third live pipeline run was made.
+
 ### 2026-09-20 01:59 +05:30 — Codex (GPT-5) — [55e5692] — Recover Code Generator stage handoffs and native preview execution
 
 The durable coordinator now finalizes the completed Plan attempt before
