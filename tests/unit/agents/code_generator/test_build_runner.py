@@ -60,6 +60,59 @@ async def test_clean_build_serializes_package_installs(monkeypatch, tmp_path: Pa
 
 
 @pytest.mark.asyncio
+async def test_clean_build_retries_transient_vite_windows_spawn_denial(
+    monkeypatch, tmp_path: Path
+) -> None:
+    build_attempts = 0
+
+    async def fake_run(*_args, **kwargs):
+        nonlocal build_attempts
+        if kwargs["phase"] != "build":
+            return SimpleNamespace(timed_out=False, returncode=0, combined_output=""), None
+        build_attempts += 1
+        if build_attempts == 1:
+            return (
+                SimpleNamespace(timed_out=False, returncode=1, combined_output="spawn EPERM"),
+                build_runner.diagnostic(
+                    "VITE_NODE_SPAWN_EPERM",
+                    "transient Vite child-process launch denial",
+                    phase="build",
+                ),
+            )
+        return SimpleNamespace(timed_out=False, returncode=0, combined_output=""), None
+
+    monkeypatch.setattr(build_runner, "_run", fake_run)
+    monkeypatch.setattr(build_runner, "build_manifest", lambda *args, **kwargs: object())
+    monkeypatch.setattr(build_runner, "_VITE_WINDOWS_SPAWN_RETRY_DELAY_SECONDS", 0)
+    settings = SimpleNamespace(
+        code_generator_verification=SimpleNamespace(
+            install_command=["npm", "ci"],
+            typecheck_command=["npm", "run", "typecheck"],
+            format_command=[],
+            build_command=["npm", "run", "build"],
+            install_timeout_seconds=1.0,
+            typecheck_timeout_seconds=1.0,
+            format_timeout_seconds=1.0,
+            build_timeout_seconds=1.0,
+            max_output_bytes=1024,
+            max_artifact_bytes=1024,
+            reject_source_maps=True,
+        ),
+        code_generator_dependencies=SimpleNamespace(npm_cache_root=""),
+    )
+
+    manifest, diagnostics = await build_runner.run_clean_build(
+        tmp_path / "repo",
+        settings=settings,
+        candidate_identity_hash="candidate-retry",
+    )
+
+    assert manifest is not None
+    assert diagnostics == []
+    assert build_attempts == 2
+
+
+@pytest.mark.asyncio
 async def test_build_runner_classifies_vite_windows_spawn_denial_as_infrastructure(
     monkeypatch, tmp_path: Path
 ) -> None:

@@ -1807,6 +1807,52 @@ async def test_review_and_polish_tolerates_generic_failure_under_preview_first(
 
 
 @pytest.mark.asyncio
+async def test_review_and_polish_records_strict_mode_failure_as_quality_advisory(
+    monkeypatch,
+) -> None:
+    """A broken whole-site review must not discard an otherwise accepted source tree."""
+
+    orchestrator = CodeGeneratorGenerationOrchestrator()
+
+    async def failing_review(**_kwargs: object) -> IntegrationReviewV1:
+        raise RuntimeError("model call failed")
+
+    persisted: list[dict[str, object]] = []
+
+    async def capture_persist(*_args: object, **kwargs: object) -> None:
+        persisted.append(kwargs)
+
+    monkeypatch.setattr(orchestrator, "_integration_review", failing_review)
+    monkeypatch.setattr(orchestrator, "_persist", capture_persist)
+    projection = GenerationProjection(
+        generation_id="generation-quality-advisory",
+        input_receipt_hash="input-hash",
+        site_plan_hash="plan-hash",
+        phase="integrating",
+    )
+
+    await orchestrator._review_and_polish(
+        sessionmaker=None,
+        run_id=uuid4(),
+        settings=SimpleNamespace(
+            code_generator_verification=SimpleNamespace(preview_first_acceptance=False)
+        ),
+        run=SimpleNamespace(),
+        plan=None,
+        projections={},
+        workspace=None,
+        projection=projection,
+        checkpoint_store=None,
+        checkpoint=None,
+        allowed_packages=set(),
+        public_text=set(),
+    )
+
+    assert [issue.code for issue in projection.issues] == ["QUALITY_REVIEW_UNAVAILABLE"]
+    assert persisted[0]["status"] == "integrating"
+
+
+@pytest.mark.asyncio
 async def test_review_and_polish_reraises_authorization_fence_under_preview_first(
     monkeypatch,
 ) -> None:

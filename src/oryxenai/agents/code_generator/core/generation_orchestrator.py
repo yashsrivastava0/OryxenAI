@@ -1575,20 +1575,37 @@ class CodeGeneratorGenerationOrchestrator:
             if str(getattr(run, "run_mode", "development")) == "session" or isinstance(
                 plan.experience_blueprint, ExperienceBlueprintV4
             ):
-                await self._review_and_polish(
-                    sessionmaker=sessionmaker,
-                    run_id=run_id,
-                    settings=settings,
-                    run=run,
-                    plan=plan,
-                    projections=projections,
-                    workspace=workspace,
-                    projection=projection,
-                    checkpoint_store=checkpoint_store,
-                    checkpoint=checkpoint,
-                    allowed_packages=allowed_packages,
-                    public_text=public_text,
-                )
+                try:
+                    await self._review_and_polish(
+                        sessionmaker=sessionmaker,
+                        run_id=run_id,
+                        settings=settings,
+                        run=run,
+                        plan=plan,
+                        projections=projections,
+                        workspace=workspace,
+                        projection=projection,
+                        checkpoint_store=checkpoint_store,
+                        checkpoint=checkpoint,
+                        allowed_packages=allowed_packages,
+                        public_text=public_text,
+                    )
+                except AuthorizationFenceError:
+                    raise
+                except Exception as exc:
+                    if not _is_degradable_quality_review_error(exc):
+                        raise
+                    await self._record_quality_review_issue(
+                        sessionmaker=sessionmaker,
+                        run_id=run_id,
+                        projection=projection,
+                        issue=_quality_review_issue_from_exception(exc),
+                    )
+                    # A polish attempt may have accepted a newer checkpoint
+                    # before the subsequent review failed. Continue with the
+                    # newest trusted tree; verification remains the final
+                    # source/build/runtime gate.
+                    checkpoint = projection.accepted_checkpoint or checkpoint
             return checkpoint_store.accept(
                 work_unit_id=unit.unit_id,
                 parent_hash=checkpoint.checkpoint_hash if checkpoint else "",
@@ -2173,7 +2190,13 @@ class CodeGeneratorGenerationOrchestrator:
             raise
         except Exception as exc:
             if not preview_first_acceptance:
-                raise
+                await self._record_quality_review_issue(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    projection=projection,
+                    issue=_quality_review_issue_from_exception(exc),
+                )
+                return
             logger.warning(
                 "preview-first integration review unavailable run_id=%s error_type=%s",
                 run_id,
@@ -2511,23 +2534,55 @@ class CodeGeneratorGenerationOrchestrator:
                     "INTEGRATION_POLISH_SOURCE_CHECK_FAILED",
                     "The bounded integration polish pass introduced source diagnostics.",
                 )
-            review = await self._integration_review(
-                sessionmaker=sessionmaker,
-                run_id=run_id,
-                settings=settings,
-                run=run,
-                plan=plan,
-                projections=projections,
-                workspace=workspace,
-                projection=projection,
-                round_number=polish_round,
-            )
+            try:
+                review = await self._integration_review(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    settings=settings,
+                    run=run,
+                    plan=plan,
+                    projections=projections,
+                    workspace=workspace,
+                    projection=projection,
+                    round_number=polish_round,
+                )
+            except AuthorizationFenceError:
+                raise
+            except Exception as exc:
+                await self._record_quality_review_issue(
+                    sessionmaker=sessionmaker,
+                    run_id=run_id,
+                    projection=projection,
+                    issue=_quality_review_issue_from_exception(exc),
+                )
+                return
         if not _review_accepted(review):
             raise GenerationError(
                 "INTEGRATION_REVIEW_UNRESOLVED",
                 "The completed source tree did not pass the bounded whole-site quality review "
                 f"after {maximum_rounds} polish rounds.",
             )
+
+    async def _record_quality_review_issue(
+        self,
+        *,
+        sessionmaker: Any,
+        run_id: UUID,
+        projection: GenerationProjection,
+        issue: SafeIssue,
+    ) -> None:
+        if not any(
+            existing.code == issue.code and existing.message == issue.message
+            for existing in projection.issues
+        ):
+            projection.issues.append(issue)
+        await self._persist(
+            sessionmaker,
+            run_id,
+            projection,
+            status=DevelopmentRunStatus.INTEGRATING.value,
+            event=("quality_review_advisory", issue.message),
+        )
 
     async def _integration_review(
         self,
@@ -5360,6 +5415,68 @@ def _safe_generation_model_issue(exc: Exception) -> str:
 
 def _safe_generation_validation_summary(exc: ValidationError) -> str:
     return _safe_generation_model_issue(exc)
+
+
+def _is_degradable_quality_review_error(exc: Exception) -> bool:
+    """Identify failures that only affect the optional quality-review stage.
+
+    The accepted source tree is still sent through the strict verification
+    worker.  Filesystem, checkpoint, and toolchain failures must continue to
+    stop generation; malformed or unavailable whole-site review output may
+    instead produce an unverified candidate preview.
+    """
+
+    if isinstance(
+        exc,
+        (
+            ModelJsonInvalidError,
+            ModelOutputTruncatedError,
+            ProviderError,
+            QualityReviewError,
+            SourceValidationError,
+            ValidationError,
+        ),
+    ):
+        return True
+    if isinstance(exc, GenerationError):
+        code = str(exc.code)
+        return code.startswith(("INTEGRATION_", "QUALITY_REVIEW_", "SOURCE_REPAIR_")) or code in {
+            "GENERATION_OUTPUT_INVALID",
+            "GENERATION_CHANGES_MISSING",
+            "INTEGRATION_POLISH_INCOMPLETE",
+        }
+    return False
+
+
+def _quality_review_issue_from_exception(exc: Exception) -> SafeIssue:
+    """Convert a review failure into a safe, actionable generation advisory."""
+
+    raw_code = str(getattr(exc, "code", ""))
+    if isinstance(exc, ValidationError):
+        code = "QUALITY_REVIEW_OUTPUT_INVALID"
+        reason = _safe_generation_model_issue(exc)
+    elif isinstance(exc, QualityReviewError):
+        code = raw_code if raw_code.startswith("QUALITY_") else "QUALITY_REVIEW_INVALID"
+        reason = str(getattr(exc, "message", "")).strip()[:500]
+    else:
+        code = "QUALITY_REVIEW_UNAVAILABLE"
+        reason = "The review provider did not return a usable whole-site receipt."
+    return SafeIssue(
+        code=code,
+        message=(
+            "The whole-site quality review did not produce a locally valid receipt. "
+            "Deterministic source, build, and runtime verification will continue; any "
+            "preview will remain unverified until the review is valid."
+        ),
+        next_action=(
+            "Inspect the candidate preview and retry verification after correcting the "
+            "quality-review response."
+        ),
+        details={
+            "exception_type": type(exc).__name__,
+            "reason": reason or "The quality review output was not usable.",
+        },
+    )
 
 
 def _validate_v4_generation_coverage(
