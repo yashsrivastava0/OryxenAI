@@ -43,6 +43,7 @@ class BuildRunnerError(ValueError):
 # subsequent typecheck/build/runtime work to remain concurrent.
 _PACKAGE_INSTALL_LOCK = asyncio.Lock()
 _VITE_WINDOWS_SPAWN_DENIED = "VITE_NODE_SPAWN_EPERM"
+_VITE_WINDOWS_SPAWN_RETRY_DELAY_SECONDS = 0.25
 
 
 def _normalize(value: str) -> str:
@@ -339,14 +340,30 @@ async def run_clean_build(
         if issue is not None:
             diagnostics.append(issue)
             return None, diagnostics
+    build_command = _command(settings, "build_command", ["npm", "run", "build"])
     _, issue = await _run(
-        _command(settings, "build_command", ["npm", "run", "build"]),
+        build_command,
         repo_dir=repo_dir,
         settings=settings,
         timeout_name="build_timeout_seconds",
         phase="build",
         stage_durations_ms=stage_durations_ms,
     )
+    if issue is not None and issue.code == _VITE_WINDOWS_SPAWN_DENIED:
+        # Vite's Windows real-path helper can lose a short-lived child-process
+        # launch race immediately after npm has finished installing a fresh
+        # workspace. A single model-free retry is safe: it does not alter the
+        # source tree or consume repair budget, and it avoids converting a
+        # buildable portfolio into a false infrastructure terminal state.
+        await asyncio.sleep(_VITE_WINDOWS_SPAWN_RETRY_DELAY_SECONDS)
+        _, issue = await _run(
+            build_command,
+            repo_dir=repo_dir,
+            settings=settings,
+            timeout_name="build_timeout_seconds",
+            phase="build",
+            stage_durations_ms=stage_durations_ms,
+        )
     if issue is not None:
         diagnostics.append(issue)
         return None, diagnostics
