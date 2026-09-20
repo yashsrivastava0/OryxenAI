@@ -23,6 +23,10 @@ venv/
 *.log
 pgdata/
 postgres-data/
+output/
+Input-Output-Of-Engine/
+.playwright-mcp/
+*.zip
 
 # Tests and docs are excluded from the production image to keep it lean;
 # the project source under src/ is the only application code copied.

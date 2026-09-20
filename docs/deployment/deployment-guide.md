@@ -438,7 +438,7 @@ generated fix:
 ./scripts/azure-deploy.sh logs
 ./scripts/azure-deploy.sh logs app worker
 
-# Edit VM-local credentials/settings and regenerate the production overlay.
+# Edit VM-local credentials/settings used by the production Compose stack.
 ./scripts/azure-deploy.sh configure
 
 # Make a compressed PostgreSQL backup in ~/oryxenai-backups.
@@ -498,10 +498,10 @@ and live agent-to-preview flow are still pending. Local tests and development
 harness campaigns are useful evidence, but they do not check off the Azure
 acceptance items below.
 
-The supported operator interface is `./scripts/azure-deploy.sh`. It wraps the
-two Compose files, keeps the production overlay generated from `.env`, and
-records the last two release SHAs. Use the raw Compose commands below only
-when diagnosing a problem the script output does not explain.
+The supported operator interface is `./scripts/azure-deploy.sh`. It uses the
+self-contained production Compose stack, keeps the production configuration
+generated from `.env`, and records the last two release SHAs. Use raw Compose
+commands only when diagnosing a problem the script output does not explain.
 
 ## A. Infrastructure smoke test
 

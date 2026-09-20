@@ -49,7 +49,7 @@ jobs:
             -e 's/<ACCOUNT_ID>/example-account/g' \
             -e 's/<R2_BUCKET>/example-bucket/g' \
             config/app.production.local.toml
-          docker compose -f compose.yaml -f compose.production.yaml config --quiet
+          docker compose -f compose.production.yaml config --quiet
 
       - name: Install uv
         uses: astral-sh/setup-uv@v3

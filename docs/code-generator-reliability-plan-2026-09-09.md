@@ -561,8 +561,8 @@ path, plus `tests/unit/agents/code_generator/test_portfolio_export.py`.
 5. Exercise generated sites through the real preview gateway under a capability
    prefix, with deep-route refresh, local image/font URLs, mobile navigation and
    the preview bridge. A root-only local static server is not equivalent proof.
-6. Validate `compose.yaml` + `compose.production.yaml`, configured app/preview
-   origins, persistent workspace/cache/artifact access and gateway readback.
+6. Validate `compose.production.yaml`, configured app/preview origins,
+   persistent workspace/cache/artifact access and gateway readback.
    Replace placeholder hosts only with actual deployment configuration supplied
    by the owner. Local validation is not an Azure deployment claim.
 7. Resolve child-process permission failures as environment blockers and rerun
@@ -576,7 +576,7 @@ uv run pytest -q tests/unit/agents/code_generator
 uv run mypy src
 uv run ruff check src/oryxenai/agents/code_generator tests/unit/agents/code_generator
 uv run ruff format --check src/oryxenai/agents/code_generator tests/unit/agents/code_generator
-docker compose -f compose.yaml -f compose.production.yaml config --quiet
+docker compose -f compose.production.yaml config --quiet
 ```
 
 For this planning audit, focused generation-contract, dependency, export and V4

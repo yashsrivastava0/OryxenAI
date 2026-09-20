@@ -1,31 +1,125 @@
-# Azure VM production overlay.
+# Single-VM production Compose stack.
 #
-# The repository's azure-deploy.sh script creates the ignored
-# config/app.production.local.toml file and sets ORYXENAI_IMAGE_TAG to the
-# exact release SHA before invoking this overlay. Caddy is part of the same
-# Compose project so the VM needs no native reverse-proxy installation.
+# Topology:
+#   PostgreSQL -> migrate -> app + worker + preview-gateway -> Caddy
+#
+# This file is intentionally self-contained. The development-only
+# compose.yaml keeps its host loopback ports and optional fixture profiles;
+# production publishes only Caddy on ports 80 and 443.
+
+name: oryxenai
+
+x-default-logging: &default-logging
+  driver: local
+
+x-application: &application
+  image: oryxenai:${ORYXENAI_IMAGE_TAG:-local}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  logging: *default-logging
+  env_file:
+    - ${ORYXENAI_ENV_FILE:-.env}
+  environment:
+    DB_HOST_OVERRIDE: postgres
+    DB_PORT_OVERRIDE: "5432"
+    OryxenAI_CONFIG_OVERLAY: ${OryxenAI_CONFIG_OVERLAY:-config/app.production.local.toml}
+  networks:
+    - backend
 
 services:
+  postgres:
+    image: postgres:16.4-alpine@sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      POSTGRES_DB: oryxenai
+      POSTGRES_USER: oryxen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - oryxen_pgdata:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oryxen -d oryxenai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   migrate:
-    environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
+    <<: *application
+    restart: "no"
+    # The image has an HTTP healthcheck for long-running services; a one-shot
+    # migration must not be reported as unhealthy after it exits successfully.
+    healthcheck:
+      disable: true
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   app:
-    environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
+    <<: *application
+    command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
   worker:
-    environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
+    <<: *application
+    command: ["python", "-m", "oryxenai.jobs.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - oryxen_codegen_preview:/app/.workspace/code-generator-preview
+      - oryxen_image_cache:/app/.workspace/image-search-cache
+      - oryxen_npm_cache:/app/.workspace/npm-cache
+      - oryxen_codegen_inputs:/app/.workspace/code-generator-development
+      - oryxen_codegen_materials:/app/.workspace/code-generator-materials
+      - oryxen_codegen_generation:/app/.workspace/code-generator-generation
+      - oryxen_codegen_checkpoints:/app/.workspace/code-generator-checkpoints
+      - oryxen_codegen_workspaces:/app/.workspace/code-generator-workspaces
+      - oryxen_codegen_artifacts:/app/.workspace/code-generator-artifacts
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
+      interval: 15s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
   preview-gateway:
-    environment:
-      OryxenAI_CONFIG_OVERLAY: config/app.production.local.toml
+    <<: *application
+    command: ["python", "-m", "oryxenai.preview.gateway"]
+    depends_on:
+      worker:
+        condition: service_healthy
+    volumes:
+      - oryxen_codegen_preview:/app/.workspace/code-generator-preview
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/ready')\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2-alpine@sha256:de23def33b17fb5d1290b0f6c2add1d70780e52341896c00a4c8a2a2fe9d355e
     restart: unless-stopped
-    logging:
-      driver: local
+    logging: *default-logging
     env_file:
-      - .env
+      - ${ORYXENAI_ENV_FILE:-.env}
+    environment:
+      APP_HOST: ${APP_HOST:?APP_HOST must be set in .env}
+      PREVIEW_HOST: ${PREVIEW_HOST:?PREVIEW_HOST must be set in .env}
     ports:
       - "80:80"
       - "443:443"
@@ -33,18 +127,37 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - oryxen_caddy_data:/data
       - oryxen_caddy_config:/config
+    networks:
+      - backend
+      - edge
+    depends_on:
+      app:
+        condition: service_healthy
+      preview-gateway:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
       interval: 30s
       timeout: 10s
       start_period: 10s
       retries: 3
-    depends_on:
-      app:
-        condition: service_healthy
-      preview-gateway:
-        condition: service_healthy
+
+networks:
+  # No service other than Caddy is attached to the public-facing network.
+  backend:
+    internal: true
+  edge:
 
 volumes:
+  oryxen_pgdata:
+  oryxen_codegen_preview:
+  oryxen_image_cache:
+  oryxen_npm_cache:
+  oryxen_codegen_inputs:
+  oryxen_codegen_materials:
+  oryxen_codegen_generation:
+  oryxen_codegen_checkpoints:
+  oryxen_codegen_workspaces:
+  oryxen_codegen_artifacts:
   oryxen_caddy_data:
   oryxen_caddy_config:
