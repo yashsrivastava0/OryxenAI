@@ -295,9 +295,6 @@ async def _execute(
 
     run_id = UUID(str(payload.get("code_generator_run_id") or payload["development_run_id"]))
     settings = get_settings()
-    preview_first_acceptance = bool(
-        getattr(settings.code_generator_verification, "preview_first_acceptance", False)
-    )
     sessionmaker = get_sessionmaker(settings)
     await _validate_worker_payload(sessionmaker, payload)
     async with sessionmaker() as db:
@@ -505,6 +502,7 @@ async def _execute(
         realization_contracts = []
         quality_payload: dict[str, Any] | None = None
         quality_advisories: list[SafeIssue] = []
+        quality_review_degraded = False
         generation_projection_payload = (
             run.generation_projection if isinstance(run.generation_projection, dict) else {}
         )
@@ -533,19 +531,16 @@ async def _execute(
                 issue = SafeIssue(
                     code="QUALITY_REVIEW_MISSING",
                     message=(
-                        "The final source has no matching whole-site quality receipt; "
-                        "preview-first acceptance retained this as advisory evidence."
+                        "The final source has no locally valid whole-site quality receipt; "
+                        "verification will continue and any preview will remain unverified."
                     ),
-                    next_action="Optionally rerun whole-site quality review before publishing.",
+                    next_action=(
+                        "Inspect the candidate preview and retry verification after correcting "
+                        "the quality-review response."
+                    ),
                 )
-                if preview_first_acceptance:
-                    quality_advisories.append(issue)
-                else:
-                    raise VerificationFailure(
-                        issue.code,
-                        "The final v4 source has no host-stamped whole-site quality receipt.",
-                        owner="generator",
-                    )
+                quality_advisories.append(issue)
+                quality_review_degraded = True
             else:
                 try:
                     quality_receipt = QualityReviewReceiptV2.model_validate(quality_payload)
@@ -578,32 +573,21 @@ async def _execute(
                     )
                 except (ValueError, QualityReviewError) as exc:
                     code = str(getattr(exc, "code", "QUALITY_REVIEW_MISSING_OR_STALE"))
-                    if preview_first_acceptance:
-                        quality_advisories.append(
-                            SafeIssue(
-                                code=code,
-                                message=(
-                                    "The stored whole-site quality receipt did not match the "
-                                    "final source; preview-first acceptance retained it as "
-                                    "advisory evidence."
-                                ),
-                                next_action=(
-                                    "Optionally rerun whole-site quality review before publishing."
-                                ),
-                            )
-                        )
-                    else:
-                        raise VerificationFailure(
-                            code,
-                            str(
-                                getattr(
-                                    exc,
-                                    "message",
-                                    "The whole-site quality review does not match the final source.",
-                                )
+                    quality_advisories.append(
+                        SafeIssue(
+                            code=code,
+                            message=(
+                                "The stored whole-site quality receipt did not match the final "
+                                "source; verification will continue and any preview will "
+                                "remain unverified."
                             ),
-                            owner="generator",
-                        ) from exc
+                            next_action=(
+                                "Inspect the candidate preview and retry verification after "
+                                "correcting the quality-review response."
+                            ),
+                        )
+                    )
+                    quality_review_degraded = True
         verification_plan = derive_verification_plan(
             identity=identity,
             plan=plan,
@@ -1038,6 +1022,53 @@ async def _execute(
                 code="DOM_RUNTIME_FAILED",
                 summary="The generated portfolio failed text/DOM/runtime smoke verification.",
                 next_action="Review the route, interaction, accessibility, or request diagnostics and regenerate.",
+            )
+        if quality_review_degraded:
+            # A malformed, stale, or rejected quality receipt must not erase a
+            # buildable preview. Store it as an owner-scoped candidate only;
+            # the active preview and success entitlement remain fail-closed
+            # until a later verification attempt has a valid receipt.
+            try:
+                (
+                    projection.candidate_artifact,
+                    projection.candidate_preview,
+                    projection.verification_report_hash,
+                ) = await _store_unverified_candidate(
+                    settings=settings,
+                    run_id=run_id,
+                    host=host,
+                    identity=identity,
+                    manifest=manifest,
+                    plan=plan,
+                    workspace=workspace,
+                    projection=projection,
+                    storage_factory=storage_factory,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "unverified candidate storage failed after quality review degradation "
+                    "run_id=%s error_type=%s",
+                    run_id,
+                    type(exc).__name__,
+                )
+            return await _terminal(
+                sessionmaker,
+                run_id,
+                projection,
+                code="QUALITY_REVIEW_UNAVAILABLE",
+                summary=(
+                    "The portfolio passed source, build, and runtime checks, but the "
+                    "whole-site quality receipt was unavailable or invalid."
+                    + (
+                        " An unverified preview is available for inspection."
+                        if projection.candidate_preview is not None
+                        else " The candidate could not be stored for preview inspection."
+                    )
+                ),
+                next_action=(
+                    "Inspect the unverified preview if available, then retry verification "
+                    "after correcting the quality-review response."
+                ),
             )
         report = projection.model_dump(mode="json")
         report_hash = hashlib.sha256(_canonical(report)).hexdigest()

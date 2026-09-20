@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-105 - Keep quality-review defects previewable without certifying them
+
+- **Date & Time:** 2026-09-20 14:45 +05:30 - Codex (GPT-5 / OpenAI)
+- **Status:** decided-implemented
+- **Context:** A live Code Generator attempt produced a complete source checkpoint, but the model's whole-site quality receipt contained an empty evidence marker. Treating that optional review response as a generation blocker left the frontend with only "Generation needs attention" even though the source could still be built and inspected. A later recovery attempt also exposed a transient Windows Vite child-process `spawn EPERM` immediately after the clean install.
+- **Decision:** Treat only the whole-site quality receipt as degradable: malformed, unavailable, stale, or rejected quality output becomes a durable advisory, while source-contract, build, runtime, navigation, accessibility, and asset gates remain blocking. When those required gates pass, store an owner-scoped `candidate_preview` marked `unverified`; never promote it to `active_preview` or `ready` until a valid quality receipt is present. Add one bounded, model-free build retry for the classified Windows Vite spawn race.
+- **Rejected alternatives:** Making all verification findings advisory would certify broken portfolios; hiding the candidate until a new model call would waste the user's live-call budget and prevent inspection; automatically retrying the full pipeline would create duplicate work and race the durable job; retrying the Vite build indefinitely would mask a persistent toolchain failure.
+- **Consequence:** The Preact Generate & Preview surface can show a truthful unverified portfolio plus the existing retry action when quality review is the only defect, while the entitlement and verified active-preview boundaries remain fail-closed. The worker can recover one transient Windows Vite launch denial without spending model or repair budget.
+
 ## D-104 — Reuse the product Generate & Preview surface for standalone run acceptance
 
 - **Date & Time:** 2026-09-19 22:30 +05:30 — Codex (GPT-5 / OpenAI)
