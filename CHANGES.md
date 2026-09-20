@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-20 17:39 +05:30 - Codex (GPT-5) - [ccd9024] - Make production Compose stack self-contained
+
+Reworked production packaging around one pinned Compose stack. The production
+file now owns PostgreSQL, one-shot migrations, separate app/worker/preview-
+gateway services, and Caddy with only ports 80/443 public; it also adds the
+internal service network, persistent volumes, health/dependency gates, the
+non-root application image, locked frontend/Python installs, safer build
+context, and aligned release-script, CI, and deployment documentation. Docker
+build, sanitized Compose config, isolated smoke startup, migration, health,
+Caddy routing, non-secret log scan, and runtime-user checks passed locally.
+
 ### 2026-09-20 14:55 +05:30 - Codex (GPT-5) - [743a4e4] - Keep Code Generator previews available through quality-review failures
 
 Whole-site quality-review output is now an advisory gate when the generated
