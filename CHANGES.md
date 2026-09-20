@@ -11,6 +11,17 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-20 22:44 +05:30 - Codex (GPT-5) - [d0d3a67] - Select VM-local persistent storage for the first Azure release
+
+Recorded the first-release storage decision as VM-local persistent Docker-backed
+storage instead of Cloudflare R2. Updated the deployment strategy, readiness
+matrix, runbook, owner checklist, operations guide, combined deployment guide,
+status/history, and project status to require local-filesystem provider
+configuration, shared artifact/preview volumes, non-root ownership, disk checks,
+backup/restore, restart survival, and preview readback. R2 references remain
+only as compatibility or historical context; the Docker/config follow-up is
+still required before deployment.
+
 ### 2026-09-20 17:39 +05:30 - Codex (GPT-5) - [ccd9024] - Make production Compose stack self-contained
 
 Reworked production packaging around one pinned Compose stack. The production
