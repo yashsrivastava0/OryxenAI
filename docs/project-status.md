@@ -15,7 +15,7 @@ release and is not counted as complete here. Re-run `git status --short
 
 The latest deployment-preparation audit is the
 [deployment strategy pack](<../doc/deployment strategy/README.md>). It records
-the current GitHub, Azure, R2, authentication, model-runtime, domain, and
+the current GitHub, Azure, VM-storage, authentication, model-runtime, domain, and
 release gates without claiming that live deployment has been performed.
 
 ## Executive status
@@ -30,7 +30,7 @@ release gates without claiming that live deployment has been performed.
 | Deployment tooling | Implemented, not executed | Docker Compose production files, Caddy routing, production TOML template, and `scripts/azure-deploy.sh` are checked in. |
 | Application on Azure | Not deployed | Docker has not been installed on the VM, the repository has not been cloned there, and no container or database migration has run there. |
 | Production auth/domain | Pending | The final HTTPS application origin, DNS, and production Supabase redirect settings are not yet applied. |
-| Production artifact storage | Partly ready | The owner reports that R2 storage and credentials exist; the VM-local R2 configuration still has to be entered and tested. |
+| Production artifact storage | VM-local storage selected | The first release will keep generated artifacts and previews on persistent VM-backed Docker storage; local-filesystem configuration, volume ownership, disk checks, backup/restore, and restart readback still need to be completed. |
 | Release candidate | Not selected | The current worktree contains unrelated uncommitted changes. No exact clean SHA may be deployed until the release gate is completed. |
 | End-to-end acceptance | Pending | No real Azure run has yet proven Google login → agents → generated artifact → embedded preview → direct preview URL. |
 
@@ -137,7 +137,7 @@ The deployment path is now implemented as a single-VM Compose release:
   preview gateway, and Compose-managed Caddy. Only Caddy publishes ports 80
   and 443; the application services remain on the internal backend network.
 - `config/app.production.toml` is a non-secret template for production
-  origins, R2, worker, and Code Generator verification settings.
+  origins, VM-local storage, worker, and Code Generator verification settings.
 - `Caddyfile` routes the app and preview hostnames and terminates HTTPS.
 - `scripts/azure-deploy.sh` provides `setup`, `configure`, `doctor`, `deploy`,
   `status`, `logs`, `verify`, `backup`, and `rollback`.
@@ -204,23 +204,20 @@ The expected callback is:
 https://app.<DOMAIN>/auth/callback
 ```
 
-### Cloudflare R2
+### VM-local artifact and preview storage
 
-The owner reports that the R2 artifact storage, API token, access key, and
-secret key already exist. Their values were deliberately not copied into the
-repository or this document.
+The first Azure release will store generated artifacts and preview objects on
+the VM's persistent disk through Docker-backed local-filesystem storage. The
+worker and shared preview gateway must use the same persistent preview root;
+Code Generator artifacts, workspaces, checkpoints, caches, and Caddy state
+must remain on explicitly owned persistent volumes as appropriate.
 
-The production runtime needs the following:
-
-- R2 account ID or S3-compatible endpoint;
-- bucket name;
-- `R2_ACCESS_KEY_ID`; and
-- `R2_SECRET_ACCESS_KEY`.
-
-The Cloudflare API token is not a substitute for the S3 secret access key
-expected by the existing `boto3` artifact/preview adapters. The account ID and
-bucket name may be recorded as non-secret deployment coordinates; the key
-values must be entered directly in the VM-local `.env`.
+No R2 endpoint, bucket, access key, secret key, or lifecycle policy is required
+for this path. Before deployment, the production overlay and release script
+must stop requiring R2 values, select the available local-filesystem providers,
+create/check the VM storage roots, enforce non-root ownership, and prove backup,
+restore, restart survival, and preview readback. Existing R2-compatible code is
+not the selected production path.
 
 ### Domain and GitHub
 
@@ -263,8 +260,8 @@ The following have not yet happened on Azure:
 - Install Docker Engine and the Docker Compose plugin.
 - Create the VM-local `.env` and rendered
   `config/app.production.local.toml`.
-- Enter the final domain, Supabase, R2, allow-list, PostgreSQL, model-provider,
-  and image-provider configuration.
+- Enter the final domain, Supabase, allow-list, PostgreSQL, VM-storage,
+  model-provider, and image-provider configuration.
 - Run the deployment script's doctor checks.
 - Build the exact image, warm npm dependencies, migrate PostgreSQL, and start
   the app, worker, preview gateway, and Caddy.
@@ -273,7 +270,7 @@ The following have not yet happened on Azure:
 
 - Configure DNS and wait for both hostnames to resolve.
 - Confirm Supabase Google OAuth uses the exact HTTPS app origin.
-- Confirm R2 artifact upload and preview readback.
+- Confirm VM-local artifact write/readback and preview readback after restart.
 - Confirm Caddy obtains certificates and both health endpoints work.
 - Test the complete explicit agent sequence with a small privacy-safe input.
 - Test both embedded and direct generated-preview URLs.
@@ -291,8 +288,9 @@ Use this order when the owner is ready to deploy:
 3. **Repository access.** Confirm the GitHub repository URL and release branch;
    configure VM read access if the repository is private.
 4. **Domain/auth/storage coordinates.** Confirm the final domain, both DNS A
-   records, the Supabase project and callback settings, and the non-secret R2
-   account/bucket coordinates. Keep all secret values off chat and Git.
+   records, the Supabase project and callback settings, and the VM storage
+   root, capacity, ownership, backup, and retention policy. Keep all secret
+   values off chat and Git.
 5. **One-time VM setup.** SSH to the VM, clone the repository, and run:
 
    ```bash
@@ -313,11 +311,11 @@ Use this order when the owner is ready to deploy:
    ```
 
 7. **Browser acceptance.** Sign in with Google, complete the explicit stages,
-   generate a portfolio, confirm R2 upload/readback, open the in-app preview,
+   generate a portfolio, confirm VM-local artifact/preview readback, open the in-app preview,
    open its direct URL, and repeat the ownership check with the second user.
 8. **Idle operation.** When the demo is not needed, use Azure Stop/
-   Deallocate. Check Azure, Supabase, R2, domain, and model-provider usage
-   separately.
+   Deallocate. Check Azure disk usage, Supabase, domain, and model-provider
+   usage separately.
 
 ## Acceptance definition
 
