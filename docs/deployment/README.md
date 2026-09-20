@@ -13,8 +13,8 @@ The application has **not** been deployed to Azure: Docker, the repository,
 PostgreSQL, migrations, Caddy, the worker, and the preview gateway have not
 yet been started on the VM.
 
-For the current beginner-facing GitHub, Azure, R2, authentication, model
-runtime, and deferred-domain readiness analysis, read the
+For the current beginner-facing GitHub, Azure, authentication, model-runtime,
+VM-storage, and deferred-domain readiness analysis, read the
 [deployment strategy pack](<../../doc/deployment strategy/README.md>) before
 using this historical deployment index.
 
@@ -40,8 +40,8 @@ Select and record an exact reviewed Git commit before deploying. Read the
 ## Recommended shape
 
 Run the repository's existing Docker topology on one Azure Linux VM. Keep the
-existing Supabase Google sign-in and use one Cloudflare R2 bucket for the
-artifact and preview objects.
+existing Supabase Google sign-in and store generated artifacts and preview
+objects on persistent VM-local Docker storage.
 
 ```text
                          +----------------------+
@@ -57,7 +57,7 @@ Browser --> preview.<domain> ->+------> preview gateway :4174
                               |
        PostgreSQL --> migrate --> API + durable worker
                               |
-                         Cloudflare R2
+                  VM persistent storage
               artifacts, generated sites, preview objects
 ```
 
@@ -74,7 +74,9 @@ deployment.
 - A VM provides persistent Docker volumes for PostgreSQL and worker state.
 - Supabase remains the existing authentication provider; no auth rewrite is
   needed.
-- R2 matches the current hosted artifact-storage and preview-storage code.
+- VM-local storage removes an external object-storage account from the first
+  release; the production configuration must select the existing local-
+  filesystem path and share the required volumes between worker and gateway.
 - Compose-managed Caddy supplies HTTPS for the exact origin required by the
   current auth configuration, so there is no second native service to
   configure on the VM.
@@ -96,8 +98,7 @@ The smallest practical setup has these accounts:
 1. Azure for the VM. Azure for Students provides a time-limited credit offer;
    keep its spending limit enabled. See the [Azure VM runbook](./02-azure-vm-runbook.md).
 2. Supabase for Google authentication.
-3. Cloudflare R2 for hosted artifacts and previews.
-4. An optional GitHub Student Pack `.me` domain. A domain is strongly
+3. An optional GitHub Student Pack `.me` domain. A domain is strongly
    recommended because Supabase production auth requires an exact HTTPS origin.
 
 Model and image-provider API usage remains a separate dependency. Host credits
@@ -110,9 +111,9 @@ credential environment-variable names remain defined by
 Azure can be close to zero out of pocket while the Student credit is active,
 but the VM is not a permanent free resource. The Azure account must remain
 within its credit/spending limit. Supabase Free is more than enough for two
-users. R2 is expected to stay within its small free allowance for a demo, but
-it is usage-metered and may require a payment method. The Student Pack domain
-offer normally covers the first year; renewal is not assumed to be free.
+users. VM disk capacity, backups, and retention are the storage cost and
+reliability considerations. The Student Pack domain offer normally covers the
+first year; renewal is not assumed to be free.
 
 ## Deployment order
 
@@ -140,7 +141,8 @@ Follow the documents in this order:
 1. Read [the options research](./01-deployment-options-research.md) and claim
    only the accounts actually needed.
 2. Follow [the easy Azure VM runbook](./02-azure-vm-runbook.md) to configure
-   Supabase/R2 and run the one-time setup wizard followed by one deploy command.
+   Supabase and VM-local storage, then run the one-time setup wizard followed
+   by one deploy command.
 3. Execute [the acceptance and operations checklist](./03-acceptance-and-operations.md)
    before calling the deployment usable.
 

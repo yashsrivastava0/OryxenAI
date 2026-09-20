@@ -44,6 +44,10 @@ The built-in backup command writes a PostgreSQL dump under the VM user's
 migrations, download a copy to secure owner-controlled storage. A backup left
 only on the VM is lost if the VM or disk is lost.
 
+Back up the VM-local artifact and preview roots separately from PostgreSQL and
+test restoring both the database dump and a preview object before calling the
+deployment recoverable.
+
 Do not use `docker compose down -v`; it deletes persistent database and service
 volumes. The deployment script's rollback restores application code and images,
 not database migrations. Take a backup before deploying a migration change and
@@ -56,10 +60,10 @@ restore it in a disposable environment when a recovery test is needed.
 - When the site is not needed, use Azure's Stop/Deallocate action rather than
   only shutting down Ubuntu. Compute billing stops after deallocation, while
   disks and networking may still have charges.
-- Keep R2 private and configure the required lifecycle rules for temporary
-  objects. Do not apply cleanup rules to live preview objects without checking
-  the configured prefixes.
-- Model and image-provider charges are separate from Azure, Supabase, and R2.
+- Keep VM-local artifact and preview roots on persistent storage, enforce the
+  configured retention policy, and verify backup freshness. Do not delete live
+  preview objects while diagnosing an application issue.
+- Model and image-provider charges are separate from Azure and Supabase.
 
 ## AI-assisted troubleshooting
 
@@ -93,5 +97,5 @@ comparison, see [github-and-ci.md](github-and-ci.md) and
 [ai-and-open-source-research.md](ai-and-open-source-research.md).
 
 The owner remains responsible for Azure billing decisions, secret entry,
-domain registration, Google/Supabase/R2 dashboard changes, and final
+domain registration, Google/Supabase dashboard changes, and final
 multi-account browser acceptance.

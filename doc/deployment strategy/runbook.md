@@ -93,7 +93,7 @@ blindly and do not copy the developer machine's `.env`.
 
 Resolve every error before continuing. DNS warnings are expected during Phase
 A because the domain has intentionally not been activated. Check that the
-production overlay contains concrete hostnames and R2 coordinates and that the
+production overlay contains concrete hostnames and VM-storage coordinates and that the
 VM-local `.env` has restrictive permissions.
 
 ## 4. Deploy the server before the domain
@@ -159,7 +159,8 @@ Use a clean browser session and verify:
 - A normal user can use the intended portfolio flow.
 - Discovery approval explicitly hands off to Content Architect, Visual Design
   Director, Build Preparation, and Code Generator.
-- Code Generator creates a verified preview and R2 readback succeeds.
+- Code Generator creates a verified preview and VM-local artifact/preview
+  readback succeeds after restart.
 - The preview works embedded and at its direct URL after refresh.
 - A second account cannot see or mutate the first account's portfolio.
 - Post-success read-only behavior, worker retries, and diagnostics are honest.
