@@ -130,11 +130,12 @@ validated through the real Azure deployment acceptance path.
 
 The deployment path is now implemented as a single-VM Compose release:
 
-- `compose.yaml` defines PostgreSQL, the one-shot migration service, FastAPI,
-  the durable worker, the preview gateway, and optional validation/cache-warm
-  profiles.
-- `compose.production.yaml` adds Caddy and switches services to the rendered
-  production configuration.
+- `compose.yaml` remains the local development stack with loopback host ports
+  and optional validation/cache-warm profiles.
+- `compose.production.yaml` is a self-contained production stack containing
+  PostgreSQL, the one-shot migration service, FastAPI, the durable worker, the
+  preview gateway, and Compose-managed Caddy. Only Caddy publishes ports 80
+  and 443; the application services remain on the internal backend network.
 - `config/app.production.toml` is a non-secret template for production
   origins, R2, worker, and Code Generator verification settings.
 - `Caddyfile` routes the app and preview hostnames and terminates HTTPS.

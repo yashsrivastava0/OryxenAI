@@ -2,7 +2,7 @@
 # Serves the FastAPI API plus the compiled authenticated Preact product shell.
 
 # ---- Stage 0: product frontend ----
-FROM node:22-bookworm-slim AS frontend-builder
+FROM node:22-bookworm-slim@sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9 AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -11,11 +11,15 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 
+# The product frontend imports the canonical Living Draft mark from the
+# server-owned auth static tree. Copy that shared source into the builder at
+# the path expected by the relative import before TypeScript runs.
+COPY src/ /app/src/
 COPY frontend/ ./
 RUN npm run build
 
 # ---- Stage 1: builder ----
-FROM python:3.13-slim-bookworm AS builder
+FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS builder
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -23,7 +27,7 @@ ENV UV_LINK_MODE=copy \
     UV_PYTHON=3.13
 
 # Install uv using the official standalone binary method.
-COPY --from=ghcr.io/astral-sh/uv:0.11.19 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.19@sha256:b46b03ddfcfbf8f547af7e9eaefdf8a39c8cebcba7c98858d3162bd28cf536f6 /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -40,7 +44,7 @@ COPY README.md ./
 RUN uv sync --frozen --no-dev
 
 # ---- Stage 2: runtime ----
-FROM python:3.13-slim-bookworm AS runtime
+FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS runtime
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \

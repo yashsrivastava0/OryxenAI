@@ -53,7 +53,6 @@ docker_cmd() {
 compose() {
   docker_cmd compose \
     --project-directory "$REPO_ROOT" \
-    -f "$REPO_ROOT/compose.yaml" \
     -f "$REPO_ROOT/compose.production.yaml" \
     "$@"
 }
@@ -471,7 +470,7 @@ wait_for_migration() {
 
 runtime_services() {
   compose config --services \
-    | grep -Ev '^(postgres|migrate|build-validation|codegen-cache-warm)$'
+    | grep -Ev '^(postgres|migrate)$'
 }
 
 start_release() {
@@ -482,7 +481,7 @@ start_release() {
   compose build
 
   info "Warming and proving the offline npm cache."
-  compose --profile codegen-cache run --rm codegen-cache-warm
+  compose run --rm --no-deps worker bash /app/scripts/warm-npm-cache.sh
 
   info "Running database migrations."
   compose up -d --force-recreate postgres migrate
@@ -495,10 +494,13 @@ start_release() {
 }
 
 verify_internal() {
-  info "Checking internal HTTP endpoints."
-  curl -fsS --max-time 30 http://127.0.0.1:8000/health/live >/dev/null
-  curl -fsS --max-time 30 http://127.0.0.1:8000/health/ready >/dev/null
-  curl -fsS --max-time 30 http://127.0.0.1:4174/health/live >/dev/null
+  info "Checking internal HTTP endpoints and Caddy configuration."
+  compose exec -T app python -c \
+    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live').read(); urllib.request.urlopen('http://127.0.0.1:8000/health/ready').read()"
+  compose exec -T preview-gateway python -c \
+    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/live').read(); urllib.request.urlopen('http://127.0.0.1:4174/health/ready').read()"
+  compose exec -T caddy caddy validate \
+    --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
   info "Internal health checks passed."
 }
 
