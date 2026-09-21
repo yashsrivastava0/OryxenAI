@@ -8,7 +8,21 @@ This is an operator-reported browser-verification checkpoint. It records
 external configuration that was confirmed outside the repository; it does not
 claim that the application has been deployed or accepted in production.
 
-### Follow-up Azure recheck — 2026-09-21
+### Local release gate passed - 2026-09-21
+
+- The exact application release commit verified locally is
+  `91f0d187d6de67a6d6db158b70d235cd773b11c4`.
+- `uv run ruff check .` passed.
+- `uv run ruff format --check .` passed.
+- `uv run mypy src` passed.
+- `uv run pytest` passed, with optional live-provider tests skipped as
+  expected by the local test configuration.
+- `docker compose --env-file .env.example -f compose.production.yaml config
+  --quiet` passed.
+- The worktree was clean at the final release verification. The commit is
+  local and has not been pushed or deployed.
+
+### Follow-up Azure recheck - 2026-09-21
 
 - Subscription, resource group, VM identity, Ubuntu 24.04 LTS x64 image,
   `Standard_B2as_v2` size, static public IP `20.235.74.81`, and the attached

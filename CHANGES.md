@@ -11,6 +11,15 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-21 - Codex (GPT-5) - [91f0d18] - Pass final local release checks
+
+Cleared the final local release-gate findings: aligned the Discovery retry
+expectation with the configured policy, narrowed Code Generator reconciliation
+for strict type checking, resolved the trusted Node executable in the browser
+fixture, and applied repository formatting. Ruff lint, Ruff format check,
+Mypy, the full pytest suite, and production Compose configuration validation
+passed on the exact application release commit.
+
 ### 2026-09-21 10:12 +05:30 - Codex (GPT-5) - [353ef25] - Complete VM-local production storage hardening
 
 Production Compose now bind-mounts PostgreSQL, Code Generator state, previews,
