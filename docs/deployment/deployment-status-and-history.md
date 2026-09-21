@@ -8,6 +8,28 @@ This is an operator-reported browser-verification checkpoint. It records
 external configuration that was confirmed outside the repository; it does not
 claim that the application has been deployed or accepted in production.
 
+### Consolidated pre-deployment inventory - 2026-09-21
+
+- Namecheap BasicDNS records are saved and externally resolving:
+  `app.oryxenai.me -> 20.235.74.81` and
+  `preview.oryxenai.me -> 20.235.74.81`.
+- Azure Portal-side infrastructure is complete at the latest checkpoint:
+  the VM is running, the public IP is static, TCP 22 is restricted to
+  `182.156.19.94/32`, TCP 80/443 are open, and internal application/database
+  ports remain without public allow rules.
+- SSH read-only checks currently pass. The guest reports roughly 60 GiB free,
+  inactive UFW, no pending reboot, approximately 7.7 GiB RAM, and no Docker or
+  Compose installation yet. The VM-local data and backup roots do not exist
+  until the deployment setup initializes them.
+- The locally verified application release is
+  `91f0d187d6de67a6d6db158b70d235cd773b11c4`. Current local `deployment` is
+  clean and 19 commits ahead of `origin/deployment`; the reviewed branch has
+  not been published by this checkpoint, so the VM cannot fetch this release
+  until that publication step is completed.
+- Supabase/Google production settings, VM checkout, Docker setup, production
+  `.env`, migrations, containers, Caddy certificates, live model calls, and
+  browser acceptance remain pending.
+
 ### Local release gate passed - 2026-09-21
 
 - The exact application release commit verified locally is

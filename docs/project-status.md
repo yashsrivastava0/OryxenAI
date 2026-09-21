@@ -1,16 +1,15 @@
 # OryxenAI — current implementation and deployment status
 
-**Snapshot date:** 2026-09-15 (Asia/Kolkata)
+**Snapshot date:** 2026-09-21 (Asia/Kolkata)
 
 **Purpose:** This is the short, current handoff for the human owner and any
 AI coding/deployment assistant. It answers three questions: what exists,
 what is still pending, and what must happen next.
 
-This page describes the committed repository state observed on the
-`codex/code-generator-control-room` branch at the documentation checkpoint.
-The storage hardening work is a local repository change, not a live deployment
-or acceptance result. Re-run `git status --short --branch` and choose one exact
-clean release commit before deploying.
+This page describes the committed repository and live preparation state at the
+latest checkpoint. The Azure application is not deployed or accepted yet.
+Re-run `git status --short --branch` and use the exact verified application
+release SHA before deploying.
 
 The latest deployment-preparation audit is the
 [deployment strategy pack](<../doc/deployment strategy/README.md>). It records
@@ -28,9 +27,9 @@ release gates without claiming that live deployment has been performed.
 | Azure infrastructure | Provisioned | The single Azure VM, network, public IP, and NSG exist; SSH was verified. |
 | Deployment tooling | Implemented, not executed | Docker Compose production files, Caddy routing, production TOML template, and `scripts/azure-deploy.sh` are checked in. |
 | Application on Azure | Not deployed | Docker has not been installed on the VM, the repository has not been cloned there, and no container or database migration has run there. |
-| Production auth/domain | Pending | The final HTTPS application origin, DNS, and production Supabase redirect settings are not yet applied. |
+| Production auth/domain | DNS ready; auth pending | Namecheap records for `app.oryxenai.me` and `preview.oryxenai.me` resolve to the static VM IP. Supabase/Google production redirects and HTTPS certificate/browser proof remain pending. |
 | Production artifact storage | VM-local storage configured, runtime gate pending | Production Compose now bind-mounts the configurable VM data root, selects local Code Generator artifact/preview providers, initializes non-root ownership, and provides disk/backup/readback checks. Docker runtime, restart/reboot persistence, and Azure acceptance remain unproven. |
-| Release candidate | Not selected | The storage hardening work is locally committed after verification, but no exact SHA may be deployed until the live Azure deployment and acceptance gates are completed. |
+| Release candidate | Selected locally; publication pending | The application release SHA `91f0d187d6de67a6d6db158b70d235cd773b11c4` passed the local release gate. The local `deployment` branch is clean and ahead of `origin/deployment`; publish it before the VM fetches the exact SHA. |
 | End-to-end acceptance | Pending | No real Azure run has yet proven Google login → agents → generated artifact → embedded preview → direct preview URL. |
 
 ## What has been implemented
