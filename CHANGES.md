@@ -11,6 +11,14 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-21 - Codex (GPT-5) - [a861465] - Reconcile live deployment readiness
+
+Recorded the current Namecheap DNS resolution, Azure/SSH guest checks, Docker
+installation gap, exact verified application SHA, and local-versus-remote
+deployment branch state. This keeps the pre-deployment checklist aligned with
+the latest operator evidence without claiming that Azure application
+deployment or production acceptance has occurred.
+
 ### 2026-09-21 - Codex (GPT-5) - [91f0d18] - Pass final local release checks
 
 Cleared the final local release-gate findings: aligned the Discovery retry
@@ -142,60 +150,15 @@ button busy during the proof, and explains pending preflight readiness without
 leaking the raw blocker code. The same sequencing covers fixture and upload
 fallback starts. Focused static tests and the local disposable preflight pass.
 
-### 2026-09-19 16:35 +05:30 — Codex (GPT-5) — [761a5d8] — Preserve bounded repair evidence and resolve JSX motion targets
-
-The repair loop now carries restricted source bodies into the next bounded
-repair context, so a sibling rejected only for a stale create/replace tag is
-recoverable. The route contract also treats a CSS `#id` motion target as
-proven by the equivalent owner JSX `id` attribute; this removes the second
-live-run false diagnostic that exhausted repair on an otherwise correctly
-marked `Reveal` section.
-
-### 2026-09-19 16:20 +05:30 — Codex (GPT-5) — [ddab99a] — Fail closed on legacy worker capability receipts
-
-Worker readiness no longer treats missing Code Generator capability or
-toolchain metadata as implicitly healthy. A worker must explicitly report the
-active contract plus Node, npm, and browser support before new generation work
-is admitted; this completes the worker side of D-100.
-
-### 2026-09-19 16:15 +05:30 — Codex (GPT-5) — [188af32] — Align mapped content validation with generated source
-
-The route-batch pre-toolchain gate now recognizes bounded indexed tuple maps
-such as `entries.map((item) => contentValue(item[0]))`, matching the existing
-runtime/source audit instead of spending repair budget on a false missing-key
-diagnostic. The v4 repair contract also allows unchanged pending candidate
-bodies to be retained while the model returns only complete bodies it actually
-changes; related architectural rule: D-101.
-
-### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [e713ff2] — Enforce Code Generator handoff, worker, and preview contracts
-
-Code Generator admission now re-composes the approved Content Architect and
-Visual Design Director handoff before queuing work, and both production and
-standalone starts require a fresh worker heartbeat with the matching pipeline
-release plus Node/npm/browser capability. Preview promotion now separates the
-browser-facing URL from the worker-verifier URL for Docker, while the product
-frontend completes the generated preview postMessage handshake and surfaces a
-timeout instead of silently showing a blank iframe. Added focused regression
-coverage and configuration overlays for the split preview origins.
-
-### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [a1f7fde] — Prove generated dependency locks with the verification install
-
-The Code Generator dependency stage now runs the exact configured clean
-verification install against its staged package manifest and lockfile before
-publishing `node_modules` and the lock. This closes the acquisition/verification
-contract gap that allowed npm optional-platform lock entries to fail only after
-generation. Added focused tests for the command contract and atomic admission.
-
-### 2026-09-19 00:00 +05:30 — Codex (GPT-5) — [2976b91] — Consolidate deployment documentation
-
-Grouped the eight deployment documents into two canonical combined guides,
-preserved every source body, retained numbered compatibility stubs, and added
-canonical README navigation. Verified source parity and local Markdown links;
-no runtime behavior changed.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-19 — [761a5d8] — Preserved bounded repair evidence and resolved JSX motion targets.
+- 2026-09-19 — [ddab99a] — Made worker capability receipts fail closed for new Code Generator work (D-100).
+- 2026-09-19 — [188af32] — Aligned mapped-content validation with generated source and retained bounded repair deltas (D-101).
+- 2026-09-19 — [e713ff2] — Enforced Code Generator handoff, worker, and split preview-origin contracts.
+- 2026-09-19 — [a1f7fde] — Proved generated dependency locks with the exact verification install.
+- 2026-09-19 — [2976b91] — Consolidated deployment documentation and canonical navigation.
 - 2026-09-19 — [87d60a7] — Corrected Code Generator audit confidence and qualified the route-context, Docker-overlay, and Windows process findings.
 - 2026-09-19 — [392277c] — Audited the Code Generator architecture and preview issue surface, preserving the findings for implementation follow-up.
 - 2026-09-18 — [f0b8d7a] — Ran the first live repair campaign attempt, fixed local environment blockers, and documented an evidenced content-generation finding.
