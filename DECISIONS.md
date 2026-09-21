@@ -24,6 +24,24 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-108 - Record the registered production domain
+
+- **Date & Time:** 2026-09-21 17:39 +05:30 - Claude Sonnet 5 (Anthropic)
+- **Status:** decided-implemented
+- **Context:** D-098 deployed the server against the placeholder domain `deploy.me` pending real domain registration. The real domain `oryxenai.me` has since been registered, and Namecheap DNS, Supabase Site/redirect URLs, and the Google OAuth client have all been configured against `app.oryxenai.me` / `preview.oryxenai.me`. No decision entry recorded this switch; only `CHANGES.md`/`docs/project-status.md` carried the fact.
+- **Decision:** `app.oryxenai.me` and `preview.oryxenai.me` are the production hostnames, superseding every `deploy.me` reference in D-098 and any doc still naming that placeholder.
+- **Rejected alternatives:** None — this records an already-made external registration decision so DECISIONS.md stops being the one place that still names the old placeholder.
+- **Consequence:** `config/app.production.toml`, `Caddyfile`, `.env`/`.env.example`, and all deployment docs use the real domain. D-098 is superseded by this entry for the domain identity question; its infrastructure-before-DNS sequencing point still stands.
+
+## D-107 - GitHub Actions CI stays verification-only; Azure deployment stays a manual SSH step
+
+- **Date & Time:** 2026-09-21 17:39 +05:30 - Claude Sonnet 5 (Anthropic)
+- **Status:** decided-implemented
+- **Context:** An earlier pass of this same audit briefly designed and implemented a `deploy` job inside `ci.yml` that would SSH into the Azure VM and run `azure-deploy.sh deploy` automatically once a human approved a GitHub Environment gate. The owner then explicitly corrected that: the intended model is GitHub CI (lint/type/test/build/audit/Docker) with **manual** Azure deployment, not automatic CD of any kind, gated or not. Separately, GitHub-side repository configuration (a selective Actions allowlist, read-only default token permissions, PR restrictions, and a deployment-ci-gate ruleset) was set up directly on GitHub, outside this workflow file.
+- **Decision:** `ci.yml` contains exactly one job (`quality`): lint, type-check, the full test suite, dependency/secret audit, Docker build, and a Compose smoke test. It has no deploy job and touches no Azure credentials. Deploying to the VM means a human (or an agent acting under a human's direct, in-the-moment instruction) runs `./scripts/azure-deploy.sh deploy <exact-sha>` themselves over SSH after confirming the corresponding CI run is green.
+- **Rejected alternatives:** The GitHub-Environment-gated automatic `deploy` job (this repo's own D-107 as first drafted) was implemented and then reverted per the owner's explicit correction — recorded here rather than silently deleted so a future session does not reintroduce it. A `workflow_run`-triggered second workflow was also considered and rejected for the same reason it wasn't wanted in the first place: any GitHub-triggered path to the VM is out of scope right now.
+- **Consequence:** No SSH key or VM coordinates need to exist as GitHub secrets. CI failing or passing is purely a code-quality signal; the decision to deploy a given green commit, and the act of deploying it, both stay entirely manual and outside GitHub Actions.
+
 ## D-106 - Use VM-local persistent storage for the first Azure release
 
 - **Date & Time:** 2026-09-20 22:37 +05:30 - Codex (GPT-5 / OpenAI)

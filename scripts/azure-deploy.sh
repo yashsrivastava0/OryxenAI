@@ -589,6 +589,12 @@ doctor() {
       fi
     done
 
+    value="$(env_value POSTGRES_PASSWORD 2>/dev/null || true)"
+    if [[ "$value" == "oryxenlocal" ]]; then
+      warn "POSTGRES_PASSWORD is still the known .env.example default; set a real password."
+      failures=$((failures + 1))
+    fi
+
     if command -v stat >/dev/null 2>&1; then
       local mode
       mode="$(stat -c '%a' "$ENV_FILE" 2>/dev/null || true)"

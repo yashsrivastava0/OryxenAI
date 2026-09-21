@@ -87,6 +87,10 @@ docstring-code-format = true
 # ----------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.13"
+# Deployment (Docker, CI, production) is always Linux; pin this so a
+# Windows dev machine can't pass locally on a Windows-only stdlib branch
+# (e.g. subprocess.CREATE_NO_WINDOW) that then fails on the Linux CI runner.
+platform = "linux"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true

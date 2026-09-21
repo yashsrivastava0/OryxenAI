@@ -29,7 +29,7 @@ release gates without claiming that live deployment has been performed.
 | Application on Azure | Not deployed | Docker has not been installed on the VM, the repository has not been cloned there, and no container or database migration has run there. |
 | Production auth/domain | DNS ready; auth pending | Namecheap records for `app.oryxenai.me` and `preview.oryxenai.me` resolve to the static VM IP. Supabase/Google production redirects and HTTPS certificate/browser proof remain pending. |
 | Production artifact storage | VM-local storage configured, runtime gate pending | Production Compose now bind-mounts the configurable VM data root, selects local Code Generator artifact/preview providers, initializes non-root ownership, and provides disk/backup/readback checks. Docker runtime, restart/reboot persistence, and Azure acceptance remain unproven. |
-| Release candidate | Selected locally; publication pending | The application release SHA `91f0d187d6de67a6d6db158b70d235cd773b11c4` passed the local release gate. The local `deployment` branch is clean and ahead of `origin/deployment`; publish it before the VM fetches the exact SHA. |
+| Release candidate | Selected locally; publication pending | SHA `91f0d187d6de67a6d6db158b70d235cd773b11c4` passed the local release gate but is now superseded — it is the exact commit that failed the first VM deployment attempt on the npm-toolchain bug fixed in `d60d40b`. Do not deploy `91f0d18`; re-run the full local release gate and use `git log -1 --oneline` on `deployment` for the current verified SHA before deploying. |
 | End-to-end acceptance | Pending | No real Azure run has yet proven Google login → agents → generated artifact → embedded preview → direct preview URL. |
 
 ## What has been implemented

@@ -34,6 +34,15 @@ class ProcessResult:
         return f"{self.stdout}\n{self.stderr}".strip()
 
 
+# subprocess.CREATE_NEW_PROCESS_GROUP/CREATE_NO_WINDOW only exist in typeshed
+# under `if sys.platform == "win32"`. Every use below is already inside a
+# runtime win32 check, but mypy running on Linux (CI) can't see that through
+# an indirect guard like `windows_batch_command` -- getattr keeps the real
+# Windows values while giving Linux-platform mypy a defined, harmless 0.
+_CREATE_NEW_PROCESS_GROUP: int = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+_CREATE_NO_WINDOW: int = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 _ALLOWED_EXECUTABLES = {
     "npm",
     "npm.cmd",
@@ -145,7 +154,7 @@ async def run_command(
     if sys.platform == "win32":
         # New process group so taskkill /T can target the tree; no window so
         # worker-driven npm/node runs never flash consoles.
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+        creationflags = _CREATE_NEW_PROCESS_GROUP | _CREATE_NO_WINDOW
     kwargs: dict[str, Any] = {
         "cwd": str(cwd),
         "env": _safe_environment(environment),
@@ -160,14 +169,14 @@ async def run_command(
     try:
         process = await asyncio.create_subprocess_exec(*command, **kwargs)
     except OSError as exc:
-        if windows_batch_command and creationflags & subprocess.CREATE_NEW_PROCESS_GROUP:
+        if windows_batch_command and creationflags & _CREATE_NEW_PROCESS_GROUP:
             # A worker hosted by another process group can reject the group
             # creation flag with ERROR_ACCESS_DENIED.  The command remains
             # fully allowlisted and CREATE_NO_WINDOW still prevents console
             # UI; retrying without only the optional grouping flag preserves
             # execution while the normal path retains taskkill tree cleanup.
             fallback_kwargs = dict(kwargs)
-            fallback_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+            fallback_kwargs["creationflags"] = _CREATE_NO_WINDOW
             try:
                 process = await asyncio.create_subprocess_exec(*command, **fallback_kwargs)
             except OSError:
@@ -234,7 +243,7 @@ def _run_windows_batch_fallback(
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        creationflags=subprocess.CREATE_NO_WINDOW,
+        creationflags=_CREATE_NO_WINDOW,
     )
     timed_out = False
     try:
