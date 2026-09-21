@@ -38,8 +38,18 @@ claim that the application has been deployed or accepted in production.
 - Existing development URLs were preserved.
 - The page was reloaded and both values remained unchanged; no save was
   required because Supabase reported no unsaved changes.
-- Google provider/client configuration and private VM environment-value entry
-  remain pending.
+
+### Supabase Google provider verified - 2026-09-21
+
+- The Google provider is enabled in the `oxygen-ai-development` Supabase
+  project.
+- The provider callback copied directly from Supabase is
+  `https://diiestlnmpaarhhexwhi.supabase.co/auth/v1/callback`.
+- No provider change was required.
+- This provider callback remains distinct from the OryxenAI application
+  callback, `https://app.oryxenai.me/auth/callback`.
+- Matching Google Cloud OAuth-client configuration and private VM
+  environment-value entry remain pending.
 
 ### Local release gate passed - 2026-09-21
 
