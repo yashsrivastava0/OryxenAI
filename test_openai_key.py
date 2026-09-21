@@ -109,6 +109,7 @@ else:
     print(" [!] OpenAI API Key is VALID (Authentication succeeded).")
     print(" [FAIL] NO CREDITS / BALANCE: Credit balance is EXHAUSTED (Not Recharged).")
     print(" [FAIL] Error: insufficient_quota / credit_balance_exhausted.")
-    print(" -> Please recharge credits at: https://platform.openai.com/settings/organization/billing/")
+    print(
+        " -> Please recharge credits at: https://platform.openai.com/settings/organization/billing/"
+    )
 print("=" * 60)
-

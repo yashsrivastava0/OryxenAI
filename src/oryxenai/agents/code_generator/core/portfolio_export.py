@@ -180,11 +180,7 @@ def build_image_evidence(
     placements = [
         item
         for item in getattr(blueprint, "resource_placements", [])
-        if (
-            is_image_category(bindings.get(str(item.resource_slot_id), ""))
-            if bindings
-            else True
-        )
+        if (is_image_category(bindings.get(str(item.resource_slot_id), "")) if bindings else True)
     ]
     projections_path = run_root / "ledger" / "projections.json"
     projections: dict[str, Any] = {}
@@ -245,9 +241,7 @@ def build_image_evidence(
 
             storage_key = semantic_segment(storage_key or route_id)
         prefix = f"src/routes/{storage_key}/"
-        scoped = "\n".join(
-            text for path, text in source_by_path.items() if path.startswith(prefix)
-        )
+        scoped = "\n".join(text for path, text in source_by_path.items() if path.startswith(prefix))
         return scoped or source_files
 
     entries: list[dict[str, Any]] = []
@@ -272,12 +266,18 @@ def build_image_evidence(
         ]
         browser_checked = bool(observations)
         decoded = (
-            any(item.get("decoded_in_browser", item.get("decoded", False)) is True for item in observations)
+            any(
+                item.get("decoded_in_browser", item.get("decoded", False)) is True
+                for item in observations
+            )
             if browser_checked
             else None
         )
         visible = (
-            any(item.get("visible_in_browser", item.get("visible", False)) is True for item in observations)
+            any(
+                item.get("visible_in_browser", item.get("visible", False)) is True
+                for item in observations
+            )
             if browser_checked
             else None
         )
@@ -304,11 +304,7 @@ def build_image_evidence(
                 "decoded_in_browser": decoded,
                 "visible_in_browser": visible,
                 "browser_evidence_state": (
-                    "verified"
-                    if visible is True
-                    else "failed"
-                    if browser_checked
-                    else "not_run"
+                    "verified" if visible is True else "failed" if browser_checked else "not_run"
                 ),
                 "runtime_observation_count": len(observations),
                 "browser_observations": [
@@ -350,10 +346,7 @@ def build_image_evidence(
             for item in entries
             if not item["materialized"]
             or not item["referenced_in_source"]
-            or (
-                item["runtime_observation_count"] > 0
-                and item["visible_in_browser"] is not True
-            )
+            or (item["runtime_observation_count"] > 0 and item["visible_in_browser"] is not True)
         ),
         "browser_evidence_complete": not entries
         or all(item["runtime_observation_count"] > 0 for item in entries),
@@ -382,9 +375,7 @@ def build_safe_evidence_summary(payload: dict[str, Any]) -> dict[str, Any]:
     raw_terminal = payload.get("terminal_failure")
     terminal = raw_terminal if isinstance(raw_terminal, dict) else {}
     terminal_code = str(terminal.get("code") or terminal.get("terminal_code") or "")
-    terminal_message = str(
-        terminal.get("message") or terminal.get("safe_user_summary") or ""
-    )[:500]
+    terminal_message = str(terminal.get("message") or terminal.get("safe_user_summary") or "")[:500]
     terminal_stage = str(
         terminal.get("stage")
         or terminal.get("phase")
@@ -498,9 +489,7 @@ def _generation_report(payload: dict[str, Any]) -> str:
     # top-level receipt when present.  This keeps the handoff truthful instead
     # of showing ``unknown``/zero for evidence that is already persisted.
     raw_projection = payload.get("generation_projection")
-    generation_evidence: dict[str, Any] = (
-        raw_projection if isinstance(raw_projection, dict) else {}
-    )
+    generation_evidence: dict[str, Any] = raw_projection if isinstance(raw_projection, dict) else {}
     quality = payload.get("quality_review")
     if not isinstance(quality, dict):
         quality = generation_evidence.get("quality_review")
@@ -604,21 +593,13 @@ def _generation_report(payload: dict[str, Any]) -> str:
         # may also provide the smaller stage/code/message shape. Normalize
         # both into the safe report vocabulary.
         terminal_failure = {
-            "stage": str(
-                terminal_failure.get("stage")
-                or terminal_failure.get("phase")
-                or ""
-            ),
+            "stage": str(terminal_failure.get("stage") or terminal_failure.get("phase") or ""),
             "phase": str(terminal_failure.get("phase") or terminal_failure.get("stage") or ""),
             "code": str(
-                terminal_failure.get("code")
-                or terminal_failure.get("terminal_code")
-                or ""
+                terminal_failure.get("code") or terminal_failure.get("terminal_code") or ""
             ),
             "message": str(
-                terminal_failure.get("message")
-                or terminal_failure.get("safe_user_summary")
-                or ""
+                terminal_failure.get("message") or terminal_failure.get("safe_user_summary") or ""
             ),
         }
     elif pipeline_issues:
@@ -736,11 +717,11 @@ def _generation_report(payload: dict[str, Any]) -> str:
             else "- Generation evidence: `none recorded`"
         ),
         (
-        f"- Generation attempts: `{len(generation_evidence.get('attempt_records', []))}`; "
-        f"context receipts: `{len(generation_evidence.get('context_receipts', []))}`; "
-        f"call receipts: `{len(generation_evidence.get('call_receipts', []))}`; "
-        f"diagnostic history: `{len(generation_evidence.get('diagnostic_history', []))}`; "
-        f"request rounds: `{generation_evidence.get('request_rounds', 0)}`; "
+            f"- Generation attempts: `{len(generation_evidence.get('attempt_records', []))}`; "
+            f"context receipts: `{len(generation_evidence.get('context_receipts', []))}`; "
+            f"call receipts: `{len(generation_evidence.get('call_receipts', []))}`; "
+            f"diagnostic history: `{len(generation_evidence.get('diagnostic_history', []))}`; "
+            f"request rounds: `{generation_evidence.get('request_rounds', 0)}`; "
             f"repair rounds: `{generation_evidence.get('repair_rounds', 0)}`"
             if generation_evidence
             else "- Generation ledger: `none recorded`"
@@ -873,7 +854,9 @@ def build_export_receipt(exported: Path) -> dict[str, Any]:
     is, instead of only existing on disk with nothing pointing at it."""
 
     try:
-        relative_export_path = exported.resolve().relative_to(repository_root().resolve()).as_posix()
+        relative_export_path = (
+            exported.resolve().relative_to(repository_root().resolve()).as_posix()
+        )
     except ValueError:
         relative_export_path = exported.name
     return {

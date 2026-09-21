@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 import time
 from collections.abc import Iterator
@@ -18,8 +19,18 @@ VIEWPORTS = [(1536, 695), (1366, 768), (768, 1024), (390, 844)]
 
 @pytest.fixture(scope="module")
 def browser_page() -> Iterator[object]:
-    server = subprocess.Popen(
-        ["node", "node_modules/vite/bin/vite.js", "--config", "vite.browser-test.config.ts"],
+    node_executable = shutil.which("node")
+    if node_executable is None:
+        pytest.skip("Node.js is required for the browser remediation fixture")
+    # The executable is resolved from PATH and the script/config are checked-in
+    # repository files owned by this test fixture.
+    server = subprocess.Popen(  # noqa: S603
+        [
+            node_executable,
+            "node_modules/vite/bin/vite.js",
+            "--config",
+            "vite.browser-test.config.ts",
+        ],
         cwd=FRONTEND_ROOT,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
@@ -59,7 +70,9 @@ def assert_no_horizontal_overflow(page: object) -> None:
 
 
 @pytest.mark.parametrize("width,height", VIEWPORTS)
-def test_required_viewports_keep_stage_actions_visible(browser_page: object, width: int, height: int) -> None:
+def test_required_viewports_keep_stage_actions_visible(
+    browser_page: object, width: int, height: int
+) -> None:
     page = browser_page
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=content-review", wait_until="networkidle")
@@ -98,7 +111,9 @@ def test_approved_artifact_exposes_a_separate_destination_start(browser_page: ob
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=content-approved", wait_until="networkidle")
     assert page.get_by_role("button", name="Start Visual Design Director").is_visible()
-    assert page.get_by_text("Approval is saved. Start the next stage when you are ready.").is_visible()
+    assert page.get_by_text(
+        "Approval is saved. Start the next stage when you are ready."
+    ).is_visible()
     assert page.get_by_role("button", name="Approve content plan").count() == 0
 
 
@@ -112,7 +127,9 @@ def test_preparation_is_metadata_only_and_inspector_is_closed(browser_page: obje
     assert page.locator("#output-inspector-drawer").count() == 0
 
 
-def test_generation_working_uses_human_milestones_and_attention_preserves_preview(browser_page: object) -> None:
+def test_generation_working_uses_human_milestones_and_attention_preserves_preview(
+    browser_page: object,
+) -> None:
     page = browser_page
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=generation-working", wait_until="networkidle")
@@ -133,7 +150,9 @@ def test_generation_working_uses_human_milestones_and_attention_preserves_previe
 
 
 @pytest.mark.parametrize("width,height", VIEWPORTS)
-def test_generation_preview_is_truthful_and_contained(browser_page: object, width: int, height: int) -> None:
+def test_generation_preview_is_truthful_and_contained(
+    browser_page: object, width: int, height: int
+) -> None:
     page = browser_page
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
@@ -178,7 +197,9 @@ def test_generation_candidate_is_never_presented_as_verified(browser_page: objec
     assert page.get_by_text("Open verified preview", exact=True).count() == 0
 
 
-def test_generation_direct_fixture_requires_an_explicit_standalone_run(browser_page: object) -> None:
+def test_generation_direct_fixture_requires_an_explicit_standalone_run(
+    browser_page: object,
+) -> None:
     page = browser_page
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=generation-direct", wait_until="networkidle")

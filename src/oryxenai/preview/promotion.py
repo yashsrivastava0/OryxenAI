@@ -54,9 +54,7 @@ def preview_urls(config: Any) -> tuple[str, str]:
         or getattr(config, "preview_base_url", "")
         or "http://127.0.0.1:4174/preview"
     ).rstrip("/")
-    verifier = str(
-        getattr(config, "preview_verifier_base_url", "") or browser
-    ).rstrip("/")
+    verifier = str(getattr(config, "preview_verifier_base_url", "") or browser).rstrip("/")
     return browser, verifier
 
 

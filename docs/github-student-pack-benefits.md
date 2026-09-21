@@ -232,6 +232,7 @@ flowchart TB
 - Install `sentry-sdk` in OryxenAI:
   ```python
   import sentry_sdk
+
   sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=1.0)
   ```
 - Install the Datadog agent on your Dynos or configure Honeybadger to monitor the worker heartbeat in `src/oryxenai/jobs/worker.py`. If a worker stops claiming jobs, Honeybadger alerts you via email/Slack immediately.

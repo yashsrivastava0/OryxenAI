@@ -178,7 +178,9 @@ async def test_session_start_rejects_ready_briefs_when_approved_upstream_changed
                 )
             )
 
-    monkeypatch.setattr(code_generator_service_module, "BuildPreparationInputIntegrator", _Integrator)
+    monkeypatch.setattr(
+        code_generator_service_module, "BuildPreparationInputIntegrator", _Integrator
+    )
     service = CodeGeneratorService(repository, _Jobs(), Settings())  # type: ignore[arg-type]
 
     with pytest.raises(code_generator_service_module.CodeGeneratorOperationError) as exc_info:

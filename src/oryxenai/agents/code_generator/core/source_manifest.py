@@ -323,7 +323,9 @@ def _materialize_image_assets(
                     (
                         [str(placement.get("section_id", ""))]
                         if placement.get("section_id")
-                        else [str(item) for item in execution_slot.get("section_ids", []) if str(item)]
+                        else [
+                            str(item) for item in execution_slot.get("section_ids", []) if str(item)
+                        ]
                     ),
                     acquired_sources,
                     placement_by_slot.get(resource_id),

@@ -52,7 +52,7 @@ async def test_full_worker_flow_with_mock_client(db_session, monkeypatch) -> Non
     )
     await db_session.commit()
     assert started["discovery"]["status"] == "questions_queued"
-    assert started["discovery"]["max_attempts"] == 3
+    assert started["discovery"]["max_attempts"] == 2
 
     question_job = await JobService(db_session).get(
         UUID(started["discovery"]["operation_a"]["job_id"])

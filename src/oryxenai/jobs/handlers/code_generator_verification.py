@@ -1378,9 +1378,7 @@ async def _store_unverified_candidate(
         if storage_factory is not None
         else create_preview_storage(settings)
     )
-    preview_browser_url, preview_verifier_url = preview_urls(
-        settings.code_generator_verification
-    )
+    preview_browser_url, preview_verifier_url = preview_urls(settings.code_generator_verification)
     promoter = PreviewPromoter(
         storage,
         preview_base_url=preview_browser_url,

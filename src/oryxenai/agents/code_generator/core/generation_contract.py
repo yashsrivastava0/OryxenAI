@@ -398,9 +398,7 @@ def build_generation_contract(
     )
     scoped_route_ids = set(scope) if scope else None
     scoped_section_ids = (
-        set(unit.section_ids)
-        if unit is not None and unit.kind == "route_batch"
-        else None
+        set(unit.section_ids) if unit is not None and unit.kind == "route_batch" else None
     )
     layout_recipes = (
         layout_recipe_context(

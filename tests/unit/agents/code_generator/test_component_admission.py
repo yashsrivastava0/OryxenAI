@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from tests.unit.agents.code_generator.test_acquisition_validators import _request
 
 from oryxenai.agents.code_generator.core import component_admission
 from oryxenai.agents.code_generator.core.component_admission import (
@@ -18,6 +17,7 @@ from oryxenai.agents.code_generator.core.development_schemas import (
     ResourceCandidate,
 )
 from oryxenai.agents.code_generator.core.process_runner import ProcessResult
+from tests.unit.agents.code_generator.test_acquisition_validators import _request
 
 
 def _settings(tmp_path: Path, *, use_real_typecheck: bool = False) -> SimpleNamespace:

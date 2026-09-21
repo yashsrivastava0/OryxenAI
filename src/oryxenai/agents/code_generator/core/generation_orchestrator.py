@@ -1944,9 +1944,7 @@ class CodeGeneratorGenerationOrchestrator:
                     rejected_attempt_files = dict(pending_files)
                     with contextlib.suppress(GenerationError):
                         rejected_attempt_files.update(
-                            _pending_rejected_files_from_ledger(
-                                workspace, unit_projection
-                            )
+                            _pending_rejected_files_from_ledger(workspace, unit_projection)
                         )
                 _record_pending_diagnostics(
                     workspace,

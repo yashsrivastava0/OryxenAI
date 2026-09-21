@@ -45,9 +45,10 @@ def test_route_scoped_diagnostic_with_no_file_still_gets_real_source(tmp_path: P
     assert "src/routes/home-4ea140588150/index.tsx" in bundle.bounded_related_source
     assert "src/routes/home-4ea140588150/route.css" in bundle.bounded_related_source
     assert "src/routes/home-4ea140588150/sections/hero.tsx" in bundle.bounded_related_source
-    assert "export default function Home" in bundle.bounded_related_source[
-        "src/routes/home-4ea140588150/index.tsx"
-    ]
+    assert (
+        "export default function Home"
+        in bundle.bounded_related_source["src/routes/home-4ea140588150/index.tsx"]
+    )
 
 
 def test_expansion_never_escapes_the_allowed_directory(tmp_path: Path) -> None:

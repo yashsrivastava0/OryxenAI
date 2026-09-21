@@ -179,9 +179,7 @@ def test_identity_validator_accepts_grounded_technical_title_case_phrases() -> N
             "site_title": "Maya Bennett - Endpoint Engineering",
         },
         "visual_director_handoff": {
-            "must_preserve_facts": (
-                "Microsoft Certified Endpoint Administrator Associate (2024)."
-            ),
+            "must_preserve_facts": ("Microsoft Certified Endpoint Administrator Associate (2024)."),
             "diagram_process_visual_opportunities": (
                 "Intune Autopilot -> Entra ID Join -> PowerShell Remediation "
                 "& App Packaging -> Compliance Validation"

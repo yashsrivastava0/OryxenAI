@@ -94,11 +94,7 @@ def test_route_scoped_diagnostic_prefers_canonical_plan_storage_key() -> None:
     paths = repair_allowed_paths(
         [_diagnostic(route_id="home")],
         plan,
-        {
-            "site/contract.json": {
-                "routes": [{"route_id": "home", "storage_key": "routes/home"}]
-            }
-        },
+        {"site/contract.json": {"routes": [{"route_id": "home", "storage_key": "routes/home"}]}},
     )
 
     assert paths == ["src/routes/home-4ea14058/**"]
