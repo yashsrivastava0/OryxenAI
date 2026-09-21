@@ -6,6 +6,19 @@
 
 ---
 
+## Activation record — 2026-09-21
+
+The primary domain was claimed through the Namecheap GitHub Student Developer
+Pack offer and recorded from the owner's account dashboard:
+
+- **Primary domain:** `oryxenai.me`
+- **Application hostname:** `app.oryxenai.me`
+- **Preview hostname:** `preview.oryxenai.me`
+- **Domain expiration/renewal date:** `2027-09-21`
+- **Current status:** Domain registration is complete. DNS records, Supabase
+  production URLs, Google OAuth production settings, Caddy HTTPS issuance, and
+  Azure deployment remain pending.
+
 ## Table of Contents
 1. [Executive Summary: OryxenAI Zero-Cost Production Stack](#1-executive-summary-oryxenai-zero-cost-production-stack)
 2. [The 5-User Footprint & Zero-Cost Sizing Strategy](#2-the-5-user-footprint--zero-cost-sizing-strategy)
