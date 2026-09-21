@@ -1434,9 +1434,9 @@ class SectionRegionV4(BaseModel):
     width_ratio_max: float = Field(default=1.0, gt=0, le=1)
     overlap_ratio_max: float = Field(default=0.0, ge=0, le=0.75)
     sticky_allowed: bool = False
-    layout_recipe: Literal[
-        "text-with-supporting-media", "work-detail-list", "timeline-list"
-    ] = "text-with-supporting-media"
+    layout_recipe: Literal["text-with-supporting-media", "work-detail-list", "timeline-list"] = (
+        "text-with-supporting-media"
+    )
 
     @model_validator(mode="after")
     def _geometry_range(self) -> SectionRegionV4:
@@ -1614,9 +1614,7 @@ class ImagePolicySnapshotV1(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal["code-generator-image-policy-v1"] = (
-        "code-generator-image-policy-v1"
-    )
+    schema_version: Literal["code-generator-image-policy-v1"] = "code-generator-image-policy-v1"
     minimum_visible_images: int = Field(default=0, ge=0, le=24)
     preferred_visible_images: int = Field(default=0, ge=0, le=48)
     require_primary_route_image: bool = False
@@ -1993,9 +1991,9 @@ class RegionRuntimeCheckV1(BaseModel):
     width_ratio_max: float
     overlap_ratio_max: float
     sticky_allowed: bool
-    layout_recipe: Literal[
-        "text-with-supporting-media", "work-detail-list", "timeline-list"
-    ] = "text-with-supporting-media"
+    layout_recipe: Literal["text-with-supporting-media", "work-detail-list", "timeline-list"] = (
+        "text-with-supporting-media"
+    )
 
 
 class DistinctiveMoveRuntimeCheckV1(BaseModel):

@@ -59,9 +59,9 @@ def test_legacy_static_pipeline_shell_is_not_tracked() -> None:
 
 
 def test_product_frontend_is_the_checked_in_preact_source() -> None:
-    source = (
-        Path(__file__).resolve().parents[2] / "frontend" / "src" / "main.tsx"
-    ).read_text(encoding="utf-8")
+    source = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "main.tsx").read_text(
+        encoding="utf-8"
+    )
     assert "export function boot" in source
     assert "export function stop" in source
     assert "export function restart" in source

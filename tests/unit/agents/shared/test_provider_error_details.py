@@ -68,9 +68,11 @@ async def test_openai_compatible_parse_failure_retains_provider_usage() -> None:
     client.chat.completions.create = AsyncMock(return_value=response)
     adapter = OpenCodeGoAdapter(_profile())
 
-    with patch.dict("os.environ", {"TEST_PROVIDER_KEY": "test-key"}), patch.object(
-        adapter, "_build_client", return_value=client
-    ), pytest.raises(ModelJsonInvalidError) as caught:
+    with (
+        patch.dict("os.environ", {"TEST_PROVIDER_KEY": "test-key"}),
+        patch.object(adapter, "_build_client", return_value=client),
+        pytest.raises(ModelJsonInvalidError) as caught,
+    ):
         await adapter.generate_structured(
             operation="test.operation",
             instructions="Return JSON.",

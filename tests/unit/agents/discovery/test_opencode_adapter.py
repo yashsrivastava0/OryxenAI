@@ -952,7 +952,9 @@ class TestOpenCodeGoAdapterRequestContext:
                 )
             )
         messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
-        untrusted = next(m["content"] for m in messages if m["content"].startswith("<untrusted_input"))
+        untrusted = next(
+            m["content"] for m in messages if m["content"].startswith("<untrusted_input")
+        )
         assert untrusted.index('"alpha"') < untrusted.index('"middle"') < untrusted.index('"zebra"')
 
     def test_key_order_moves_listed_keys_first(self, monkeypatch):
@@ -978,7 +980,9 @@ class TestOpenCodeGoAdapterRequestContext:
                 )
             )
         messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
-        untrusted = next(m["content"] for m in messages if m["content"].startswith("<untrusted_input"))
+        untrusted = next(
+            m["content"] for m in messages if m["content"].startswith("<untrusted_input")
+        )
         assert untrusted.index('"zebra"') < untrusted.index('"middle"') < untrusted.index('"alpha"')
 
     def test_key_order_two_calls_share_identical_stable_prefix(self, monkeypatch):
@@ -1008,7 +1012,9 @@ class TestOpenCodeGoAdapterRequestContext:
                     )
                 )
             messages = mock_client.chat.completions.create.call_args.kwargs["messages"]
-            return next(m["content"] for m in messages if m["content"].startswith("<untrusted_input"))
+            return next(
+                m["content"] for m in messages if m["content"].startswith("<untrusted_input")
+            )
 
         first = _run("call-one")
         second = _run("call-two")

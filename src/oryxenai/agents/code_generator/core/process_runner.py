@@ -67,8 +67,7 @@ def resolve_npm_executable(settings: Any) -> str:
     """Resolve the package manager exactly as worker subprocesses do."""
 
     configured = str(
-        getattr(getattr(settings, "code_generator_dependencies", None), "npm_executable", "")
-        or ""
+        getattr(getattr(settings, "code_generator_dependencies", None), "npm_executable", "") or ""
     ).strip()
     candidate = configured or "npm"
     return shutil.which(candidate) or (candidate if configured else "")

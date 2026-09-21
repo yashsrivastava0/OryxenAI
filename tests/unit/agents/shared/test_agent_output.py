@@ -63,9 +63,7 @@ async def test_public_discovery_outputs_keeps_both_operation_envelopes() -> None
         questions_id: SimpleNamespace(
             status="succeeded", output_payload={"mode": "ask_questions", "new": ["x"]}
         ),
-        brief_id: SimpleNamespace(
-            status="succeeded", output_payload={"brief_markdown": "# Brief"}
-        ),
+        brief_id: SimpleNamespace(status="succeeded", output_payload={"brief_markdown": "# Brief"}),
     }
 
     async def loader(identifier: UUID) -> object | None:

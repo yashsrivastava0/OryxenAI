@@ -29,6 +29,14 @@ from uuid import uuid4
 
 import pytest
 
+from oryxenai.agents.code_generator.service import (
+    _STAGE_ORDER,
+    CodeGeneratorService,
+    _compute_stage_estimate,
+)
+from oryxenai.agents.code_generator.session_schemas import CodeGeneratorSessionState
+from oryxenai.core.settings import Settings, get_settings
+
 # Reuses this sibling test module's own fake repository/jobs/fixture helpers
 # (`_Repository`, `_Jobs`, `_ready_preparation`) rather than re-declaring an
 # equivalent fake, matching this codebase's existing convention of one
@@ -38,14 +46,6 @@ from tests.unit.agents.code_generator.test_session_service import (
     _ready_preparation,
     _Repository,
 )
-
-from oryxenai.agents.code_generator.service import (
-    _STAGE_ORDER,
-    CodeGeneratorService,
-    _compute_stage_estimate,
-)
-from oryxenai.agents.code_generator.session_schemas import CodeGeneratorSessionState
-from oryxenai.core.settings import Settings, get_settings
 
 
 def _configured_budget_ms(kind: str) -> float:

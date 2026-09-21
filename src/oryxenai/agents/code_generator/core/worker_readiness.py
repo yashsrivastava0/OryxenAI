@@ -55,10 +55,7 @@ async def worker_contract_readiness(repository: Any, settings: Any) -> dict[str,
                     60.0,
                 )
             ),
-            float(
-                getattr(getattr(settings, "worker", None), "heartbeat_interval", 30.0)
-            )
-            * 2,
+            float(getattr(getattr(settings, "worker", None), "heartbeat_interval", 30.0)) * 2,
         )
     except (TypeError, ValueError):
         stale_after = 60.0
@@ -81,9 +78,7 @@ async def worker_contract_readiness(repository: Any, settings: Any) -> dict[str,
                 "instance_id": str(getattr(row, "instance_id", "")),
                 "release_id": str(metadata.get("release_id", "")),
                 "pipeline_contract_version": str(metadata.get("pipeline_contract_version", "")),
-                "code_generator_capability": bool(
-                    metadata.get("code_generator_capability", False)
-                ),
+                "code_generator_capability": bool(metadata.get("code_generator_capability", False)),
                 "code_generator_toolchain": {
                     "node": bool(toolchain.get("node", False)),
                     "npm": bool(toolchain.get("npm", False)),
@@ -102,8 +97,7 @@ async def worker_contract_readiness(repository: Any, settings: Any) -> dict[str,
     capability_ready = [
         worker
         for worker in compatible
-        if worker["code_generator_capability"]
-        and all(worker["code_generator_toolchain"].values())
+        if worker["code_generator_capability"] and all(worker["code_generator_toolchain"].values())
     ]
     blocker = ""
     if not active_workers:

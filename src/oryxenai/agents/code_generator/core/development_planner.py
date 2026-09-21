@@ -234,7 +234,7 @@ def _blueprint_selector_manifest(site_contract: dict[str, Any]) -> list[dict[str
             "route_id": str(item["route_id"]),
             "section_id": str(item["section_id"]),
             "section_selector": f"#{_section_anchor(str(item['section_id']))}",
-            "region_selector": f"[data-region-id=\"{item['region_id']}\"]",
+            "region_selector": f'[data-region-id="{item["region_id"]}"]',
         }
         for item in _blueprint_identity_manifest(site_contract)
     ]

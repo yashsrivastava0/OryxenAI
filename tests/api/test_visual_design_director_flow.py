@@ -277,9 +277,7 @@ class TestFullHttpFlow:
         assert started.status_code == 202, started.text
         job_id = started.json()["visual_design_director"]["job_id"]
 
-        stopped = await client.post(
-            f"/api/v1/sessions/{sid}/visual-design-director/stop", json={}
-        )
+        stopped = await client.post(f"/api/v1/sessions/{sid}/visual-design-director/stop", json={})
         assert stopped.status_code == 200, stopped.text
         body = stopped.json()
         assert body["visual_design_director"]["status"] == "needs_attention"

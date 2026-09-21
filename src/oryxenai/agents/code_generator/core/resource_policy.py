@@ -23,7 +23,12 @@ def normalize_resource_category(value: object) -> str:
     raw = " ".join(str(value or "").casefold().replace("_", " ").split())
     if raw in {"photo", "editorial photo", "image", "images"}:
         return "image"
-    if raw in {"illustration", "illustrations", "abstract illustration", "abstract systems illustration"}:
+    if raw in {
+        "illustration",
+        "illustrations",
+        "abstract illustration",
+        "abstract systems illustration",
+    }:
         return "illustration"
     if raw in {"texture", "textures", "surface texture"}:
         return "texture"

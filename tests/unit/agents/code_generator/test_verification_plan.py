@@ -210,7 +210,9 @@ def test_release_profile_filters_inherited_mobile_viewports() -> None:
         }
         release_viewport_profiles: ClassVar[list[str]] = ["desktop", "laptop"]
 
-    profile = build_verification_profile(type("Settings", (), {"code_generator_verification": Config()})())
+    profile = build_verification_profile(
+        type("Settings", (), {"code_generator_verification": Config()})()
+    )
     assert set(profile.viewport_profiles) == {"desktop", "laptop"}
 
     identity = CandidateIdentity(

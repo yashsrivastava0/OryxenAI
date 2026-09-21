@@ -615,9 +615,7 @@ export default function Featured() {{
         [path],
         route_id="home",
         section_ids=["home:featured"],
-        content_ids_by_section={
-            "home:featured": [expected_name, expected_tag, expected_body]
-        },
+        content_ids_by_section={"home:featured": [expected_name, expected_tag, expected_body]},
         section_selectors_by_section={"home:featured": "#featured"},
         work_unit_id="route-home-batch-1",
     )
@@ -638,7 +636,7 @@ def test_route_batch_contract_accepts_indexed_tuple_maps(tmp_path) -> None:
         "content:home:experience:role-456789ab",
     ]
     (tmp_path / path).write_text(
-        f'''const contentValue = (key: string) => key;
+        f"""const contentValue = (key: string) => key;
 const entries = [[{", ".join(f'"{value}"' for value in values)}]] as const;
 export default function Experience() {{
   return <section id="experience" data-content-id="home:experience">
@@ -650,7 +648,7 @@ export default function Experience() {{
     </article>)}}
   </section>;
 }}
-''',
+""",
         encoding="utf-8",
     )
 
@@ -1025,10 +1023,14 @@ def test_route_batch_allows_visible_duplicate_or_planned_disclosure_content(tmp_
         for item in validate_route_batch_contract(tmp_path, [path], **common)
     )
 
-    planned = (tmp_path / path).read_text(encoding="utf-8").replace(
-        '<Disclosure label="Read leadership context">',
-        '<Disclosure label="Read leadership context" '
-        'data-interaction-id="interaction:home:experience:leadership">',
+    planned = (
+        (tmp_path / path)
+        .read_text(encoding="utf-8")
+        .replace(
+            '<Disclosure label="Read leadership context">',
+            '<Disclosure label="Read leadership context" '
+            'data-interaction-id="interaction:home:experience:leadership">',
+        )
     )
     (tmp_path / path).write_text(planned, encoding="utf-8")
     common["interaction_ids"] = ["interaction:home:experience:leadership"]
@@ -1349,15 +1351,11 @@ export default function SelectedWork() {
         ]
     )
     assert normalize_route_batch_motion_changes(changes, motion_beats=beats)
-    sources = {
-        change.path: change.complete_utf8_content for change in changes.files
-    }
+    sources = {change.path: change.complete_utf8_content for change in changes.files}
     assert "fiftych" not in sources["src/routes/home/sections/Hero.css"]
     assert "max-width: 50ch" in sources["src/routes/home/sections/Hero.css"]
     assert "max-width: 65ch" in sources["src/routes/home/sections/Hero.css"]
-    assert '#hero [data-motion="hero-text"] {}' in sources[
-        "src/routes/home/sections/Hero.css"
-    ]
+    assert '#hero [data-motion="hero-text"] {}' in sources["src/routes/home/sections/Hero.css"]
     selected_source = sources["src/routes/home/sections/SelectedWork.tsx"]
     assert "useEffect" in selected_source
     assert "IntersectionObserver" in selected_source

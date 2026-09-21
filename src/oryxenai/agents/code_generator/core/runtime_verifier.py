@@ -1557,9 +1557,7 @@ class RuntimeVerifier:
                         )
                     )
                 else:
-                    matches_after = expected_after in str(
-                        after.get(expectation.property_name, "")
-                    )
+                    matches_after = expected_after in str(after.get(expectation.property_name, ""))
                 if not changed and motion.trigger not in {"load", "viewport"}:
                     result["violations"].append(
                         {
