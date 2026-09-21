@@ -38,6 +38,18 @@ claim that the application has been deployed or accepted in production.
   free space, SSH connectivity, Docker setup, application deployment, and
   runtime acceptance remain deployment-side checks.
 
+### SSH connectivity and guest disk verification — 2026-09-21
+
+- Read-only SSH connectivity succeeded to `20.235.74.81` using the
+  operator-supplied Ed25519 key; the VM identified itself as
+  `oryxenai-demo-vm`.
+- The authenticated Linux user was `oryxenaiadmin`.
+- Guest root storage reported 61 GiB total, 2.0 GiB used, 60 GiB available,
+  and 4% usage on `/`; this satisfies the configured storage thresholds.
+- Docker was not installed yet. VM repository setup, Docker installation,
+  production configuration, deployment, and acceptance remain pending.
+- No private-key contents or credential values were recorded.
+
 ### Namecheap DNS — completed
 
 - Registrar/DNS host: Namecheap BasicDNS; Namecheap is authoritative for
