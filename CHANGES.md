@@ -11,6 +11,36 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-21 - Claude Sonnet 5 (Anthropic) - [3615b35] - Close CI/security gaps found in production readiness audit
+
+Independent audit (deployment/infra, CI/testing, auth/security) found and
+fixed: the real mypy CI blocker (Windows-only `subprocess.CREATE_NO_WINDOW`/
+`CREATE_NEW_PROCESS_GROUP` type-check on Windows dev machines but not on
+Linux CI; pinned `mypy platform = "linux"` plus getattr-guarded the 3 call
+sites in `process_runner.py`), and a latent test-isolation bug (`ci.yml` set
+`OryxenAI_CONFIG_OVERLAY` job-wide, silently breaking plain unit tests that
+assert `config/app.toml` defaults; scoped it to only the migration step,
+letting the existing autouse fixture handle integration/worker tests).
+Also added Caddy-edge HSTS/security headers, removed the working weak
+`POSTGRES_PASSWORD` default from `.env.example` (with a `doctor()` check),
+added a minimal per-IP rate limiter plus the `--proxy-headers` fix it needs
+to see real client IPs behind Caddy, noindex-tagged the auth shells, wired
+frontend lint/typecheck/Vitest/build into CI, and corrected the stale
+pre-npm-fix release SHA in `docs/project-status.md`. A GitHub-Environment-
+gated automatic-deploy CI job was built, then reverted per explicit
+correction mid-session: the intended model is GitHub CI (verification only)
+with Azure deployment staying a manual SSH step — recorded as D-107/D-108.
+Confirmed via the GitHub UI that this fix targets the actual latest failing
+CI run (#10 on `3994513`) line-for-line, and that the existing Actions
+allowlist/ruleset (`deployment-ci-gate`, PR-required, no bypass) already
+covers every action this workflow uses. Local verification: ruff, ruff
+format, mypy (both platform assumptions), full pytest (1438 tests, run in
+memory-safe batches), frontend typecheck/Vitest (144 tests)/build, Docker
+build, and production Compose config validation all passed; the dev-compose
+container smoke test was blocked only by a local port conflict (5544, this
+machine's native Postgres), not a real issue. `PLAN.MD` was left untouched —
+it has unrelated in-progress edits from another session.
+
 ### 2026-09-21 - Codex (GPT-5) - [d60d40b] - Fix production npm runtime toolchain
 
 The first Azure deployment built the image but failed during offline npm-cache
