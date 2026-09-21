@@ -84,16 +84,18 @@ COPY --chown=oryxen:oryxen alembic.ini ./
 COPY --chown=oryxen:oryxen scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 COPY --chown=oryxen:oryxen scripts/warm-npm-cache.sh ./scripts/warm-npm-cache.sh
 
-# Named preview/image-cache volumes are mounted over these paths at runtime.
-# Seed them with the worker's ownership so Docker's first volume copy-up does
-# not leave the non-root worker unable to promote a verified candidate.
+# VM-local bind mounts are mounted over these paths at runtime. Keep the image
+# paths initialized for local runs and make every application-owned path
+# writable by the non-root worker before the bind mounts are attached.
 RUN sed -i 's/\r$//' ./scripts/docker-entrypoint.sh \
     && mkdir -p /app/.workspace/code-generator-preview /app/.workspace/image-search-cache \
         /app/.workspace/code-generator-development /app/.workspace/code-generator-materials \
         /app/.workspace/code-generator-generation /app/.workspace/code-generator-checkpoints \
         /app/.workspace/code-generator-workspaces /app/.workspace/code-generator-artifacts \
-        /app/.workspace/npm-cache \
+        /app/.workspace/build-preparation-staging /app/.workspace/npm-cache \
+        /app/output/code-gen-output \
     && chown -R oryxen:oryxen /app/.workspace \
+        /app/output \
     && chmod +x ./scripts/docker-entrypoint.sh ./scripts/warm-npm-cache.sh
 
 USER oryxen

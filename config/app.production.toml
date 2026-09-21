@@ -28,12 +28,20 @@ concurrency = 1
 cache_root = "/app/.workspace/image-search-cache"
 
 [artifact_storage]
-provider = "r2_s3"
-endpoint_url = "https://<ACCOUNT_ID>.r2.cloudflarestorage.com"
-bucket = "<R2_BUCKET>"
-region = "auto"
+# The current production handoff is the approved Markdown brief pair and does
+# not create a generic Build Preparation object. Keep this legacy boundary
+# explicitly non-cloud so no object-store credentials are required at boot. The
+# generic ArtifactStore has no local_fs implementation yet; any legacy state
+# containing an ArtifactReference must therefore be treated as a release
+# blocker instead of being silently redirected to an in-memory store.
+provider = "local_fs"
+endpoint_url = ""
+bucket = ""
+region = ""
 prefix = "temporary"
-require_lifecycle = true
+require_lifecycle = false
+access_key_env = ""
+secret_key_env = ""
 
 [build_preparation]
 fixture_enabled = false
@@ -53,6 +61,8 @@ planner_max_attempts = 2
 materials_root = "/app/.workspace/code-generator-materials"
 
 [code_generator_generation]
+artifact_store_provider = "local_fs"
+artifact_root = "/app/.workspace/code-generator-artifacts"
 workspace_root = "/app/.workspace/code-generator-generation"
 checkpoint_root = "/app/.workspace/code-generator-checkpoints"
 typecheck_command = ["npm", "run", "typecheck"]
@@ -83,6 +93,7 @@ preview_host = "0.0.0.0"
 preview_port = 4174
 preview_parent_origin = "https://<APP_HOST>"
 preview_embed_origins = ["https://<APP_HOST>"]
-preview_storage_provider = "artifact_storage"
+preview_storage_provider = "local_fs"
 preview_storage_prefix = "preview"
 preview_public_readback_required = true
+export_root = "/app/output/code-gen-output"

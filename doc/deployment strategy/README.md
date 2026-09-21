@@ -58,8 +58,8 @@ release blocker rather than silently claiming VM storage is complete.
 | Deployment tooling | `scripts/azure-deploy.sh`, production Compose, Caddy, migrations, health checks, backup, and rollback paths exist. | Run setup and deploy a clean release SHA. |
 | Production configuration | `config/app.production.toml` is a template; the ignored local production overlay is rendered from VM-local values. | Create a fresh VM `.env` and render the overlay. |
 | Authentication | Supabase Google-only auth, admission, ownership, and admin controls exist. | Configure production origins and complete browser acceptance. |
-| Artifact and preview storage | VM-local persistent Docker-backed storage is selected for the first release. | Configure the local-filesystem providers, shared volumes, ownership, disk checks, backup/restore, restart survival, and preview readback. |
-| Release | The current worktree contains unrelated uncommitted Code Generator/frontend work and untracked tool artifacts. | Reconcile contributors, run checks, and select one clean SHA. |
+| Artifact and preview storage | VM-local persistent Docker-backed storage is selected and locally verified for the first release. | Run the same storage gates on the target Azure VM and record the resulting release evidence. |
+| Release | Storage hardening is locally committed; Azure deployment and acceptance have not run. | Review the exact SHA, obtain owner approval, and complete the live deployment/acceptance gates. |
 
 The last documented live VM confirmation is historical; it is not proof that
 the VM is currently running. The current local `.env` is also not a production
@@ -116,6 +116,10 @@ the first manual release works.
 - [Beginner runbook](runbook.md) — the ordered deployment procedure.
 - [Operations guide](operations.md) — updates, backups, costs, rollback, and AI assistance.
 - [Research sources](research-sources.md) — first-party external guidance reviewed for this strategy.
+
+The [VM-local storage runbook](../../docs/deployment/vm-local-storage-runbook.md)
+is the operator reference for bind paths, ownership, capacity, retention,
+backup/restore, and reboot persistence checks.
 
 ## Repository sources of truth
 

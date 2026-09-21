@@ -15,8 +15,18 @@ PRODUCTION_TEMPLATE="$REPO_ROOT/config/app.production.toml"
 PRODUCTION_LOCAL="$REPO_ROOT/config/app.production.local.toml"
 STATE_DIR="$REPO_ROOT/.workspace/azure-deploy"
 STATE_FILE="$STATE_DIR/state.env"
-BACKUP_DIR="${ORYXENAI_BACKUP_DIR:-$HOME/oryxenai-backups}"
 DEFAULT_BRANCH="codex/code-generator-control-room"
+DEFAULT_DATA_ROOT="/srv/oryxenai"
+DEFAULT_BACKUP_DIR="/srv/oryxenai-backups"
+DEFAULT_STORAGE_MIN_FREE_GIB="10"
+DEFAULT_STORAGE_WARN_FREE_GIB="20"
+APP_UID="1001"
+APP_GID="1001"
+# compose.production.yaml forces Caddy to this non-root identity because the
+# pinned upstream image does not ship a named caddy account.
+CADDY_UID="1001"
+CADDY_GID="1001"
+POSTGRES_IMAGE="postgres:16.4-alpine@sha256:5660c2cbfea50c7a9127d17dc4e48543eedd3d7a41a595a2dfa572471e37e64c"
 
 cd "$REPO_ROOT"
 
@@ -71,6 +81,201 @@ env_value() {
       print value
     }
   ' "$ENV_FILE"
+}
+
+configured_value() {
+  local key="$1"
+  local default="$2"
+  local value="${!key:-}"
+
+  if [[ -z "$value" && -f "$ENV_FILE" ]]; then
+    value="$(env_value "$key" 2>/dev/null || true)"
+  fi
+  printf '%s\n' "${value:-$default}"
+}
+
+data_root() {
+  configured_value ORYXENAI_DATA_ROOT "$DEFAULT_DATA_ROOT"
+}
+
+backup_root() {
+  configured_value ORYXENAI_BACKUP_DIR "$DEFAULT_BACKUP_DIR"
+}
+
+storage_min_free_gib() {
+  configured_value ORYXENAI_STORAGE_MIN_FREE_GIB "$DEFAULT_STORAGE_MIN_FREE_GIB"
+}
+
+storage_warn_free_gib() {
+  configured_value ORYXENAI_STORAGE_WARN_FREE_GIB "$DEFAULT_STORAGE_WARN_FREE_GIB"
+}
+
+storage_paths() {
+  local root
+  root="$(data_root)"
+  printf '%s\n' \
+    "$root/postgres" \
+    "$root/preview" \
+    "$root/image-search-cache" \
+    "$root/npm-cache" \
+    "$root/code-generator-development" \
+    "$root/code-generator-materials" \
+    "$root/code-generator-generation" \
+    "$root/code-generator-checkpoints" \
+    "$root/code-generator-workspaces" \
+    "$root/code-generator-artifacts" \
+    "$root/build-preparation-staging" \
+    "$root/code-gen-output" \
+    "$root/caddy/data" \
+    "$root/caddy/config"
+}
+
+run_as_root() {
+  if [[ "$(id -u)" == "0" ]]; then
+    "$@"
+  else
+    command -v sudo >/dev/null 2>&1 || die "sudo is required for VM storage ownership."
+    sudo "$@"
+  fi
+}
+
+require_absolute_storage_root() {
+  local root="$1"
+  [[ "$root" = /* && "$root" != "/" ]] || return 1
+  [[ "$root" != "$REPO_ROOT" && "$root" != "$REPO_ROOT/" ]] || return 1
+}
+
+require_backup_root() {
+  local backup="$1"
+  local root="$2"
+  require_absolute_storage_root "$backup" || return 1
+  [[ "$backup" != "$root" && "$backup" != "$root"/* ]] || return 1
+}
+
+image_identity() {
+  local image="$1"
+  local account="$2"
+  local uid gid
+
+  uid="$(docker_cmd run --rm --entrypoint /bin/sh "$image" -c "id -u $account")" || \
+    die "Could not determine the non-root UID for $account in $image."
+  gid="$(docker_cmd run --rm --entrypoint /bin/sh "$image" -c "id -g $account")" || \
+    die "Could not determine the non-root GID for $account in $image."
+  [[ "$uid" =~ ^[1-9][0-9]*$ && "$gid" =~ ^[1-9][0-9]*$ ]] || \
+    die "$image does not expose a non-root identity for $account."
+  printf '%s:%s\n' "$uid" "$gid"
+}
+
+storage_identities() {
+  local postgres_identity
+  postgres_identity="$(image_identity "$POSTGRES_IMAGE" postgres)"
+  printf 'app=%s:%s\n' "$APP_UID" "$APP_GID"
+  printf 'postgres=%s\n' "$postgres_identity"
+  printf 'caddy=%s:%s\n' "$CADDY_UID" "$CADDY_GID"
+}
+
+storage_identity_value() {
+  local name="$1"
+  storage_identities | awk -F= -v name="$name" '$1 == name { print $2; exit }'
+}
+
+initialize_storage() {
+  local root backup postgres_identity caddy_identity path
+  root="$(data_root)"
+  backup="$(backup_root)"
+  require_absolute_storage_root "$root" || \
+    die "ORYXENAI_DATA_ROOT must be an absolute path other than / and outside the repository."
+  require_backup_root "$backup" "$root" || \
+    die "ORYXENAI_BACKUP_DIR must be an absolute path outside the data root and repository."
+
+  postgres_identity="$(storage_identity_value postgres)"
+  caddy_identity="$(storage_identity_value caddy)"
+
+  # The root itself is traversable but not listable by service users; each
+  # child directory below carries the service-specific ownership and mode.
+  run_as_root install -d -m 0711 -o 0 -g 0 "$root"
+  run_as_root install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$backup"
+
+  while IFS= read -r path; do
+    case "$path" in
+      "$root/postgres")
+        run_as_root install -d -m 0700 -o "${postgres_identity%:*}" -g "${postgres_identity#*:}" "$path"
+        ;;
+      "$root/caddy"/*)
+        run_as_root install -d -m 0750 -o "${caddy_identity%:*}" -g "${caddy_identity#*:}" "$path"
+        ;;
+      *)
+        run_as_root install -d -m 0750 -o "$APP_UID" -g "$APP_GID" "$path"
+        ;;
+    esac
+  done < <(storage_paths)
+
+  info "VM storage initialized at $root with non-root service ownership."
+}
+
+storage_ownership_check() {
+  local root="$1"
+  local postgres_identity caddy_identity path owner expected failures=0
+  postgres_identity="$(storage_identity_value postgres)"
+  caddy_identity="$(storage_identity_value caddy)"
+
+  while IFS= read -r path; do
+    if [[ ! -d "$path" ]]; then
+      warn "Missing VM storage directory: $path"
+      failures=$((failures + 1))
+      continue
+    fi
+    owner="$(stat -c '%u:%g' "$path" 2>/dev/null || true)"
+    case "$path" in
+      "$root/postgres") expected="$postgres_identity" ;;
+      "$root/caddy"/*) expected="$caddy_identity" ;;
+      *) expected="$APP_UID:$APP_GID" ;;
+    esac
+    if [[ "$owner" != "$expected" ]]; then
+      warn "VM storage ownership mismatch for $path (got $owner, expected $expected)."
+      failures=$((failures + 1))
+    fi
+  done < <(storage_paths)
+  return "$failures"
+}
+
+storage_disk_check() {
+  local root="$1" free_kib warn_kib min_kib
+  local warn_gib min_gib
+  require_absolute_storage_root "$root" || {
+    warn "ORYXENAI_DATA_ROOT must be an absolute path outside the repository."
+    return 1
+  }
+  [[ -d "$root" ]] || {
+    warn "VM data root does not exist: $root"
+    return 1
+  }
+  warn_gib="$(storage_warn_free_gib)"
+  min_gib="$(storage_min_free_gib)"
+  [[ "$warn_gib" =~ ^[0-9]+$ && "$min_gib" =~ ^[0-9]+$ ]] || {
+    warn "Storage free-space thresholds must be whole GiB values."
+    return 1
+  }
+  (( min_gib > 0 && warn_gib >= min_gib )) || {
+    warn "Storage thresholds are invalid: warn=$warn_gib GiB min=$min_gib GiB."
+    return 1
+  }
+  free_kib="$(df -Pk "$root" | awk 'NR==2 { print $4 }')"
+  [[ "$free_kib" =~ ^[0-9]+$ ]] || {
+    warn "Could not read free space for $root."
+    return 1
+  }
+  warn_kib=$((warn_gib * 1048576))
+  min_kib=$((min_gib * 1048576))
+  if (( free_kib < min_kib )); then
+    warn "Critical: only $((free_kib / 1048576)) GiB is free under $root; minimum is $min_gib GiB."
+    return 1
+  fi
+  if (( free_kib < warn_kib )); then
+    warn "Warning: only $((free_kib / 1048576)) GiB is free under $root; warning threshold is $warn_gib GiB."
+  else
+    info "VM storage has $((free_kib / 1048576)) GiB free (warning $warn_gib GiB, minimum $min_gib GiB)."
+  fi
 }
 
 set_env_value() {
@@ -210,23 +415,17 @@ render_production_config() {
   [[ -f "$PRODUCTION_TEMPLATE" ]] || die "Missing $PRODUCTION_TEMPLATE"
   [[ -f "$ENV_FILE" ]] || die "Missing $ENV_FILE; run setup first."
 
-  local app_host preview_host account_id bucket temporary
+  local app_host preview_host temporary
   app_host="$(env_value APP_HOST 2>/dev/null || true)"
   preview_host="$(env_value PREVIEW_HOST 2>/dev/null || true)"
-  account_id="$(env_value R2_ACCOUNT_ID 2>/dev/null || true)"
-  bucket="$(env_value R2_BUCKET 2>/dev/null || true)"
 
   [[ -n "$app_host" ]] || die "APP_HOST is missing from .env"
   [[ -n "$preview_host" ]] || die "PREVIEW_HOST is missing from .env"
-  [[ -n "$account_id" ]] || die "R2_ACCOUNT_ID is missing from .env"
-  [[ -n "$bucket" ]] || die "R2_BUCKET is missing from .env"
 
   temporary="$(mktemp "$REPO_ROOT/config/app.production.local.toml.XXXXXX")"
   sed \
     -e "s|<APP_HOST>|$(sed_escape "$app_host")|g" \
     -e "s|<PREVIEW_HOST>|$(sed_escape "$preview_host")|g" \
-    -e "s|<ACCOUNT_ID>|$(sed_escape "$account_id")|g" \
-    -e "s|<R2_BUCKET>|$(sed_escape "$bucket")|g" \
     "$PRODUCTION_TEMPLATE" >"$temporary"
   mv "$temporary" "$PRODUCTION_LOCAL"
   chmod 644 "$PRODUCTION_LOCAL"
@@ -283,14 +482,10 @@ write_initial_env() {
   set_env_value APP_HOST "$REPLY"
   ask_required "Preview hostname, for example preview.example.com"
   set_env_value PREVIEW_HOST "$REPLY"
-  ask_required "Cloudflare R2 account ID"
-  set_env_value R2_ACCOUNT_ID "$REPLY"
-  ask_required "Cloudflare R2 bucket name"
-  set_env_value R2_BUCKET "$REPLY"
-  ask_required_secret "Cloudflare R2 access key ID"
-  set_env_value R2_ACCESS_KEY_ID "$REPLY"
-  ask_required_secret "Cloudflare R2 secret access key"
-  set_env_value R2_SECRET_ACCESS_KEY "$REPLY"
+  ask_visible "Persistent VM data root" "$DEFAULT_DATA_ROOT"
+  set_env_value ORYXENAI_DATA_ROOT "$REPLY"
+  ask_visible "Backup directory (outside the live data root)" "$DEFAULT_BACKUP_DIR"
+  set_env_value ORYXENAI_BACKUP_DIR "$REPLY"
 
   ask_required_secret "Supabase URL"
   set_env_value SUPABASE_URL "$REPLY"
@@ -337,7 +532,8 @@ write_initial_env() {
 
 doctor() {
   local failures=0
-  local key value host free_kib
+  local key value host root backup
+  local docker_ready=0
   local -a active_keys=()
 
   info "Checking deployment prerequisites."
@@ -352,6 +548,7 @@ doctor() {
     failures=$((failures + 1))
   else
     info "Docker and Compose are available."
+    docker_ready=1
   fi
 
   [[ -f "$ENV_FILE" ]] || {
@@ -368,10 +565,8 @@ doctor() {
       POSTGRES_PASSWORD \
       APP_HOST \
       PREVIEW_HOST \
-      R2_ACCOUNT_ID \
-      R2_BUCKET \
-      R2_ACCESS_KEY_ID \
-      R2_SECRET_ACCESS_KEY \
+      ORYXENAI_DATA_ROOT \
+      ORYXENAI_BACKUP_DIR \
       SUPABASE_URL \
       SUPABASE_PUBLISHABLE_KEY \
       SUPABASE_SECRET_KEY \
@@ -408,24 +603,45 @@ doctor() {
     done
   fi
 
-  if [[ -f "$PRODUCTION_LOCAL" ]] && grep -Eq '<(APP_HOST|PREVIEW_HOST|ACCOUNT_ID|R2_BUCKET)>' "$PRODUCTION_LOCAL"; then
+  if [[ -f "$PRODUCTION_LOCAL" ]] && grep -Eq '<(APP_HOST|PREVIEW_HOST)>' "$PRODUCTION_LOCAL"; then
     warn "Production configuration still contains placeholders."
     failures=$((failures + 1))
   fi
 
-  if command -v docker >/dev/null 2>&1 && docker_cmd info >/dev/null 2>&1 && [[ -f "$ENV_FILE" ]]; then
+  if [[ -f "$PRODUCTION_LOCAL" ]] && grep -Eiq 'R2|S3|cloudflare' "$PRODUCTION_LOCAL"; then
+    warn "Production configuration still contains a retired cloud-storage requirement."
+    failures=$((failures + 1))
+  fi
+
+  root="$(data_root)"
+  backup="$(backup_root)"
+  if ! require_absolute_storage_root "$root" 2>/dev/null; then
+    warn "ORYXENAI_DATA_ROOT must be an absolute path outside the repository."
+    failures=$((failures + 1))
+  fi
+  if ! require_backup_root "$backup" "$root"; then
+    warn "ORYXENAI_BACKUP_DIR must be an absolute path outside the data root and repository."
+    failures=$((failures + 1))
+  fi
+  if [[ "$docker_ready" == 1 ]]; then
+    if ! storage_ownership_check "$root"; then
+      failures=$((failures + 1))
+    fi
+    if ! storage_disk_check "$root"; then
+      failures=$((failures + 1))
+    fi
+    if [[ ! -d "$backup" ]]; then
+      warn "Backup directory is missing: $backup (run storage-init)."
+      failures=$((failures + 1))
+    fi
+  fi
+
+  if [[ "$docker_ready" == 1 && -f "$ENV_FILE" ]]; then
     if ! compose config --quiet; then
       warn "Merged production Compose configuration is invalid."
       failures=$((failures + 1))
     else
       info "Merged production Compose configuration is valid."
-    fi
-  fi
-
-  if command -v df >/dev/null 2>&1; then
-    free_kib="$(df -Pk "$REPO_ROOT" | awk 'NR==2 { print $4 }')"
-    if [[ "$free_kib" =~ ^[0-9]+$ ]] && (( free_kib < 10485760 )); then
-      warn "Less than 10 GiB is free on the deployment disk."
     fi
   fi
 
@@ -436,9 +652,9 @@ doctor() {
 }
 
 backup_database() {
-  local postgres_id
-  mkdir -p "$BACKUP_DIR"
-  chmod 700 "$BACKUP_DIR"
+  local postgres_id backup_dir destination
+  backup_dir="$(backup_root)"
+  run_as_root install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$backup_dir"
 
   postgres_id="$(compose ps -q postgres 2>/dev/null || true)"
   if [[ -z "$postgres_id" ]]; then
@@ -451,9 +667,68 @@ backup_database() {
     return
   fi
 
-  local destination="$BACKUP_DIR/oryxenai-$(date -u +%Y%m%d-%H%M%S).sql.gz"
+  destination="$backup_dir/oryxenai-db-$(date -u +%Y%m%d-%H%M%S).sql.gz"
   info "Creating PostgreSQL backup at $destination."
   compose exec -T postgres pg_dump -U oryxen -d oryxenai | gzip >"$destination"
+  chmod 600 "$destination"
+  sha256sum "$destination" >"$destination.sha256"
+  chmod 600 "$destination.sha256"
+}
+
+backup_filesystem() {
+  local root backup_dir parent base destination temporary
+  root="$(data_root)"
+  backup_dir="$(backup_root)"
+  [[ -d "$root" ]] || {
+    info "VM data root does not exist yet; skipping filesystem backup."
+    return
+  }
+  run_as_root install -d -m 0700 -o "$(id -u)" -g "$(id -g)" "$backup_dir"
+  parent="$(dirname "$root")"
+  base="$(basename "$root")"
+  destination="$backup_dir/oryxenai-storage-$(date -u +%Y%m%d-%H%M%S).tar.gz"
+  temporary="$destination.partial"
+  info "Creating VM storage backup at $destination (PostgreSQL data is excluded; use the SQL dump)."
+  run_as_root tar \
+    --exclude="$base/postgres" \
+    --exclude="$base/backups" \
+    -C "$parent" -czf "$temporary" "$base"
+  run_as_root chown "$(id -u):$(id -g)" "$temporary"
+  mv "$temporary" "$destination"
+  chmod 600 "$destination"
+  sha256sum "$destination" >"$destination.sha256"
+  chmod 600 "$destination.sha256"
+}
+
+backup_all() {
+  local root backup
+  root="$(data_root)"
+  backup="$(backup_root)"
+  require_absolute_storage_root "$root" || \
+    die "ORYXENAI_DATA_ROOT must be an absolute path other than / and outside the repository."
+  require_backup_root "$backup" "$root" || \
+    die "ORYXENAI_BACKUP_DIR must be an absolute path outside the data root and repository."
+  backup_database
+  backup_filesystem
+}
+
+restore_dry_run() {
+  local source="$1" checksum
+  [[ -n "$source" ]] || die "Usage: restore-dry-run <backup.sql.gz|storage.tar.gz>"
+  [[ -f "$source" ]] || die "Backup file not found: $source"
+
+  case "$source" in
+    *.sql.gz) gzip -t "$source" || die "PostgreSQL backup gzip validation failed." ;;
+    *.tar.gz) tar -tzf "$source" >/dev/null || die "VM storage archive validation failed." ;;
+    *) die "Unsupported backup type; expected .sql.gz or .tar.gz." ;;
+  esac
+
+  checksum="$source.sha256"
+  if [[ -f "$checksum" ]]; then
+    (cd "$(dirname "$source")" && sha256sum -c "$(basename "$checksum")" >/dev/null) || \
+      die "Backup checksum validation failed."
+  fi
+  info "Restore dry run passed for $source; no live files or database rows were changed."
 }
 
 wait_for_migration() {
@@ -477,6 +752,9 @@ start_release() {
   local sha="$1"
   export ORYXENAI_IMAGE_TAG="$sha"
 
+  info "Preparing persistent VM storage."
+  initialize_storage
+
   info "Building application image $sha."
   compose build
 
@@ -493,6 +771,56 @@ start_release() {
   compose up -d --wait --wait-timeout 1800 "${services[@]}"
 }
 
+storage_smoke() {
+  local stamp key artifact_kind
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  key="ops-smoke/$stamp.txt"
+  artifact_kind="ops-smoke-$stamp"
+  info "Testing worker artifact write/read-back and shared preview write/read-back."
+
+  compose exec -T worker python -c \
+    "import asyncio; from oryxenai.storage.code_generator_artifacts import LocalFsCodeGeneratorArtifactRepository; r=LocalFsCodeGeneratorArtifactRepository('/app/.workspace/code-generator-artifacts'); ref=asyncio.run(r.put(artifact_kind='$artifact_kind', data=b'oryxenai-storage-smoke', expires_at='2099-01-01T00:00:00+00:00')); assert asyncio.run(r.get(ref)) == b'oryxenai-storage-smoke'"
+  compose exec -T worker python -c \
+    "import asyncio; from oryxenai.storage.preview import LocalPreviewStorage; from pathlib import Path; s=LocalPreviewStorage(Path('/app/.workspace/code-generator-preview')); asyncio.run(s.put_immutable(key='$key', data=b'oryxenai-preview-smoke', content_type='text/plain')); item=asyncio.run(s.get('$key')); assert item is not None and item[1] == b'oryxenai-preview-smoke'"
+  compose exec -T preview-gateway python -c \
+    "import asyncio; from oryxenai.storage.preview import LocalPreviewStorage; from pathlib import Path; item=asyncio.run(LocalPreviewStorage(Path('/app/.workspace/code-generator-preview')).get('$key')); assert item is not None and item[1] == b'oryxenai-preview-smoke'"
+  compose exec -T worker python -c \
+    "import asyncio; import shutil; from pathlib import Path; from oryxenai.storage.preview import LocalPreviewStorage; shutil.rmtree(Path('/app/.workspace/code-generator-artifacts') / '$artifact_kind', ignore_errors=True); asyncio.run(LocalPreviewStorage(Path('/app/.workspace/code-generator-preview')).delete('$key'))"
+  info "VM-local artifact and shared preview read-back passed."
+}
+
+credential_free_logs() {
+  local log_file key value leaks=0
+  log_file="$(mktemp)"
+  if ! compose logs --no-color --tail 10000 >"$log_file" 2>/dev/null; then
+    rm -f "$log_file"
+    warn "Could not collect Compose logs for the credential scan."
+    return 1
+  fi
+
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    value="$(env_value "$key" 2>/dev/null || true)"
+    [[ -n "$value" ]] || continue
+    if grep -Fq -- "$value" "$log_file"; then
+      warn "Credential value for $key was found in Compose logs."
+      leaks=$((leaks + 1))
+    fi
+  done < <(
+    {
+      printf '%s\n' POSTGRES_PASSWORD SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY
+      active_model_keys
+      awk -F= '/^[A-Z][A-Z0-9_]*(_KEY|_SECRET|_PASSWORD|_TOKEN|_CREDENTIAL_JSON)=/ { print $1 }' \
+        "$ENV_FILE" 2>/dev/null || true
+    } | sort -u
+  )
+  rm -f "$log_file"
+  if (( leaks > 0 )); then
+    return 1
+  fi
+  info "Compose log credential scan passed without printing credential values."
+}
+
 verify_internal() {
   info "Checking internal HTTP endpoints and Caddy configuration."
   compose exec -T app python -c \
@@ -501,6 +829,8 @@ verify_internal() {
     "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/live').read(); urllib.request.urlopen('http://127.0.0.1:4174/health/ready').read()"
   compose exec -T caddy caddy validate \
     --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+  storage_smoke
+  credential_free_logs
   info "Internal health checks passed."
 }
 
@@ -558,7 +888,7 @@ deploy() {
 
   info "Checking out release $sha."
   git checkout --detach "$sha"
-  backup_database
+  backup_all
   start_release "$sha"
   verify_internal
   write_state "$sha" "${previous:-}" "$branch"
@@ -572,6 +902,7 @@ configure() {
   "$editor" "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   render_production_config
+  initialize_storage
   doctor
 }
 
@@ -602,6 +933,7 @@ rollback() {
     die "The VM checkout has tracked changes; commit or restore them before rolling back."
   git checkout --detach "$target"
   info "Rolling back from $current to $target."
+  backup_all
   start_release "$target"
   verify_internal
   write_state "$target" "$current" "$branch"
@@ -619,6 +951,10 @@ Usage:
   ./scripts/azure-deploy.sh logs [service...]
   ./scripts/azure-deploy.sh verify
   ./scripts/azure-deploy.sh backup
+  ./scripts/azure-deploy.sh storage-init
+  ./scripts/azure-deploy.sh disk-check
+  ./scripts/azure-deploy.sh storage-smoke
+  ./scripts/azure-deploy.sh restore-dry-run <backup-file>
   ./scripts/azure-deploy.sh rollback
 EOF
 }
@@ -630,6 +966,7 @@ case "$command" in
   setup)
     install_docker
     write_initial_env
+    initialize_storage
     doctor
     ;;
   configure)
@@ -652,7 +989,19 @@ case "$command" in
     verify_external
     ;;
   backup)
-    backup_database
+    backup_all
+    ;;
+  storage-init)
+    initialize_storage
+    ;;
+  disk-check)
+    storage_disk_check "$(data_root)"
+    ;;
+  storage-smoke)
+    storage_smoke
+    ;;
+  restore-dry-run)
+    restore_dry_run "${1:-}"
     ;;
   rollback)
     rollback
