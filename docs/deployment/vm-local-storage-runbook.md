@@ -160,3 +160,15 @@ explicit `local_fs` value for that legacy boundary so it cannot silently use a
 cloud credential or an in-memory substitute; if a legacy session containing a
 generic `ArtifactReference` must be restored or cleaned up, that is a release
 blocker until a reviewed local implementation exists.
+
+**Confirmed inert for the first Azure deployment (2026-09-21):** the only two
+call sites for `create_artifact_store()` are `AdminService._cleanup_artifacts`
+(`src/oryxenai/auth/admin/service.py`), which only constructs the store when
+it actually finds an `ArtifactReference`-shaped value while scanning a
+session's stored state, and `CodeGeneratorService._verify_artifact_head`
+(`src/oryxenai/agents/code_generator/service.py`), which is currently unused
+by any caller. Since production's database has no sessions predating this
+Markdown-brief handoff, no session can contain a legacy `ArtifactReference`,
+so neither call site can be reached on the first deployment. This remains a
+release blocker for any *future* deployment that carries forward session
+state created before this note.
