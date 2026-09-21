@@ -89,12 +89,15 @@ blindly and do not copy the developer machine's `.env`.
 
 ```bash
 ./scripts/azure-deploy.sh doctor
+./scripts/azure-deploy.sh disk-check
 ```
 
 Resolve every error before continuing. DNS warnings are expected during Phase
 A because the domain has intentionally not been activated. Check that the
-production overlay contains concrete hostnames and VM-storage coordinates and that the
-VM-local `.env` has restrictive permissions.
+production overlay contains concrete hostnames and VM-storage coordinates,
+that the VM-local `.env` has restrictive permissions, and that the storage
+directories have the non-root image ownership described in the
+[VM-local storage runbook](../../docs/deployment/vm-local-storage-runbook.md).
 
 ## 4. Deploy the server before the domain
 
@@ -125,6 +128,7 @@ Also inspect the worker and service state:
 ```bash
 ./scripts/azure-deploy.sh status
 ./scripts/azure-deploy.sh logs worker
+./scripts/azure-deploy.sh storage-smoke
 ```
 
 This is an infrastructure milestone, not public acceptance. Google login,

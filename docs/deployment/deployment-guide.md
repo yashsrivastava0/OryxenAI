@@ -86,7 +86,7 @@ Heroku's [Student offer](https://www.heroku.com/students/) is attractive, but
 the repository needs API, worker, preview gateway, and durable storage. Heroku
 dyno filesystems are ephemeral, and its low-cost plans restrict process
 capacity. The current Docker Compose contract explicitly expects a worker and
-shared object-backed preview storage. Making Heroku work would require a
+shared VM-local persistent preview storage. Making Heroku work would require a
 custom worker arrangement and additional storage changes, increasing first
 deployment risk.
 
@@ -119,17 +119,18 @@ expects the durable queue and application state to be in the same PostgreSQL
 deployment, and the current Docker migration service is ready for that shape.
 
 Store generated source/build artifacts and promoted preview objects on the
-VM's persistent Docker-backed storage. The worker and shared preview gateway
-must share the durable preview root; PostgreSQL, Code Generator workspaces,
-checkpoints, caches, and Caddy state use separate persistent volumes as
-appropriate.
+VM's persistent disk below `ORYXENAI_DATA_ROOT` (default `/srv/oryxenai`). The
+worker and shared preview gateway share only the durable preview root;
+PostgreSQL, Code Generator workspaces, checkpoints, caches, exports, and Caddy
+state use separate bind-mounted directories.
 
-This removes R2 credentials, endpoints, buckets, lifecycle policies, and
-external readback from the first release. The Docker/config follow-up must
-select the existing local-filesystem providers, enforce non-root ownership,
-monitor disk capacity, and prove filesystem backup/restore plus restart
-readback before deployment. Existing R2-compatible adapters are compatibility
-code only and are not the selected production path.
+This removes external object-storage credentials, endpoints, buckets, lifecycle
+policies, and readback from the first release. The production Compose/config
+and release script select the existing local-filesystem providers, enforce
+non-root ownership, monitor disk capacity, and provide filesystem
+backup/restore plus restart readback checks before deployment. See the
+[VM-local storage runbook](./vm-local-storage-runbook.md) for the directory
+map and the explicit legacy artifact-storage blocker.
 
 ## What remains outside host credits
 
@@ -237,10 +238,13 @@ Use the exact same `https://app.<DOMAIN>` origin in the VM configuration.
 
 ### VM-local storage
 
-Use the VM's persistent disk through the production Compose volumes. Define the
-storage root, expected free-space threshold, retention policy, ownership, and
-backup destination before setup. The worker and preview gateway must be able to
-write/read the shared preview root as the non-root application user.
+Use the VM's persistent disk through the production Compose bind mounts. The
+default root is `/srv/oryxenai`; the setup wizard also records the backup root,
+free-space thresholds, and retention policy in the VM-local `.env`. The worker
+and preview gateway share only the preview directory, and all application
+directories are owned by the non-root image user. Follow the [VM-local storage
+runbook](./vm-local-storage-runbook.md) for the directory map, capacity and
+retention policy, backup/restore procedure, and restart/reboot read-back gates.
 
 ### GitHub checkout access
 
@@ -410,8 +414,15 @@ generated fix:
 # Edit VM-local credentials/settings used by the production Compose stack.
 ./scripts/azure-deploy.sh configure
 
-# Make a compressed PostgreSQL backup in ~/oryxenai-backups.
+# Make a PostgreSQL dump plus VM-local filesystem archive.
 ./scripts/azure-deploy.sh backup
+
+# Check the VM storage contract and validate a backup without restoring.
+./scripts/azure-deploy.sh disk-check
+./scripts/azure-deploy.sh restore-dry-run <backup-file>
+
+# Test local artifact and shared preview read-back.
+./scripts/azure-deploy.sh storage-smoke
 
 # Return to the previous release recorded by the script.
 ./scripts/azure-deploy.sh rollback
@@ -581,7 +592,8 @@ Perform these after the first successful generation:
 - [ ] Restart the app and confirm the database-backed session remains.
 - [ ] Reboot the VM and confirm Docker services return through
   `restart: unless-stopped`.
-- [ ] Confirm the PostgreSQL named volume remains present.
+- [ ] Confirm the PostgreSQL bind-mounted data directory remains present below
+      `ORYXENAI_DATA_ROOT`.
 - [ ] Confirm preview objects remain available after a worker/gateway restart and VM reboot.
 
 For a normal restart or a code fix, use `./scripts/azure-deploy.sh deploy`.
@@ -596,9 +608,12 @@ Run a PostgreSQL dump before repository or migration changes:
 ./scripts/azure-deploy.sh backup
 ```
 
-Keep the dump outside the repository and periodically copy one known-good dump
-off the VM. Back up the VM-local artifact/preview roots separately; do not
-delete the active preview directory while diagnosing an application issue.
+Keep both backup files and their checksum sidecars outside the repository and
+periodically copy one known-good set off the VM. The backup command archives
+the VM-local artifact/preview roots, workspaces, checkpoints, caches, exports,
+and Caddy state separately from the PostgreSQL dump. Do not delete the active
+preview directory while diagnosing an application issue. See the [VM-local
+storage runbook](./vm-local-storage-runbook.md) for restore steps.
 
 ## I. Cost and lifecycle checks
 

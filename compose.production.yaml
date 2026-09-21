@@ -6,6 +6,10 @@
 # This file is intentionally self-contained. The development-only
 # compose.yaml keeps its host loopback ports and optional fixture profiles;
 # production publishes only Caddy on ports 80 and 443.
+#
+# Every durable path is a bind mount below ORYXENAI_DATA_ROOT. The VM setup
+# command creates these directories with the UID/GID expected by each image;
+# do not replace them with anonymous volumes or container-local paths.
 
 name: oryxenai
 
@@ -38,7 +42,9 @@ services:
       POSTGRES_USER: oryxen
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
-      - oryxen_pgdata:/var/lib/postgresql/data
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/postgres"
+        target: /var/lib/postgresql/data
     networks:
       - backend
     healthcheck:
@@ -80,15 +86,40 @@ services:
       migrate:
         condition: service_completed_successfully
     volumes:
-      - oryxen_codegen_preview:/app/.workspace/code-generator-preview
-      - oryxen_image_cache:/app/.workspace/image-search-cache
-      - oryxen_npm_cache:/app/.workspace/npm-cache
-      - oryxen_codegen_inputs:/app/.workspace/code-generator-development
-      - oryxen_codegen_materials:/app/.workspace/code-generator-materials
-      - oryxen_codegen_generation:/app/.workspace/code-generator-generation
-      - oryxen_codegen_checkpoints:/app/.workspace/code-generator-checkpoints
-      - oryxen_codegen_workspaces:/app/.workspace/code-generator-workspaces
-      - oryxen_codegen_artifacts:/app/.workspace/code-generator-artifacts
+      # This is the only worker path shared with preview-gateway.
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/preview"
+        target: /app/.workspace/code-generator-preview
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/image-search-cache"
+        target: /app/.workspace/image-search-cache
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/npm-cache"
+        target: /app/.workspace/npm-cache
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-development"
+        target: /app/.workspace/code-generator-development
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-materials"
+        target: /app/.workspace/code-generator-materials
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-generation"
+        target: /app/.workspace/code-generator-generation
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-checkpoints"
+        target: /app/.workspace/code-generator-checkpoints
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-workspaces"
+        target: /app/.workspace/code-generator-workspaces
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-artifacts"
+        target: /app/.workspace/code-generator-artifacts
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/build-preparation-staging"
+        target: /app/.workspace/build-preparation-staging
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-gen-output"
+        target: /app/output/code-gen-output
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
       interval: 15s
@@ -103,7 +134,10 @@ services:
       worker:
         condition: service_healthy
     volumes:
-      - oryxen_codegen_preview:/app/.workspace/code-generator-preview
+      # Deliberately share only immutable preview objects and their metadata.
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/preview"
+        target: /app/.workspace/code-generator-preview
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/ready')\""]
       interval: 10s
@@ -113,6 +147,12 @@ services:
 
   caddy:
     image: caddy:2-alpine@sha256:de23def33b17fb5d1290b0f6c2add1d70780e52341896c00a4c8a2a2fe9d355e
+    # The pinned upstream image has no named caddy account. Force its process
+    # to the same non-root service identity used by the application image;
+    # NET_BIND_SERVICE is the only extra capability needed for 80/443.
+    user: "1001:1001"
+    cap_add:
+      - NET_BIND_SERVICE
     restart: unless-stopped
     logging: *default-logging
     env_file:
@@ -125,8 +165,12 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - oryxen_caddy_data:/data
-      - oryxen_caddy_config:/config
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/caddy/data"
+        target: /data
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/caddy/config"
+        target: /config
     networks:
       - backend
       - edge
@@ -147,17 +191,3 @@ networks:
   backend:
     internal: true
   edge:
-
-volumes:
-  oryxen_pgdata:
-  oryxen_codegen_preview:
-  oryxen_image_cache:
-  oryxen_npm_cache:
-  oryxen_codegen_inputs:
-  oryxen_codegen_materials:
-  oryxen_codegen_generation:
-  oryxen_codegen_checkpoints:
-  oryxen_codegen_workspaces:
-  oryxen_codegen_artifacts:
-  oryxen_caddy_data:
-  oryxen_caddy_config:

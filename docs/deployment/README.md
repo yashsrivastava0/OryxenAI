@@ -24,6 +24,9 @@ The canonical deployment material is grouped into two documents:
 
 - [Deployment guide](./deployment-guide.md) — research, setup, runbook,
   acceptance, and AI-assisted operations.
+- [VM-local storage runbook](./vm-local-storage-runbook.md) — bind-mounted
+  paths, ownership, capacity, retention, backup/restore, and persistence
+  checks for the first release.
 - [Deployment status and history](./deployment-status-and-history.md) — Azure
   status checkpoints and the live deployment session log.
 

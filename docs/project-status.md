@@ -8,10 +8,9 @@ what is still pending, and what must happen next.
 
 This page describes the committed repository state observed on the
 `codex/code-generator-control-room` branch at the documentation checkpoint.
-The working tree is currently dirty because another contributor has
-uncommitted and untracked work in progress. That work is not a deployment
-release and is not counted as complete here. Re-run `git status --short
---branch` and choose a clean release commit before deploying.
+The storage hardening work is a local repository change, not a live deployment
+or acceptance result. Re-run `git status --short --branch` and choose one exact
+clean release commit before deploying.
 
 The latest deployment-preparation audit is the
 [deployment strategy pack](<../doc/deployment strategy/README.md>). It records
@@ -30,8 +29,8 @@ release gates without claiming that live deployment has been performed.
 | Deployment tooling | Implemented, not executed | Docker Compose production files, Caddy routing, production TOML template, and `scripts/azure-deploy.sh` are checked in. |
 | Application on Azure | Not deployed | Docker has not been installed on the VM, the repository has not been cloned there, and no container or database migration has run there. |
 | Production auth/domain | Pending | The final HTTPS application origin, DNS, and production Supabase redirect settings are not yet applied. |
-| Production artifact storage | VM-local storage selected | The first release will keep generated artifacts and previews on persistent VM-backed Docker storage; local-filesystem configuration, volume ownership, disk checks, backup/restore, and restart readback still need to be completed. |
-| Release candidate | Not selected | The current worktree contains unrelated uncommitted changes. No exact clean SHA may be deployed until the release gate is completed. |
+| Production artifact storage | VM-local storage configured, runtime gate pending | Production Compose now bind-mounts the configurable VM data root, selects local Code Generator artifact/preview providers, initializes non-root ownership, and provides disk/backup/readback checks. Docker runtime, restart/reboot persistence, and Azure acceptance remain unproven. |
+| Release candidate | Not selected | The storage hardening work is locally committed after verification, but no exact SHA may be deployed until the live Azure deployment and acceptance gates are completed. |
 | End-to-end acceptance | Pending | No real Azure run has yet proven Google login → agents → generated artifact → embedded preview → direct preview URL. |
 
 ## What has been implemented
@@ -212,12 +211,20 @@ worker and shared preview gateway must use the same persistent preview root;
 Code Generator artifacts, workspaces, checkpoints, caches, and Caddy state
 must remain on explicitly owned persistent volumes as appropriate.
 
-No R2 endpoint, bucket, access key, secret key, or lifecycle policy is required
-for this path. Before deployment, the production overlay and release script
-must stop requiring R2 values, select the available local-filesystem providers,
-create/check the VM storage roots, enforce non-root ownership, and prove backup,
-restore, restart survival, and preview readback. Existing R2-compatible code is
-not the selected production path.
+No external object-storage endpoint, bucket, access key, secret key, or
+lifecycle policy is required for this path. The production overlay and release
+script now select the available local-filesystem providers, create/check the
+VM storage roots, enforce non-root ownership, and provide backup, restore
+dry-run, restart, artifact readback, and preview readback checks. Existing
+cloud-compatible code is not the selected production path.
+
+The legacy generic `artifact_storage` boundary still has no local-filesystem
+implementation: `src/oryxenai/storage/artifacts.py` supports memory and
+S3-compatible stores only. The active Markdown brief handoff does not use that
+boundary, but a legacy session containing a generic `ArtifactReference` is a
+release blocker until a reviewed local implementation exists. Docker build,
+startup, migration, health, and persistence checks must still be run with a
+live daemon; no Azure deployment is claimed here.
 
 ### Domain and GitHub
 
@@ -236,16 +243,14 @@ not the selected production path.
 
 ### Release and repository gate
 
-The current shared worktree contains uncommitted changes, deletions, and
-untracked files from other work. Therefore:
+No release SHA has passed the live Azure deployment and acceptance gates.
+Therefore:
 
-1. Do not deploy from the current worktree.
+1. Do not deploy from an unreviewed or dirty checkout.
 2. Inspect `git status --short --branch` and the relevant diffs.
-3. Decide which changes belong in the release and finish/reject them with the
-   contributing agent.
-4. Run the relevant tests/checks.
-5. Select and record one exact clean commit SHA.
-6. Push that release branch/commit if the owner approves publishing it.
+3. Run the relevant tests/checks for the exact intended release.
+4. Select and record one exact clean commit SHA.
+5. Push that release branch/commit if the owner approves publishing it.
 
 The deployment VM must fetch that exact release, not a moving or dirty local
 working tree.
