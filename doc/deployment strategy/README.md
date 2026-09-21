@@ -70,21 +70,21 @@ variables, and missing deployment coordinates. Never copy it to Azure.
 
 ### Phase A — deploy the server first
 
-Use the future hostnames `app.deploy.me` and `preview.deploy.me` while setting
-up the production configuration. DNS registration and delegation can still be
-deferred. Deploy, migrate, and validate the services through VM-local health
-checks. The public login and HTTPS preview are not accepted yet.
+Use the registered hostnames `app.oryxenai.me` and `preview.oryxenai.me` while
+setting up the production configuration. DNS records can still be deferred.
+Deploy, migrate, and validate the services through VM-local health checks. The
+public login and HTTPS preview are not accepted yet.
 
 ### Phase B — activate the public site later
 
-After the stack is healthy, obtain/control `deploy.me`, add A records for the
-two hostnames, configure Supabase and Google production redirects, and let
-Caddy obtain certificates. Only then run external verification and the full
-browser acceptance suite.
+After the stack is healthy, add A records for the two `oryxenai.me` hostnames,
+configure Supabase and Google production redirects, and let Caddy obtain
+certificates. Only then run external verification and the full browser
+acceptance suite.
 
 The `.me` offer in the GitHub Student Developer Pack is a convenience, not a
-deployment dependency; partner offers can change. The runbook assumes the
-literal `deploy.me` domain will be available to the owner.
+deployment dependency; partner offers can change. The owner has now recorded
+`oryxenai.me` as the selected domain.
 
 ## Release workflow
 

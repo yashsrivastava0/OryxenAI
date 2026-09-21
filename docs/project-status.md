@@ -188,19 +188,21 @@ a new portal or SSH verification.
 
 ### Supabase
 
-The owner reports that the Supabase project work is ready. The following
-deployment-specific values still need to be verified against the final domain:
+The owner reports that the Supabase project work is ready. The final production
+domain is now recorded below; the following deployment-specific values still
+need to be verified and applied:
 
 - `SUPABASE_URL`;
 - the publishable/browser key;
 - the server-only secret key, entered only on the VM;
 - Google provider enabled; and
-- exact Site URL and redirect URL for the final `app.<DOMAIN>` origin.
+- exact Site URL and redirect URL for the final `app.oryxenai.me` origin.
 
-The expected callback is:
+The production values are:
 
 ```text
-https://app.<DOMAIN>/auth/callback
+Site URL:      https://app.oryxenai.me
+Redirect URL:  https://app.oryxenai.me/auth/callback
 ```
 
 ### VM-local artifact and preview storage
@@ -228,10 +230,12 @@ live daemon; no Azure deployment is claimed here.
 
 ### Domain and GitHub
 
-- A final domain and the two hostnames `app.<DOMAIN>` and
-  `preview.<DOMAIN>` have not been recorded in the deployment checkpoint.
-- DNS A records must point both hostnames to `20.235.74.81` before public HTTPS
-  verification.
+- The owner reports that `oryxenai.me` is registered through the GitHub Student
+  Developer Pack and expires/renews on `2027-09-21`.
+- The production hostnames are `app.oryxenai.me` and `preview.oryxenai.me`.
+- DNS A records must point both hostnames to the VM's current static public IP
+  before public HTTPS verification. The last documented IP was `20.235.74.81`;
+  re-check the Azure Portal before creating records.
 - GitHub is the source repository, not a second application runtime. The VM
   still needs read access to the selected branch. For a private repository,
   configure a VM-specific GitHub deploy key or another approved read-only
