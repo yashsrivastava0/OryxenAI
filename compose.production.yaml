@@ -68,7 +68,12 @@ services:
 
   app:
     <<: *application
-    command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # --forwarded-allow-ips is safe as "*" here only because `app` has no
+    # published port and sits on the internal-only backend network -- Caddy
+    # is the sole caller able to set X-Forwarded-For. Without this flag,
+    # request.client.host (and therefore any IP-based rate limiting) would
+    # see Caddy's container IP for every request instead of the real client.
+    command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
     depends_on:
       migrate:
         condition: service_completed_successfully

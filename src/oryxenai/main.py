@@ -11,6 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
+from starlette.types import ASGIApp
 
 from oryxenai.agents.build_preparation.fixture_runs import FixtureRunManager
 from oryxenai.agents.shared.model_runtime import close_model_runtime, get_model_runtime
@@ -89,6 +90,60 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
         return response
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Minimal in-memory per-IP fixed-window limit for auth and API paths.
+
+    Single Compose `app` container, single uvicorn process (no --workers),
+    so in-memory state needs no cross-process coordination. Requires uvicorn
+    to be started with --proxy-headers/--forwarded-allow-ips behind Caddy,
+    otherwise every request would appear to come from Caddy's own IP.
+    """
+
+    _WINDOW_SECONDS = 60.0
+    _LIMITS: tuple[tuple[str, int], ...] = (("/auth/", 30), ("/api/", 120))
+    _MAX_TRACKED_KEYS = 10_000
+
+    def __init__(self, app: ASGIApp) -> None:
+        super().__init__(app)
+        self._buckets: dict[tuple[str, str], tuple[int, float]] = {}
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        prefix: str | None = None
+        limit: int = 0
+        for path_prefix, path_limit in self._LIMITS:
+            if request.url.path.startswith(path_prefix):
+                prefix, limit = path_prefix, path_limit
+                break
+        if prefix is not None:
+            client_ip = request.client.host if request.client else "unknown"
+            now = time.monotonic()
+            key = (client_ip, prefix)
+            count, window_start = self._buckets.get(key, (0, now))
+            if now - window_start >= self._WINDOW_SECONDS:
+                count, window_start = 0, now
+            count += 1
+            if len(self._buckets) >= self._MAX_TRACKED_KEYS and key not in self._buckets:
+                self._buckets = {
+                    k: v for k, v in self._buckets.items() if now - v[1] < self._WINDOW_SECONDS
+                }
+            self._buckets[key] = (count, window_start)
+            if count > limit:
+                retry_after = max(1, int(self._WINDOW_SECONDS - (now - window_start)))
+                request_id = getattr(request.state, "request_id", "")
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": {
+                            "code": "RATE_LIMITED",
+                            "message": "Too many requests.",
+                            "requestId": request_id,
+                        }
+                    },
+                    headers={"Retry-After": str(retry_after)},
+                )
+        return await call_next(request)
 
 
 class AuthOriginMiddleware(BaseHTTPMiddleware):
@@ -183,6 +238,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Middleware (order: outer to inner; last added runs first).
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(AuthOriginMiddleware)
+    app.add_middleware(RateLimitMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIdMiddleware)
 
