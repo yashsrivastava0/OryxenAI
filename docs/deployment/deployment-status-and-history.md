@@ -30,6 +30,17 @@ claim that the application has been deployed or accepted in production.
   `.env`, migrations, containers, Caddy certificates, live model calls, and
   browser acceptance remain pending.
 
+### Supabase URL configuration completed - 2026-09-21
+
+- Supabase project: `oxygen-ai-development`.
+- Site URL is `https://app.oryxenai.me`.
+- Application redirect URL is `https://app.oryxenai.me/auth/callback`.
+- Existing development URLs were preserved.
+- The page was reloaded and both values remained unchanged; no save was
+  required because Supabase reported no unsaved changes.
+- Google provider/client configuration and private VM environment-value entry
+  remain pending.
+
 ### Local release gate passed - 2026-09-21
 
 - The exact application release commit verified locally is
