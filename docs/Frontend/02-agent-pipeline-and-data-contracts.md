@@ -74,15 +74,18 @@ class DiscoveryStatus(StrEnum):
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
 
+
 class QuestionKind(StrEnum):
     TEXT = "text"
     SINGLE_SELECT = "single_select"
     MULTI_SELECT = "multi_select"
     BOOLEAN = "boolean"
 
+
 class AnswerMode(StrEnum):
     ANSWERED = "answered"
     SKIPPED = "skipped"
+
 
 class OperationMode(StrEnum):
     NEEDS_DETAILS = "NEEDS_DETAILS"
@@ -99,10 +102,12 @@ class DiscoveryIntake(BaseModel):
     document_text: str = ""
     goal: str = ""
 
+
 class QuestionOption(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str = ""
     label: str = ""
+
 
 class DiscoveryQuestion(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -114,6 +119,7 @@ class DiscoveryQuestion(BaseModel):
     reason: str | None = None
     allow_skip: bool = True
     allow_auto: bool = False
+
 
 class QuestionSetOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -130,6 +136,7 @@ class ProfileLink(BaseModel):
     label: str = ""
     url: str = ""
 
+
 class ExperienceEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     organization: str = ""
@@ -137,11 +144,13 @@ class ExperienceEntry(BaseModel):
     dates: str = ""
     highlights: list[str] = Field(default_factory=list)
 
+
 class EducationEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     institution: str = ""
     credential: str = ""
     dates: str = ""
+
 
 class ProjectEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -150,6 +159,7 @@ class ProjectEntry(BaseModel):
     contribution: str = ""
     tech: list[str] = Field(default_factory=list)
     link: str = ""
+
 
 class StructuredProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -163,6 +173,7 @@ class StructuredProfile(BaseModel):
     skills: list[str] = Field(default_factory=list)
     spoken_languages: list[str] = Field(default_factory=list)
     private_omitted: list[str] = Field(default_factory=list)
+
 
 class BriefOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -187,9 +198,11 @@ class OperationAState(BaseModel):
     items: list[DiscoveryQuestion] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
 
+
 class AnswersState(BaseModel):
     revision: int = 0
     items: dict[str, DiscoveryAnswer] = Field(default_factory=dict)
+
 
 class BriefState(BaseModel):
     version: str = ""
@@ -203,6 +216,7 @@ class BriefState(BaseModel):
     memory_update: dict[str, Any] = Field(default_factory=dict)
     revision_request: str = ""
     approved: DiscoveryApproval | None = None
+
 
 class DiscoveryState(BaseModel):
     status: DiscoveryStatus = DiscoveryStatus.NOT_STARTED
@@ -269,31 +283,37 @@ class ContentArchitectStatus(StrEnum):
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
 
+
 class ContentPlanMode(StrEnum):
     STRATEGY_ONLY = "STRATEGY_ONLY"
     STRATEGY_AND_CONTENT = "STRATEGY_AND_CONTENT"
     PAGES_READY = "PAGES_READY"
     INTEGRATED = "INTEGRATED"
 
+
 class PresentationMode(StrEnum):
     SINGLE_PAGE = "single_page"
     HYBRID = "hybrid"
     MULTI_PAGE = "multi_page"
+
 
 class EvidenceStatus(StrEnum):
     VERIFIED = "verified"
     UNVERIFIED = "unverified"
     UNRESOLVED = "unresolved"
 
+
 class Ownership(StrEnum):
     INDIVIDUAL = "individual"
     TEAM = "team"
     UNCLEAR = "unclear"
 
+
 class PublicationStatus(StrEnum):
     APPROVED = "approved"
     PENDING = "pending"
     BLOCKED = "blocked"
+
 
 class DecisionBasis(StrEnum):
     USER_CONFIRMED = "user_confirmed"
@@ -317,6 +337,7 @@ class RoutePlanEntry(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
     publication_status: PublicationStatus = PublicationStatus.APPROVED
 
+
 class ClaimGrounding(BaseModel):
     model_config = ConfigDict(extra="forbid")
     claim_id: str = ""
@@ -327,6 +348,7 @@ class ClaimGrounding(BaseModel):
     ownership: Ownership = Ownership.UNCLEAR
     publication_status: PublicationStatus = PublicationStatus.PENDING
     confidence_or_warning: str = ""
+
 
 class ContentSection(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -339,11 +361,13 @@ class ContentSection(BaseModel):
     mobile_condensation: str = ""
     link_targets: list[dict[str, Any]] = Field(default_factory=list)
 
+
 class PageContentPack(BaseModel):
     model_config = ConfigDict(extra="forbid")
     route_id: str = ""
     sections: list[ContentSection] = Field(default_factory=list)
     internal_notes: dict[str, Any] = Field(default_factory=dict)
+
 
 class DecisionRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -432,16 +456,19 @@ class VisualDesignDirectorStatus(StrEnum):
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
 
+
 class VisualPlanMode(StrEnum):
     VISUAL_LANGUAGE_ONLY = "VISUAL_LANGUAGE_ONLY"
     VISUAL_LANGUAGE_AND_PAGES = "VISUAL_LANGUAGE_AND_PAGES"
     PAGES_READY = "PAGES_READY"
     INTEGRATED = "INTEGRATED"
 
+
 class AssetImportance(StrEnum):
     CRITICAL = "critical"
     IMPORTANT = "important"
     OPTIONAL = "optional"
+
 
 class AssetSourceStatus(StrEnum):
     APPROVED_EXISTING = "approved_existing"
@@ -449,6 +476,7 @@ class AssetSourceStatus(StrEnum):
     NEEDS_ACQUISITION = "needs_acquisition"
     OPTIONAL = "optional"
     UNAVAILABLE = "unavailable"
+
 
 class AssetSourcePolicy(StrEnum):
     APPROVED_USER_MEDIA = "approved_user_media"
@@ -484,6 +512,7 @@ class SceneDirection(BaseModel):
     failure_safe_static_state: str = ""
     acceptance_criteria: list[str] = Field(default_factory=list)
 
+
 class AssetBrief(BaseModel):
     model_config = ConfigDict(extra="forbid")
     asset_id: str = ""
@@ -515,6 +544,7 @@ class AssetBrief(BaseModel):
     color_relationship: str = ""
     negative_concepts: list[str] = Field(default_factory=list)
 
+
 class ResourceCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     resource_id: str = ""
@@ -540,7 +570,9 @@ class VisualDesignDirectorState(BaseModel):
     routing_policy_fingerprint: str = ""
     source_ref: VisualDesignDirectorSourceRef = Field(default_factory=VisualDesignDirectorSourceRef)
     intake: VisualDesignDirectorIntake = Field(default_factory=VisualDesignDirectorIntake)
-    preferences: VisualDesignDirectorPreferences = Field(default_factory=VisualDesignDirectorPreferences)
+    preferences: VisualDesignDirectorPreferences = Field(
+        default_factory=VisualDesignDirectorPreferences
+    )
     version: str = ""
     run_id: str = ""
     job_id: str = ""
@@ -616,6 +648,7 @@ class BuildPreparationStatus(StrEnum):
     READY = "ready"
     NEEDS_ATTENTION = "needs_attention"
 
+
 class StageEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
     event_id: str
@@ -624,6 +657,7 @@ class StageEvent(BaseModel):
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
     timestamp: str
+
 
 class RouteScope(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -658,6 +692,7 @@ class ResourceNeed(BaseModel):
     fallback: str = ""
     details: dict[str, Any] = Field(default_factory=dict)
 
+
 class ResourceCandidateLink(BaseModel):
     model_config = ConfigDict(extra="forbid")
     provider: str
@@ -672,6 +707,7 @@ class ResourceCandidateLink(BaseModel):
     attribution: str = ""
     additional_urls: dict[str, str] = Field(default_factory=dict)
 
+
 class ComponentSuggestion(BaseModel):
     model_config = ConfigDict(extra="forbid")
     provider: str
@@ -679,6 +715,7 @@ class ComponentSuggestion(BaseModel):
     title: str = ""
     description: str = ""
     item_url: str = ""
+
 
 class ResourceBriefEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -692,6 +729,7 @@ class ResourceBriefEntry(BaseModel):
     primary_candidate_index: int | None = None
     guidance: str = ""
 
+
 class ComponentBriefEntry(BaseModel):
     model_config = ConfigDict(extra="forbid")
     need_id: str
@@ -701,6 +739,7 @@ class ComponentBriefEntry(BaseModel):
     suggestions: list[ComponentSuggestion] = Field(default_factory=list)
     primary_suggestion_index: int | None = None
     guidance: str = ""
+
 
 class VisualBriefOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -812,15 +851,16 @@ class CodeGeneratorSourceRef(BaseModel):
     brief_contract_hash: str
     bound_session_revision: int
 
+
 class ActivePreview(BaseModel):
     run_id: str
-    host: str                          # Preview gateway host
-    url: str                           # Sandbox URL, e.g. "https://preview.oryxenai.local/p/abcd-1234/"
+    host: str  # Preview gateway host
+    url: str  # Sandbox URL, e.g. "https://preview.oryxenai.local/p/abcd-1234/"
     candidate_id: str
     candidate_identity_hash: str
     build_hash: str
-    route_ids: list[str]               # ["home", "work", "about"]
-    route_paths: list[str]             # ["/", "/work", "/about"]
+    route_ids: list[str]  # ["home", "work", "about"]
+    route_paths: list[str]  # ["/", "/work", "/about"]
     promoted_at: str
 ```
 

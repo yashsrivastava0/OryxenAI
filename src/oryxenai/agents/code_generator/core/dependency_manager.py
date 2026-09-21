@@ -386,14 +386,18 @@ def _verification_install_command(settings: Any, repo_dir: Path) -> list[str]:
 
     verification = getattr(settings, "code_generator_verification", None)
     configured = getattr(verification, "install_command", None) if verification else None
-    command = [str(item) for item in configured] if configured else [
-        "npm",
-        "ci",
-        "--ignore-scripts",
-        "--offline",
-        "--no-audit",
-        "--no-fund",
-    ]
+    command = (
+        [str(item) for item in configured]
+        if configured
+        else [
+            "npm",
+            "ci",
+            "--ignore-scripts",
+            "--offline",
+            "--no-audit",
+            "--no-fund",
+        ]
+    )
     if command and Path(command[0]).name.casefold() in {"npm", "npm.cmd", "npm.exe"}:
         command[0] = _npm_executable(settings)
     if "--prefix" not in command:

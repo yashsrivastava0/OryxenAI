@@ -107,7 +107,7 @@ def _plan(*, resource_slot: bool = False) -> SitePlan:
                     "route_id": "home",
                     "expected_outcome": "Evidence",
                     "source_marker": "data-criterion-id",
-                }
+                },
             ],
             "resource_slots": (
                 [{"slot_id": "hero-image", "route_id": "home", "purpose": "editorial image"}]

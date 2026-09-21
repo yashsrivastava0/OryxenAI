@@ -125,7 +125,10 @@ async def test_gateway_injects_mount_metadata_for_nested_asset_urls() -> None:
     assert (
         'name="oryxenai-preview-base" content="/preview/preview-bbbbbbbbbbbbbbbb/"' in response.text
     )
-    assert '<script src="/preview/preview-bbbbbbbbbbbbbbbb/__oryxenai/preview-bridge.js" defer></script>' in response.text
+    assert (
+        '<script src="/preview/preview-bbbbbbbbbbbbbbbb/__oryxenai/preview-bridge.js" defer></script>'
+        in response.text
+    )
 
 
 @pytest.mark.asyncio
@@ -256,9 +259,7 @@ async def test_candidate_gateway_serves_assets_under_the_exact_nested_mount(tmp_
     ) as client:
         headers = {"X-Preview-Verify-Token": header_value}
         page = await client.get("/preview/host-abcdefghijklmnop/", headers=headers)
-        nested = await client.get(
-            "/preview/host-abcdefghijklmnop/work/project", headers=headers
-        )
+        nested = await client.get("/preview/host-abcdefghijklmnop/work/project", headers=headers)
         asset = await client.get("/preview/host-abcdefghijklmnop/assets/app.js", headers=headers)
     assert page.status_code == 200
     assert 'content="/preview/host-abcdefghijklmnop/"' in page.text
@@ -337,7 +338,9 @@ async def test_public_candidate_gateway_requires_capability_and_supports_nested_
         page = await client.get(f"{base}/")
         nested = await client.get(f"{base}/about")
         asset = await client.get(f"{base}/assets/app.js")
-        denied = await client.get(f"/candidate-preview/candidate/{'B' * 32}/{candidate_id}/{build_hash}/")
+        denied = await client.get(
+            f"/candidate-preview/candidate/{'B' * 32}/{candidate_id}/{build_hash}/"
+        )
     assert page.status_code == 200
     assert 'content="/candidate-preview/candidate/' in page.text
     assert nested.status_code == 200

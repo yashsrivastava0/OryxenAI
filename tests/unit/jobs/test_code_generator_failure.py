@@ -74,7 +74,9 @@ async def test_terminal_failure_converges_run_to_needs_attention(monkeypatch) ->
 
     assert run.status == DevelopmentRunStatus.NEEDS_ATTENTION.value
     assert run.terminal_failure["terminal_code"] == "HANDLER_ERROR"
-    assert run.terminal_failure["safe_user_summary"] == "Code Generator could not complete this stage."
+    assert (
+        run.terminal_failure["safe_user_summary"] == "Code Generator could not complete this stage."
+    )
     assert run.issues[0]["code"] == "HANDLER_ERROR"
     assert repository.event[1]["event_type"] == "needs_attention"
 

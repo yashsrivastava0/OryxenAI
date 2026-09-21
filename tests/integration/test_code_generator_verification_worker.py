@@ -115,7 +115,7 @@ def _plan() -> SitePlan:
                     "route_id": "home",
                     "expected_outcome": "Evidence",
                     "source_marker": "data-criterion-id",
-                }
+                },
             ],
             "work_graph": {
                 "units": [

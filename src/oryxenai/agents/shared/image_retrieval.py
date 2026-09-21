@@ -1009,11 +1009,7 @@ async def _refresh_pixabay_image_url(
     if not isinstance(hits, list):
         return None
     match = next(
-        (
-            item
-            for item in hits
-            if isinstance(item, dict) and str(item.get("id", "")) == asset_id
-        ),
+        (item for item in hits if isinstance(item, dict) and str(item.get("id", "")) == asset_id),
         None,
     )
     if match is None:

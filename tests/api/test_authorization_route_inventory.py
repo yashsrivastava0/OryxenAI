@@ -86,7 +86,10 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/build-preparation/fixture/run"): "admin_fixture_mutation",
     ("POST", "/api/v1/build-preparation/fixture/runs"): "admin_fixture_mutation",
     ("POST", "/api/v1/development/code-generator/provider-preflight"): "admin_development_mutation",
-    ("POST", "/api/v1/development/code-generator/toolchain-preflight"): "admin_development_mutation",
+    (
+        "POST",
+        "/api/v1/development/code-generator/toolchain-preflight",
+    ): "admin_development_mutation",
     ("POST", "/api/v1/development/code-generator/runs"): "admin_development_mutation",
     (
         "POST",

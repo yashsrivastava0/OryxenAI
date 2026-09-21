@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from tests.unit.agents.code_generator.test_v4_contracts import _blueprint
 
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_schemas import (
@@ -30,6 +29,7 @@ from oryxenai.agents.code_generator.core.portfolio_export import (
     build_image_evidence,
 )
 from oryxenai.core.settings import Settings
+from tests.unit.agents.code_generator.test_v4_contracts import _blueprint
 
 
 def _placement(slot_id: str, route_id: str = "home") -> ResourcePlacementV4:

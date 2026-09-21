@@ -27,9 +27,7 @@ def build_verification_profile(settings: Any) -> VerificationProfile:
             "tablet": {"width": 768, "height": 1024},
             "desktop": {"width": 1440, "height": 900},
         }
-    configured_viewports = {
-        str(key): dict(value) for key, value in viewports.items()
-    }
+    configured_viewports = {str(key): dict(value) for key, value in viewports.items()}
     release_names = [
         str(value).strip()
         for value in (getattr(config, "release_viewport_profiles", []) or [])

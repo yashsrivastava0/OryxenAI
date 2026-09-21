@@ -105,9 +105,7 @@ def test_low_visual_score_with_advisory_finding_remains_accepted() -> None:
         update={
             "composition_score": 2,
             "score_evidence": [
-                item.model_copy(update={"score": 2})
-                if item.dimension == "composition"
-                else item
+                item.model_copy(update={"score": 2}) if item.dimension == "composition" else item
                 for item in _draft().score_evidence
             ],
             "findings": [

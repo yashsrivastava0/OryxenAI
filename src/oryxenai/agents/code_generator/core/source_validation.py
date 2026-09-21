@@ -66,9 +66,7 @@ _INLINE_CUSTOM_PROPERTY_DEFINITION_RE = re.compile(
     r"\.setProperty\(\s*[\"'](?P<setter>--[A-Za-z_][\w-]*)[\"'])"
 )
 _ROUTE_FONT_FACE_RE = re.compile(r"@font-face\b", re.IGNORECASE)
-_DISCLOSURE_BLOCK_RE = re.compile(
-    r"<Disclosure\b[^>]*>(?P<body>.*?)</Disclosure\s*>", re.DOTALL
-)
+_DISCLOSURE_BLOCK_RE = re.compile(r"<Disclosure\b[^>]*>(?P<body>.*?)</Disclosure\s*>", re.DOTALL)
 _CONTENT_VALUE_LITERAL_RE = re.compile(
     r"\bcontentValue\s*\(\s*[\"'](?P<content_id>[^\"']+)[\"']\s*\)"
 )
@@ -269,9 +267,7 @@ def validate_generation_changes_incrementally(
     envelope and ownership contract have been admitted.
     """
 
-    total_bytes = sum(
-        len(change.complete_utf8_content.encode("utf-8")) for change in changes.files
-    )
+    total_bytes = sum(len(change.complete_utf8_content.encode("utf-8")) for change in changes.files)
     if total_bytes > max_response_bytes:
         return [], [
             SourceValidationError(
@@ -1183,9 +1179,7 @@ def _exact_selector_declarations(
 
 _ATTR_SELECTOR_LITERAL_RE = re.compile(r'^\[([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2\]$')
 _CSS_ID_SELECTOR_RE = re.compile(r"^#([A-Za-z_][\w-]*)$")
-_JSX_ATTR_MARKER_LITERAL_RE = re.compile(
-    r'^([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2$'
-)
+_JSX_ATTR_MARKER_LITERAL_RE = re.compile(r'^([a-zA-Z_:][\w:.-]*)\s*=\s*(["\'])([^"\']*)\2$')
 
 
 def _literal_present(literal: str, source: str) -> bool:
@@ -1316,9 +1310,7 @@ def _css_spelled_number(value: str) -> int | None:
         return None
     total = 0
     current = 0
-    number_words = tuple(
-        sorted(_CSS_SPELLED_NUMBER_VALUES, key=len, reverse=True)
-    )
+    number_words = tuple(sorted(_CSS_SPELLED_NUMBER_VALUES, key=len, reverse=True))
     expanded: list[str] = []
     for token in tokens:
         if token in _CSS_SPELLED_NUMBER_VALUES:
@@ -1327,11 +1319,7 @@ def _css_spelled_number(value: str) -> int | None:
         cursor = 0
         while cursor < len(token):
             word = next(
-                (
-                    candidate
-                    for candidate in number_words
-                    if token.startswith(candidate, cursor)
-                ),
+                (candidate for candidate in number_words if token.startswith(candidate, cursor)),
                 None,
             )
             if word is None:
@@ -1353,9 +1341,7 @@ def _css_spelled_number(value: str) -> int | None:
 def _normalize_css_spelled_lengths(source: str) -> str:
     """Repair only invalid number-word CSS lengths in a generated body."""
 
-    comment_spans = [
-        match.span() for match in re.finditer(r"/\*.*?\*/", source, flags=re.DOTALL)
-    ]
+    comment_spans = [match.span() for match in re.finditer(r"/\*.*?\*/", source, flags=re.DOTALL)]
     replacements: list[tuple[int, int, str]] = []
     for declaration in _CSS_DECLARATION_RE.finditer(source):
         if any(start <= declaration.start() < end for start, end in comment_spans):
@@ -1491,8 +1477,10 @@ def normalize_route_batch_motion_sources(
                 continue
             property_name = str(expectation.get("property_name", "") or "").strip()
             after_value = str(expectation.get("after_value", "") or "").strip()
-            if property_name and after_value and not _css_rule_has_motion_value(
-                combined, selector, property_name, after_value
+            if (
+                property_name
+                and after_value
+                and not _css_rule_has_motion_value(combined, selector, property_name, after_value)
             ):
                 needs_fallback = True
         opacity_before = any(
@@ -1530,7 +1518,11 @@ def normalize_route_batch_motion_sources(
                 combined = _combined_route_sources(sources)
         if needs_fallback:
             fallback = _motion_css_fallback(beat, selector, trigger_selector)
-            if fallback and f"/* OryxenAI motion contract: {beat.get('motion_id', '')} */" not in sources[style_path]:
+            if (
+                fallback
+                and f"/* OryxenAI motion contract: {beat.get('motion_id', '')} */"
+                not in sources[style_path]
+            ):
                 sources[style_path] = sources[style_path].rstrip() + "\n\n" + fallback + "\n"
                 changed = True
     return changed
@@ -1714,15 +1706,12 @@ def _combined_route_sources(sources: dict[str, str]) -> str:
 def _motion_owner_source_path(sources: dict[str, str], beat: dict[str, Any]) -> str | None:
     section_id = str(beat.get("section_id", "") or "").strip()
     if section_id:
-        anchor = re.compile(
-            rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']"
-        )
+        anchor = re.compile(rf"data-content-id\s*=\s*[\"']{re.escape(section_id)}[\"']")
         match = next(
             (
                 (relative, source)
                 for relative, source in sorted(sources.items())
-                if Path(relative).suffix.casefold() in {".tsx", ".jsx"}
-                and anchor.search(source)
+                if Path(relative).suffix.casefold() in {".tsx", ".jsx"} and anchor.search(source)
             ),
             None,
         )
@@ -1738,9 +1727,7 @@ def _motion_owner_source_path(sources: dict[str, str], beat: dict[str, Any]) -> 
             relative
             for relative, source in sorted(sources.items())
             if Path(relative).suffix.casefold() in {".tsx", ".jsx"}
-            and re.search(
-                rf"\bid\s*=\s*[\"']{re.escape(section_id)}[\"']", source
-            )
+            and re.search(rf"\bid\s*=\s*[\"']{re.escape(section_id)}[\"']", source)
         ),
         None,
     )
@@ -1763,9 +1750,11 @@ def _css_rule_has_motion_value(
             actual = " ".join(declaration.group("value").split()).casefold()
             if actual == expected_value:
                 return True
-            if property_name.casefold().endswith("color") and re.fullmatch(
-                r"[a-z][\w-]*", expected_value
-            ) and expected_value in actual:
+            if (
+                property_name.casefold().endswith("color")
+                and re.fullmatch(r"[a-z][\w-]*", expected_value)
+                and expected_value in actual
+            ):
                 return True
     return False
 
@@ -1781,36 +1770,33 @@ def _motion_guard_selector(selector: str, trigger_selector: str) -> str:
 
 def _motion_css_value(property_name: str, value: str) -> str:
     normalized = " ".join(value.split())
-    if property_name.casefold().endswith("color") and re.fullmatch(
-        r"[A-Za-z][\w-]*", normalized
-    ) and normalized.casefold() not in {
-        "inherit",
-        "initial",
-        "transparent",
-        "currentcolor",
-        "unset",
-    }:
+    if (
+        property_name.casefold().endswith("color")
+        and re.fullmatch(r"[A-Za-z][\w-]*", normalized)
+        and normalized.casefold()
+        not in {
+            "inherit",
+            "initial",
+            "transparent",
+            "currentcolor",
+            "unset",
+        }
+    ):
         return f"var(--color-{normalized})"
     return normalized
 
 
-def _motion_css_fallback(
-    beat: dict[str, Any], selector: str, trigger_selector: str
-) -> str:
-    expectations = [
-        item for item in beat.get("changed_properties", []) if isinstance(item, dict)
-    ]
+def _motion_css_fallback(beat: dict[str, Any], selector: str, trigger_selector: str) -> str:
+    expectations = [item for item in beat.get("changed_properties", []) if isinstance(item, dict)]
     after = [
         f"  {item['property_name']}: {_motion_css_value(str(item['property_name']), str(item['after_value']))};"
         for item in expectations
-        if str(item.get("property_name", "")).strip()
-        and str(item.get("after_value", "")).strip()
+        if str(item.get("property_name", "")).strip() and str(item.get("after_value", "")).strip()
     ]
     before = [
         f"  {item['property_name']}: {_motion_css_value(str(item['property_name']), str(item['before_value']))};"
         for item in expectations
-        if str(item.get("property_name", "")).strip()
-        and str(item.get("before_value", "")).strip()
+        if str(item.get("property_name", "")).strip() and str(item.get("before_value", "")).strip()
     ]
     if not after or not before:
         return f"/* OryxenAI motion contract: {beat.get('motion_id', '')} */\n{selector} {{}}"
@@ -1857,9 +1843,7 @@ def _motion_css_fallback(
     )
 
 
-def _add_motion_marker(
-    source: str, marker: str, selector: str, beat: dict[str, Any]
-) -> str:
+def _add_motion_marker(source: str, marker: str, selector: str, beat: dict[str, Any]) -> str:
     match = _JSX_ATTR_MARKER_LITERAL_RE.match(marker)
     if match is None:
         return source
@@ -1887,9 +1871,7 @@ def _find_motion_target_tag(
     section_start = source.rfind("<", 0, anchor.start())
     section_end_match = re.search(r'data-content-id\s*=\s*["\']', source[anchor.end() :])
     section_end = (
-        anchor.end() + section_end_match.start()
-        if section_end_match is not None
-        else len(source)
+        anchor.end() + section_end_match.start() if section_end_match is not None else len(source)
     )
     candidates: list[tuple[int, int, str]] = []
     cursor = section_start
@@ -1917,25 +1899,19 @@ def _motion_selector_tail_matches_tag(selector: str, tag: str) -> bool:
         class_name = tail[1:]
         return any(
             class_name in str(match.group(2)).split()
-            for match in re.finditer(
-                r"\b(?:className|class)\s*=\s*([\"'])(.*?)\1", tag
-            )
+            for match in re.finditer(r"\b(?:className|class)\s*=\s*([\"'])(.*?)\1", tag)
         )
     if tail.startswith("#"):
         return bool(re.search(rf"\bid\s*=\s*[\"']{re.escape(tail[1:])}[\"']", tag))
     attribute = re.fullmatch(r"\[([A-Za-z_:][\w:.-]*)\s*=\s*([\"'])(.*?)\2\]", tail)
     if attribute is not None:
         name, _quote, value = attribute.groups()
-        return bool(
-            re.search(
-                rf"\b{re.escape(name)}\s*=\s*[\"']{re.escape(value)}[\"']", tag
-            )
-        )
+        return bool(re.search(rf"\b{re.escape(name)}\s*=\s*[\"']{re.escape(value)}[\"']", tag))
     return bool(re.match(rf"<[\s]*{re.escape(tail)}\b", tag)) if tail else False
 
 
 def _add_motion_observer(source: str, trigger_selector: str, beat: dict[str, Any]) -> str:
-    if not trigger_selector or any(character in trigger_selector for character in "\\\"\r\n"):
+    if not trigger_selector or any(character in trigger_selector for character in '\\"\r\n'):
         return source
     if re.search(
         r"setAttribute\(\s*[\"']data-motion-ready[\"']\s*,\s*[\"']true[\"']\s*\)",
@@ -3025,9 +3001,7 @@ def _hidden_approved_content_diagnostics(
         opening = block[: opening_end + 1] if opening_end >= 0 else block
         marker_ids = {
             str(value).strip()
-            for value in re.findall(
-                r"\bdata-interaction-id\s*=\s*[\"']([^\"']+)[\"']", opening
-            )
+            for value in re.findall(r"\bdata-interaction-id\s*=\s*[\"']([^\"']+)[\"']", opening)
             if str(value).strip()
         }
         if marker_ids & planned:

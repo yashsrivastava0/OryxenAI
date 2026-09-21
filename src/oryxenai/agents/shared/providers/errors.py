@@ -297,9 +297,7 @@ def map_http_error(status_code: int, body: dict[str, Any] | None = None) -> Prov
         return error
     if status_code == 429:
         retry_after = _extract_retry_after(body)
-        error = ProviderRateLimitError(
-            message or "Rate limited", retry_after_seconds=retry_after
-        )
+        error = ProviderRateLimitError(message or "Rate limited", retry_after_seconds=retry_after)
         error.details.update(_safe_error_details(body))
         return error
     if status_code == 408:

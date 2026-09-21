@@ -504,6 +504,12 @@ class CodeGeneratorService:
         # retry-state guard so the recovery button can actually requeue the
         # same run instead of reporting that generation is still in progress.
         run = await self._reconcile_terminal_active_job(run)
+        if run is None:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_RUN_NOT_FOUND",
+                "The current Code Generator run no longer exists.",
+                status_code=409,
+            )
         normal_entitlement = await self._normal_owner_entitlement(session_id)
         if normal_entitlement is not None:
             if normal_entitlement.successful_run_id is not None:
@@ -1246,10 +1252,14 @@ class CodeGeneratorService:
             visual = VisualDesignDirectorState.model_validate(raw_visual)
             if content.approved is None or visual.approved is None:
                 raise ValueError("approved upstream snapshot is unavailable")
-            current_source_ref = BuildPreparationInputIntegrator(self._settings).compose(
-                content,
-                visual,
-            ).source_ref
+            current_source_ref = (
+                BuildPreparationInputIntegrator(self._settings)
+                .compose(
+                    content,
+                    visual,
+                )
+                .source_ref
+            )
         except Exception as exc:
             raise CodeGeneratorOperationError(
                 "CODE_GENERATOR_BUILD_PREPARATION_STALE",
@@ -1268,7 +1278,8 @@ class CodeGeneratorService:
             mismatches.append("approved_upstream_changed")
         if (
             persisted_source_ref is None
-            or current_source_ref.input_projection_hash != persisted_source_ref.input_projection_hash
+            or current_source_ref.input_projection_hash
+            != persisted_source_ref.input_projection_hash
         ):
             mismatches.append("approved_upstream_changed")
         if mismatches:

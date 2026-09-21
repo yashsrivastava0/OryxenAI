@@ -143,9 +143,11 @@ def _inject_preview_base(data: bytes, base_path: str) -> bytes:
     if not base_path or b"<head" not in data.lower():
         return data
     marker = f'<meta name="oryxenai-preview-base" content="{base_path}">'.encode()
-    bridge_src = f'{base_path.rstrip("/")}/{_PREVIEW_BRIDGE_PATH}'.encode()
+    bridge_src = f"{base_path.rstrip('/')}/{_PREVIEW_BRIDGE_PATH}".encode()
     bridge_marker = b'<script src="' + bridge_src + b'" defer></script>'
-    injection = (b"" if marker in data else marker) + (b"" if bridge_marker in data else bridge_marker)
+    injection = (b"" if marker in data else marker) + (
+        b"" if bridge_marker in data else bridge_marker
+    )
     if not injection:
         return data
     lowered = data.lower()
@@ -176,10 +178,7 @@ def _preview_asset_url(value: str, mount_path: str) -> str:
     from urllib.parse import urlsplit, urlunsplit
 
     stripped = value.strip()
-    if (
-        not stripped
-        or stripped.startswith(("#", "//", "data:", "blob:", "javascript:"))
-    ):
+    if not stripped or stripped.startswith(("#", "//", "data:", "blob:", "javascript:")):
         return value
     parsed = urlsplit(stripped)
     if parsed.scheme or parsed.netloc:
@@ -371,7 +370,10 @@ class PreviewGateway:
             return Response("Not found", status_code=404)
         try:
             payload = json.loads(stored_manifest[1].decode("utf-8"))
-            if payload.get("candidate_id") != candidate_id or payload.get("build_hash") != build_hash:
+            if (
+                payload.get("candidate_id") != candidate_id
+                or payload.get("build_hash") != build_hash
+            ):
                 return Response("Not found", status_code=404)
             if not hmac.compare_digest(
                 str(payload.get("token_sha256", "")),

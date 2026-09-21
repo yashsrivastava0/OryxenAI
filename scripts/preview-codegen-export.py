@@ -87,8 +87,7 @@ def _rewrite_export_html_urls(data: bytes) -> bytes:
             parts = candidate.strip().split(None, 1)
             if parts and parts[0]:
                 candidates.append(
-                    f"{_export_asset_url(parts[0])}"
-                    + (f" {parts[1]}" if len(parts) > 1 else "")
+                    f"{_export_asset_url(parts[0])}" + (f" {parts[1]}" if len(parts) > 1 else "")
                 )
         rewritten = ", ".join(candidates)
         return f"{match.group('prefix')}{match.group('quote')}{rewritten}{match.group('quote')}"
@@ -130,7 +129,9 @@ class ExportHandler(SimpleHTTPRequestHandler):
         if target == self.export_root / "index.html":
             data = _rewrite_export_html_urls(data)
         self.send_response(200)
-        self.send_header("Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream")
+        self.send_header(
+            "Content-Type", mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        )
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store, max-age=0")
         self.send_header("Pragma", "no-cache")
@@ -174,7 +175,9 @@ def main() -> None:
     root = args.dist_dir.resolve()
     if not root.is_dir() or not (root / "index.html").is_file():
         parser.error(f"dist_dir must contain index.html: {root}")
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), lambda *a, **kw: ExportHandler(*a, directory=str(root), **kw))
+    server = ThreadingHTTPServer(
+        ("127.0.0.1", args.port), lambda *a, **kw: ExportHandler(*a, directory=str(root), **kw)
+    )
     print(f"Serving exported portfolio from: {root}")
     print(f"Local URL: http://127.0.0.1:{args.port}")
     try:

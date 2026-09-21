@@ -301,21 +301,13 @@ def required_image_placements(
         return []
 
     approved = set(policy.approved_image_slot_ids)
-    eligible = [
-        placement
-        for placement in placements
-        if placement.resource_slot_id in approved
-    ]
+    eligible = [placement for placement in placements if placement.resource_slot_id in approved]
     selected: list[ResourcePlacementV4] = []
     selected_slots: set[str] = set()
 
     if policy.require_primary_route_image:
         primary = next(
-            (
-                placement
-                for placement in eligible
-                if placement.route_id == policy.primary_route_id
-            ),
+            (placement for placement in eligible if placement.route_id == policy.primary_route_id),
             None,
         )
         if primary is None:

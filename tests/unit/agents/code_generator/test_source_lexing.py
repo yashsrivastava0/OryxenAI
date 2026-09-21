@@ -8,7 +8,7 @@ def test_regex_literal_with_escaped_slash_is_not_mistaken_for_a_comment() -> Non
         "export function trimTrailingSlash(path: string): string {\n"
         '  return path.replace(/\\/+$/, "");\n'
         "}\n"
-        'export const HOME_PATTERN = /^\\/api\\//;\n'
+        "export const HOME_PATTERN = /^\\/api\\//;\n"
         'export const isHome = HOME_PATTERN.test("/api/");\n'
     )
 

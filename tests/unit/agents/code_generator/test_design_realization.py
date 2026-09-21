@@ -12,10 +12,9 @@ supposed to have one.
 
 from __future__ import annotations
 
-from tests.unit.agents.code_generator.test_v4_contracts import _blueprint
-
 from oryxenai.agents.code_generator.core.design_realization import compile_design_realization
 from oryxenai.agents.code_generator.core.development_schemas import ExperienceBlueprintV4
+from tests.unit.agents.code_generator.test_v4_contracts import _blueprint
 
 _RESOURCE_SLOT_ID = "resource-hero-photo"
 
@@ -57,9 +56,7 @@ def _execution(*, required: bool) -> dict:
 
 def _ledger(*, local_paths: list[str]) -> dict:
     return {
-        "requests": [
-            {"request_id": f"delegated-{_RESOURCE_SLOT_ID}", "request_hash": "hash-1"}
-        ],
+        "requests": [{"request_id": f"delegated-{_RESOURCE_SLOT_ID}", "request_hash": "hash-1"}],
         "active_bindings": [
             {
                 "request_id_or_pack_need_id": "hash-1",
@@ -114,9 +111,7 @@ def test_distinctive_move_carries_its_runtime_marker_through() -> None:
     on a nested element carrying the move's own runtime_marker instead --
     the runtime check needs that marker to look in the right place."""
 
-    realization = compile_design_realization(
-        _blueprint(), route_id="home", section_order=["hero"]
-    )
+    realization = compile_design_realization(_blueprint(), route_id="home", section_order=["hero"])
 
     assert len(realization.distinctive_move_checks) == 1
     assert realization.distinctive_move_checks[0].runtime_marker == (

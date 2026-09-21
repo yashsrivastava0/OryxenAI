@@ -159,7 +159,8 @@ async def create_upload_run(
             total += len(chunk)
             if total > limit:
                 raise DevelopmentInputError(
-                    "UPLOAD_TOO_LARGE", "The uploaded brief envelope exceeds the configured size limit."
+                    "UPLOAD_TOO_LARGE",
+                    "The uploaded brief envelope exceeds the configured size limit.",
                 )
             chunks.append(chunk)
         data = b"".join(chunks)

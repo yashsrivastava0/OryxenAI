@@ -4,7 +4,6 @@ import io
 
 import pytest
 from PIL import Image
-from tests.unit.agents.code_generator.test_acquisition_validators import _request
 
 from oryxenai.agents.code_generator.core.acquisition_validators import AcquisitionValidationError
 from oryxenai.agents.code_generator.core.development_schemas import ResourceCandidate
@@ -17,6 +16,7 @@ from oryxenai.agents.code_generator.core.resource_adapters import (
     StylePrimitiveAdapter,
 )
 from oryxenai.core.settings import Settings
+from tests.unit.agents.code_generator.test_acquisition_validators import _request
 
 
 def _png() -> bytes:

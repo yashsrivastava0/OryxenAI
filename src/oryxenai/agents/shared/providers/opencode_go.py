@@ -411,7 +411,9 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             ),
             "charged_output_characters": output_characters,
         }
-        provider_request_id = _response_scalar(response, "provider_request_id", "request_id", "_request_id")
+        provider_request_id = _response_scalar(
+            response, "provider_request_id", "request_id", "_request_id"
+        )
         if not provider_request_id:
             provider_request_id = str(getattr(response, "id", "") or "")
         if provider_request_id:
@@ -868,7 +870,9 @@ def _annotate_provider_error(
 
     if usage:
         error.details["usage"] = dict(usage)
-    provider_request_id = _response_scalar(response, "provider_request_id", "request_id", "_request_id")
+    provider_request_id = _response_scalar(
+        response, "provider_request_id", "request_id", "_request_id"
+    )
     if not provider_request_id:
         provider_request_id = str(getattr(response, "id", "") or "")
     if provider_request_id:
