@@ -8,6 +8,26 @@ This is an operator-reported browser-verification checkpoint. It records
 external configuration that was confirmed outside the repository; it does not
 claim that the application has been deployed or accepted in production.
 
+### Follow-up Azure recheck — 2026-09-21
+
+- Subscription, resource group, VM identity, Ubuntu 24.04 LTS x64 image,
+  `Standard_B2as_v2` size, static public IP `20.235.74.81`, and the attached
+  64 GiB Standard SSD LRS disk were reverified.
+- The VM was still running. Azure Portal did not expose guest free-space
+  information in this recheck; the VM-side `disk-check` remains pending.
+- The resource inventory contained eight expected resources: VM, NIC, disk,
+  VNet, NSG, public IP, SSH key, and Azure Network Watcher. No database,
+  App Service, AKS, load balancer, or second VM was present.
+- Azure outbound TCP/443 diagnostics reported reachability to GitHub, Docker
+  Hub, Supabase, Google, OpenAI, and Anthropic with 316 probes and no failures.
+- The current operator public IP was reported as `182.156.19.94`, while the
+  TCP 22 rule still allows only `106.192.207.210/32`. No NSG change was made.
+  Before SSH, obtain confirmation and replace only the TCP 22 source with the
+  current trusted `/32`; keep TCP 80/443 and all internal-port rules unchanged.
+- The Azure Sponsorship page reported no active Sponsorship. Portal cost was
+  reported as ₹438.29 with a forecast of ₹709.66; the remaining-credit and
+  spending-limit figures remain unverified.
+
 ### Namecheap DNS — completed
 
 - Registrar/DNS host: Namecheap BasicDNS; Namecheap is authoritative for
@@ -47,6 +67,9 @@ claim that the application has been deployed or accepted in production.
 - The VM was intentionally left running because deployment timing was not
   specified. Deallocate it when pausing work to limit Azure credit usage.
 
+The follow-up recheck confirms the VM/network shape but does not authorize an
+SSH rule change, deployment, or a billing-plan change.
+
 ### Repository/release state at this checkpoint
 
 - Local worktree was clean when inspected.
@@ -59,6 +82,11 @@ claim that the application has been deployed or accepted in production.
 - No Azure Docker image build, repository checkout, production `.env`,
   migration, Caddy certificate issuance, application deployment, or live
   end-to-end acceptance has been recorded.
+
+The latest local repository inspection after this checkpoint found a clean
+`deployment` branch, 14 commits ahead of `origin/deployment`, at
+`52dcd6544705243c591fafb644939dcfd318b212`. That SHA is documentation-clean
+but is not release-approved until the complete release gate passes.
 
 ### Next checkpoint
 
