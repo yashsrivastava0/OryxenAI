@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-21 10:12 +05:30 - Codex (GPT-5) - [353ef25] - Complete VM-local production storage hardening
+
+Production Compose now bind-mounts PostgreSQL, Code Generator state, previews,
+exports, and Caddy state below a configurable VM data root, with non-root
+ownership, disk thresholds, filesystem/database backups, restore dry-runs,
+read-back checks, and R2-free setup/doctor requirements (D-106). Local Docker
+build, migration, health, Caddy, restart/engine-restart persistence, and
+credential-free log gates passed; Azure deployment and the legacy generic
+artifact-storage local implementation remain explicit follow-up blockers.
+
 ### 2026-09-20 22:44 +05:30 - Codex (GPT-5) - [d0d3a67] - Select VM-local persistent storage for the first Azure release
 
 Recorded the first-release storage decision as VM-local persistent Docker-backed
@@ -174,18 +184,10 @@ preserved every source body, retained numbered compatibility stubs, and added
 canonical README navigation. Verified source parity and local Markdown links;
 no runtime behavior changed.
 
-### 2026-09-19 00:00 +05:30 — Codex — [87d60a7] — Corrected Code Generator audit confidence
-
-Rechecked the Code Generator issue reports against the route-generation
-context, stale-source validator, preview bridge, and configuration overlays.
-Corrected the report to preserve approved-content context as evidence, mark
-the route-context failure as requiring reproduction, qualify Docker preview
-behavior by effective overlay, and downgrade the Windows process-contention
-finding until its cause is isolated.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-19 — [87d60a7] — Corrected Code Generator audit confidence and qualified the route-context, Docker-overlay, and Windows process findings.
 - 2026-09-19 — [392277c] — Audited the Code Generator architecture and preview issue surface, preserving the findings for implementation follow-up.
 - 2026-09-18 — [f0b8d7a] — Ran the first live repair campaign attempt, fixed local environment blockers, and documented an evidenced content-generation finding.
 - 2026-09-18 — [c3cfe3a] — Fixed test module-name collisions so the full unit tree could collect, while documenting unrelated overlay mismatches.
@@ -234,7 +236,7 @@ finding until its cause is isolated.
 
 ---
 
-## Summary (as of last compaction — 2026-09-20)
+## Summary (as of last compaction — 2026-09-21)
 
-- Recent detailed entries retained: 15
-- Compacted milestone bullets: 27
+- Recent detailed entries retained: 19
+- Compacted milestone bullets: 28
