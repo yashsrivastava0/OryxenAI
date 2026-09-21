@@ -2,6 +2,76 @@
 
 This canonical record preserves the original Azure status checkpoints and live deployment session log in one place.
 
+## Current operator checkpoint — 2026-09-21
+
+This is an operator-reported browser-verification checkpoint. It records
+external configuration that was confirmed outside the repository; it does not
+claim that the application has been deployed or accepted in production.
+
+### Namecheap DNS — completed
+
+- Registrar/DNS host: Namecheap BasicDNS; Namecheap is authoritative for
+  `oryxenai.me`.
+- Saved and rechecked after reload:
+  - `A app -> 20.235.74.81` (TTL Automatic)
+  - `A preview -> 20.235.74.81` (TTL Automatic)
+- Existing `@` and `www` records were left unchanged.
+- No duplicate, MX, AAAA, wildcard, or nameserver changes were made.
+- DNS work for the current `app.oryxenai.me` and `preview.oryxenai.me` hosts is
+  complete. The bare domain and `www` are not part of the current Caddy host
+  configuration.
+
+### Azure infrastructure verification — completed
+
+- Subscription: `Azure for Students` (active).
+- Resource group: `oryxenai-demo-rg`.
+- VM: `oryxenai-demo-vm`.
+- VM state at checkpoint: running.
+- Public IPv4: `20.235.74.81`.
+- Public IP allocation: static.
+- Inbound network rules confirmed:
+  - TCP 22 from `106.192.207.210/32` only.
+  - TCP 80 from Any.
+  - TCP 443 from Any.
+  - No public allow rules for TCP 5432, 5544, 8000, or 4174.
+- Outbound Internet access was reported working, including DNS/HTTPS
+  connectivity to Supabase, Google, and Docker Hub.
+- Storage reported: 64 GiB disk with approximately 59 GiB free on `/`.
+- `/srv/oryxenai` and `/srv/oryxenai-backups` do not exist yet; the production
+  setup/storage-init command must create them with the service ownership and
+  permissions required by Compose.
+- The SSH rule was not independently checked against the current operator
+  public IP. Recheck the actual egress IP immediately before SSH; if it is not
+  `106.192.207.210`, replace the rule with the current trusted `/32` and do
+  not broaden SSH to Any.
+- The VM was intentionally left running because deployment timing was not
+  specified. Deallocate it when pausing work to limit Azure credit usage.
+
+### Repository/release state at this checkpoint
+
+- Local worktree was clean when inspected.
+- Branch: `deployment` (13 commits ahead of `origin/deployment`).
+- Current HEAD: `1bf6edb4ac10a4b5442de3c60416ab075e6db34d`.
+- The earlier release-check run covered `aede6f0c7dc8bca142a33b1471bee16a8ba10dce`,
+  not the newer documentation HEAD. That run passed Compose validation but
+  failed Ruff, formatting, Mypy, and one integration test; therefore no SHA is
+  currently approved for deployment.
+- No Azure Docker image build, repository checkout, production `.env`,
+  migration, Caddy certificate issuance, application deployment, or live
+  end-to-end acceptance has been recorded.
+
+### Next checkpoint
+
+1. Reconcile the release branch and run the complete release gate against the
+   exact SHA intended for deployment.
+2. Recheck the current SSH egress IP and connect to the running VM.
+3. Clone/checkout the exact release SHA and run
+   `./scripts/azure-deploy.sh setup` privately on the VM.
+4. Run `doctor`, `disk-check`, and storage/read-back checks.
+5. Deploy the exact verified SHA, then configure/verify Supabase and Google
+   OAuth production URLs and complete HTTPS/browser acceptance.
+
+
 ## Included source documents
 
 - [Current Azure deployment status](#source-04-current-azure-deployment-status)
