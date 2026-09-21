@@ -28,6 +28,16 @@ claim that the application has been deployed or accepted in production.
   reported as ₹438.29 with a forecast of ₹709.66; the remaining-credit and
   spending-limit figures remain unverified.
 
+### Azure browser configuration finalized — 2026-09-21
+
+- The current operator IP was rechecked as `182.156.19.94`.
+- The NSG rule was saved and verified after reload: `Allow-SSH-MyIP`, TCP 22,
+  source `182.156.19.94/32`, priority 100, Allow.
+- TCP 80/443 and all other NSG rules remained unchanged.
+- Azure browser-side infrastructure configuration is complete. Guest disk
+  free space, SSH connectivity, Docker setup, application deployment, and
+  runtime acceptance remain deployment-side checks.
+
 ### Namecheap DNS — completed
 
 - Registrar/DNS host: Namecheap BasicDNS; Namecheap is authoritative for
