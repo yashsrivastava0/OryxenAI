@@ -19,7 +19,9 @@ Run these from the repository directory:
 | View one service | `./scripts/azure-deploy.sh logs app` |
 | Check internal and public health | `./scripts/azure-deploy.sh verify` |
 | Edit VM-local configuration | `./scripts/azure-deploy.sh configure` |
-| Create a database dump | `./scripts/azure-deploy.sh backup` |
+| Initialize/check VM storage | `./scripts/azure-deploy.sh storage-init` / `disk-check` |
+| Create database + filesystem backups | `./scripts/azure-deploy.sh backup` |
+| Validate a backup without restoring | `./scripts/azure-deploy.sh restore-dry-run <file>` |
 | Return to the previous recorded release | `./scripts/azure-deploy.sh rollback` |
 
 Run `verify` only after the public DNS and domain phase is active. During the
@@ -39,14 +41,16 @@ SHA used for every deployment.
 
 ## Backups and recovery
 
-The built-in backup command writes a PostgreSQL dump under the VM user's
-`~/oryxenai-backups` directory. After important releases and before schema
-migrations, download a copy to secure owner-controlled storage. A backup left
-only on the VM is lost if the VM or disk is lost.
+The built-in backup command writes a PostgreSQL dump and a VM-local service
+storage archive under `ORYXENAI_BACKUP_DIR` (default `/srv/oryxenai-backups`).
+The archive excludes the live PostgreSQL directory because the SQL dump is the
+database backup. After important releases and before schema migrations, copy
+both files and their checksum sidecars to secure owner-controlled storage. A
+backup left only on the VM is lost if the VM or disk is lost.
 
-Back up the VM-local artifact and preview roots separately from PostgreSQL and
-test restoring both the database dump and a preview object before calling the
-deployment recoverable.
+Run `restore-dry-run` for both backup types, then prove a preview read-back
+after restart and again after a VM reboot. The full storage contract is in
+[`docs/deployment/vm-local-storage-runbook.md`](../../docs/deployment/vm-local-storage-runbook.md).
 
 Do not use `docker compose down -v`; it deletes persistent database and service
 volumes. The deployment script's rollback restores application code and images,
