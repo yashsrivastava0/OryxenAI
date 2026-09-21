@@ -44,8 +44,8 @@ ignored production overlay. Enter these values at the prompts:
 
 | Prompt | Value/policy |
 | --- | --- |
-| Application hostname | `app.deploy.me` for the future public hostname |
-| Preview hostname | `preview.deploy.me` for the future public hostname |
+| Application hostname | `app.oryxenai.me` |
+| Preview hostname | `preview.oryxenai.me` |
 | VM storage | Persistent VM-backed Docker storage for PostgreSQL, artifacts, previews, workspaces, and Caddy state; record capacity and backup policy |
 | Supabase URL/keys | The existing project coordinates, entered privately |
 | Bootstrap administrators | Exactly the two owner-selected admin emails required by production validation |
@@ -58,16 +58,16 @@ production configuration is ready for Phase B.
 
 ## Domain activation after deployment
 
-- [ ] Obtain/control `deploy.me` through the current GitHub Student Developer
-      Pack offer or another registrar path.
-- [ ] Add an A record for `app.deploy.me` pointing to the VM's current static
+- [x] Obtain/control `oryxenai.me` through the GitHub Student Developer Pack
+      offer. The recorded expiration/renewal date is `2027-09-21`.
+- [ ] Add an A record for `app.oryxenai.me` pointing to the VM's current static
       public IP.
-- [ ] Add an A record for `preview.deploy.me` pointing to the same IP.
+- [ ] Add an A record for `preview.oryxenai.me` pointing to the same IP.
 - [ ] In Supabase URL Configuration, set the Site URL to
-      `https://app.deploy.me`.
+      `https://app.oryxenai.me`.
 - [ ] Add the exact application redirect URL
-      `https://app.deploy.me/auth/callback`.
-- [ ] In the Google OAuth client, add `https://app.deploy.me` as the web
+      `https://app.oryxenai.me/auth/callback`.
+- [ ] In the Google OAuth client, add `https://app.oryxenai.me` as the web
       origin and use the exact Supabase callback URL shown in the Supabase
       Google provider page.
 - [ ] Wait for DNS propagation and Caddy certificate issuance.
