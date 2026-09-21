@@ -11,6 +11,16 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-21 - Codex (GPT-5) - [d60d40b] - Fix production npm runtime toolchain
+
+The first Azure deployment built the image but failed during offline npm-cache
+warm-up because the runtime Dockerfile copied npm/npx symlink launchers as
+regular files. The runtime now copies the npm package, recreates both links,
+and smoke-checks `npm --version` and `npx --version` during the image build.
+Recorded the exact failure, correction, and pre-push verification results in
+the deployment history. The corrected release still requires a Linux VM image
+build and runtime acceptance after publication.
+
 ### 2026-09-21 - Codex (GPT-5) - [a861465] - Reconcile live deployment readiness
 
 Recorded the current Namecheap DNS resolution, Azure/SSH guest checks, Docker
