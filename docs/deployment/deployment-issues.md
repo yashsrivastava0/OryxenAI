@@ -33,7 +33,8 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 | **Day-to-day branch** | `staging` | Never triggers a deploy. See AGENTS.md "Branch workflow: `staging` vs `deployment`" |
 | **Promotion to `deployment`** | Requires explicit, per-instance operator go-ahead | No standing/assumed permission — even for routine changes |
 | **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#7](https://github.com/yashsrivastava0/OryxenAI/pull/7) | All merged into `deployment` (regular merge commits) |
-| **Last Updated** | 2026-09-22 21:45 +05:30 | Maintained across multi-agent sessions |
+| **VM power schedule** | ⏰ Auto-shutdown 01:00 IST, auto-start 07:00 IST | **The VM is expected to be unreachable ~01:00-07:00 IST daily** — intentional, see D-112 and `docs/deployment/vm-cost-automation.md` |
+| **Last Updated** | 2026-09-22 22:30 +05:30 | Maintained across multi-agent sessions |
 
 ---
 
