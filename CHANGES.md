@@ -11,6 +11,58 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [5837913, e1fb376] - Corrected the Output Inspector fix, fixed CI's empty npm cache, found a stale scaffold lockfile (T03 handoff)
+
+Follow-up to the entry below, after actually watching PR #1's `quality`
+check rerun on real Linux CI rather than assuming success: `80687eb`'s
+assertion-style fix was necessary but **not sufficient** — CI still
+failed with the drawer visible after Playwright's full 5-second retry
+window, proving it was a genuine functional bug, not a snapshot race.
+Root cause (`5837913`): `OutputInspector.tsx` attached its Escape-key
+listener inside a passive `useEffect`, which Preact runs after the DOM
+commit/paint — a real window exists after the drawer becomes visible
+(commit-time) but before the listener attaches (effect-time), and an
+Escape dispatched inside it is silently missed forever. Switched to
+`useLayoutEffect`, which runs synchronously with the commit. This is why
+it never reproduced via CPU-throttling on this Windows dev machine
+(timing-sensitive relative to Linux/CI's specific render scheduling, not
+raw speed) — confirmed fixed by the next CI run (only 1 test failing
+after this push, down from 2).
+
+That one remaining failure
+(`test_verification_builds_and_promotes_a_clean_candidate`) turned out to
+be caused by something new, unmasked only now that npm actually runs on
+Linux CI: `.workspace/npm-cache` (the offline cache `run_clean_build`'s
+`npm ci --offline` reads) starts completely empty on a fresh runner —
+there was never a Linux/CI equivalent of `scripts/warm-npm-cache.ps1`
+(Windows-only, manually-run "one-time trusted setup"). Reproduced the
+real, previously-truncated error directly in a Linux environment (WSL
+Ubuntu, Node 22.20.0): `npm error code ENOTCACHED ... yallist@3.1.1 ...
+cache mode is 'only-if-cached'` — the `npm warn ERESOLVE overriding peer
+dependency` text visible in the app's own truncated diagnostic was a red
+herring (npm overrides and continues past it; harmless). Added a "Warm
+Code Generator offline npm cache" step to `ci.yml` (`e1fb376`) mirroring
+the PS1 script's disposable-copy pattern as a portable shell equivalent —
+scoped to only the workflow file, not `dependency_manager.py`,
+`build_runner.py`, or a new script file, since those are inside
+`PLAN.MD`'s actively-claimed T03 scope.
+
+Pushing that fix uncovered a **third, distinct** issue, confirmed by
+reproducing the exact `run_clean_build` command sequence in the same real
+Linux environment: `npm ci` now fails with `EUSAGE ... Missing:
+@emnapi/core@1.11.3 from lock file` / `Missing: @emnapi/runtime@1.11.3
+from lock file`. The checked-in
+`scaffolds/react-vite-v1/package-lock.json` is genuinely stale for
+`@tailwindcss/oxide-wasm32-wasi`'s optional peer closure (locked at
+`^1.11.1`; current resolution wants `1.11.3`) — real, unlike the ERESOLVE
+warning, and only reachable now that both the resolver and the cache are
+fixed. **Not fixed by this entry.** This requires regenerating the
+scaffold's own `package-lock.json`, which is explicitly named in
+`PLAN.MD` T03's file list ("scaffold package manifest/lock") — left for
+that work rather than touched here. PR #1's `quality` check will remain
+red on this one test until T03 (or an explicit follow-up) regenerates
+that lockfile.
+
 ### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [1be4b13, 80687eb] - Fixed both real CI failures blocking PR #1, and corrected the PR's target branch
 
 Retargeted PR #1 from `main` to `deployment` (`gh pr edit 1 --base
@@ -38,10 +90,10 @@ test's `is_hidden()`/`is_visible()` snapshot assertions to
 `expect(...).to_be_hidden()/to_be_visible()`, matching the exact
 "assert False where False = is_hidden()" failure signature.
 
-All three of the originally reported failures are now addressed. Local
-`uv run pytest` (1433 passed, 5 skipped), `ruff check`, `ruff format
---check`, and `mypy src` all pass; the Linux-CI-specific parts can only
-be confirmed once PR #1's `quality` check reruns.
+Local `uv run pytest` (1433 passed, 5 skipped), `ruff check`, `ruff format
+--check`, and `mypy src` all pass. **This entry's Output Inspector fix
+turned out to be incomplete** — see the entry above (dated the same day,
+logged after actually watching CI rerun) for the real root cause and fix.
 
 ### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [no code change yet] - Installed gh CLI, diagnosed 3 real CI failures blocking the first sync PR
 
@@ -154,26 +206,6 @@ container smoke test was blocked only by a local port conflict (5544, this
 machine's native Postgres), not a real issue. `PLAN.MD` was left untouched —
 it has unrelated in-progress edits from another session.
 
-### 2026-09-21 - Codex (GPT-5) - [d60d40b] - Fix production npm runtime toolchain
-
-The first Azure deployment built the image but failed during offline npm-cache
-warm-up because the runtime Dockerfile copied npm/npx symlink launchers as
-regular files. The runtime now copies the npm package, recreates both links,
-and smoke-checks `npm --version` and `npx --version` during the image build.
-Recorded the exact failure, correction, and pre-push verification results in
-the deployment history. The corrected release still requires a Linux VM image
-build and runtime acceptance after publication.
-
-### 2026-09-21 10:12 +05:30 - Codex (GPT-5) - [353ef25] - Complete VM-local production storage hardening
-
-Production Compose now bind-mounts PostgreSQL, Code Generator state, previews,
-exports, and Caddy state below a configurable VM data root, with non-root
-ownership, disk thresholds, filesystem/database backups, restore dry-runs,
-read-back checks, and R2-free setup/doctor requirements (D-106). Local Docker
-build, migration, health, Caddy, restart/engine-restart persistence, and
-credential-free log gates passed; Azure deployment and the legacy generic
-artifact-storage local implementation remain explicit follow-up blockers.
-
 ### 2026-09-20 01:59 +05:30 — Codex (GPT-5) — [55e5692] — Recover Code Generator stage handoffs and native preview execution
 
 The durable coordinator now finalizes the completed Plan attempt before
@@ -186,6 +218,8 @@ Node/Playwright preview subprocesses (D-042).
 ## Compacted history
 
 ### 2026-09
+- 2026-09-21 — [d60d40b] — Fixed the production npm/npx symlink toolchain break found in the first Azure deploy attempt.
+- 2026-09-21 — [353ef25] — Completed VM-local production storage hardening: bind mounts, non-root ownership, backups (D-106).
 - 2026-09-21 — [a861465] — Reconciled live deployment readiness: DNS, Azure/SSH guest checks, Docker gap, verified SHA.
 - 2026-09-21 — [91f0d18] — Cleared final local release-gate findings; full local suite and Compose config validation passed.
 - 2026-09-20 — [d0d3a67] — Selected VM-local persistent Docker-backed storage over Cloudflare R2 for the first Azure release (D-106).
@@ -256,5 +290,5 @@ Node/Playwright preview subprocesses (D-042).
 
 ## Summary (as of last compaction — 2026-09-22)
 
-- Recent detailed entries retained: 9
-- Compacted milestone bullets: 47
+- Recent detailed entries retained: 8
+- Compacted milestone bullets: 49
