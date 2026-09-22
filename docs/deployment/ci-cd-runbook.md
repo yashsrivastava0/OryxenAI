@@ -233,5 +233,9 @@ to type it yourself.
 - `DECISIONS.md` D-107 (superseded) and D-110 (current design and why).
 - `docs/azure-issue.md` — the full SSH/NSG connectivity investigation this
   design was built to route around.
+- `docs/deployment/deployment-issues.md` — the timestamped log of every
+  CI/Compose bug found and fixed (or still open) while getting the
+  required `quality` check green. Check its "Currently open issues"
+  section before assuming CI is broken for a new reason.
 - `CHANGES.md` — `bf6c6ff` (production Docker network egress fix, D-109),
   `7cb4102` (this CD pipeline, D-110).
