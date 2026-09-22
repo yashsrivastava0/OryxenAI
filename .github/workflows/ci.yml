@@ -163,7 +163,19 @@ jobs:
         # initializes Postgres with one password while the app containers
         # try to authenticate with another, failing with
         # asyncpg.exceptions.InvalidPasswordError.
-        run: cp .env.example .env && echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+        #
+        # config/app.docker.toml sets [auth] required = true, which
+        # unconditionally requires exactly settings.py's
+        # bootstrap_admin_count (2) syntactically valid emails in
+        # ORYXENAI_ADMIN_BOOTSTRAP_EMAILS -- app startup otherwise raises
+        # "The bootstrap administrator count is invalid." before the
+        # health endpoints ever come up. No real Google/Supabase
+        # verification happens at startup, so two fake addresses are
+        # sufficient for this smoke test.
+        run: |
+          cp .env.example .env
+          echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+          echo "ORYXENAI_ADMIN_BOOTSTRAP_EMAILS=ci-admin-1@example.com,ci-admin-2@example.com" >> .env
 
       - name: Docker build
         run: docker compose build
