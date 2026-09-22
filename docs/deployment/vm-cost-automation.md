@@ -153,3 +153,22 @@ permission is sufficient to start the VM.
 VM size, OS disk, data disks, disk type, virtual network, subnet, public
 IP, NSG rules, Docker Compose configuration, OryxenAI application code,
 Caddy configuration, DNS/TLS configuration.
+
+## Reverting this automation completely
+
+This is fully reversible in two portal steps, with zero effect on the VM
+itself, the running application, or anything else in this list — the VM
+just goes back to running 24/7 with no schedule, exactly as it was before
+this change:
+
+1. VM `oryxenai-demo-vm` → Operations → Auto-shutdown → toggle **Off** →
+   Save.
+2. Delete (or just Disable, to keep it around for reference) the Logic App
+   `oryxenai-vm-autostart`.
+
+No VM restart, redeploy, or application change is needed either way — the
+VM's own state (Docker containers, data, disks) is completely unaffected by
+either enabling or reverting this schedule. The documentation changes in
+this same commit (`DECISIONS.md` D-112, this file, the cross-links) are a
+normal git revert of the commit(s) on `staging` if you want those undone
+too, independent of the Azure-side revert above.
