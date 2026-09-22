@@ -11,6 +11,38 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [d57e3c0, f7b05d6, 4bdea92, 1847d80, cb76076] - Regenerated the stale scaffold lockfile; fixed 4 more CI/Compose bugs found along the way
+
+Regenerated `scaffolds/react-vite-v1/package-lock.json` (`d57e3c0`) with
+Node 22.20.0/npm 10.9.3 to match Linux CI's npm major version — the
+checked-in lockfile had been written by a newer npm and nested
+`@emnapi/core`/`@emnapi/runtime` differently, which npm 10.x's `npm ci`
+rejected as out of sync. Confirmed the regenerated lockfile installs
+cleanly under both that npm and this machine's own Windows npm 11.6.2.
+This closes the T03-handoff item from the entry below; the full pytest
+suite now passes 100% on real Linux CI (1433 passed, 5 skipped).
+
+Getting past that revealed a chain of four further, previously-invisible
+CI/Docker-Compose bugs (each only reachable once the earlier ones stopped
+masking it): Gitleaks now requires an explicit `GITHUB_TOKEN` for
+pull_request scans (`f7b05d6`); the dev Compose smoke test's containers
+need a `.env` file CI never created (`f7b05d6`); a Postgres password
+mismatch between the job-level env var and the throwaway `.env`
+(`1847d80`); and a required-but-blank `ORYXENAI_ADMIN_BOOTSTRAP_EMAILS`
+(`cb76076`). Also added a Compose-log-dump-on-failure step (`4bdea92`) to
+make the next failure visible instead of guessing blind, since
+`docker compose up -d --wait` doesn't stream container logs.
+
+One further, already-diagnosed bug remains open (an empty-string
+`DB_PORT_OVERRIDE` failing Pydantic int parsing in `preview-gateway`) —
+work stopped here per an explicit operator instruction after this many
+push-and-check iterations. Full chronological detail, exact errors, and
+the current "Currently open issues" list now live in the new
+`docs/deployment/deployment-issues.md` (see `AGENTS.md`'s updated
+protocol: update that file, not this one, for deployment/CI blow-by-blow
+detail going forward). PR #1 is still not merged; no live Azure deploy
+was attempted.
+
 ### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [5837913, e1fb376] - Corrected the Output Inspector fix, fixed CI's empty npm cache, found a stale scaffold lockfile (T03 handoff)
 
 Follow-up to the entry below, after actually watching PR #1's `quality`
@@ -176,36 +208,6 @@ src` clean, `pytest` 1433 passed/5 skipped, frontend `typecheck`/`test`
 redeployed to the VM — pending explicit approval per the operator's
 instruction.
 
-### 2026-09-21 - Claude Sonnet 5 (Anthropic) - [3615b35] - Close CI/security gaps found in production readiness audit
-
-Independent audit (deployment/infra, CI/testing, auth/security) found and
-fixed: the real mypy CI blocker (Windows-only `subprocess.CREATE_NO_WINDOW`/
-`CREATE_NEW_PROCESS_GROUP` type-check on Windows dev machines but not on
-Linux CI; pinned `mypy platform = "linux"` plus getattr-guarded the 3 call
-sites in `process_runner.py`), and a latent test-isolation bug (`ci.yml` set
-`OryxenAI_CONFIG_OVERLAY` job-wide, silently breaking plain unit tests that
-assert `config/app.toml` defaults; scoped it to only the migration step,
-letting the existing autouse fixture handle integration/worker tests).
-Also added Caddy-edge HSTS/security headers, removed the working weak
-`POSTGRES_PASSWORD` default from `.env.example` (with a `doctor()` check),
-added a minimal per-IP rate limiter plus the `--proxy-headers` fix it needs
-to see real client IPs behind Caddy, noindex-tagged the auth shells, wired
-frontend lint/typecheck/Vitest/build into CI, and corrected the stale
-pre-npm-fix release SHA in `docs/project-status.md`. A GitHub-Environment-
-gated automatic-deploy CI job was built, then reverted per explicit
-correction mid-session: the intended model is GitHub CI (verification only)
-with Azure deployment staying a manual SSH step — recorded as D-107/D-108.
-Confirmed via the GitHub UI that this fix targets the actual latest failing
-CI run (#10 on `3994513`) line-for-line, and that the existing Actions
-allowlist/ruleset (`deployment-ci-gate`, PR-required, no bypass) already
-covers every action this workflow uses. Local verification: ruff, ruff
-format, mypy (both platform assumptions), full pytest (1438 tests, run in
-memory-safe batches), frontend typecheck/Vitest (144 tests)/build, Docker
-build, and production Compose config validation all passed; the dev-compose
-container smoke test was blocked only by a local port conflict (5544, this
-machine's native Postgres), not a real issue. `PLAN.MD` was left untouched —
-it has unrelated in-progress edits from another session.
-
 ### 2026-09-20 01:59 +05:30 — Codex (GPT-5) — [55e5692] — Recover Code Generator stage handoffs and native preview execution
 
 The durable coordinator now finalizes the completed Plan attempt before
@@ -218,6 +220,7 @@ Node/Playwright preview subprocesses (D-042).
 ## Compacted history
 
 ### 2026-09
+- 2026-09-21 — [3615b35] — Closed CI/security gaps from a production readiness audit: mypy Linux platform pin, HSTS headers, rate limiter, frontend CI (D-107/D-108).
 - 2026-09-21 — [d60d40b] — Fixed the production npm/npx symlink toolchain break found in the first Azure deploy attempt.
 - 2026-09-21 — [353ef25] — Completed VM-local production storage hardening: bind mounts, non-root ownership, backups (D-106).
 - 2026-09-21 — [a861465] — Reconciled live deployment readiness: DNS, Azure/SSH guest checks, Docker gap, verified SHA.
