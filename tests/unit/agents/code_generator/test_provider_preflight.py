@@ -47,3 +47,39 @@ async def test_provider_preflight_delegates_to_shared_runtime_without_closing_cl
 
     assert calls == [[settings.code_generator_development.planner_profile]]
     assert result["private_context_sent"] is False
+
+
+@pytest.mark.asyncio
+async def test_provider_preflight_checks_shared_codegen_transport_once(monkeypatch):
+    settings = Settings()
+    profile_names = [
+        settings.code_generator_development.director_profile,
+        settings.code_generator_development.planner_profile,
+        settings.code_generator_acquisition.resource_scout_profile,
+        settings.code_generator_generation.route_profile,
+        settings.code_generator_generation.compose_profile,
+        settings.code_generator_generation.integration_profile,
+        settings.code_generator_generation.repair_profile,
+    ]
+    calls: list[list[str]] = []
+
+    class FakeRuntime:
+        async def preflight(self, names):
+            calls.append(names)
+            return {"profiles": [{"profile_id": name} for name in names]}
+
+    monkeypatch.setattr(provider_preflight, "resolve_api_key", lambda _profile: "configured")
+    monkeypatch.setattr(provider_preflight, "get_model_runtime", lambda _config: FakeRuntime())
+
+    result = await provider_preflight.run_provider_preflight(settings, profile_names)
+
+    assert calls == [[settings.code_generator_development.planner_profile]]
+    assert result["checked_profiles"] == [settings.code_generator_development.planner_profile]
+    assert result["covered_profiles"] == profile_names
+    assert result["checked_identity_count"] == 1
+
+    settings.models.get_profile(
+        settings.code_generator_generation.repair_profile
+    ).model = "separate-model"
+    groups = provider_preflight.provider_contract_groups(settings, profile_names)
+    assert len(groups) == 2

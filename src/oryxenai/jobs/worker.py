@@ -20,16 +20,21 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import shutil
 import signal
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from oryxenai.agents.code_generator.core.development_service import browser_ready
-from oryxenai.agents.code_generator.core.process_runner import resolve_npm_executable
+from oryxenai.agents.code_generator.core.toolchain_preflight import run_toolchain_preflight
+from oryxenai.agents.code_generator.core.worker_readiness import (
+    capability_config_identity_hash,
+    capability_proof_blocker,
+    capability_toolchain_identity_hash,
+    verification_is_enabled,
+    worker_contract_readiness,
+)
 from oryxenai.agents.shared.model_runtime import (
     close_model_runtime,
     get_model_runtime,
@@ -118,6 +123,38 @@ def _timeout_decision(
     }
 
 
+def _code_generator_blocked_error(blocker: str) -> Any:
+    messages = {
+        "code_generator_verification_disabled": (
+            "Code Generator verification is disabled; enable it before resuming this job."
+        ),
+        "code_generator_worker_capability_proof_expired": (
+            "The Code Generator worker capability proof expired; wait for a fresh proof, then retry."
+        ),
+        "code_generator_worker_toolchain_unavailable": (
+            "The Code Generator worker has not proven its toolchain and preview path; fix the reported prerequisite, then retry."
+        ),
+        "code_generator_worker_unavailable": (
+            "No live Code Generator worker is available; start a compatible worker, then retry."
+        ),
+        "code_generator_worker_contract_mismatch": (
+            "Code Generator workers have mixed release contracts; drain incompatible workers, then retry."
+        ),
+        "code_generator_worker_heartbeat_unavailable": (
+            "Worker capability could not be checked; restore heartbeat storage, then retry."
+        ),
+    }
+    stable_code = blocker or "code_generator_worker_toolchain_unavailable"
+    return permanent(
+        stable_code.upper(),
+        messages.get(
+            stable_code,
+            "The Code Generator worker capability proof is missing or stale; restore readiness, then retry.",
+        ),
+        {"worker_contract_blocker": stable_code},
+    )
+
+
 class Worker:
     """Polling job worker with heartbeat and graceful shutdown."""
 
@@ -125,10 +162,14 @@ class Worker:
         self._settings = settings or get_settings()
         self._model_runtime = get_model_runtime(self._settings.models)
         validate_pipeline_job_timeouts(self._settings)
-        self._instance_id = uuid.uuid4().hex
+        # Heartbeat rows use PostgreSQL UUID; keep the proof's worker identity
+        # in the same canonical representation returned when that row is read.
+        self._instance_id = str(uuid.uuid4())
         self._running = True
         self._active_tasks: set[asyncio.Task[None]] = set()
         self._active_job_ids: set[uuid.UUID] = set()
+        self._code_generator_capability_proof: dict[str, Any] | None = None
+        self._capability_refresh_lock = asyncio.Lock()
 
     # ── public entry points ────────────────────────────────────────────────
 
@@ -177,6 +218,7 @@ class Worker:
     async def _init_heartbeat(self) -> None:
         from oryxenai.jobs.heartbeat import HeartbeatRepository
 
+        await self._refresh_code_generator_capability(force=True)
         async with self._sessionmaker() as session:
             repo = HeartbeatRepository(session)
             await repo.upsert(
@@ -192,6 +234,7 @@ class Worker:
         interval = self._settings.worker.heartbeat_interval
         while self._running:
             try:
+                await self._refresh_code_generator_capability()
                 async with self._sessionmaker() as session:
                     repo = HeartbeatRepository(session)
                     await repo.upsert(self._instance_id, "oryxenai-worker", self._worker_metadata())
@@ -237,7 +280,34 @@ class Worker:
     async def _claim_due(self, limit: int | None = None) -> list[Any]:
         if limit == 0:
             return []
+        await self._refresh_code_generator_capability()
+        claim_blocker = ""
         async with self._sessionmaker() as session:
+            from oryxenai.jobs.heartbeat import HeartbeatRepository
+
+            allowed_job_kinds = list_kinds()
+            if any(kind.startswith("code_generator.") for kind in allowed_job_kinds):
+                await HeartbeatRepository(session).upsert(
+                    self._instance_id,
+                    "oryxenai-worker",
+                    self._worker_metadata(),
+                )
+                await session.commit()
+                lane_readiness = await worker_contract_readiness(
+                    HeartbeatRepository(session), self._settings
+                )
+                local_blocker = capability_proof_blocker(
+                    self._code_generator_capability_proof,
+                    settings=self._settings,
+                    worker_instance_id=self._instance_id,
+                )
+                if local_blocker:
+                    claim_blocker = local_blocker
+                elif not lane_readiness.get("ready"):
+                    claim_blocker = str(
+                        lane_readiness.get("blocker")
+                        or "code_generator_worker_toolchain_unavailable"
+                    )
             repo = JobRepository(session)
             jobs = await repo.claim_batch(
                 self._instance_id,
@@ -246,10 +316,36 @@ class Worker:
                     limit or self._settings.worker.claim_batch_size,
                     self._settings.worker.claim_batch_size,
                 ),
-                allowed_job_kinds=list_kinds(),
+                allowed_job_kinds=allowed_job_kinds,
                 foreground_job_kinds=foreground_job_kinds(),
             )
             await session.commit()
+        if claim_blocker:
+            ready_jobs: list[Any] = []
+            for job in jobs:
+                kind = str(getattr(job, "job_kind", ""))
+                if not kind.startswith("code_generator."):
+                    ready_jobs.append(job)
+                    continue
+                payload = dict(getattr(job, "payload", {}) or {})
+                payload.update(
+                    {
+                        "attempt": job.attempt,
+                        "max_attempts": job.max_attempts,
+                        "job_id": str(job.id),
+                        "job_kind": kind,
+                        "worker_instance": self._instance_id,
+                    }
+                )
+                if job.lease_token:
+                    payload["lease_token"] = job.lease_token
+                await self._fail_job(
+                    job,
+                    _code_generator_blocked_error(claim_blocker),
+                    handler=get_handler(kind),
+                    payload=payload,
+                )
+            return ready_jobs
         return jobs
 
     async def _recover_stale(self, limit: int | None = None) -> list[Any]:
@@ -323,16 +419,44 @@ class Worker:
             )
             return
 
+        payload = dict(job.payload or {})
+        payload["attempt"] = job.attempt
+        payload["max_attempts"] = job.max_attempts
+        payload["job_id"] = str(job.id)
+        payload["job_kind"] = kind
+        payload["worker_instance"] = self._instance_id
+        if job.lease_token:
+            payload["lease_token"] = job.lease_token
+        if kind.startswith("code_generator."):
+            await self._refresh_code_generator_capability()
+            capability_blocker = capability_proof_blocker(
+                self._code_generator_capability_proof,
+                settings=self._settings,
+                worker_instance_id=self._instance_id,
+            )
+            if not capability_blocker:
+                async with self._sessionmaker() as session:
+                    from oryxenai.jobs.heartbeat import HeartbeatRepository
+
+                    lane_readiness = await worker_contract_readiness(
+                        HeartbeatRepository(session), self._settings
+                    )
+                if not lane_readiness.get("ready"):
+                    capability_blocker = str(
+                        lane_readiness.get("blocker")
+                        or "code_generator_worker_toolchain_unavailable"
+                    )
+            if capability_blocker:
+                await self._fail_job(
+                    job,
+                    _code_generator_blocked_error(capability_blocker),
+                    handler=handler,
+                    payload=payload,
+                )
+                return
+
         heartbeat_task = asyncio.create_task(self._renew_lease_loop(job))
         try:
-            payload = dict(job.payload or {})
-            payload["attempt"] = job.attempt
-            payload["max_attempts"] = job.max_attempts
-            payload["job_id"] = str(job.id)
-            payload["job_kind"] = kind
-            payload["worker_instance"] = self._instance_id
-            if job.lease_token:
-                payload["lease_token"] = job.lease_token
             result = await asyncio.wait_for(
                 handler.execute(payload, self._instance_id),
                 timeout=self._settings.worker_job.timeout_for(kind),
@@ -420,13 +544,100 @@ class Worker:
             return
         await self._complete_job(job, result)
 
+    async def _refresh_code_generator_capability(self, *, force: bool = False) -> None:
+        async with self._capability_refresh_lock:
+            identity_hash = capability_config_identity_hash(self._settings)
+            proof = self._code_generator_capability_proof
+            now = datetime.now(UTC)
+            if (
+                not force
+                and isinstance(proof, dict)
+                and proof.get("config_identity_sha256") == identity_hash
+            ):
+                try:
+                    expires_at = datetime.fromisoformat(str(proof.get("expires_at", "")))
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=UTC)
+                    if expires_at > now:
+                        return
+                except (TypeError, ValueError):
+                    pass
+
+            verification = self._settings.code_generator_verification
+            development = self._settings.code_generator_development
+            ttl = max(30, int(getattr(verification, "capability_proof_ttl_seconds", 900) or 900))
+            checked_at = now
+            if verification_is_enabled(self._settings):
+                try:
+                    result = await run_toolchain_preflight(
+                        self._settings,
+                        require_brief_dependency_paths=False,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "code generator capability proof failed error=%s", type(exc).__name__
+                    )
+                    result = {
+                        "ready": False,
+                        "checks": {},
+                        "checked_at": checked_at.isoformat(),
+                    }
+            else:
+                result = {
+                    "ready": False,
+                    "checks": {"verification_enabled": False},
+                    "checked_at": checked_at.isoformat(),
+                }
+
+            try:
+                checked_at = datetime.fromisoformat(str(result.get("checked_at", "")))
+                if checked_at.tzinfo is None:
+                    checked_at = checked_at.replace(tzinfo=UTC)
+            except (TypeError, ValueError):
+                checked_at = now
+            try:
+                expires_at = datetime.fromisoformat(str(result.get("expires_at", "")))
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=UTC)
+            except (TypeError, ValueError):
+                expires_at = checked_at + timedelta(seconds=ttl)
+            self._code_generator_capability_proof = {
+                "schema_version": "code-generator-worker-capability-v1",
+                "worker_instance_id": self._instance_id,
+                "release_id": str(development.worker_release_id),
+                "pipeline_contract_version": str(development.pipeline_contract_version),
+                "config_identity_sha256": identity_hash,
+                "toolchain_facts": dict(result.get("facts", {}))
+                if isinstance(result.get("facts"), dict)
+                else {},
+                "checked_at": checked_at.isoformat(),
+                "expires_at": expires_at.isoformat(),
+                "ready": bool(result.get("ready")) and verification_is_enabled(self._settings),
+                "checks": dict(result.get("checks", {}))
+                if isinstance(result.get("checks"), dict)
+                else {},
+            }
+            self._code_generator_capability_proof["toolchain_identity_sha256"] = (
+                capability_toolchain_identity_hash(
+                    identity_hash,
+                    self._code_generator_capability_proof["toolchain_facts"],
+                )
+            )
+
     def _worker_metadata(self) -> dict[str, object]:
         development = self._settings.code_generator_development
         generation = self._settings.code_generator_generation
-        verification = self._settings.code_generator_verification
-        npm = bool(resolve_npm_executable(self._settings))
-        node = bool(shutil.which("node"))
-        browser = bool(browser_ready(verification))
+        proof = self._code_generator_capability_proof or {}
+        proof_blocker = capability_proof_blocker(
+            proof,
+            settings=self._settings,
+            worker_instance_id=self._instance_id,
+        )
+        checks = proof.get("checks", {})
+        checks = checks if isinstance(checks, dict) else {}
+        node = bool(checks.get("node", False))
+        npm = bool(checks.get("npm", False))
+        browser = bool(checks.get("browser", False))
         return {
             "process": f"worker-{self._instance_id}",
             "release_id": str(getattr(development, "worker_release_id", "oryxenai-worker")),
@@ -436,12 +647,14 @@ class Worker:
             "artifact_store_provider": str(
                 getattr(generation, "artifact_store_provider", "local_fs")
             ),
-            "code_generator_capability": npm and node and browser,
+            "code_generator_capability": not bool(proof_blocker),
             "code_generator_toolchain": {
                 "node": node,
                 "npm": npm,
                 "browser": browser,
             },
+            "code_generator_capability_proof": dict(proof),
+            "code_generator_capability_blocker": proof_blocker,
         }
 
     async def _renew_lease_loop(self, job: Any) -> None:

@@ -4,6 +4,7 @@ import {
   isPreviewReadyMessage,
   isPreviewRouteMessage,
   PREVIEW_BRIDGE_VERSION,
+  previewLoadMatchesSelection,
   previewRouteFromMessage,
   withPreviewReloadToken,
 } from "./preview-bridge";
@@ -15,6 +16,21 @@ describe("preview bridge contract", () => {
     expect(withPreviewReloadToken("http://preview.test/portfolio?route=home", 42)).toBe(
       "http://preview.test/portfolio?route=home&_preview_reload=42",
     );
+  });
+
+  it("matches a reload attempt only to its selected preview identity", () => {
+    expect(
+      previewLoadMatchesSelection(
+        "https://preview.test/site/?route=home&_preview_reload=42",
+        "https://preview.test/site/?route=home",
+      ),
+    ).toBe(true);
+    expect(
+      previewLoadMatchesSelection(
+        "https://preview.test/old/?_preview_reload=42",
+        "https://preview.test/new/",
+      ),
+    ).toBe(false);
   });
 
   it("accepts only the expected frame, origin, and protocol version", () => {

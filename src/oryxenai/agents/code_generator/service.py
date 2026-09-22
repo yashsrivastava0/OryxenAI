@@ -35,6 +35,7 @@ from oryxenai.agents.code_generator.core.pipeline_contract import (
 )
 from oryxenai.agents.code_generator.core.provider_preflight import (
     code_generator_wire_schema_issues,
+    provider_contract_groups,
 )
 from oryxenai.agents.code_generator.core.quality_review import (
     normalize_persisted_quality_review_for_read,
@@ -45,7 +46,10 @@ from oryxenai.agents.code_generator.core.stage_attempt import (
     fingerprint_input,
     stage_idempotency_key,
 )
-from oryxenai.agents.code_generator.core.worker_readiness import worker_contract_readiness
+from oryxenai.agents.code_generator.core.worker_readiness import (
+    verification_is_enabled,
+    worker_contract_readiness,
+)
 from oryxenai.agents.code_generator.session_schemas import (
     CodeGeneratorSessionState,
     CodeGeneratorSessionStatus,
@@ -129,6 +133,12 @@ class CodeGeneratorService:
                 "IDEMPOTENCY_KEY_REQUIRED",
                 "Idempotency-Key is required.",
                 status_code=400,
+            )
+        if not verification_is_enabled(self._settings):
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_VERIFICATION_DISABLED",
+                "Code Generator verification is disabled. Enable verification before starting; existing previews remain readable.",
+                status_code=409,
             )
         session = await self._require_session(session_id)
         state = await self._repo.get_state(session_id)
@@ -509,6 +519,20 @@ class CodeGeneratorService:
                 "CODE_GENERATOR_RUN_NOT_FOUND",
                 "The current Code Generator run no longer exists.",
                 status_code=409,
+            )
+        if not verification_is_enabled(self._settings):
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_VERIFICATION_DISABLED",
+                "Code Generator verification is disabled. Enable verification before retrying; existing previews remain readable.",
+                status_code=409,
+            )
+        worker_readiness = await worker_contract_readiness(self._repo, self._settings)
+        if worker_readiness.get("checked") and not worker_readiness.get("ready"):
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_WORKER_NOT_READY",
+                "No compatible, fully proven Code Generator worker is ready to resume this run.",
+                status_code=409,
+                details={"worker_contract": worker_readiness},
             )
         normal_entitlement = await self._normal_owner_entitlement(session_id)
         if normal_entitlement is not None:
@@ -1088,12 +1112,12 @@ class CodeGeneratorService:
         profile_names = [
             self._settings.code_generator_development.director_profile,
             selected_profile,
+            self._settings.code_generator_acquisition.resource_scout_profile,
             self._settings.code_generator_generation.route_profile,
             self._settings.code_generator_generation.compose_profile,
             self._settings.code_generator_generation.integration_profile,
             self._settings.code_generator_generation.repair_profile,
         ]
-        identities: dict[str, str] = {}
         for name in dict.fromkeys(profile_names):
             profile = self._settings.models.get_profile(name)
             if profile is None or not profile.provider or not profile.model:
@@ -1121,22 +1145,7 @@ class CodeGeneratorService:
                     status_code=503,
                     details={"profile": name},
                 )
-            identity = hashlib.sha256(
-                json.dumps(
-                    {
-                        "provider": profile.provider,
-                        "base_url": profile.base_url,
-                        "model": profile.model,
-                        "capabilities": profile.capabilities.model_dump(mode="json")
-                        if profile.capabilities is not None
-                        else {},
-                        "max_output_tokens": profile.max_output_tokens,
-                    },
-                    sort_keys=True,
-                    separators=(",", ":"),
-                ).encode()
-            ).hexdigest()
-            identities.setdefault(identity, name)
+        identities = dict(provider_contract_groups(self._settings, profile_names))
         npm = str(self._settings.code_generator_dependencies.npm_executable or "")
         if not npm or shutil.which(npm) is None:
             raise CodeGeneratorOperationError(
