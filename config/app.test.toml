@@ -69,6 +69,7 @@ max_concurrency = 1
 
 [code_generator_verification]
 enabled = true
+capability_proof_ttl_seconds = 900
 preview_root = ".workspace/code-generator-preview-test"
 preview_base_url = "http://127.0.0.1:4174/preview"
 preview_host = "127.0.0.1"

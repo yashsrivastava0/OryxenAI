@@ -602,8 +602,8 @@ uses_max_completion_tokens = false
 [profiles.code_generator_director]
 # Direct OpenAI (D-067: new confirmed key).
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 300
@@ -632,8 +632,8 @@ supports_prompt_cache_key = true
 [profiles.code_generator_planner]
 # Direct OpenAI (D-067: new confirmed key).
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 300
@@ -661,8 +661,8 @@ supports_prompt_cache_key = true
 
 [profiles.code_generator_resource_scout]
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 180
@@ -690,8 +690,8 @@ supports_prompt_cache_key = true
 
 [profiles.code_generator_route_builder]
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
@@ -719,8 +719,8 @@ supports_prompt_cache_key = true
 
 [profiles.code_generator_route_composer]
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
@@ -748,8 +748,8 @@ supports_prompt_cache_key = true
 
 [profiles.code_generator_integrator]
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600
@@ -777,8 +777,8 @@ supports_prompt_cache_key = true
 
 [profiles.code_generator_repairer]
 provider = "openai"
-model = "gpt-5.6-luna"
-display_name = "OpenAI — GPT-5.6 Luna"
+model = "gpt-6-luna"
+display_name = "OpenAI — GPT-6 Luna"
 base_url = "https://api.openai.com/v1"
 api_key_env = "OPENAI_API_KEY"
 timeout_seconds = 600

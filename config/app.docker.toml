@@ -74,6 +74,7 @@ checkpoint_root = "/app/.workspace/code-generator-checkpoints"
 
 [code_generator_verification]
 enabled = false
+capability_proof_ttl_seconds = 900
 preview_root = "/app/.workspace/code-generator-preview"
 preview_base_url = "http://localhost:4174/preview"
 # The browser runs on the host; the worker verifies through Compose DNS.

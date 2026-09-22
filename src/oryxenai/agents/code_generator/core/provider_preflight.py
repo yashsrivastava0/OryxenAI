@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -60,6 +62,58 @@ class ProviderPreflightError(RuntimeError):
 PreflightCallable = Callable[[str], Awaitable[dict[str, Any]]]
 
 
+def provider_contract_groups(settings: Any, profile_names: list[str]) -> list[tuple[str, str]]:
+    """Collapse role aliases sharing a provider/model/schema contract.
+
+    Per-role token budgets, timeouts, and reasoning effort are generation
+    policy, not distinct credentials or structured-output contracts. The
+    representative with the largest configured output budget is checked once;
+    every supplied role is still independently validated by the caller.
+    """
+
+    grouped: dict[str, list[str]] = {}
+    for profile_name in dict.fromkeys(profile_names):
+        profile = settings.models.get_profile(profile_name)
+        capabilities = getattr(profile, "capabilities", None)
+        identity_payload = {
+            "provider": str(getattr(profile, "provider", "") or ""),
+            "model": str(getattr(profile, "model", "") or ""),
+            "base_url": str(getattr(profile, "base_url", "") or ""),
+            "base_url_env": str(getattr(profile, "base_url_env", "") or ""),
+            "api_key_env": str(getattr(profile, "api_key_env", "") or ""),
+            "request_params": getattr(profile, "request_params", {}) or {},
+            "capabilities": (
+                capabilities.model_dump(mode="json") if capabilities is not None else {}
+            ),
+            "store": bool(getattr(profile, "store", False)),
+            "prompt_cache_ttl": str(getattr(profile, "prompt_cache_ttl", "") or ""),
+        }
+        identity = hashlib.sha256(
+            json.dumps(
+                identity_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        grouped.setdefault(identity, []).append(profile_name)
+
+    result: list[tuple[str, str]] = []
+    effort_rank = {"none": 0, "low": 1, "medium": 2, "high": 3, "xhigh": 4}
+    for identity, members in grouped.items():
+        representative = max(
+            members,
+            key=lambda name: (
+                int(getattr(settings.models.get_profile(name), "max_output_tokens", 0) or 0),
+                effort_rank.get(
+                    str(getattr(settings.models.get_profile(name), "reasoning_effort", "")), 0
+                ),
+            ),
+        )
+        result.append((identity, representative))
+    return result
+
+
 async def run_provider_preflight(
     settings: Any,
     profile_names: list[str],
@@ -108,9 +162,12 @@ async def run_provider_preflight(
             )
         profile_ids.append(profile_name)
 
+    representatives = [
+        profile_name for _identity, profile_name in provider_contract_groups(settings, profile_ids)
+    ]
     checked: list[str] = []
     if provider_preflight is not None:
-        for profile_name in profile_ids:
+        for profile_name in representatives:
             try:
                 await provider_preflight(profile_name)
             except ProviderPreflightError:
@@ -124,7 +181,7 @@ async def run_provider_preflight(
             checked.append(profile_name)
     else:
         try:
-            receipt = await get_model_runtime(settings.models).preflight(profile_ids)
+            receipt = await get_model_runtime(settings.models).preflight(representatives)
         except ProviderPreflightError:
             raise
         except Exception as exc:
@@ -152,10 +209,11 @@ async def run_provider_preflight(
     return {
         "status": "ready",
         "checked_profiles": checked,
+        "covered_profiles": profile_ids,
         "checked_at": datetime.now(UTC).isoformat(),
         "private_context_sent": False,
         "protocol": _PREFLIGHT_PROTOCOL,
-        "checked_identity_count": len(checked),
+        "checked_identity_count": len(representatives),
     }
 
 
@@ -168,7 +226,11 @@ def provider_preflight_status(settings: Any, profile_names: list[str]) -> dict[s
     """
 
     try:
-        return get_model_runtime(settings.models).preflight_status(profile_names)
+        representatives = [
+            profile_name
+            for _identity, profile_name in provider_contract_groups(settings, profile_names)
+        ]
+        return get_model_runtime(settings.models).preflight_status(representatives)
     except Exception:
         # Readiness already reports missing profile/credential/schema blockers.
         # A cache lookup must never turn a diagnostics endpoint into a 500.

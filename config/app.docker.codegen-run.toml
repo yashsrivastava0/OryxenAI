@@ -45,6 +45,7 @@ npm_cache_root = "/app/.workspace/npm-cache"
 
 [code_generator_verification]
 enabled = true
+capability_proof_ttl_seconds = 900
 browser_executable = "/usr/bin/chromium"
 install_command = ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
 typecheck_command = ["npm", "run", "typecheck"]

@@ -6,9 +6,10 @@ import contextlib
 import hashlib
 import json
 import platform
+import secrets
 import shutil
 import tempfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -19,9 +20,13 @@ from oryxenai.agents.code_generator.core.process_runner import (
     resolve_npm_executable,
     run_command,
 )
+from oryxenai.agents.code_generator.core.worker_readiness import (
+    capability_config_identity_hash,
+    capability_toolchain_identity_hash,
+    verification_is_enabled,
+)
 from oryxenai.agents.code_generator.core.workspace import repository_root
 
-_PREFLIGHT_TTL_SECONDS = 15 * 60
 _PREFLIGHT_CACHE: dict[str, dict[str, Any]] = {}
 
 
@@ -60,15 +65,17 @@ def _hash_dependency_pins(settings: Any, scaffold: Path) -> str:
     ).hexdigest()
 
 
-def _cache_key(settings: Any) -> str:
-    config = settings.code_generator_generation
-    dependencies = settings.code_generator_dependencies
+def _proof_ttl(settings: Any) -> int:
     verification = settings.code_generator_verification
-    scaffold_root = _resolve(str(config.scaffold_root))
-    scaffold = (scaffold_root / str(config.scaffold_profile)).resolve()
+    return max(30, int(getattr(verification, "capability_proof_ttl_seconds", 900) or 900))
+
+
+def _cache_key(settings: Any, *, require_brief_dependency_paths: bool = True) -> str:
     payload = {
+        "config_identity_sha256": capability_config_identity_hash(settings),
         "scaffold_hash": _hash_files(
-            scaffold,
+            _resolve(str(settings.code_generator_generation.scaffold_root))
+            / str(settings.code_generator_generation.scaffold_profile),
             (
                 "package.json",
                 "package-lock.json",
@@ -77,15 +84,7 @@ def _cache_key(settings: Any) -> str:
                 "tsconfig.node.json",
             ),
         ),
-        "dependency_pins_hash": _hash_dependency_pins(settings, scaffold),
-        "scaffold_profile": str(config.scaffold_profile),
-        "npm": resolve_npm_executable(settings),
-        "npm_cache_root": str(getattr(dependencies, "npm_cache_root", "") or ""),
-        "browser": str(getattr(verification, "browser_name", "chromium")),
-        "browser_executable": str(getattr(verification, "browser_executable", "") or ""),
-        "preview_health_url": str(getattr(verification, "preview_health_url", "") or ""),
-        "preview_host": str(getattr(verification, "preview_host", "") or ""),
-        "preview_port": int(getattr(verification, "preview_port", 0) or 0),
+        "require_brief_dependency_paths": require_brief_dependency_paths,
     }
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
@@ -95,18 +94,27 @@ def _cache_key(settings: Any) -> str:
 def cache_toolchain_preflight(settings: Any, result: dict[str, Any]) -> dict[str, Any]:
     """Publish one safe receipt for later readiness/create requests."""
 
-    key = _cache_key(settings)
+    require_briefs = bool(result.get("requires_brief_dependency_paths", True))
+    key = _cache_key(settings, require_brief_dependency_paths=require_briefs)
     stored = dict(result)
-    stored.setdefault("checked_at", datetime.now(UTC).isoformat())
+    checked_at = str(stored.setdefault("checked_at", datetime.now(UTC).isoformat()))
+    try:
+        expires_at = datetime.fromisoformat(checked_at) + timedelta(seconds=_proof_ttl(settings))
+    except (TypeError, ValueError):
+        expires_at = datetime.now(UTC)
+    stored.setdefault("expires_at", expires_at.isoformat())
+    stored["config_identity_sha256"] = capability_config_identity_hash(settings)
     stored["cache_key"] = key
     _PREFLIGHT_CACHE[key] = stored
     return stored
 
 
-def toolchain_preflight_status(settings: Any) -> dict[str, Any]:
+def toolchain_preflight_status(
+    settings: Any, *, require_brief_dependency_paths: bool = True
+) -> dict[str, Any]:
     """Read the latest proof for the current scaffold/toolchain identity."""
 
-    key = _cache_key(settings)
+    key = _cache_key(settings, require_brief_dependency_paths=require_brief_dependency_paths)
     result = _PREFLIGHT_CACHE.get(key)
     if result is None:
         return {
@@ -120,10 +128,17 @@ def toolchain_preflight_status(settings: Any) -> dict[str, Any]:
         }
     checked_at = str(result.get("checked_at", ""))
     try:
-        age = (datetime.now(UTC) - datetime.fromisoformat(checked_at)).total_seconds()
+        expires_at = datetime.fromisoformat(str(result.get("expires_at", "")))
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
     except (TypeError, ValueError):
-        age = _PREFLIGHT_TTL_SECONDS + 1
-    if age > _PREFLIGHT_TTL_SECONDS:
+        try:
+            expires_at = datetime.fromisoformat(checked_at) + timedelta(
+                seconds=_proof_ttl(settings)
+            )
+        except (TypeError, ValueError):
+            expires_at = datetime.min.replace(tzinfo=UTC)
+    if expires_at <= datetime.now(UTC):
         _PREFLIGHT_CACHE.pop(key, None)
         return {
             "schema_version": "code-generator-toolchain-preflight-v1",
@@ -191,13 +206,153 @@ async def _browser_smoke(settings: Any) -> dict[str, Any]:
                 await browser.close()
 
 
-async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
+def _write_probe(path: Path) -> bool:
+    probe = path / f".codegen-capability-{secrets.token_hex(12)}"
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        marker = secrets.token_hex(16)
+        probe.write_text(marker, encoding="utf-8")
+        matched = probe.read_text(encoding="utf-8") == marker
+        probe.unlink()
+        return matched
+    except OSError:
+        with contextlib.suppress(OSError):
+            probe.unlink()
+        return False
+
+
+async def _preview_delivery_smoke(settings: Any) -> dict[str, bool]:
+    """Prove configured storage readback and gateway serving without a run."""
+
+    from urllib.parse import quote
+
+    import httpx
+
+    from oryxenai.preview.promotion import preview_urls
+    from oryxenai.storage.preview import PreviewStorageError, create_preview_storage
+
+    verification = settings.code_generator_verification
+    storage = create_preview_storage(settings)
+    base_url = preview_urls(verification)[1]
+    marker = f"oryxenai-capability-proof-{secrets.token_hex(16)}"
+    body = (
+        f"<!doctype html><html><head><title>preflight</title></head><body>{marker}</body></html>"
+    ).encode()
+    digest = hashlib.sha256(body).hexdigest()
+    import base64
+
+    host = base64.b32encode(secrets.token_bytes(20)).decode("ascii").lower().rstrip("=")
+    candidate_id = secrets.token_hex(16)
+    build_hash = digest
+    prefix = f"preview/capability-proof/{candidate_id}/{build_hash}"
+    index_key = f"{prefix}/dist/index.html"
+    receipt_key = f"preview/capability-proof/{candidate_id}/receipt.json"
+    pointer_key = f"preview/hosts/{host}/active.json"
+    receipt = {
+        "run_id": "worker-capability-proof",
+        "candidate_id": candidate_id,
+        "candidate_identity_hash": digest,
+        "build_hash": build_hash,
+    }
+    receipt_data = (json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    pointer = {
+        "run_id": receipt["run_id"],
+        "candidate_id": candidate_id,
+        "candidate_identity_hash": digest,
+        "build_hash": build_hash,
+        "candidate_prefix": prefix,
+        "manifest": {
+            "entries": [
+                {
+                    "path": "index.html",
+                    "sha256": digest,
+                    "size_bytes": len(body),
+                    "media_type": "text/html",
+                }
+            ]
+        },
+        "receipt_key": receipt_key,
+        "receipt_hash": hashlib.sha256(receipt_data).hexdigest(),
+    }
+    pointer_data = (json.dumps(pointer, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    storage_ok = False
+    gateway_ok = False
+    pointer_written = False
+    try:
+        await storage.put_immutable(key=index_key, data=body, content_type="text/html")
+        await storage.put_immutable(
+            key=receipt_key, data=receipt_data, content_type="application/json"
+        )
+        stored = await storage.get(index_key)
+        stored_receipt = await storage.get(receipt_key)
+        storage_ok = bool(
+            stored is not None
+            and stored[0].sha256 == digest
+            and stored[1] == body
+            and stored_receipt is not None
+            and stored_receipt[1] == receipt_data
+        )
+        if not storage_ok:
+            return {"storage": False, "gateway": False}
+        await storage.put_conditional(
+            key=pointer_key,
+            data=pointer_data,
+            content_type="application/json",
+            expected_etag=None,
+        )
+        pointer_written = True
+        timeout = max(
+            1.0,
+            min(float(getattr(verification, "runtime_timeout_ms", 15000)) / 1000, 15.0),
+        )
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            response = await client.get(f"{base_url.rstrip('/')}/{quote(host, safe='')}/")
+        gateway_ok = response.status_code == 200 and marker.encode() in response.content
+    except (PreviewStorageError, httpx.HTTPError, OSError, ValueError):
+        gateway_ok = False
+    finally:
+        cleanup_ok = True
+        for key in ((pointer_key,) if pointer_written else ()) + (receipt_key, index_key):
+            try:
+                await storage.delete(key)
+            except Exception:
+                cleanup_ok = False
+        if not cleanup_ok:
+            storage_ok = False
+            gateway_ok = False
+    return {"storage": storage_ok, "gateway": gateway_ok}
+
+
+async def run_toolchain_preflight(
+    settings: Any, *, require_brief_dependency_paths: bool = True
+) -> dict[str, Any]:
     """Prove install, TypeScript, Vite, browser, and gateway readiness.
 
     The function creates a disposable copy of the configured scaffold and
     invokes the same clean-build path used by production verification. It does
     not load a brief, call a model, or mutate a generation run.
     """
+
+    if not verification_is_enabled(settings):
+        return cache_toolchain_preflight(
+            settings,
+            {
+                "schema_version": "code-generator-toolchain-preflight-v1",
+                "checked_at": datetime.now(UTC).isoformat(),
+                "status": "blocked",
+                "ready": False,
+                "requires_brief_dependency_paths": require_brief_dependency_paths,
+                "model_calls": 0,
+                "checks": {"verification_enabled": False},
+                "facts": {},
+                "diagnostics": [
+                    {
+                        "code": "CODE_GENERATOR_VERIFICATION_DISABLED",
+                        "message": "Code Generator verification is disabled by configuration.",
+                    }
+                ],
+            },
+        )
 
     config = settings.code_generator_generation
     scaffold_root = _resolve(str(config.scaffold_root))
@@ -234,46 +389,54 @@ async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
         "build": False,
         "browser": False,
         "preview_gateway": False,
-        "brief_dependency_paths": False,
+        "checkpoint_writable": False,
+        "artifact_writable": False,
+        "preview_writable": False,
+        "preview_storage_readback": False,
+        "preview_gateway_readback": False,
+        "brief_dependency_paths": not require_brief_dependency_paths,
     }
     diagnostics: list[dict[str, Any]] = []
     workspace_root = _resolve(str(config.workspace_root))
-    try:
-        from oryxenai.agents.code_generator.core.development_input import DevelopmentInputAdapter
+    if require_brief_dependency_paths:
+        try:
+            from oryxenai.agents.code_generator.core.development_input import (
+                DevelopmentInputAdapter,
+            )
 
-        pack_infos = DevelopmentInputAdapter(settings).list_build_preparation_packs()
-        facts["build_preparation_packs"] = [
-            {
-                "pack_dir": Path(str(item.get("pack_dir", ""))).name,
-                "eligible": bool(item.get("eligible")),
-                "content_brief_sha256": str(item.get("content_brief_sha256", "")),
-                "visual_brief_sha256": str(item.get("visual_brief_sha256", "")),
-                "contract_hash": str(item.get("contract_hash", "")),
-                "route_count": int(item.get("route_count", 0) or 0),
-                "section_count": int(item.get("section_count", 0) or 0),
-                "resource_coverage": int(item.get("resource_coverage", 0) or 0),
-                "component_coverage": int(item.get("component_coverage", 0) or 0),
-            }
-            for item in pack_infos
-            if isinstance(item, dict)
-        ]
-        checks["brief_dependency_paths"] = any(
-            bool(item.get("eligible")) for item in pack_infos if isinstance(item, dict)
-        )
-        if not checks["brief_dependency_paths"]:
+            pack_infos = DevelopmentInputAdapter(settings).list_build_preparation_packs()
+            facts["build_preparation_packs"] = [
+                {
+                    "pack_dir": Path(str(item.get("pack_dir", ""))).name,
+                    "eligible": bool(item.get("eligible")),
+                    "content_brief_sha256": str(item.get("content_brief_sha256", "")),
+                    "visual_brief_sha256": str(item.get("visual_brief_sha256", "")),
+                    "contract_hash": str(item.get("contract_hash", "")),
+                    "route_count": int(item.get("route_count", 0) or 0),
+                    "section_count": int(item.get("section_count", 0) or 0),
+                    "resource_coverage": int(item.get("resource_coverage", 0) or 0),
+                    "component_coverage": int(item.get("component_coverage", 0) or 0),
+                }
+                for item in pack_infos
+                if isinstance(item, dict)
+            ]
+            checks["brief_dependency_paths"] = any(
+                bool(item.get("eligible")) for item in pack_infos if isinstance(item, dict)
+            )
+            if not checks["brief_dependency_paths"]:
+                diagnostics.append(
+                    {
+                        "code": "BUILD_PREPARATION_PACKS_UNAVAILABLE",
+                        "message": "No eligible Build Preparation brief pair is available.",
+                    }
+                )
+        except Exception:
             diagnostics.append(
                 {
-                    "code": "BUILD_PREPARATION_PACKS_UNAVAILABLE",
-                    "message": "No eligible Build Preparation brief pair is available.",
+                    "code": "BUILD_PREPARATION_PREFLIGHT_FAILED",
+                    "message": "Build Preparation brief dependency paths could not be checked.",
                 }
             )
-    except Exception:
-        diagnostics.append(
-            {
-                "code": "BUILD_PREPARATION_PREFLIGHT_FAILED",
-                "message": "Build Preparation brief dependency paths could not be checked.",
-            }
-        )
     if not scaffold.is_dir():
         diagnostics.append(
             {"code": "SCAFFOLD_UNAVAILABLE", "message": "The configured scaffold is unavailable."}
@@ -286,13 +449,8 @@ async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
             }
         )
 
-    try:
-        workspace_root.mkdir(parents=True, exist_ok=True)
-        probe = workspace_root / ".preflight-write"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        checks["workspace_writable"] = True
-    except OSError:
+    checks["workspace_writable"] = _write_probe(workspace_root)
+    if not checks["workspace_writable"]:
         diagnostics.append(
             {
                 "code": "WORKSPACE_NOT_WRITABLE",
@@ -302,19 +460,38 @@ async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
 
     cache_value = str(getattr(settings.code_generator_dependencies, "npm_cache_root", "") or "")
     cache_root = _resolve(cache_value) if cache_value else workspace_root / ".npm-cache"
-    try:
-        cache_root.mkdir(parents=True, exist_ok=True)
-        probe = cache_root / ".preflight-write"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        checks["cache_writable"] = True
-    except OSError:
+    checks["cache_writable"] = _write_probe(cache_root)
+    checks["checkpoint_writable"] = _write_probe(_resolve(str(config.checkpoint_root)))
+    checks["artifact_writable"] = _write_probe(_resolve(str(config.artifact_root)))
+    checks["preview_writable"] = _write_probe(
+        _resolve(str(settings.code_generator_verification.preview_root))
+    )
+    if not checks["cache_writable"]:
         diagnostics.append(
             {
                 "code": "NPM_CACHE_NOT_WRITABLE",
                 "message": "The configured npm cache is not writable.",
             }
         )
+    for check, code, message in (
+        (
+            "checkpoint_writable",
+            "CHECKPOINT_NOT_WRITABLE",
+            "The configured Code Generator checkpoint store is not writable.",
+        ),
+        (
+            "artifact_writable",
+            "ARTIFACT_STORE_NOT_WRITABLE",
+            "The configured Code Generator artifact store is not writable.",
+        ),
+        (
+            "preview_writable",
+            "PREVIEW_ROOT_NOT_WRITABLE",
+            "The configured local preview workspace is not writable.",
+        ),
+    ):
+        if not checks[check]:
+            diagnostics.append({"code": code, "message": message})
 
     node = shutil.which("node") or ""
     if npm and node and scaffold.is_dir() and checks["workspace_writable"]:
@@ -396,6 +573,32 @@ async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
             }
         )
 
+    try:
+        delivery = await _preview_delivery_smoke(settings)
+        checks["preview_storage_readback"] = delivery["storage"]
+        checks["preview_gateway_readback"] = delivery["gateway"]
+        if not checks["preview_storage_readback"]:
+            diagnostics.append(
+                {
+                    "code": "PREVIEW_STORAGE_READBACK_FAILED",
+                    "message": "Temporary preview bytes could not be written and read back safely.",
+                }
+            )
+        if not checks["preview_gateway_readback"]:
+            diagnostics.append(
+                {
+                    "code": "PREVIEW_GATEWAY_READBACK_FAILED",
+                    "message": "The configured preview gateway could not serve temporary stored bytes.",
+                }
+            )
+    except Exception:
+        diagnostics.append(
+            {
+                "code": "PREVIEW_DELIVERY_PROBE_FAILED",
+                "message": "Preview storage and gateway delivery could not be proven.",
+            }
+        )
+
     ready = all(
         bool(checks[key])
         for key in (
@@ -403,12 +606,17 @@ async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
             "node",
             "npm",
             "workspace_writable",
+            "checkpoint_writable",
+            "artifact_writable",
             "cache_writable",
+            "preview_writable",
             "install",
             "typecheck",
             "build",
             "browser",
             "preview_gateway",
+            "preview_storage_readback",
+            "preview_gateway_readback",
             "brief_dependency_paths",
         )
     )
@@ -417,11 +625,16 @@ async def run_toolchain_preflight(settings: Any) -> dict[str, Any]:
         "checked_at": datetime.now(UTC).isoformat(),
         "status": "ready" if ready else "blocked",
         "ready": ready,
+        "requires_brief_dependency_paths": require_brief_dependency_paths,
         "model_calls": 0,
         "checks": checks,
         "facts": facts,
         "diagnostics": diagnostics[:24],
     }
+    result["config_identity_sha256"] = capability_config_identity_hash(settings)
+    result["toolchain_identity_sha256"] = capability_toolchain_identity_hash(
+        str(result["config_identity_sha256"]), facts
+    )
     return cache_toolchain_preflight(settings, result)
 
 

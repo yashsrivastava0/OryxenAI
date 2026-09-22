@@ -35,6 +35,7 @@ typecheck_command = ["npm", "run", "typecheck"]
 source_audit_command = ["npm", "run", "source:audit"]
 
 [code_generator_verification]
+capability_proof_ttl_seconds = 900
 # D-094's preview-first acceptance policy is superseded (see DECISIONS.md):
 # it could downgrade required source/build/runtime diagnostics to advisory
 # and certify a broken candidate as `ready`. Native runs now use the same

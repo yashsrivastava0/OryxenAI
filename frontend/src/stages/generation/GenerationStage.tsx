@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { GenerationViewModel } from "../../data/adapters/generation";
 import { copyJson } from "../../data/clipboard";
 import {
@@ -6,6 +6,7 @@ import {
   isPreviewReadyMessage,
   isPreviewRouteMessage,
   PREVIEW_BRIDGE_VERSION,
+  previewLoadMatchesSelection,
   previewRouteFromMessage,
   type PreviewEmbedState,
   withPreviewReloadToken,
@@ -111,16 +112,26 @@ export function GenerationStage({
   const [previewEmbedState, setPreviewEmbedState] = useState<PreviewEmbedState>("idle");
   const [previewEmbedMessage, setPreviewEmbedMessage] = useState("");
   const [previewRoute, setPreviewRoute] = useState<string | null>(null);
-  const previewFrameRef = useRef<HTMLIFrameElement>(null);
   const previewUrl = view?.preview?.url || view?.candidatePreview?.url || "";
+  const previewFrameRef = useRef<HTMLIFrameElement>(null);
+  const previewSrcRef = useRef(previewUrl);
+  const previewReloadCounter = useRef(0);
   const [previewSrc, setPreviewSrc] = useState(previewUrl);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    previewSrcRef.current = previewUrl;
     setPreviewSrc(previewUrl);
     setPreviewEmbedState(previewUrl ? "loading" : "idle");
     setPreviewEmbedMessage("");
     setPreviewRoute(null);
-    if (!previewUrl) return;
+  }, [previewUrl]);
+
+  useEffect(() => {
+    if (!previewUrl || !previewSrc || !previewLoadMatchesSelection(previewSrc, previewUrl)) return;
+    previewSrcRef.current = previewSrc;
+    setPreviewEmbedState(previewUrl ? "loading" : "idle");
+    setPreviewEmbedMessage("");
+    setPreviewRoute(null);
 
     const expectedOrigin = getPreviewOrigin(previewUrl);
     if (!expectedOrigin) {
@@ -130,9 +141,10 @@ export function GenerationStage({
     }
 
     const onMessage = (event: MessageEvent) => {
+      if (previewSrcRef.current !== previewSrc) return;
       const frame = previewFrameRef.current;
       if (isPreviewReadyMessage(event, frame?.contentWindow ?? null, expectedOrigin)) {
-        setPreviewEmbedState("ready");
+        setPreviewEmbedState("connected");
         setPreviewEmbedMessage("");
         return;
       }
@@ -144,7 +156,7 @@ export function GenerationStage({
     window.addEventListener("message", onMessage);
     const timer = window.setTimeout(() => {
       setPreviewEmbedState((current) => {
-        if (current === "ready" || current === "degraded") return current;
+        if (current === "connected" || current === "degraded") return current;
         setPreviewEmbedMessage("The preview did not finish loading. Open it in a new tab to inspect the diagnostic response.");
         return "error";
       });
@@ -154,17 +166,19 @@ export function GenerationStage({
       window.removeEventListener("message", onMessage);
       window.clearTimeout(timer);
     };
-  }, [previewUrl]);
+  }, [previewUrl, previewSrc]);
 
-  const sendPreviewInit = () => {
-    if (!previewUrl) return;
+  const sendPreviewInit = (loadedSrc: string) => {
+    if (!previewUrl || !loadedSrc || loadedSrc !== previewSrcRef.current) return;
     const origin = getPreviewOrigin(previewUrl);
     if (!origin) {
       setPreviewEmbedState("error");
       setPreviewEmbedMessage("The preview URL is invalid.");
       return;
     }
-    setPreviewEmbedState((current) => current === "ready" ? current : "degraded");
+    setPreviewEmbedState((current) =>
+      current === "connected" || current === "error" ? current : "degraded",
+    );
     previewFrameRef.current?.contentWindow?.postMessage(
       { type: "preview:init", version: PREVIEW_BRIDGE_VERSION },
       origin,
@@ -174,9 +188,14 @@ export function GenerationStage({
   const reloadPreview = () => {
     if (!previewUrl) return;
     try {
+      const token = Date.now() + previewReloadCounter.current + 1;
+      const nextSrc = withPreviewReloadToken(previewUrl, token);
+      previewSrcRef.current = nextSrc;
       setPreviewEmbedState("loading");
       setPreviewEmbedMessage("");
-      setPreviewSrc(withPreviewReloadToken(previewUrl));
+      setPreviewRoute(null);
+      previewReloadCounter.current += 1;
+      setPreviewSrc(nextSrc);
     } catch {
       setPreviewEmbedState("error");
       setPreviewEmbedMessage("The preview URL is invalid.");
@@ -620,20 +639,27 @@ export function GenerationStage({
               {previewUrl ? (
                 <>
                   <iframe
+                    key={`${previewUrl}:${previewSrc}`}
                     ref={previewFrameRef}
                     src={previewSrc}
                     title="Generated portfolio preview"
                     className="preview-iframe"
                     sandbox="allow-scripts allow-same-origin allow-forms"
-                    onLoad={sendPreviewInit}
+                    onLoad={() => sendPreviewInit(previewSrc)}
                     onError={() => {
+                      if (previewSrcRef.current !== previewSrc) return;
                       setPreviewEmbedState("error");
                       setPreviewEmbedMessage("The generated preview could not be loaded.");
                     }}
                   />
+                  {previewEmbedState === "connected" && (
+                    <p className="preview-embed-status" role="status">
+                      The preview navigation bridge is connected. Portfolio verification comes from the server checks.
+                    </p>
+                  )}
                   {previewEmbedState === "degraded" && (
                     <p className="preview-embed-status" role="status">
-                      {previewEmbedMessage || "Preview loaded. Waiting for an optional readiness signal."}
+                      {previewEmbedMessage || "The frame returned a document, but its preview navigation bridge did not connect. The document may be an error response; inspect it in a new tab."}
                     </p>
                   )}
                   {previewEmbedState === "error" && (

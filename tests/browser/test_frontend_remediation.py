@@ -198,6 +198,67 @@ def test_generation_candidate_is_never_presented_as_verified(browser_page: objec
     assert page.get_by_text("Open verified preview", exact=True).count() == 0
 
 
+def test_preview_reload_gets_a_fresh_timeout(browser_page: object) -> None:
+    page = browser_page
+    held_routes: list[object] = []
+    page.add_init_script(
+        """(() => {
+          const nativeSetTimeout = window.setTimeout.bind(window);
+          window.setTimeout = (callback, delay, ...args) =>
+            nativeSetTimeout(callback, delay === 8000 ? 25 : delay, ...args);
+        })();"""
+    )
+
+    def serve_preview(route: object, request: object) -> None:
+        url = str(request.url)
+        if "_preview_reload=" in url:
+            # Keep this navigation pending to exercise the fresh per-load
+            # deadline without making the test sleep for the production 8s.
+            held_routes.append(route)
+            return
+        route.fulfill(
+            status=200,
+            content_type="text/html",
+            body="""<!doctype html><title>Preview test</title><main>ready</main>
+              <script>
+                addEventListener('message', event => {
+                  if (event.source !== parent || event.data?.type !== 'preview:init') return;
+                  parent.postMessage({type: 'preview:ready', version: 'preview-bridge-v1'}, event.origin);
+                });
+              </script>""",
+        )
+
+    page.route("https://preview.example.test/**", serve_preview)
+    try:
+        page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
+        page.get_by_text("The preview navigation bridge is connected.", exact=False).wait_for()
+        page.get_by_title("Reload preview").click()
+        page.get_by_role("alert").filter(has_text="preview did not finish loading").wait_for()
+        assert len(held_routes) == 1
+    finally:
+        for route in held_routes:
+            route.abort()
+        page.unroute("https://preview.example.test/**", serve_preview)
+
+
+def test_preview_http_error_document_is_not_reported_as_connected(browser_page: object) -> None:
+    page = browser_page
+    page.route(
+        "https://preview.example.test/**",
+        lambda route: route.fulfill(
+            status=503,
+            content_type="text/html",
+            body="<!doctype html><title>Unavailable</title><h1>Gateway unavailable</h1>",
+        ),
+    )
+    page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
+
+    status = page.locator(".preview-embed-status").filter(has_text="may be an error response")
+    status.wait_for()
+    assert page.get_by_text("The preview navigation bridge is connected.", exact=False).count() == 0
+    assert page.get_by_role("alert").count() == 0
+
+
 def test_generation_direct_fixture_requires_an_explicit_standalone_run(
     browser_page: object,
 ) -> None:
