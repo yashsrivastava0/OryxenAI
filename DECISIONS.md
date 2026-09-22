@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-111 - Resolve npm portably by platform, never trust a hardcoded wrapper-name override
+
+- **Date & Time:** 2026-09-22 14:20 +05:30 - Claude Sonnet 5 (Anthropic)
+- **Status:** decided-implemented
+- **Context:** PR #1's required `quality` check failed on Linux CI with `COMMAND_START_FAILED: ... No such file or directory: 'npm.cmd'`. Root cause: `config/app.toml` and `config/app.test.toml` hardcoded `npm_executable = "npm.cmd"` — a Windows-only wrapper filename — while `app.native.toml`/`app.production.toml`/`app.docker.codegen-run.toml` already correctly used the portable `"npm"`. `config/app.docker.toml` has no override for this key, so it deep-merge-inherited the bad value from `app.toml`, meaning the real Linux/Docker Azure production path had the identical bug, not just CI: the live Code Generator's build-verification step (`npm ci`/`npm run build`) would fail identically once real generation runs happen on the VM. Beyond the bad config value, `resolve_npm_executable()` (`process_runner.py`) had no platform awareness at all: when a configured override failed to resolve via `shutil.which`, it returned the unresolved literal verbatim rather than degrading to the portable bare name — so any future bad or Windows-specific value in a shared config profile would reproduce this exact failure class again.
+- **Decision:** Changed `config/app.toml`/`config/app.test.toml` to `npm_executable = "npm"`. Hardened `resolve_npm_executable()` so an unresolved configured value is trusted verbatim only when `sys.platform == "win32"` or it is an existing absolute path; otherwise it retries `shutil.which("npm")` before giving up. `shutil.which` already resolves bare `"npm"` to `npm.cmd`'s full path on Windows via `PATHEXT`, so this changes no local Windows dev behavior.
+- **Rejected alternatives:** Fixing only the config value — would remove today's instance but leave the resolver still willing to propagate a future bad literal unconditionally on any OS, reproducing this same bug class. Fixing only the resolver and leaving `npm.cmd` in config — would leave the wrong value sitting in the base profile as a trap for any code path that reads it directly instead of through the resolver.
+- **Consequence:** All profiles now agree on the portable `"npm"` value, and the shared resolver fails safe (falls back to the real platform-appropriate binary) instead of propagating an unresolvable literal. Both CI failures this caused (`test_verification_builds_and_promotes_a_clean_candidate`, `test_supported_dependency_never_synthesizes_a_package_install_and_unsupported_uses_fallback`) are fixed without any test-file changes, since the underlying commands now actually execute. See `CHANGES.md` `1be4b13`.
+
 ## D-110 - Fully automatic CD via a self-hosted GitHub Actions runner on the Azure VM
 
 - **Date & Time:** 2026-09-22 11:30 +05:30 - Claude Sonnet 5 (Anthropic)
