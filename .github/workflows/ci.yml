@@ -209,14 +209,9 @@ jobs:
   deploy:
     name: Deploy to Azure VM
     needs: quality
-    # TEMPORARILY force-disabled (2026-09-22): the operator wanted all
-    # pending local commits pushed to GitHub without triggering a live
-    # deploy yet ("push everything" + "do not deploy" in the same
-    # instruction). Delete the leading `false &&` below to re-enable
-    # automatic deploy-on-push before running the first real deployment
-    # trial. See docs/deployment/ci-cd-runbook.md.
+    # Re-enabled (2026-09-22) per explicit operator go-ahead to run the
+    # first real deployment trial. See docs/deployment/ci-cd-runbook.md.
     if: >
-      false &&
       github.ref == 'refs/heads/deployment' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: [self-hosted, azure-oryxenai]
