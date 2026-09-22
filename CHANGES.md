@@ -12,7 +12,7 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
-### 2026-09-22 21:45 +05:30 — Claude Sonnet 5 (Anthropic) — [pending] — AGENTS.md, docs/deployment/ci-cd-runbook.md, docs/deployment/deployment-issues.md
+### 2026-09-22 21:45 +05:30 — Claude Sonnet 5 (Anthropic) — [218da7b] — AGENTS.md, docs/deployment/ci-cd-runbook.md, docs/deployment/deployment-issues.md
 Created the `staging` branch (from the live `deployment` HEAD, `0b0cac0`) and formalized a two-branch workflow at the operator's explicit request: day-to-day work happens on `staging` (freely pushable, fully CI-checked, but structurally incapable of triggering a deploy since the `deploy` job's `if:` only matches `refs/heads/deployment`); promotion to `deployment` now requires explicit, per-instance operator permission every time, with no standing/assumed approval even for routine changes. Documented in AGENTS.md's new "Branch workflow: `staging` vs `deployment`" subsection and cross-referenced from `ci-cd-runbook.md` and `deployment-issues.md`'s state table.
 
 ### 2026-09-22 21:10 +05:30 — Claude Sonnet 5 (Anthropic) — [ddbea9c] — AGENTS.md
