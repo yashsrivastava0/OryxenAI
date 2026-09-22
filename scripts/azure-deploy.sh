@@ -796,7 +796,7 @@ storage_smoke() {
 }
 
 credential_free_logs() {
-  local log_file key value leaks=0
+  local log_file key value leaks=0 offenders
   log_file="$(mktemp)"
   if ! compose logs --no-color --tail 10000 >"$log_file" 2>/dev/null; then
     rm -f "$log_file"
@@ -811,6 +811,11 @@ credential_free_logs() {
     if grep -Fq -- "$value" "$log_file"; then
       warn "Credential value for $key was found in Compose logs."
       leaks=$((leaks + 1))
+      # Diagnostic only: name which container(s) leaked, without ever
+      # printing the matched line itself (this repo is public, so the
+      # credential value must never reach CI output even redacted).
+      offenders="$(grep -F -- "$value" "$log_file" | cut -d'|' -f1 | sort -u | tr '\n' ' ')"
+      warn "  -> leaked from: ${offenders}"
     fi
   done < <(
     {
