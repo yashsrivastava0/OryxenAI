@@ -125,6 +125,8 @@ services:
     env_file:
       - .env
     environment:
+      DB_HOST_OVERRIDE: postgres
+      DB_PORT_OVERRIDE: "5432"
       OryxenAI_CONFIG_OVERLAY: config/app.docker.toml
     ports:
       - "127.0.0.1:4174:4174"
