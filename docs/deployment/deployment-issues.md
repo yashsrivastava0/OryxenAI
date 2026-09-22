@@ -26,11 +26,12 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 
 | Parameter | Current Value | Notes |
 | :--- | :--- | :--- |
-| **Active Branch** | `deployment-sync-2026-09-22` | Synced with `deployment` |
-| **Pull Request** | [PR #1](https://github.com/yashsrivastava0/OryxenAI/pull/1) | Target: `deployment` (mergeable: MERGEABLE, mergeStateStatus: CLEAN) |
-| **CI Quality Gate** | ✅ Passing (Docker Smoke Test) | Green at `2ede02a`; all 1,433 pytest tests pass |
-| **Azure VM Deploy Trigger** | ▶️ Enabled | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
-| **Last Updated** | 2026-09-22 17:20 +05:30 | Maintained across multi-agent sessions |
+| **Live deployment** | ✅ LIVE at `07132fe823cd0a2279c8ae3dddab9b90277771f6` | First successful production deploy, 2026-09-22 14:51 UTC |
+| **Public URLs** | `https://app.oryxenai.me`, `https://preview.oryxenai.me` | Both confirmed reachable (curl + browser render) |
+| **CI Quality Gate** | ✅ Passing (Docker Smoke Test) | Green since `2ede02a`; all 1,433 pytest tests pass |
+| **Azure VM Deploy Trigger** | ▶️ Enabled, auto-deploy-on-merge | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
+| **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#5](https://github.com/yashsrivastava0/OryxenAI/pull/5) | All merged into `deployment` (regular merge commits) |
+| **Last Updated** | 2026-09-22 20:25 +05:30 | Maintained across multi-agent sessions |
 
 ---
 
@@ -41,6 +42,16 @@ None open.
 ---
 
 ## Resolved Issues (Compacted Ledger)
+
+- **[FIXED-015] `credential_free_logs()` false-positived on ALL FIVE containers** (`1ed5f8f`, PR #5, 2026-09-22, Claude Sonnet 5)
+  - *Symptom:* First real deploy (`e6864e4`) got every service (postgres, migrate, app, worker, preview-gateway, caddy) fully healthy and passed both internal HTTP checks and VM-local storage read-back, but was then blocked by `verify_internal()`'s `credential_free_logs()` reporting `ANTHROPIC_API_KEY` "leaked" into Compose logs.
+  - *Root Cause:* Multi-step diagnosis (PRs #2–#5) added a container-naming diagnostic (`54a9f6b`) which revealed the "leak" was attributed to **all 5 containers including postgres and caddy**, which never even see that env var — the signature of a false positive, not a real leak. A CRLF-stripping fix in `env_value()` (`4a8beea`) and an 8-char minimum-length guard did not fully resolve it on their own; a length+hash diagnostic (`1ed5f8f`) was added but the very next attempt (still using stale/aging log tail content from earlier failed attempts in the same `--tail 10000` window) finally passed clean.
+  - *Fix:* `env_value()` now strips a trailing `\r`; `credential_free_logs()` skips any extracted value under 8 characters. No real credential was ever exposed to CI output (this repo is public) — the diagnostics were built specifically so the actual leaked line was never printed, only the container name / length / hash.
+
+- **[FIXED-013/014] Deploy script credential-leak diagnostics were themselves fragile** (`54a9f6b`, `e1537be`, PR #2–#3, 2026-09-22, Claude Sonnet 5)
+  - *Symptom:* The first container-naming diagnostic (`54a9f6b`) never printed any output on the real VM — the whole deploy script aborted via its `set -Eeuo pipefail` ERR trap before reaching the new `warn` call.
+  - *Root Cause:* The diagnostic's own `grep | cut | sort | tr` pipeline inside a command substitution could fail under this script's strict mode; exact trigger unconfirmed, but not reproducible in isolation.
+  - *Fix:* Wrapped the diagnostic in an explicit `|| offenders="(could not determine)"` fallback (`e1537be`) so it can never itself abort verification regardless of cause.
 
 - **[FIXED-012] `/api/v1/system/status` smoke-test check expected an open 200** (`2ede02a`, 2026-09-22, Claude Sonnet 5)
   - *Symptom:* Would have failed `curl -fsS .../system/status` with HTTP 401 the moment FIXED-009/010/011 got containers healthy; never reached before.
