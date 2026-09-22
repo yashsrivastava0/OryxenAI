@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-109 - `backend` Compose network must not be Docker-`internal`
+
+- **Date & Time:** 2026-09-22 10:45 +05:30 - Claude Sonnet 5 (Anthropic)
+- **Status:** decided-implemented
+- **Context:** The first real rehearsal deploy against the Azure VM built all four images successfully but then failed with `EAI_AGAIN` (DNS resolution failure) during npm-cache warm-up. Investigation found `compose.production.yaml`'s `backend` network declared `internal: true`, with `app`, `worker`, `migrate`, and `preview-gateway` (via the shared `&application` anchor) attached only to it. Docker's `internal: true` blocks all outbound routing for a network, not just inbound exposure — so as configured, `worker` and `app` would have had zero outbound internet access in production at all (no Supabase, no model provider calls, no npm registry), not just a broken warm-up step. The comment justifying `internal: true` was actually about preventing *inbound* exposure, a separate property already guaranteed by the fact that only `caddy` publishes a host `ports:` mapping.
+- **Decision:** Removed `internal: true` from `backend`. It stays a private, non-published bridge network (no service other than `caddy` has a `ports:` entry, so nothing is reachable from outside the Docker host), but now has normal outbound NAT/egress. See `docs/azure-issue.md` for the full failure log and local verification evidence.
+- **Rejected alternatives:** Keeping `internal: true` and adding an explicit egress path (a NAT/forward-proxy sidecar container) — rejected as unnecessary complexity solving a problem that doesn't exist once inbound isolation is understood to come from the absence of published ports, not from the network's `internal` flag.
+- **Consequence:** `app`/`worker`/`migrate`/`preview-gateway` can now reach Supabase, model provider APIs, and the npm registry from production. Any future change to this compose file must not reintroduce `internal: true` on `backend` without also giving those services another route to the internet.
+
 ## D-108 - Record the registered production domain
 
 - **Date & Time:** 2026-09-21 17:39 +05:30 - Claude Sonnet 5 (Anthropic)
