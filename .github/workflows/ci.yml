@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   quality:
@@ -137,3 +138,37 @@ jobs:
           curl -fsS http://localhost:8000/health/ready
           curl -fsS http://localhost:8000/api/v1/system/status
           docker compose down -t 5
+
+  deploy:
+    name: Deploy to Azure VM
+    needs: quality
+    if: >
+      github.ref == 'refs/heads/deployment' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, azure-oryxenai]
+    # Fully automatic for now (D-110): no required-reviewer gate. Re-add
+    # `environment: production` here (and create that Environment with a
+    # required reviewer in Settings -> Environments) to require one manual
+    # approval click per deploy again.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: /home/oryxenaiadmin/oryxenai
+    steps:
+      # No actions/checkout here: azure-deploy.sh deploy does its own
+      # `git fetch origin` + `git checkout --detach <sha>` in place inside
+      # the VM's persistent repo directory (see resolve_release()/deploy()
+      # in scripts/azure-deploy.sh) -- the same thing a human runs by hand.
+      - name: Deploy
+        run: ./scripts/azure-deploy.sh deploy ${{ github.sha }}
+
+      - name: Verify
+        run: ./scripts/azure-deploy.sh verify
+
+      - name: Dump status and recent logs on failure
+        if: failure()
+        run: |
+          ./scripts/azure-deploy.sh status
+          ./scripts/azure-deploy.sh logs
