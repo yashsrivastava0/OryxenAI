@@ -35,7 +35,7 @@ Recovered Code Generator durable stage handoffs: coordinator now finalizes Plan 
 
 ---
 
-## Key Architectural Milestones (Tier 2 — Moderately Compacted / High-Value History)
+## Key Active Milestones
 
 ### CI/CD, Containerization & Azure Infrastructure
 - **2026-09-22 — [7cb4102, cbe7c7e] — Self-Hosted Actions Runner CD:** Implemented outbound-polling runner on Azure VM, removing SSH port exposures and external runner IP restrictions (D-110, supersedes D-107).
@@ -43,33 +43,15 @@ Recovered Code Generator durable stage handoffs: coordinator now finalizes Plan 
 - **2026-09-22 — [1be4b13] — Cross-Platform Toolchain Resolution:** Unified `npm` binary resolution across Windows, Linux, and Docker environments (D-111).
 - **2026-09-21 — [3615b35, d60d40b] — Production Hardening & Symlink Fix:** Enforced strict Linux mypy pins, HSTS headers, rate limiting, and fixed official Node.js npm/npx symlink copying in production Dockerfile (D-107, D-108).
 - **2026-09-20..21 — [353ef25, d0d3a67, ccd9024] — VM-Local Persistent Storage:** Selected VM-local persistent disk/volumes over Cloudflare R2 for single-VM release simplicity; encapsulated services behind Caddy reverse proxy on 80/443 (D-106).
-- **2026-09-15 — [93cc34e] — Azure Deployment Strategy:** Formulated one-VM Azure Compose rollout and verification runbooks.
 
 ### Code Generator & Preview Engine
 - **2026-09-20 — [55e5692, 743a4e4] — Durable Stage Handoffs & Advisory Review:** Coordinator safely redelivers checkpointed stage handoffs; whole-site quality review made advisory for unverified candidate previews when strict build/runtime checks pass (D-042, D-105).
 - **2026-09-19 — [500e58c, 08c6031] — Preview Theater & Build Preparation Unlock:** Connected Build Preparation completion to unlock Code Generator directly; enabled standalone Preact preview theater testing via `/api` Vite proxy (D-103, D-104).
 - **2026-09-19 — [ddab99a, 188af32, e713ff2] — Fail-Closed Worker Capabilities:** Worker capability receipts fail closed; mapped-content validation aligned with generated source; enforced split preview-origin security (D-100, D-101).
 - **2026-09-18 — [c617449, b087ca3, 9270762] — Truthful Preview Verification:** Forbade hiding repair evidence by deleting broken elements; established truthful candidate verification and bounded image placement floors (D-099).
-- **2026-09-14 — [a0cae30, 49d6e0d, 250417d] — Preview-First Verification & Public Samples:** Shipped public-preview motion/examples, attempt-scoped generation receipts, and hardened brief ingestion.
 
 ### Pipeline Agents & Editorial Studio Shell
 - **2026-09-19 — [763ddfb, 0e2b303] — Living Draft Editorial Studio:** Unified authenticated product navigation under Preact Editorial Studio shell with stage handoffs (D-095).
-- **2026-09-13 — [cdac290, f003023] — Traceability Drawer & Reference Pack:** Shipped control room inspector, traceability diagnostics drawer, and Discovery brief research handoff.
-- **2026-09-10 — [01e9ed0, 06eb2c0, 22db99c] — Quality Findings & Motion Contracts:** Hardened QualityFindingV2 schemas, image floors, and fluid typography tokens across compiler boundaries (D-090, D-091, D-092).
-- **Foundational — [D-002] — Discovery v2 & Pipeline Contracts:** Simplified Discovery to envelope-only JSONB state storage without over-engineered fact-graphs; established bounded 1-3 model call contracts for Content Architect and Visual Design Director.
-
-### Authentication, Ownership & Admin Control Plane
-- **2026-09-13..14 — [0e2b303, f74d145, fd127de] — Auth Phases 1–3:** Established Supabase Google OAuth session restore, verified-provider JIT admission, username onboarding, and owner-scoped portfolio sessions.
-- **2026-09-14 — [e37e302, 88ba402] — Auth Phase 4:** Implemented audited administrator lifecycle, destructive cleanup/reset, and local admin control console.
-
----
-
-## Compacted History (Tier 3 — Heavily Compacted Routine Work)
-
-- **2026-09-18..21 — [91f0d18..392277c]** — Cleared release-gate findings, diagnostics name collisions, test module-name collisions, preflight toolchain checks, and Windows temporary lock file fixes across 18 intermediate commits.
-- **2026-09-11..16 — [9d2aa0b..df96f4d]** — Stage duration tracking, test database protection, Visual Design Director output recovery, and frontend remediation research across 12 commits.
-- **2026-09-08..10 — [90e8349..e99ed55]** — Fluid type tokens, preflight toolchain hardening, undeclared npm import detection, and bounded repair authority across 24 commits.
-- **2026-09-05..07 — [7f09506..9fabd58]** — Initial pipeline foundation: candidate preview, durable jobs, PostgreSQL state storage, ModelClient provider abstraction, and mock runner across 35 commits.
 
 ---
 
