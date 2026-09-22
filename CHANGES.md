@@ -11,6 +11,38 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [1be4b13, 80687eb] - Fixed both real CI failures blocking PR #1, and corrected the PR's target branch
+
+Retargeted PR #1 from `main` to `deployment` (`gh pr edit 1 --base
+deployment`) — it had been opened against the wrong base, which is what
+was actually producing the huge +123k/-25k diff and the "CONFLICTING"
+mergeable status (`main` and `deployment` diverged long ago at
+`73c623c`); the brief's assumption that this was a stale GitHub
+mergeability check was wrong. After retargeting, the diff dropped to the
+real ~1091/-23 gap and `mergeable` flipped to `MERGEABLE`.
+
+Fixed the npm.cmd cross-platform bug (`1be4b13`): `config/app.toml` and
+`config/app.test.toml` hardcoded `npm_executable = "npm.cmd"`, inherited
+by `config/app.docker.toml` (the real Azure/Docker production overlay)
+via deep-merge — this was a live production bug, not just a CI artifact.
+Changed both to the portable `"npm"` and hardened
+`resolve_npm_executable()` (`process_runner.py`) to fall back to bare
+`"npm"` on non-Windows instead of trusting an unresolved configured
+value verbatim.
+
+Fixed the Output Inspector browser test (`80687eb`): confirmed no overlap
+with `PLAN.MD`'s active T02 preview-reload scope (different file, git
+history predates it by a full commit-stream), then, after failing to
+reproduce the race via CPU-throttled Playwright runs, corrected the
+test's `is_hidden()`/`is_visible()` snapshot assertions to
+`expect(...).to_be_hidden()/to_be_visible()`, matching the exact
+"assert False where False = is_hidden()" failure signature.
+
+All three of the originally reported failures are now addressed. Local
+`uv run pytest` (1433 passed, 5 skipped), `ruff check`, `ruff format
+--check`, and `mypy src` all pass; the Linux-CI-specific parts can only
+be confirmed once PR #1's `quality` check reruns.
+
 ### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [no code change yet] - Installed gh CLI, diagnosed 3 real CI failures blocking the first sync PR
 
 Installed and authenticated the `gh` CLI (`winget install --id GitHub.cli`,
@@ -132,23 +164,6 @@ Recorded the exact failure, correction, and pre-push verification results in
 the deployment history. The corrected release still requires a Linux VM image
 build and runtime acceptance after publication.
 
-### 2026-09-21 - Codex (GPT-5) - [a861465] - Reconcile live deployment readiness
-
-Recorded the current Namecheap DNS resolution, Azure/SSH guest checks, Docker
-installation gap, exact verified application SHA, and local-versus-remote
-deployment branch state. This keeps the pre-deployment checklist aligned with
-the latest operator evidence without claiming that Azure application
-deployment or production acceptance has occurred.
-
-### 2026-09-21 - Codex (GPT-5) - [91f0d18] - Pass final local release checks
-
-Cleared the final local release-gate findings: aligned the Discovery retry
-expectation with the configured policy, narrowed Code Generator reconciliation
-for strict type checking, resolved the trusted Node executable in the browser
-fixture, and applied repository formatting. Ruff lint, Ruff format check,
-Mypy, the full pytest suite, and production Compose configuration validation
-passed on the exact application release commit.
-
 ### 2026-09-21 10:12 +05:30 - Codex (GPT-5) - [353ef25] - Complete VM-local production storage hardening
 
 Production Compose now bind-mounts PostgreSQL, Code Generator state, previews,
@@ -159,40 +174,6 @@ build, migration, health, Caddy, restart/engine-restart persistence, and
 credential-free log gates passed; Azure deployment and the legacy generic
 artifact-storage local implementation remain explicit follow-up blockers.
 
-### 2026-09-20 22:44 +05:30 - Codex (GPT-5) - [d0d3a67] - Select VM-local persistent storage for the first Azure release
-
-Recorded the first-release storage decision as VM-local persistent Docker-backed
-storage instead of Cloudflare R2. Updated the deployment strategy, readiness
-matrix, runbook, owner checklist, operations guide, combined deployment guide,
-status/history, and project status to require local-filesystem provider
-configuration, shared artifact/preview volumes, non-root ownership, disk checks,
-backup/restore, restart survival, and preview readback. R2 references remain
-only as compatibility or historical context; the Docker/config follow-up is
-still required before deployment.
-
-### 2026-09-20 17:39 +05:30 - Codex (GPT-5) - [ccd9024] - Make production Compose stack self-contained
-
-Reworked production packaging around one pinned Compose stack. The production
-file now owns PostgreSQL, one-shot migrations, separate app/worker/preview-
-gateway services, and Caddy with only ports 80/443 public; it also adds the
-internal service network, persistent volumes, health/dependency gates, the
-non-root application image, locked frontend/Python installs, safer build
-context, and aligned release-script, CI, and deployment documentation. Docker
-build, sanitized Compose config, isolated smoke startup, migration, health,
-Caddy routing, non-secret log scan, and runtime-user checks passed locally.
-
-### 2026-09-20 14:55 +05:30 - Codex (GPT-5) - [743a4e4] - Keep Code Generator previews available through quality-review failures
-
-Whole-site quality-review output is now an advisory gate when the generated
-source passes the strict source, build, and runtime checks. The verification
-worker stores an owner-scoped unverified candidate preview instead of hiding a
-buildable portfolio, while active-preview promotion and success entitlement
-remain fail-closed until the receipt is valid. Added one bounded, model-free
-retry for the classified Windows Vite child-process spawn race. Deterministic
-Code Generator, integration, frontend, and generated-portfolio build checks
-pass; the two permitted live attempts were consumed during diagnosis and no
-third live pipeline run was made.
-
 ### 2026-09-20 01:59 +05:30 — Codex (GPT-5) — [55e5692] — Recover Code Generator stage handoffs and native preview execution
 
 The durable coordinator now finalizes the completed Plan attempt before
@@ -202,23 +183,16 @@ Unexpected Code Generator worker errors receive one bounded redelivery, and
 native API launch no longer enables Windows reload mode that blocks
 Node/Playwright preview subprocesses (D-042).
 
-### 2026-09-20 00:38 +05:30 — Codex (GPT-5) — [2224697] — Always expose Code Generator retry after terminal job failure
-
-The Generate & Preview recovery action now remains available for any
-non-stale attention state, including a failed active job that still reports
-its previous planning status. The production retry capability reconciles that
-terminal job before queueing the same-run stage again, with route, service,
-adapter, and browser regression coverage.
-
-### 2026-09-20 00:03 +05:30 — Codex (GPT-5) — [c3e1f17] — Make auth shell test deterministic under test overlay
-
-The API shell test helper now explicitly selects the local `open` admission
-mode instead of inheriting the integration overlay's restricted `allowlist`
-setting. The focused production-shell test passes with the CI overlay enabled.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-21 — [a861465] — Reconciled live deployment readiness: DNS, Azure/SSH guest checks, Docker gap, verified SHA.
+- 2026-09-21 — [91f0d18] — Cleared final local release-gate findings; full local suite and Compose config validation passed.
+- 2026-09-20 — [d0d3a67] — Selected VM-local persistent Docker-backed storage over Cloudflare R2 for the first Azure release (D-106).
+- 2026-09-20 — [ccd9024] — Made production packaging one self-contained Compose stack with only Caddy's 80/443 public.
+- 2026-09-20 — [743a4e4] — Made whole-site quality-review output advisory when strict source/build/runtime checks pass (D-105).
+- 2026-09-20 — [2224697] — Kept Code Generator retry available for any non-stale attention state, including a failed active job.
+- 2026-09-20 — [c3e1f17] — Made the auth shell test deterministic by explicitly selecting the local `open` admission mode.
 - 2026-09-19 — [50bf74d] — Cleared a Code Generator diagnostics name collision flagged by strict mypy (no runtime change).
 - 2026-09-19 — [f2f4aba] — Reconciled deployment preparation artifacts: audit docs, CI/CD guidance, ignore rules.
 - 2026-09-19 — [500e58c] — Reconciled Code Generator terminal state to safe `needs_attention` and added direct frontend acceptance (D-104).
@@ -282,5 +256,5 @@ setting. The focused production-shell test passes with the CI overlay enabled.
 
 ## Summary (as of last compaction — 2026-09-22)
 
-- Recent detailed entries retained: 15
-- Compacted milestone bullets: 40
+- Recent detailed entries retained: 9
+- Compacted milestone bullets: 47
