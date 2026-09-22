@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-110 - Fully automatic CD via a self-hosted GitHub Actions runner on the Azure VM
+
+- **Date & Time:** 2026-09-22 11:30 +05:30 - Claude Sonnet 5 (Anthropic)
+- **Status:** decided-implemented
+- **Context:** D-107 kept Azure deployment entirely manual (a human runs `azure-deploy.sh deploy` over SSH). The owner asked for that to become automatic after every push. The obvious mechanism — a GitHub Actions job SSHing into the VM — runs into a real constraint of this specific VM: its NSG allows inbound SSH from exactly one hand-picked IP at a time (see `docs/azure-issue.md`'s multi-session SSH-connectivity saga: Jio hotspot, Cloudflare WARP, and office Wi-Fi each needed a manual NSG edit). GitHub-hosted runners connect from large, rotating Microsoft/GitHub IP ranges, so an SSH-based pipeline would need the NSG opened to the broader internet (or a large, shifting range) to work reliably — reintroducing the exposure the single-IP rule exists to prevent, and reintroducing the exact IP-mismatch failure class already spent on manual SSH. An initial draft of this decision also added a `production` GitHub Environment approval-click gate (reasoning: an AI agent, not only the owner, would be producing many of the deployed changes); the owner then explicitly asked for fully automatic deploy instead, "temporarily," with the explicit understanding it's easy to re-add later.
+- **Decision:** Install a self-hosted GitHub Actions runner directly on the VM (as `oryxenaiadmin`, systemd-managed) so it polls GitHub over outbound HTTPS — no inbound port, no SSH key in GitHub, no NSG change, ever, and no GitHub Actions secrets of any kind needed for the deploy job. Add a `deploy` job to the existing `ci.yml` (`needs: quality`, restricted to `push`/`workflow_dispatch` on `deployment`, `runs-on: [self-hosted, azure-oryxenai]`) that runs `./scripts/azure-deploy.sh deploy ${{ github.sha }}` then `verify` directly in the VM's persistent repo directory — no `actions/checkout`, since the script already does its own `git fetch`/`checkout --detach`. **No approval gate**: the job runs immediately once `quality` passes on a push to `deployment`. On failure, dump `status`/`logs` into the Action's own output; no auto-rollback (same reasoning D-107 originally gave for rejecting it — a human decides the next step).
+- **Rejected alternatives:** SSH-from-GitHub-hosted-runner with NSG opened to GitHub's published Actions IP ranges — rejected as both more complex to maintain (those ranges rotate and are still broad) and not actually simpler or safer than a self-hosted runner. A `production` Environment approval-click gate was built and then explicitly removed per the owner's follow-up instruction — recorded here, not silently dropped, so a future session understands why the workflow has no `environment:` line despite this history; re-adding it later is a two-line change (see the comment left in `ci.yml` above the `deploy` job). Auto-rollback on failure — rejected for the same reason D-107 rejected it originally.
+- **Consequence:** Supersedes D-107's "manual SSH only" stance; D-107 is moved to Compacted & Superseded History. The `Allow-SSH-MyIP` NSG rule is untouched by this change and remains only for interactive operator debugging. The single remaining trust boundary is now "who can push to `deployment`" — anyone (human or agent) who pushes a commit that passes `quality` deploys it to production immediately, with no human review step. Day-to-day flow becomes: commit -> push to `deployment` -> CI -> automatic `deploy`+`verify` on the VM's own runner, with failure diagnostics surfaced in the Actions tab.
+
 ## D-109 - `backend` Compose network must not be Docker-`internal`
 
 - **Date & Time:** 2026-09-22 10:45 +05:30 - Claude Sonnet 5 (Anthropic)
@@ -41,15 +50,6 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 - **Decision:** `app.oryxenai.me` and `preview.oryxenai.me` are the production hostnames, superseding every `deploy.me` reference in D-098 and any doc still naming that placeholder.
 - **Rejected alternatives:** None — this records an already-made external registration decision so DECISIONS.md stops being the one place that still names the old placeholder.
 - **Consequence:** `config/app.production.toml`, `Caddyfile`, `.env`/`.env.example`, and all deployment docs use the real domain. D-098 is superseded by this entry for the domain identity question; its infrastructure-before-DNS sequencing point still stands.
-
-## D-107 - GitHub Actions CI stays verification-only; Azure deployment stays a manual SSH step
-
-- **Date & Time:** 2026-09-21 17:39 +05:30 - Claude Sonnet 5 (Anthropic)
-- **Status:** decided-implemented
-- **Context:** An earlier pass of this same audit briefly designed and implemented a `deploy` job inside `ci.yml` that would SSH into the Azure VM and run `azure-deploy.sh deploy` automatically once a human approved a GitHub Environment gate. The owner then explicitly corrected that: the intended model is GitHub CI (lint/type/test/build/audit/Docker) with **manual** Azure deployment, not automatic CD of any kind, gated or not. Separately, GitHub-side repository configuration (a selective Actions allowlist, read-only default token permissions, PR restrictions, and a deployment-ci-gate ruleset) was set up directly on GitHub, outside this workflow file.
-- **Decision:** `ci.yml` contains exactly one job (`quality`): lint, type-check, the full test suite, dependency/secret audit, Docker build, and a Compose smoke test. It has no deploy job and touches no Azure credentials. Deploying to the VM means a human (or an agent acting under a human's direct, in-the-moment instruction) runs `./scripts/azure-deploy.sh deploy <exact-sha>` themselves over SSH after confirming the corresponding CI run is green.
-- **Rejected alternatives:** The GitHub-Environment-gated automatic `deploy` job (this repo's own D-107 as first drafted) was implemented and then reverted per the owner's explicit correction — recorded here rather than silently deleted so a future session does not reintroduce it. A `workflow_run`-triggered second workflow was also considered and rejected for the same reason it wasn't wanted in the first place: any GitHub-triggered path to the VM is out of scope right now.
-- **Consequence:** No SSH key or VM coordinates need to exist as GitHub secrets. CI failing or passing is purely a code-quality signal; the decision to deploy a given green commit, and the act of deploying it, both stay entirely manual and outside GitHub Actions.
 
 ## D-106 - Use VM-local persistent storage for the first Azure release
 
@@ -868,6 +868,7 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Compacted & Superseded History
 
+- **D-107** — 2026-09-21 17:39 +05:30 — Claude Code (Sonnet 5) — GitHub Actions CI stays verification-only, Azure deployment stays manual SSH (superseded by D-110 gated self-hosted-runner CD)
 - **D-061** — 2026-09-03 11:35 +05:30 — Claude Code (Sonnet 5) — Build Preparation 100-year pack TTL (superseded by D-062 Markdown briefs)
 - **D-060** — 2026-09-03 01:45 +05:30 — Claude Code (Sonnet 5) — Deferred materialization of pack bytes (superseded by D-062 Markdown briefs)
 - **D-051** — 2026-08-25 11:54 +05:30 — Codex (GPT-5) — Source-bound Build Preparation JSONB checkpoints (superseded by D-062 Markdown briefs)

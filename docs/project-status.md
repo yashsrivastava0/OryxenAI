@@ -239,8 +239,11 @@ live daemon; no Azure deployment is claimed here.
   still needs read access to the selected branch. For a private repository,
   configure a VM-specific GitHub deploy key or another approved read-only
   checkout method. The Azure SSH private key is not used for GitHub access.
-- GitHub Actions is not required for the first release. The operator can push
-  the selected commit, SSH to the VM, and run the deployment script there.
+- A self-hosted GitHub Actions runner on the VM now deploys automatically
+  after a push to the `deployment` branch, gated by one manual approval click
+  on a `production` GitHub Environment (D-110). Manually SSHing in and
+  running the deployment script by hand still works and remains the path for
+  ad hoc operations (`status`, `logs`, `rollback`, `restore-dry-run`, etc.).
 
 ## What is pending
 
