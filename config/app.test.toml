@@ -56,7 +56,7 @@ allowlist_image_providers = []
 
 [code_generator_dependencies]
 workspaces_root = ".workspace/code-generator-workspaces-test"
-npm_executable = "npm.cmd"
+npm_executable = "npm"
 npm_cache_root = ".workspace/npm-cache"
 allow_network_install = false
 allow_install_scripts = false

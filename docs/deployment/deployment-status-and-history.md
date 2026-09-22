@@ -8,6 +8,57 @@ This is an operator-reported browser-verification checkpoint. It records
 external configuration that was confirmed outside the repository; it does not
 claim that the application has been deployed or accepted in production.
 
+### First Azure deployment attempt and Dockerfile correction - 2026-09-21
+
+- The first VM deployment attempt targeted application release
+  `91f0d187d6de67a6d6db158b70d235cd773b11c4` after the VM setup, storage
+  initialization, production environment entry, prerequisite checks, and
+  merged Compose validation had passed.
+- The production application image built successfully. The attempt then
+  stopped during the offline npm-cache warm-up before migrations, application,
+  worker, preview gateway, Caddy, or live database startup. No runtime
+  acceptance was claimed.
+- The failure was:
+  `Cannot find module '../lib/cli.js'`, raised by `/usr/local/bin/npm` under
+  Node.js 22 during the temporary worker cache-warm-up container.
+- Root cause: the runtime image copied the official Node image's `npm` and
+  `npx` symlink launchers as regular files. npm then resolved its relative CLI
+  module path from the wrong location, while the actual npm package lived
+  under `/usr/local/lib/node_modules/npm`.
+- Fix prepared locally in `Dockerfile`: copy the npm package, recreate the
+  `npm` and `npx` symlinks to their package entrypoints, and run
+  `npm --version` plus `npx --version` as image-build smoke checks.
+- The fix does not change authentication, authorization, Supabase, Google
+  OAuth, or application policy code. Those runtime behaviors still require
+  deployment and browser acceptance after this image is published.
+- VM production `.env`, Docker installation, persistent storage, and DNS were
+  not removed or overwritten by the failed warm-up. The old release must not
+  be retried; the corrected image must be built from a newly published exact
+  release SHA.
+- Local Docker image execution is unavailable on the Windows operator host,
+  so final image-build validation remains a required VM-side check after the
+  corrected branch is approved and pushed.
+
+### Pre-push validation of the Dockerfile correction - 2026-09-21
+
+- `uv run ruff check .` passed.
+- `uv run ruff format --check .` passed.
+- `uv run mypy src` passed with no issues in the source tree.
+- `docker compose --env-file .env.example -f compose.production.yaml config
+  --quiet` passed.
+- Frontend `npm run typecheck` and `npm run build` passed. Frontend Vitest
+  passed: 23 test files and 144 tests.
+- The focused Python authentication, authorization, ownership, admin, and
+  entitlement suite passed: 74 tests.
+- The complete Python suite passed after running with a host-permitted,
+  repository-local temporary directory: 1,433 passed and 5 skipped. The
+  earlier restricted-host run reported 203 setup errors only because pytest
+  could not create or clean its Windows temporary-directory lock files; it did
+  not report assertion failures.
+- These checks cover repository behavior and configuration. They do not prove
+  the corrected Linux Docker image until the VM builds it, warms the offline
+  npm cache, runs migrations, and passes service health checks.
+
 ### Consolidated pre-deployment inventory - 2026-09-21
 
 - Namecheap BasicDNS records are saved and externally resolving:
@@ -26,9 +77,55 @@ claim that the application has been deployed or accepted in production.
   clean and 19 commits ahead of `origin/deployment`; the reviewed branch has
   not been published by this checkpoint, so the VM cannot fetch this release
   until that publication step is completed.
-- Supabase/Google production settings, VM checkout, Docker setup, production
-  `.env`, migrations, containers, Caddy certificates, live model calls, and
-  browser acceptance remain pending.
+- Supabase URL and Google OAuth settings are now pre-deployment configured and
+  verified. VM checkout, Docker setup, production `.env`, migrations,
+  containers, Caddy certificates, live model calls, and browser acceptance
+  remain pending.
+
+### Supabase URL configuration completed - 2026-09-21
+
+- Supabase project: `oxygen-ai-development`.
+- Site URL is `https://app.oryxenai.me`.
+- Application redirect URL is `https://app.oryxenai.me/auth/callback`.
+- Existing development URLs were preserved.
+- The page was reloaded and both values remained unchanged; no save was
+  required because Supabase reported no unsaved changes.
+
+### Supabase Google provider verified - 2026-09-21
+
+- The Google provider is enabled in the `oxygen-ai-development` Supabase
+  project.
+- The provider callback copied directly from Supabase is
+  `https://diiestlnmpaarhhexwhi.supabase.co/auth/v1/callback`.
+- No provider change was required.
+- This provider callback remains distinct from the OryxenAI application
+  callback, `https://app.oryxenai.me/auth/callback`.
+- Matching Google Cloud OAuth-client configuration was subsequently verified;
+  private VM environment-value entry remains pending.
+
+### Google OAuth pre-deployment configuration verified - 2026-09-21
+
+- Google account: `yashxbbd@gmail.com`.
+- Google Cloud project: `OryxenAI` (`oryxenai`), project number
+  `18974550670`.
+- The project is standalone and has no Google Cloud organization.
+- Google Auth Platform branding is `Oxygen.ai`, with authorized domain
+  `oryxenai.me`.
+- OAuth audience is External and publishing status is Testing; the project
+  currently has three test users. Verification is not required while it
+  remains in Testing.
+- The matching OAuth client is a Web application. Its production origin is
+  `https://app.oryxenai.me` and its redirect URI is the Supabase callback
+  `https://diiestlnmpaarhhexwhi.supabase.co/auth/v1/callback`.
+- Supabase project `oxygen-ai-development` has Google enabled, with a matching
+  Client ID, Site URL `https://app.oryxenai.me`, and application redirect
+  `https://app.oryxenai.me/auth/callback`.
+- No Google or Supabase changes remained unsaved after verification.
+- Homepage, privacy-policy, and terms URLs are blank and must be supplied if
+  Google requires them before public launch. No URLs were invented.
+- No secrets, tokens, or live sign-in test results were recorded. The
+  application is not deployed yet, so runtime authentication testing remains
+  pending.
 
 ### Local release gate passed - 2026-09-21
 
