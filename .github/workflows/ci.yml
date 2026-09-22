@@ -152,7 +152,18 @@ jobs:
         # only used by this stack's own disposable containers, never a real
         # credential. Mirrors the throwaway .env already created above for
         # production Compose config validation.
-        run: cp .env.example .env && echo "POSTGRES_PASSWORD=ci-smoke-test-only" >> .env
+        #
+        # Must reuse the job-level POSTGRES_PASSWORD (oryxen_test), not an
+        # independent placeholder: compose.yaml's postgres service reads
+        # `${POSTGRES_PASSWORD}` via Compose variable substitution, which
+        # resolves from the *host shell's* environment (this job already
+        # exports POSTGRES_PASSWORD: oryxen_test) -- while app/worker/migrate
+        # instead get their POSTGRES_PASSWORD from this .env file's literal
+        # content via env_file. A different value in each place silently
+        # initializes Postgres with one password while the app containers
+        # try to authenticate with another, failing with
+        # asyncpg.exceptions.InvalidPasswordError.
+        run: cp .env.example .env && echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
 
       - name: Docker build
         run: docker compose build
