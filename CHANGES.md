@@ -12,7 +12,7 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
-### 2026-09-22 21:10 +05:30 — Claude Sonnet 5 (Anthropic) — [pending] — AGENTS.md
+### 2026-09-22 21:10 +05:30 — Claude Sonnet 5 (Anthropic) — [ddbea9c] — AGENTS.md
 Added a "Fresh-machine setup and secrets policy" section to AGENTS.md covering new-device onboarding steps, exactly what counts as a secret and where each lives (local `.env`, VM-local production `.env`, CI's throwaway `.env`), the `credential_free_logs()` safety property to preserve, and a short list of actions an AI agent should always ask the operator about first. Also corrected two now-stale claims elsewhere in the same file ("first deployment path... not executed" and the matching "What to implement next" entries) to reflect that the live deploy (`07132fe`) already happened. Prompted by the operator wanting a clean, self-documenting handoff point for any future AI session or contributor on a fresh machine.
 
 ### 2026-09-22 20:25 +05:30 — Claude Sonnet 5 (Anthropic) — [e6864e4, 8feb06a, 86cf523, 89496e7, 07132fe] — scripts/azure-deploy.sh, PRs #1-#5
