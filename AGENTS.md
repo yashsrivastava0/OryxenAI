@@ -427,9 +427,20 @@ consistent:
 2. **Log commit-sized work to `CHANGES.md`.** After finishing a real unit of
    work (a feature, a fix, a refactor, an architecture/schema change) —
    roughly what would earn its own git commit message — append one compact
-   entry per `CHANGES.md`'s own template, and run its compaction check. Do
+   entry per `CHANGES.md`'s own template (append-only; AI agents must never
+   auto-compact `CHANGES.md`). Do
    not log every individual file save. If it's unclear whether something
    counts as "major" enough to log, **ask the user** rather than guessing.
+   For deployment/CI-pipeline work specifically (the Azure VM, GitHub
+   Actions, Docker Compose, the `deployment` branch's required checks),
+   also update
+   [`docs/deployment/deployment-issues.md`](docs/deployment/deployment-issues.md)
+   after every session — **on both success and failure** — following its
+   compact schema and strict < 400 lines context budget (convert resolved
+   blockers to the compacted ledger upon success; never write narrative essays).
+   That file's high-density diagnostic detail (exact errors, root causes,
+   fixes, commit SHAs) belongs there, not in `CHANGES.md`; `CHANGES.md` still
+   gets its own short summary entry for the commit-sized outcome.
 3. **Log real decisions to `DECISIONS.md`**, not routine implementation
    choices — same rule: ask if unsure.
 4. **Never hardcode** a model name, provider, API key env-var value, test
@@ -492,6 +503,10 @@ consistent:
   pending, Azure, and next-step handoff.
 - [`docs/deployment/README.md`](docs/deployment/README.md) — deployment index
   and one-VM operational path.
+- [`docs/deployment/deployment-issues.md`](docs/deployment/deployment-issues.md)
+  — timestamped log of every CI/CD and Docker Compose bug found and fixed
+  (or still open); update it after every deployment/CI session per the
+  multi-agent collaboration protocol below.
 - [`DECISIONS.md`](DECISIONS.md) — decisions, rejected alternatives, and
   open/deferred items.
 - [`CODEX.md`](CODEX.md) and [`CLAUDE.md`](CLAUDE.md) — short redirects to

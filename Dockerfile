@@ -66,12 +66,17 @@ WORKDIR /app
 
 # Copy the fully-populated virtual environment from the builder.
 COPY --from=builder --chown=oryxen:oryxen /app/.venv /app/.venv
-# Use the exact Node 22/npm toolchain that built the product frontend.  The
+# Use the exact Node 22/npm toolchain that built the product frontend. The
 # verifier must not silently switch to a different distribution Node version.
+# npm and npx are symlinks in the official Node image; copy the npm package
+# and recreate those links instead of copying the launcher files as regular
+# files (which breaks npm's relative CLI module resolution).
 COPY --from=frontend-builder /usr/local/bin/node /usr/local/bin/node
-COPY --from=frontend-builder /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=frontend-builder /usr/local/bin/npx /usr/local/bin/npx
 COPY --from=frontend-builder /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && npm --version \
+    && npx --version
 
 # Copy runtime assets: source, config, migrations, entrypoint.
 COPY --chown=oryxen:oryxen src/ ./src/

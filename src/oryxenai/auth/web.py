@@ -74,6 +74,10 @@ def create_auth_web_router() -> APIRouter:
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        # These shells (including /admin) carry no data of their own -- the
+        # client redirects to /sign-in on the first unauthorized API call --
+        # but keep them out of search indexes regardless.
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
         return response
 
     @router.get("/", response_class=HTMLResponse)

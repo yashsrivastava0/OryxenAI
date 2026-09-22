@@ -29,7 +29,7 @@ release gates without claiming that live deployment has been performed.
 | Application on Azure | Not deployed | Docker has not been installed on the VM, the repository has not been cloned there, and no container or database migration has run there. |
 | Production auth/domain | DNS ready; auth pending | Namecheap records for `app.oryxenai.me` and `preview.oryxenai.me` resolve to the static VM IP. Supabase/Google production redirects and HTTPS certificate/browser proof remain pending. |
 | Production artifact storage | VM-local storage configured, runtime gate pending | Production Compose now bind-mounts the configurable VM data root, selects local Code Generator artifact/preview providers, initializes non-root ownership, and provides disk/backup/readback checks. Docker runtime, restart/reboot persistence, and Azure acceptance remain unproven. |
-| Release candidate | Selected locally; publication pending | The application release SHA `91f0d187d6de67a6d6db158b70d235cd773b11c4` passed the local release gate. The local `deployment` branch is clean and ahead of `origin/deployment`; publish it before the VM fetches the exact SHA. |
+| Release candidate | Selected locally; publication pending | SHA `91f0d187d6de67a6d6db158b70d235cd773b11c4` passed the local release gate but is now superseded — it is the exact commit that failed the first VM deployment attempt on the npm-toolchain bug fixed in `d60d40b`. Do not deploy `91f0d18`; re-run the full local release gate and use `git log -1 --oneline` on `deployment` for the current verified SHA before deploying. |
 | End-to-end acceptance | Pending | No real Azure run has yet proven Google login → agents → generated artifact → embedded preview → direct preview URL. |
 
 ## What has been implemented
@@ -239,8 +239,35 @@ live daemon; no Azure deployment is claimed here.
   still needs read access to the selected branch. For a private repository,
   configure a VM-specific GitHub deploy key or another approved read-only
   checkout method. The Azure SSH private key is not used for GitHub access.
-- GitHub Actions is not required for the first release. The operator can push
-  the selected commit, SSH to the VM, and run the deployment script there.
+- A self-hosted GitHub Actions runner is installed and running on the VM,
+  and a `deploy` job in `ci.yml` will deploy automatically once a change
+  reaches `deployment` (D-110; no approval-click gate currently, per an
+  explicit "fully automatic" instruction). See
+  `docs/deployment/ci-cd-runbook.md` for the full mechanics, the real SSH
+  key, and known setup gotchas. Manually SSHing in and running the
+  deployment script by hand still works and remains the path for ad hoc
+  operations (`status`, `logs`, `rollback`, `restore-dry-run`, etc.).
+- **`deployment` is protected by a `deployment-ci-gate` repository ruleset:
+  no direct push ever works, from anyone, including the owner.** Every
+  change must go through a side branch, a PR, a passing `quality` check,
+  and a merge commit (never squash/rebase). The `gh` CLI is installed and
+  authenticated on the primary dev machine
+  (`C:\Program Files\GitHub CLI\gh.exe`, not yet on PATH in tool shells) —
+  use it to read run/job logs (`gh run view <id> --log-failed`) instead of
+  relaying them through the operator.
+- **As of 2026-09-22, the `deploy` job's trigger is deliberately forced off**
+  (a leading `false &&` in its `if:` condition) and a PR
+  (github.com/yashsrivastava0/OryxenAI/pull/1) is open and blocked: the
+  required `quality` check is failing on 3 tests, one of which
+  (`tests/integration/test_code_generator_verification_worker.py::test_verification_builds_and_promotes_a_clean_candidate`
+  and the related `test_dependency_manager.py` failure) is a **real,
+  deployment-relevant bug** — the Code Generator's npm invocation resolves
+  to the Windows-only `npm.cmd` on Linux CI, and would fail identically on
+  the real (Linux) Azure VM. Not yet fixed. A third failure
+  (`tests/browser/test_frontend_remediation.py::test_developer_inspector_is_opt_in_and_drawer_is_accessible`)
+  may overlap with `PLAN.MD`'s active Code Generator frontend work — check
+  before fixing it. Do not remove the `false &&` disable or merge that PR
+  without the operator's fresh, explicit go-ahead.
 
 ## What is pending
 

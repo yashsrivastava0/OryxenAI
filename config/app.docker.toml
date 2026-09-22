@@ -85,8 +85,10 @@ preview_health_url = "http://preview-gateway:4174/health/live"
 preview_host = "0.0.0.0"
 preview_port = 4174
 browser_executable = "/usr/bin/chromium"
-# Hosted previews are immutable objects behind the shared gateway. The
-# generated portfolio is never built or deployed as its own Docker service.
-preview_storage_provider = "artifact_storage"
+# D-106: R2/artifact_storage is not part of the first-release production
+# configuration (config/app.production.toml already uses local_fs, same
+# as every other overlay). LocalPreviewStorage's own docstring is "used by
+# local development and CI" -- this overlay is exactly that.
+preview_storage_provider = "local_fs"
 preview_storage_prefix = "preview"
 preview_public_readback_required = true
