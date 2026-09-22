@@ -427,7 +427,8 @@ consistent:
 2. **Log commit-sized work to `CHANGES.md`.** After finishing a real unit of
    work (a feature, a fix, a refactor, an architecture/schema change) —
    roughly what would earn its own git commit message — append one compact
-   entry per `CHANGES.md`'s own template, and run its compaction check. Do
+   entry per `CHANGES.md`'s own template (append-only; AI agents must never
+   auto-compact `CHANGES.md`). Do
    not log every individual file save. If it's unclear whether something
    counts as "major" enough to log, **ask the user** rather than guessing.
    For deployment/CI-pipeline work specifically (the Azure VM, GitHub
