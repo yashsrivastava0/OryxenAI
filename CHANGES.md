@@ -11,7 +11,25 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [pending commit] - Add fully automatic CD via a self-hosted GitHub Actions runner on the Azure VM
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [pending commit] - Document the CI/CD runbook and temporarily disable auto-deploy before a bulk push
+
+Added `docs/deployment/ci-cd-runbook.md`: a standalone operational guide for
+the self-hosted-runner CD pipeline so any future AI session or device can
+set it up, operate it, and troubleshoot it without re-deriving this
+session's context — covers the real working SSH key
+(`oryxenai-demo-key.pem`) versus an unrelated, deleted `termius_windows` key
+that never worked, the Windows `.pem` ACL/`icacls` fix, the GitHub runner
+page defaulting to Windows even for a Linux target, runner health checks,
+and how to re-add an approval gate. Linked from
+`docs/deployment/README.md`; added a pointer from the now-superseded manual
+section 6 of `deployment-guide.md`. Per an explicit operator instruction to
+push every pending local commit to GitHub while explicitly not wanting a
+live deploy yet, temporarily forced the `deploy` job's `if:` condition to
+`false && ...` in `ci.yml` (reversible by deleting that clause) so the
+push itself cannot trigger the now-fully-automatic pipeline before the
+operator is ready for the first real deployment trial.
+
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [7cb4102] - Add fully automatic CD via a self-hosted GitHub Actions runner on the Azure VM
 
 Per the owner's request to stop deploying by hand, added a `deploy` job to
 `.github/workflows/ci.yml` (`needs: quality`, restricted to `push`/

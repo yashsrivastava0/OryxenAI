@@ -371,6 +371,12 @@ The detailed acceptance matrix is in
 
 ## 6. Every future update
 
+**This section describes the manual path.** As of D-110, a push to
+`deployment` deploys automatically via a self-hosted GitHub Actions runner
+on the VM — see [`ci-cd-runbook.md`](./ci-cd-runbook.md) for how that works,
+how to set it up again, and known gotchas. The commands below remain valid
+for manual/emergency use (runner offline, ad hoc rollback, etc.).
+
 From the VM checkout:
 
 ```bash
