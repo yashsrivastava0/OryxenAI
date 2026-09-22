@@ -27,41 +27,35 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 | Parameter | Current Value | Notes |
 | :--- | :--- | :--- |
 | **Active Branch** | `deployment-sync-2026-09-22` | Synced with `deployment` |
-| **Pull Request** | [PR #1](https://github.com/yashsrivastava0/OryxenAI/pull/1) | Target: `deployment` (Base fixed; mergeable: MERGEABLE) |
-| **CI Quality Gate** | ❌ Failing (Docker Smoke Test) | Blocked on `BLOCKER-001` below; all 1,433 pytest tests pass |
-| **Azure VM Deploy Trigger** | ⏸️ Force-Disabled (`false &&`) | Requires explicit operator go-ahead before re-enabling |
-| **Last Updated** | 2026-09-22 16:35 +05:30 | Maintained across multi-agent sessions |
+| **Pull Request** | [PR #1](https://github.com/yashsrivastava0/OryxenAI/pull/1) | Target: `deployment` (mergeable: MERGEABLE, mergeStateStatus: CLEAN) |
+| **CI Quality Gate** | ✅ Passing (Docker Smoke Test) | Green at `2ede02a`; all 1,433 pytest tests pass |
+| **Azure VM Deploy Trigger** | ▶️ Enabled | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
+| **Last Updated** | 2026-09-22 17:20 +05:30 | Maintained across multi-agent sessions |
 
 ---
 
 ## Active Blockers
 
-### [BLOCKER-001] `preview-gateway` fails in CI Docker smoke test on empty `DB_PORT_OVERRIDE`
-- **Subsystem:** CI Docker Smoke Test (`.github/workflows/ci.yml:185`, `compose.yaml:92`)
-- **First Seen:** 2026-09-22 15:30 +05:30 by Claude Sonnet 5
-- **Error Signature:**
-  ```text
-  pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
-  db_port_override
-    Input should be a valid integer, unable to parse string as an integer [input_value='']
-  ```
-- **Root Cause:** `.env.example` specifies `DB_PORT_OVERRIDE=`. `compose.yaml` attaches `env_file: .env` to `preview-gateway` (which unlike `app`/`worker` has no compose-level `DB_PORT_OVERRIDE: "5432"` override). Pydantic parses literal `""` as an invalid integer rather than falling back to default/`None`.
-- **Diagnosed Fix (Ready to Apply):** In `.github/workflows/ci.yml` step `"Prepare throwaway .env for dev Compose smoke test"`, strip blank `DB_HOST_OVERRIDE=` and `DB_PORT_OVERRIDE=` lines or provide default int `"5432"` before starting containers.
-- **Status:** Diagnosed; not yet applied (paused per operator instruction).
-
-### [BLOCKER-002] PR #1 unmerged pending CI quality check
-- **Subsystem:** GitHub Actions Branch Protection (`deployment-ci-gate`)
-- **Root Cause:** Blocked strictly on `BLOCKER-001` passing the `quality` check.
-- **Status:** Awaiting `BLOCKER-001` fix and green CI.
-
-### [BLOCKER-003] Azure deploy workflow step force-disabled
-- **Subsystem:** CD Pipeline (`.github/workflows/ci.yml:209`)
-- **Root Cause:** Leading `false &&` in `deploy` job `if:` condition keeps deployment paused.
-- **Policy Guardrail:** Merging PR #1 and removing `false &&` both require a **fresh, explicit operator go-ahead**.
+None open.
 
 ---
 
 ## Resolved Issues (Compacted Ledger)
+
+- **[FIXED-012] `/api/v1/system/status` smoke-test check expected an open 200** (`2ede02a`, 2026-09-22, Claude Sonnet 5)
+  - *Symptom:* Would have failed `curl -fsS .../system/status` with HTTP 401 the moment FIXED-009/010/011 got containers healthy; never reached before.
+  - *Root Cause:* `d288077` added `require_admin` to the whole system router; the unauthenticated smoke test was never updated to match. An open 200 would actually be a security regression.
+  - *Fix:* Assert the endpoint returns 401 (proves routing + auth enforcement) instead of expecting 200.
+
+- **[FIXED-011] `app` crash-loops on `PreviewStorageError: Preview storage credentials are not configured.`** (`242c8dc`, 2026-09-22, Claude Sonnet 5)
+  - *Symptom:* `app` container unhealthy at `create_app()` import time, right after FIXED-009/010 fixed `preview-gateway`.
+  - *Root Cause:* `config/app.docker.toml` set `preview_storage_provider = "artifact_storage"` (R2), needing `R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` configured nowhere for this overlay. Per D-106, R2 is explicitly not part of the first-release config; every other overlay (including production) already uses `local_fs`.
+  - *Fix:* Changed `config/app.docker.toml` to `preview_storage_provider = "local_fs"`, matching D-106 and every other overlay.
+
+- **[FIXED-009/010] BLOCKER-001 (`preview-gateway` DB_PORT_OVERRIDE) + Supabase coordinates missing** (`3817d17`, `a29ddf5`, 2026-09-22, Claude Sonnet 5)
+  - *Symptom:* `preview-gateway` crash-looped on `pydantic_core.ValidationError: db_port_override ... unable to parse string as an integer [input_value='']`.
+  - *Root Cause:* `compose.yaml`'s `preview-gateway` was the only app-image service missing the `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` environment overrides `app`/`worker` already had; `compose.production.yaml` never had this gap (its `x-application` anchor applies the override to every service). Also preempted a second, code-reading-discovered issue: `config/app.docker.toml` sets `[auth] required = true`, so `app` would have crash-looped next on missing `SUPABASE_URL`/`PUBLISHABLE_KEY`/`SECRET_KEY` (same shape as FIXED-008).
+  - *Fix:* Added `DB_HOST_OVERRIDE: postgres` / `DB_PORT_OVERRIDE: "5432"` to `preview-gateway` in `compose.yaml`; added dummy Supabase coordinates to the CI throwaway `.env` step (`3817d17`). Also re-enabled the `deploy` job's `false &&` guard removal (`a29ddf5`) per this session's explicit operator go-ahead.
 
 - **[FIXED-001] PR #1 wrong base branch** (2026-09-22, Claude Sonnet 5)
   - *Symptom:* PR #1 showed merge conflict and massive +123k/-25k diff against `main`.
