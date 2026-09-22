@@ -109,17 +109,10 @@ jobs:
         # @tailwindcss/oxide-wasm32-wasi variant are cosmetic and did not
         # cause CI failures; the real, previously-truncated failure was
         # ENOTCACHED on an unrelated package because nothing had ever
-        # warmed this cache here. Mirrors scripts/warm-npm-cache.ps1's
-        # already-established pattern (a disposable copy, never the
-        # scaffold's own checked-in node_modules) as a portable CI step,
-        # since that script is Windows-only and has no CI equivalent.
-        run: |
-          set -eu
-          warm="$RUNNER_TEMP/code-generator-npm-warm"
-          mkdir -p "$warm"
-          cp src/oryxenai/agents/code_generator/scaffolds/react-vite-v1/package.json "$warm/"
-          cp src/oryxenai/agents/code_generator/scaffolds/react-vite-v1/package-lock.json "$warm/"
-          npm install --prefix "$warm" --cache "$GITHUB_WORKSPACE/.workspace/npm-cache" --ignore-scripts --no-audit --no-fund
+        # warmed this cache here. scripts/warm-npm-cache.sh already exists
+        # (used by compose.yaml's codegen-cache-warm profile) but was never
+        # wired into CI; run it here instead of duplicating its logic.
+        run: bash scripts/warm-npm-cache.sh
 
       - name: Create test database
         run: |
@@ -147,8 +140,19 @@ jobs:
 
       - name: Secret scan (Gitleaks)
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: detect --source . --no-git --verbose --redact
+
+      - name: Prepare throwaway .env for dev Compose smoke test
+        # compose.yaml's app/worker/migrate/preview-gateway services each
+        # declare `env_file: .env`, which Compose requires to physically
+        # exist even though every value it reads (POSTGRES_PASSWORD) is
+        # only used by this stack's own disposable containers, never a real
+        # credential. Mirrors the throwaway .env already created above for
+        # production Compose config validation.
+        run: cp .env.example .env && echo "POSTGRES_PASSWORD=ci-smoke-test-only" >> .env
 
       - name: Docker build
         run: docker compose build
@@ -160,6 +164,10 @@ jobs:
           curl -fsS http://localhost:8000/health/ready
           curl -fsS http://localhost:8000/api/v1/system/status
           docker compose down -t 5
+
+      - name: Remove throwaway .env
+        if: always()
+        run: rm -f .env
 
   deploy:
     name: Deploy to Azure VM
