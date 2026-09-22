@@ -20,10 +20,14 @@ using this historical deployment index.
 
 ## Consolidated deployment documents
 
-The canonical deployment material is grouped into two documents:
+The canonical deployment material is grouped into these documents:
 
 - [Deployment guide](./deployment-guide.md) — research, setup, runbook,
   acceptance, and AI-assisted operations.
+- [CI/CD runbook](./ci-cd-runbook.md) — the self-hosted GitHub Actions runner
+  that deploys automatically on push, how to set it up from scratch, the
+  real SSH key and Windows-permission gotchas hit while building it, and how
+  to re-add an approval gate.
 - [VM-local storage runbook](./vm-local-storage-runbook.md) — bind-mounted
   paths, ownership, capacity, retention, backup/restore, and persistence
   checks for the first release.

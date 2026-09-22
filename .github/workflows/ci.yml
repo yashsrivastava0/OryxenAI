@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   quality:
@@ -26,7 +27,14 @@ jobs:
 
     env:
       POSTGRES_PASSWORD: oryxen_test
-      OryxenAI_CONFIG_OVERLAY: config/app.test.toml
+      # Deliberately NOT set at job level: tests/conftest.py's autouse
+      # `_set_test_overlay` fixture already scopes this overlay to only
+      # integration/worker-marked tests via monkeypatch (auto-reverted per
+      # test). Setting it process-wide here leaks into every plain unit
+      # test too -- including ones that assert config/app.toml's own
+      # defaults -- and monkeypatch.setenv cannot "unset" an ambient value
+      # it didn't set. Set it explicitly only on the one step that needs it
+      # outside of pytest: the migration step below.
 
     steps:
       - name: Check out repository
@@ -42,12 +50,14 @@ jobs:
           set -eu
           trap 'rm -f .env config/app.production.local.toml' EXIT
           cp .env.example .env
+          # .env.example intentionally ships POSTGRES_PASSWORD blank (no
+          # working weak default); Compose config validation only checks
+          # syntax/interpolation here, so a throwaway value is enough.
+          echo "POSTGRES_PASSWORD=ci-config-check-only" >> .env
           cp config/app.production.toml config/app.production.local.toml
           sed -i \
             -e 's/<APP_HOST>/app.example.com/g' \
             -e 's/<PREVIEW_HOST>/preview.example.com/g' \
-            -e 's/<ACCOUNT_ID>/example-account/g' \
-            -e 's/<R2_BUCKET>/example-bucket/g' \
             config/app.production.local.toml
           docker compose -f compose.production.yaml config --quiet
 
@@ -66,12 +76,52 @@ jobs:
       - name: Install verifier browser
         run: uv run playwright install --with-deps chromium
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend type check
+        run: npm run typecheck
+        working-directory: frontend
+
+      - name: Frontend unit tests
+        run: npm test
+        working-directory: frontend
+
+      - name: Frontend build
+        run: npm run build
+        working-directory: frontend
+
+      - name: Warm Code Generator offline npm cache
+        # tests/integration/test_code_generator_verification_worker.py
+        # ::test_verification_builds_and_promotes_a_clean_candidate runs a
+        # real (unmocked) `npm ci --offline` against the react-vite-v1
+        # scaffold. That command reads config's npm_cache_root
+        # (.workspace/npm-cache), which starts empty on a fresh runner --
+        # npm's ERESOLVE peer-dependency warnings for the optional
+        # @tailwindcss/oxide-wasm32-wasi variant are cosmetic and did not
+        # cause CI failures; the real, previously-truncated failure was
+        # ENOTCACHED on an unrelated package because nothing had ever
+        # warmed this cache here. scripts/warm-npm-cache.sh already exists
+        # (used by compose.yaml's codegen-cache-warm profile) but was never
+        # wired into CI; run it here instead of duplicating its logic.
+        run: bash scripts/warm-npm-cache.sh
+
       - name: Create test database
         run: |
           PGPASSWORD=oryxen_test psql -h localhost -U oryxen -d oryxenai -c "CREATE DATABASE oryxenai_test;" || true
 
       - name: Run database migrations (application DB)
         run: uv run alembic upgrade head
+        env:
+          OryxenAI_CONFIG_OVERLAY: config/app.test.toml
 
       - name: Ruff lint
         run: uv run ruff check .
@@ -84,16 +134,58 @@ jobs:
 
       - name: Run tests (all, strict integration)
         run: uv run pytest -v --strict-markers
-        env:
-          OryxenAI_CONFIG_OVERLAY: config/app.test.toml
 
       - name: Dependency audit
         run: uv run pip-audit --local
 
       - name: Secret scan (Gitleaks)
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: detect --source . --no-git --verbose --redact
+
+      - name: Prepare throwaway .env for dev Compose smoke test
+        # compose.yaml's app/worker/migrate/preview-gateway services each
+        # declare `env_file: .env`, which Compose requires to physically
+        # exist even though every value it reads (POSTGRES_PASSWORD) is
+        # only used by this stack's own disposable containers, never a real
+        # credential. Mirrors the throwaway .env already created above for
+        # production Compose config validation.
+        #
+        # Must reuse the job-level POSTGRES_PASSWORD (oryxen_test), not an
+        # independent placeholder: compose.yaml's postgres service reads
+        # `${POSTGRES_PASSWORD}` via Compose variable substitution, which
+        # resolves from the *host shell's* environment (this job already
+        # exports POSTGRES_PASSWORD: oryxen_test) -- while app/worker/migrate
+        # instead get their POSTGRES_PASSWORD from this .env file's literal
+        # content via env_file. A different value in each place silently
+        # initializes Postgres with one password while the app containers
+        # try to authenticate with another, failing with
+        # asyncpg.exceptions.InvalidPasswordError.
+        #
+        # config/app.docker.toml sets [auth] required = true, which
+        # unconditionally requires exactly settings.py's
+        # bootstrap_admin_count (2) syntactically valid emails in
+        # ORYXENAI_ADMIN_BOOTSTRAP_EMAILS -- app startup otherwise raises
+        # "The bootstrap administrator count is invalid." before the
+        # health endpoints ever come up. No real Google/Supabase
+        # verification happens at startup, so two fake addresses are
+        # sufficient for this smoke test.
+        # config/app.docker.toml also sets [auth] required = true, which
+        # unconditionally requires non-blank SUPABASE_URL/PUBLISHABLE_KEY/
+        # SECRET_KEY (AuthConfig.validate_environment() in settings.py) or
+        # `app` raises "Required Supabase auth coordinates are missing." at
+        # create_app() import time and never becomes healthy. No real
+        # Google/Supabase verification happens at startup, so syntactically
+        # valid fake coordinates are sufficient for this smoke test.
+        run: |
+          cp .env.example .env
+          echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+          echo "ORYXENAI_ADMIN_BOOTSTRAP_EMAILS=ci-admin-1@example.com,ci-admin-2@example.com" >> .env
+          echo "SUPABASE_URL=https://ci-smoke-test.supabase.co" >> .env
+          echo "SUPABASE_PUBLISHABLE_KEY=ci-smoke-test-publishable-key" >> .env
+          echo "SUPABASE_SECRET_KEY=ci-smoke-test-secret-key" >> .env
 
       - name: Docker build
         run: docker compose build
@@ -103,5 +195,58 @@ jobs:
           docker compose up -d --wait --wait-timeout 1800 app worker preview-gateway
           curl -fsS http://localhost:8000/health/live
           curl -fsS http://localhost:8000/health/ready
-          curl -fsS http://localhost:8000/api/v1/system/status
+          # /api/v1/system/status is admin-gated (require_admin on the whole
+          # router, added by d288077); the smoke test has no real Supabase
+          # session to authenticate with, so the correct, secure response is
+          # 401, not 200. Assert that the route is reachable and actually
+          # enforcing auth rather than expecting it open.
+          status_code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/system/status)
+          if [ "$status_code" != "401" ]; then
+            echo "Expected /api/v1/system/status to require authentication (401), got $status_code" >&2
+            exit 1
+          fi
           docker compose down -t 5
+
+      - name: Dump Compose logs on smoke test failure
+        if: failure()
+        run: docker compose logs --no-color migrate app worker preview-gateway postgres || true
+
+      - name: Remove throwaway .env
+        if: always()
+        run: rm -f .env
+
+  deploy:
+    name: Deploy to Azure VM
+    needs: quality
+    # Re-enabled (2026-09-22) per explicit operator go-ahead to run the
+    # first real deployment trial. See docs/deployment/ci-cd-runbook.md.
+    if: >
+      github.ref == 'refs/heads/deployment' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: [self-hosted, azure-oryxenai]
+    # Fully automatic for now (D-110): no required-reviewer gate. Re-add
+    # `environment: production` here (and create that Environment with a
+    # required reviewer in Settings -> Environments) to require one manual
+    # approval click per deploy again.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: /home/oryxenaiadmin/oryxenai
+    steps:
+      # No actions/checkout here: azure-deploy.sh deploy does its own
+      # `git fetch origin` + `git checkout --detach <sha>` in place inside
+      # the VM's persistent repo directory (see resolve_release()/deploy()
+      # in scripts/azure-deploy.sh) -- the same thing a human runs by hand.
+      - name: Deploy
+        run: ./scripts/azure-deploy.sh deploy ${{ github.sha }}
+
+      - name: Verify
+        run: ./scripts/azure-deploy.sh verify
+
+      - name: Dump status and recent logs on failure
+        if: failure()
+        run: |
+          ./scripts/azure-deploy.sh status
+          ./scripts/azure-deploy.sh logs
