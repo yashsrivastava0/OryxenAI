@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { copyJson, formatJson, type CopyJsonResult } from "../data/clipboard";
 import type { StageState } from "../data/adapters/types";
 
@@ -49,7 +49,7 @@ export function OutputInspector({ entries, activeStage, enabled }: OutputInspect
     setCopyState(null);
   }, [activeStage]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
     const previousFocus = document.activeElement as HTMLElement | null;
     const handleKeyDown = (event: KeyboardEvent) => {
