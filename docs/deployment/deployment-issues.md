@@ -29,9 +29,11 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 | **Live deployment** | ✅ LIVE at `07132fe823cd0a2279c8ae3dddab9b90277771f6` | First successful production deploy, 2026-09-22 14:51 UTC |
 | **Public URLs** | `https://app.oryxenai.me`, `https://preview.oryxenai.me` | Both confirmed reachable (curl + browser render) |
 | **CI Quality Gate** | ✅ Passing (Docker Smoke Test) | Green since `2ede02a`; all 1,433 pytest tests pass |
-| **Azure VM Deploy Trigger** | ▶️ Enabled, auto-deploy-on-merge | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
-| **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#5](https://github.com/yashsrivastava0/OryxenAI/pull/5) | All merged into `deployment` (regular merge commits) |
-| **Last Updated** | 2026-09-22 20:25 +05:30 | Maintained across multi-agent sessions |
+| **Azure VM Deploy Trigger** | ▶️ Enabled, auto-deploy-on-merge to `deployment` only | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
+| **Day-to-day branch** | `staging` | Never triggers a deploy. See AGENTS.md "Branch workflow: `staging` vs `deployment`" |
+| **Promotion to `deployment`** | Requires explicit, per-instance operator go-ahead | No standing/assumed permission — even for routine changes |
+| **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#7](https://github.com/yashsrivastava0/OryxenAI/pull/7) | All merged into `deployment` (regular merge commits) |
+| **Last Updated** | 2026-09-22 21:45 +05:30 | Maintained across multi-agent sessions |
 
 ---
 

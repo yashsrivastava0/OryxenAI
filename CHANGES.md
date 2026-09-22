@@ -12,6 +12,9 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-22 21:45 +05:30 — Claude Sonnet 5 (Anthropic) — [pending] — AGENTS.md, docs/deployment/ci-cd-runbook.md, docs/deployment/deployment-issues.md
+Created the `staging` branch (from the live `deployment` HEAD, `0b0cac0`) and formalized a two-branch workflow at the operator's explicit request: day-to-day work happens on `staging` (freely pushable, fully CI-checked, but structurally incapable of triggering a deploy since the `deploy` job's `if:` only matches `refs/heads/deployment`); promotion to `deployment` now requires explicit, per-instance operator permission every time, with no standing/assumed approval even for routine changes. Documented in AGENTS.md's new "Branch workflow: `staging` vs `deployment`" subsection and cross-referenced from `ci-cd-runbook.md` and `deployment-issues.md`'s state table.
+
 ### 2026-09-22 21:10 +05:30 — Claude Sonnet 5 (Anthropic) — [ddbea9c] — AGENTS.md
 Added a "Fresh-machine setup and secrets policy" section to AGENTS.md covering new-device onboarding steps, exactly what counts as a secret and where each lives (local `.env`, VM-local production `.env`, CI's throwaway `.env`), the `credential_free_logs()` safety property to preserve, and a short list of actions an AI agent should always ask the operator about first. Also corrected two now-stale claims elsewhere in the same file ("first deployment path... not executed" and the matching "What to implement next" entries) to reflect that the live deploy (`07132fe`) already happened. Prompted by the operator wanting a clean, self-documenting handoff point for any future AI session or contributor on a fresh machine.
 
