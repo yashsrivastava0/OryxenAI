@@ -115,13 +115,18 @@ diagnostics, public fictional sample previews, and the administrator control
 plane.** These are repository capabilities and still require live browser
 acceptance after deployment.
 
-**The first deployment path is implemented but not executed.** The checked-in
+**The first deployment path is implemented and executed.** The checked-in
 `compose.production.yaml`, `config/app.production.toml`, Caddy configuration,
 and `scripts/azure-deploy.sh` describe a one-VM Azure Compose release with
-PostgreSQL, migrations, API, worker, preview gateway, and HTTPS. The Azure VM
-itself has been provisioned and SSH-tested, but Docker, the repository,
-production `.env`, migrations, containers, DNS, and end-to-end acceptance are
-still pending. See `docs/project-status.md` and `docs/deployment/`.
+PostgreSQL, migrations, API, worker, preview gateway, and HTTPS. As of
+2026-09-22, release `07132fe823cd0a2279c8ae3dddab9b90277771f6` is live and
+confirmed reachable at `https://app.oryxenai.me` and
+`https://preview.oryxenai.me` (Docker, the repository, production `.env`,
+migrations, containers, and DNS are all in place). What remains is owner-only
+end-to-end acceptance (real Google login, a live Discovery conversation, the
+full agent pipeline) — infrastructure health does not prove that. See
+`docs/deployment/deployment-issues.md` for the live state table and
+`docs/deployment/`.
 
 To verify current status rather than trusting this document: run
 `uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
@@ -402,20 +407,105 @@ Content Architect's architecture one stage down the pipeline:
 
 ## What to implement next
 
+- **First live deployment: done.** The Azure VM Compose deployment
+  described below as "implemented but not executed" is now executed —
+  release `07132fe823cd0a2279c8ae3dddab9b90277771f6` is live at
+  `https://app.oryxenai.me` and `https://preview.oryxenai.me`, confirmed
+  reachable via both `curl` and a browser render as of 2026-09-22. See
+  `docs/deployment/deployment-issues.md`'s Current Deployment State table
+  for the live SHA and `CHANGES.md` for the fix history. Do not re-run the
+  VM setup/bootstrap steps in `docs/deployment/02-azure-vm-runbook.md`
+  against this VM — it is already provisioned and live.
+- **Production acceptance follow-up (still owner-only):** the deployment
+  above proves infrastructure health (containers, HTTPS, DB, preview
+  storage). It does **not** prove Google login, a real Discovery
+  conversation, or the full agent pipeline end-to-end — those require the
+  owner's own Google account and are intentionally not something an AI
+  agent should attempt on their behalf.
 - **Authentication follow-up:** the bounded local implementation is complete
   through Phase 4. Remaining work is the owner-completed Google browser
-  acceptance gate and a separately authorized production deployment handoff.
-- **Release follow-up:** reconcile the dirty multi-agent worktree, run the
-  relevant checks, select one exact clean SHA, and complete the Azure VM
-  Compose deployment documented in `docs/deployment/`.
-- **Production acceptance follow-up:** configure final DNS/Supabase/R2
-  coordinates, then prove Google login, all explicit stages, worker jobs,
-  artifact upload/readback, embedded preview, direct preview URL, and the
-  two-user ownership boundary on Azure.
+  acceptance gate above.
 - **Evaluation follow-up:** continue refining Discovery, Content Architect,
   Visual Design Director, and Code Generator using the existing campaign
   ledgers and privacy-safe inputs. A successful local or harness run is not a
   substitute for the live Azure acceptance gate.
+
+## Fresh-machine setup and secrets policy
+
+Read this before doing anything on a machine (or for a person) that has
+never touched this repo, and before handling any credential on any machine.
+
+### Getting a new machine working
+
+1. Clone the repo and read this file in full before exploring code.
+2. Run `.\scripts\bootstrap.ps1` to install dependencies into
+   `.workspace/venv`.
+3. Copy `.env.example` to `.env` and fill in only the secrets *you* need.
+   Most work — the full test suite, running the app/worker locally, and
+   Discovery/Content Architect/Visual Design Director against the
+   deterministic mock model client — needs no real model API key at all.
+   **Never copy another device's `.env` wholesale**; enter your own values.
+4. `.\scripts\run-native.ps1 migrate`, then `.\scripts\run-native.ps1 dev`
+   (or the individual `run-api.ps1` / `run-worker.ps1` scripts).
+5. Run `.\scripts\test.ps1` and `.\scripts\check.ps1` before your first
+   commit to confirm the environment is sound.
+6. For anything deployment- or CI-related, read, in this order:
+   [`docs/deployment/README.md`](docs/deployment/README.md) →
+   [`docs/deployment/ci-cd-runbook.md`](docs/deployment/ci-cd-runbook.md) →
+   [`docs/deployment/deployment-issues.md`](docs/deployment/deployment-issues.md).
+   The deployment is already live (see "What to implement next" above) —
+   changes reach it only via `push a side branch -> open a PR into
+   deployment -> quality gate green -> merge`, the same as any other
+   protected-branch change. There is no other path; direct pushes to
+   `deployment` are rejected by branch protection for everyone, including
+   the repo owner.
+
+### Secrets: what's a secret, where it lives, what to never do
+
+- `.env` (and any `.env.*` variant) is git-ignored everywhere in this repo
+  — confirmed via `.gitignore`. `.env.example` documents every expected
+  name with an empty placeholder, never a working value. This is the only
+  place real secrets belong locally: `POSTGRES_PASSWORD`,
+  `SUPABASE_SECRET_KEY`, `R2_SECRET_ACCESS_KEY`, model-provider API keys.
+- The Azure VM's production `.env` is a separate, VM-local file created
+  interactively by `./scripts/azure-deploy.sh setup`/`configure`. No GitHub
+  Secret holds it, and the CI `deploy` job never touches it directly —
+  only through the script, which reads it locally on the VM.
+- CI's own Docker smoke test uses a disposable throwaway `.env` built from
+  `.env.example` plus synthetic placeholder values (fake admin emails, a
+  fake Supabase URL) — never real secrets — and deletes it at the end of
+  every run regardless of outcome.
+- **This repository is public.** Never paste a real secret value into an
+  AI chat, a commit, a log line, or anything a CI job might print.
+  `scripts/azure-deploy.sh`'s `credential_free_logs()` enforces this
+  automatically on every deploy: it scans Compose logs for every
+  configured secret before a release is considered live and blocks the
+  deploy if it finds one, printing only a container name, value length,
+  and SHA-256 hash for diagnosis — never the value itself. Preserve that
+  property in any future change to that function.
+- **Never** run `cp .env.example .env` (or anything else that overwrites
+  `.env`) without backing up the existing file first and verifying the
+  backup with a checksum — a working `.env` holds live secrets that cannot
+  be reconstructed from the repo if lost.
+- An AI agent should never read, SSH to fetch, or attempt to reconstruct
+  the VM's real `.env` contents. If a deploy fails with `Missing .env; run
+  setup first.`, that means the operator needs to run `setup`/`configure`
+  themselves (both prompt interactively for secrets) — an agent should
+  stop and say so, not try to work around it.
+
+### What an AI agent should always ask the operator before doing
+
+- Merging a PR into `deployment` for the **first** time a given class of
+  change goes live (e.g. the first-ever production deploy trigger, now
+  already done). Routine merges that follow an already-approved pattern
+  don't need to ask again every time.
+- Rotating, entering, or changing any secret, on any machine.
+- SSHing into the Azure VM for anything beyond read-only diagnostics
+  (`status`, `logs`, `doctor`) already run through the documented script.
+- Widening what a CI job or deploy script is allowed to print, touch, or
+  expose publicly.
+- Anything `docs/deployment/deployment-issues.md`'s own operating rules or
+  `DECISIONS.md` mark as requiring explicit operator sign-off.
 
 ## Multi-agent collaboration protocol
 
