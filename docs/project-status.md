@@ -239,11 +239,35 @@ live daemon; no Azure deployment is claimed here.
   still needs read access to the selected branch. For a private repository,
   configure a VM-specific GitHub deploy key or another approved read-only
   checkout method. The Azure SSH private key is not used for GitHub access.
-- A self-hosted GitHub Actions runner on the VM now deploys automatically
-  after a push to the `deployment` branch, gated by one manual approval click
-  on a `production` GitHub Environment (D-110). Manually SSHing in and
-  running the deployment script by hand still works and remains the path for
-  ad hoc operations (`status`, `logs`, `rollback`, `restore-dry-run`, etc.).
+- A self-hosted GitHub Actions runner is installed and running on the VM,
+  and a `deploy` job in `ci.yml` will deploy automatically once a change
+  reaches `deployment` (D-110; no approval-click gate currently, per an
+  explicit "fully automatic" instruction). See
+  `docs/deployment/ci-cd-runbook.md` for the full mechanics, the real SSH
+  key, and known setup gotchas. Manually SSHing in and running the
+  deployment script by hand still works and remains the path for ad hoc
+  operations (`status`, `logs`, `rollback`, `restore-dry-run`, etc.).
+- **`deployment` is protected by a `deployment-ci-gate` repository ruleset:
+  no direct push ever works, from anyone, including the owner.** Every
+  change must go through a side branch, a PR, a passing `quality` check,
+  and a merge commit (never squash/rebase). The `gh` CLI is installed and
+  authenticated on the primary dev machine
+  (`C:\Program Files\GitHub CLI\gh.exe`, not yet on PATH in tool shells) —
+  use it to read run/job logs (`gh run view <id> --log-failed`) instead of
+  relaying them through the operator.
+- **As of 2026-09-22, the `deploy` job's trigger is deliberately forced off**
+  (a leading `false &&` in its `if:` condition) and a PR
+  (github.com/yashsrivastava0/OryxenAI/pull/1) is open and blocked: the
+  required `quality` check is failing on 3 tests, one of which
+  (`tests/integration/test_code_generator_verification_worker.py::test_verification_builds_and_promotes_a_clean_candidate`
+  and the related `test_dependency_manager.py` failure) is a **real,
+  deployment-relevant bug** — the Code Generator's npm invocation resolves
+  to the Windows-only `npm.cmd` on Linux CI, and would fail identically on
+  the real (Linux) Azure VM. Not yet fixed. A third failure
+  (`tests/browser/test_frontend_remediation.py::test_developer_inspector_is_opt_in_and_drawer_is_accessible`)
+  may overlap with `PLAN.MD`'s active Code Generator frontend work — check
+  before fixing it. Do not remove the `false &&` disable or merge that PR
+  without the operator's fresh, explicit go-ahead.
 
 ## What is pending
 
