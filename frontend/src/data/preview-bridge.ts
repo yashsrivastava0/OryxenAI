@@ -1,6 +1,6 @@
 export const PREVIEW_BRIDGE_VERSION = "preview-bridge-v1";
 
-export type PreviewEmbedState = "idle" | "loading" | "ready" | "degraded" | "error";
+export type PreviewEmbedState = "idle" | "loading" | "connected" | "degraded" | "error";
 
 export function getPreviewOrigin(url: string): string | null {
   try {
@@ -16,6 +16,18 @@ export function withPreviewReloadToken(url: string, token = Date.now()): string 
   const parsed = new URL(url);
   parsed.searchParams.set("_preview_reload", String(token));
   return parsed.toString();
+}
+
+export function previewLoadMatchesSelection(source: string, selectedUrl: string): boolean {
+  try {
+    const sourceUrl = new URL(source);
+    const selected = new URL(selectedUrl);
+    sourceUrl.searchParams.delete("_preview_reload");
+    selected.searchParams.delete("_preview_reload");
+    return sourceUrl.href === selected.href;
+  } catch {
+    return false;
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

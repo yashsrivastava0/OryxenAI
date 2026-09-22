@@ -603,7 +603,7 @@ class CodeGeneratorDevelopmentConfig(BaseModel):
     # Build Preparation stage, each holding the two Markdown brief files.
     build_preparation_mirror_root: str = "output/build-preparation"
     pipeline_contract_version: str = "code-generator-v5"
-    worker_release_id: str = "oryxenai-code-generator-v5-quality-v3"
+    worker_release_id: str = "oryxenai-code-generator-v5-quality-v4-capability-proof-v1"
     quality_gate_version: str = "quality-gate-v3"
     planner_max_attempts: int = Field(default=2, ge=1, le=4)
     # Host-owned visual coverage policy. Live-discovered 2026-09-10 (D-092):
@@ -748,6 +748,7 @@ class CodeGeneratorVerificationConfig(BaseModel):
     """Final build, browser, artifact, and repair policy."""
 
     enabled: bool = True
+    capability_proof_ttl_seconds: int = Field(default=900, ge=30, le=86400)
     # When enabled, generated-output quality/source/runtime findings remain
     # visible as advisories while build and preview-service viability alone
     # determine whether a candidate can be promoted.

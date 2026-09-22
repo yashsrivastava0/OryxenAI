@@ -53,7 +53,7 @@ enabled = false
 input_root = "/app/.workspace/code-generator-development"
 build_preparation_mirror_root = "/app/output/build-preparation"
 pipeline_contract_version = "code-generator-v5"
-worker_release_id = "oryxenai-code-generator-v5-quality-v3"
+worker_release_id = "oryxenai-code-generator-v5-quality-v4-capability-proof-v1"
 quality_gate_version = "quality-gate-v3"
 planner_max_attempts = 2
 
@@ -77,6 +77,7 @@ allow_install_scripts = false
 
 [code_generator_verification]
 enabled = true
+capability_proof_ttl_seconds = 900
 browser_name = "chromium"
 browser_executable = "/usr/bin/chromium"
 install_command = ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]

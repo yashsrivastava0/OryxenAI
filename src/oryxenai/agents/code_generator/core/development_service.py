@@ -45,7 +45,10 @@ from oryxenai.agents.code_generator.core.toolchain_preflight import (
     run_toolchain_preflight,
     toolchain_preflight_status,
 )
-from oryxenai.agents.code_generator.core.worker_readiness import worker_contract_readiness
+from oryxenai.agents.code_generator.core.worker_readiness import (
+    verification_is_enabled,
+    worker_contract_readiness,
+)
 from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
@@ -164,6 +167,7 @@ class CodeGeneratorDevelopmentService:
                 [
                     self._settings.code_generator_development.director_profile,
                     self._settings.code_generator_development.planner_profile,
+                    self._settings.code_generator_acquisition.resource_scout_profile,
                     self._settings.code_generator_generation.route_profile,
                     self._settings.code_generator_generation.compose_profile,
                     self._settings.code_generator_generation.integration_profile,
@@ -178,6 +182,20 @@ class CodeGeneratorDevelopmentService:
     async def provider_preflight(self) -> dict[str, Any]:
         """Run the same no-context provider check used by production starts."""
 
+        if not verification_is_enabled(self._settings):
+            raise DevelopmentRunError(
+                "CODE_GENERATOR_VERIFICATION_DISABLED",
+                "Code Generator verification is disabled. Enable verification before checking provider readiness.",
+                status_code=409,
+            )
+        worker_readiness = await self._worker_contract_readiness()
+        if worker_readiness.get("checked") and not worker_readiness.get("ready"):
+            raise DevelopmentRunError(
+                "WORKER_NOT_READY",
+                "No compatible, fully proven Code Generator worker is ready for a live provider preflight.",
+                status_code=409,
+                details={"worker_contract": worker_readiness},
+            )
         profile_names = self._provider_profile_names()
         try:
             result = await run_provider_preflight(self._settings, profile_names)
@@ -284,7 +302,9 @@ class CodeGeneratorDevelopmentService:
         if preview_gateway_blocker:
             readiness_blockers.append(preview_gateway_blocker)
         worker_readiness = await self._worker_contract_readiness()
-        if worker_readiness.get("checked") and worker_readiness.get("blocker"):
+        if worker_readiness.get("blocker") and (
+            worker_readiness.get("checked") or not verification_is_enabled(self._settings)
+        ):
             readiness_blockers.append(str(worker_readiness["blocker"]))
         # A configured key, model name, or wire schema is not proof that the
         # provider can complete a billable structured request.  The explicit
@@ -396,6 +416,12 @@ class CodeGeneratorDevelopmentService:
                     status_code=409,
                 )
             return _projection(existing)
+        if not verification_is_enabled(self._settings):
+            raise DevelopmentRunError(
+                "CODE_GENERATOR_VERIFICATION_DISABLED",
+                "Code Generator verification is disabled. Enable verification before starting or retrying generation.",
+                status_code=409,
+            )
         provider_preflight = provider_preflight_status(
             self._settings, self._provider_profile_names()
         )
@@ -427,10 +453,12 @@ class CodeGeneratorDevelopmentService:
                 },
             )
         worker_readiness = await self._worker_contract_readiness()
-        if worker_readiness.get("checked") and not worker_readiness.get("ready"):
+        if (
+            worker_readiness.get("checked") or not verification_is_enabled(self._settings)
+        ) and not worker_readiness.get("ready"):
             raise DevelopmentRunError(
                 "WORKER_NOT_READY",
-                "No compatible Code Generator worker is ready to claim this run.",
+                "No compatible, fully proven Code Generator worker is ready to claim this run.",
                 status_code=409,
                 details={"worker_contract": worker_readiness},
             )

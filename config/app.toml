@@ -235,7 +235,7 @@ max_events_page_size = 100
 # is a deliberate queue boundary for the migrated two-brief contract.
 build_preparation_mirror_root = "output/build-preparation"
 pipeline_contract_version = "code-generator-v5"
-worker_release_id = "oryxenai-code-generator-v5-quality-v3"
+worker_release_id = "oryxenai-code-generator-v5-quality-v4-capability-proof-v1"
 quality_gate_version = "quality-gate-v3"
 planner_max_attempts = 2
 minimum_visible_images = 2
@@ -355,6 +355,7 @@ licence = "MIT"
 [code_generator_verification]
 # Standalone Phase 4 final build, DOM verification, and promoted preview.
 enabled = true
+capability_proof_ttl_seconds = 900
 profile_id = "code-generator-verification-v1"
 browser_name = "chromium"
 browser_executable = ""
