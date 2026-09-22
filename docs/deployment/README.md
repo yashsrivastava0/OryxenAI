@@ -33,6 +33,10 @@ The canonical deployment material is grouped into these documents:
   checks for the first release.
 - [Deployment status and history](./deployment-status-and-history.md) — Azure
   status checkpoints and the live deployment session log.
+- [VM cost automation](./vm-cost-automation.md) — the daily auto-shutdown
+  (01:00 IST) / auto-start (07:00 IST) schedule, why that window, and the
+  Logic App implementation detail. The VM is intentionally unreachable
+  during that window every day — read this before assuming it's down.
 
 The numbered files below remain compatibility entry points for older links;
 their complete content is preserved in the two canonical documents.
