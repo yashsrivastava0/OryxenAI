@@ -99,6 +99,28 @@ jobs:
         run: npm run build
         working-directory: frontend
 
+      - name: Warm Code Generator offline npm cache
+        # tests/integration/test_code_generator_verification_worker.py
+        # ::test_verification_builds_and_promotes_a_clean_candidate runs a
+        # real (unmocked) `npm ci --offline` against the react-vite-v1
+        # scaffold. That command reads config's npm_cache_root
+        # (.workspace/npm-cache), which starts empty on a fresh runner --
+        # npm's ERESOLVE peer-dependency warnings for the optional
+        # @tailwindcss/oxide-wasm32-wasi variant are cosmetic and did not
+        # cause CI failures; the real, previously-truncated failure was
+        # ENOTCACHED on an unrelated package because nothing had ever
+        # warmed this cache here. Mirrors scripts/warm-npm-cache.ps1's
+        # already-established pattern (a disposable copy, never the
+        # scaffold's own checked-in node_modules) as a portable CI step,
+        # since that script is Windows-only and has no CI equivalent.
+        run: |
+          set -eu
+          warm="$RUNNER_TEMP/code-generator-npm-warm"
+          mkdir -p "$warm"
+          cp src/oryxenai/agents/code_generator/scaffolds/react-vite-v1/package.json "$warm/"
+          cp src/oryxenai/agents/code_generator/scaffolds/react-vite-v1/package-lock.json "$warm/"
+          npm install --prefix "$warm" --cache "$GITHUB_WORKSPACE/.workspace/npm-cache" --ignore-scripts --no-audit --no-fund
+
       - name: Create test database
         run: |
           PGPASSWORD=oryxen_test psql -h localhost -U oryxen -d oryxenai -c "CREATE DATABASE oryxenai_test;" || true
