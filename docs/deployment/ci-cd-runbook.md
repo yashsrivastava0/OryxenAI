@@ -21,9 +21,14 @@ this file is the operational how-to and issue log that sits underneath it.
   - Triggers only on `push` or manual `workflow_dispatch` to the
     `deployment` branch (`if: github.ref == 'refs/heads/deployment' && ...`).
   - `runs-on: [self-hosted, azure-oryxenai]` — targets the runner above.
-  - No `environment:` gate right now — **fully automatic**, no approval
-    click, per an explicit operator instruction ("temporarily"). See
-    "Re-adding an approval gate" below to change that.
+  - No `environment:` gate — **fully automatic**, no approval click, per an
+    explicit operator instruction ("temporarily"). See "Re-adding an
+    approval gate" below to change that.
+  - **Currently force-disabled**: the `if:` condition has a leading
+    `false &&` (added 2026-09-22) so a bulk catch-up push to GitHub couldn't
+    accidentally trigger the very first live deploy before the operator was
+    ready. Delete that `false &&` clause (in its own PR, per the branch
+    protection below) to re-enable before the real first deployment trial.
   - No `actions/checkout` step: it runs `./scripts/azure-deploy.sh deploy
     ${{ github.sha }}` then `./scripts/azure-deploy.sh verify` with
     `working-directory: /home/oryxenaiadmin/oryxenai` — the script does its
@@ -45,17 +50,55 @@ opened broadly to work reliably. A self-hosted runner polls GitHub over
 no NSG change, ever. The `Allow-SSH-MyIP` rule is completely unaffected by
 this pipeline and remains only for interactive human debugging.
 
-## Day-to-day flow
+## Branch protection: `deployment` requires a PR — direct pushes never work
+
+A GitHub repository ruleset (`deployment-ci-gate`, set up during the earlier
+security audit) blocks **any** direct push to `refs/heads/deployment` —
+including from the repo owner, from the command line, with a valid
+credential, no exceptions. It also requires the `quality` job ("Lint,
+type-check, test, audit") to pass as a required status check. Discovered the
+hard way on 2026-09-22: a plain `git push origin deployment` was rejected
+with `GH013: Repository rule violations ... Changes must be made through a
+pull request.`
+
+This means "push to deployment" never actually means a raw push in
+practice. The real mechanic is:
 
 ```text
-commit -> push to `deployment` -> GitHub runs `quality` (lint/type/test/build/audit/Docker)
-  -> if green, `deploy` job runs immediately on the VM's own runner
-  -> azure-deploy.sh deploy <sha>  then  azure-deploy.sh verify
-  -> pass/fail visible in the repo's Actions tab; failure includes status+logs inline
+commit -> push to a side/feature branch (never `deployment` directly)
+  -> open a PR into `deployment`
+  -> GitHub runs `quality` on the PR automatically
+  -> once green, merge the PR (regular merge commit, not squash/rebase --
+     squash/rebase rewrites commit SHAs, breaking any doc that references
+     an exact short-SHA, e.g. CHANGES.md/DECISIONS.md entries)
+  -> the merge itself is a push event on `deployment`
+  -> if the deploy job's trigger is enabled, it fires immediately on the
+     VM's own runner: azure-deploy.sh deploy <sha> then verify
+  -> pass/fail visible in the repo's Actions tab; failure includes
+     status+logs inline
 ```
 
-Nothing about this depends on which laptop/device pushes — the runner lives
-on the VM, not on any operator's machine.
+Nothing about the deploy step depends on which laptop/device does the
+pushing/merging — the runner lives on the VM, not on any operator's
+machine. But *reaching* `deployment` at all always requires this branch ->
+PR -> merge path, from anyone, on any device.
+
+### A freshly-opened PR may show a false "conflicts" banner
+
+GitHub sometimes reports "This branch has conflicts that must be resolved"
+right after a branch is pushed, even when there is no real conflict — its
+mergeability check can be stale for a minute or two. Before trusting that
+banner (and before doing any manual conflict-resolution work), verify
+locally:
+
+```bash
+git fetch origin
+git merge-tree "$(git merge-base HEAD origin/deployment)" HEAD origin/deployment
+```
+
+Empty output means a clean merge — the banner was stale; just wait and
+refresh the PR page. Only investigate further if this actually prints
+conflict markers.
 
 ## The real SSH key (do not confuse with other keys on this machine)
 
