@@ -434,10 +434,11 @@ consistent:
    Actions, Docker Compose, the `deployment` branch's required checks),
    also update
    [`docs/deployment/deployment-issues.md`](docs/deployment/deployment-issues.md)
-   after every session — **on both success and failure** — with a new
-   timestamped log entry and a refreshed "Currently open issues" list.
-   That file's blow-by-blow diagnostic detail (exact errors, root causes,
-   what was tried) belongs there, not in `CHANGES.md`; `CHANGES.md` still
+   after every session — **on both success and failure** — following its
+   compact schema and strict < 400 lines context budget (convert resolved
+   blockers to the compacted ledger upon success; never write narrative essays).
+   That file's high-density diagnostic detail (exact errors, root causes,
+   fixes, commit SHAs) belongs there, not in `CHANGES.md`; `CHANGES.md` still
    gets its own short summary entry for the commit-sized outcome.
 3. **Log real decisions to `DECISIONS.md`**, not routine implementation
    choices — same rule: ask if unsure.
