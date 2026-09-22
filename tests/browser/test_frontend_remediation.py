@@ -10,6 +10,7 @@ import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 sync_playwright = playwright.sync_playwright
+expect = playwright.expect
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_ROOT = REPO_ROOT / "frontend"
@@ -215,6 +216,6 @@ def test_developer_inspector_is_opt_in_and_drawer_is_accessible(browser_page: ob
     page.goto(f"{BASE_URL}/?fixture=content-review&inspector=1", wait_until="networkidle")
     page.get_by_role("button", name="Inspector").click()
     drawer = page.get_by_role("dialog", name="Output Inspector")
-    assert drawer.is_visible()
+    expect(drawer).to_be_visible()
     page.keyboard.press("Escape")
-    assert drawer.is_hidden()
+    expect(drawer).to_be_hidden()
