@@ -814,7 +814,8 @@ credential_free_logs() {
       # Diagnostic only: name which container(s) leaked, without ever
       # printing the matched line itself (this repo is public, so the
       # credential value must never reach CI output even redacted).
-      offenders="$(grep -F -- "$value" "$log_file" | cut -d'|' -f1 | sort -u | tr '\n' ' ')"
+      # Never let this diagnostic itself abort the scan under set -e.
+      offenders="$(grep -F -- "$value" "$log_file" 2>/dev/null | cut -d'|' -f1 | sort -u | tr '\n' ' ' 2>/dev/null)" || offenders="(could not determine)"
       warn "  -> leaked from: ${offenders}"
     fi
   done < <(
