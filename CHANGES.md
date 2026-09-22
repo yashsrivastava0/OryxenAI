@@ -12,6 +12,9 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-22 17:20 +05:30 — Claude Sonnet 5 (Anthropic) — [3817d17, a29ddf5, 242c8dc, 2ede02a] — compose.yaml, config/app.docker.toml, .github/workflows/ci.yml
+Got the CI quality gate fully green by fixing four layered Docker smoke-test bugs, each masked by the previous one: `preview-gateway` missing `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` (unlike `app`/`worker`); `app.docker.toml`'s `[auth] required = true` needing Supabase coordinates the CI throwaway `.env` never set; `app.docker.toml` incorrectly using R2/`artifact_storage` for preview storage instead of `local_fs` (per D-106, every other overlay including production already used `local_fs`); and the smoke test expecting an open 200 from `/api/v1/system/status`, which `d288077` had since admin-gated. Also re-enabled the `deploy` job's auto-trigger (removed the `false &&` guard added in `cbe7c7e`) per explicit operator go-ahead. PR #1 is now `MERGEABLE`/`CLEAN`.
+
 ### 2026-09-22 16:40 +05:30 — Antigravity (Gemini 3.8 Flash) — [0f0cc58, ea85d5c] — docs/deployment/deployment-issues.md, AGENTS.md
 Established context-bounded multi-agent compaction architecture for `docs/deployment/deployment-issues.md` (< 400 lines hard limit). Converted 130-line narrative session log into high-density Compacted Resolved Ledger preserving all error signatures, root causes, and commit SHAs; embedded operational protocol for Codex, Claude Code, Antigravity, and Cursor; added overflow archive directory.
 
