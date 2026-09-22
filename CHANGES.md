@@ -11,7 +11,35 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [pending commit] - Document the CI/CD runbook and temporarily disable auto-deploy before a bulk push
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [no code change yet] - Installed gh CLI, diagnosed 3 real CI failures blocking the first sync PR
+
+Installed and authenticated the `gh` CLI (`winget install --id GitHub.cli`,
+`gh auth login --web` as `yashsrivastava0`) so future sessions can read
+Actions run/job logs directly instead of relaying them through the
+operator — public unauthenticated REST calls return run/job *status* but
+403 on log *content*, even for this public repo. Used it to pull the full
+failure log for PR #1's `quality` check (blocked on merging the CD pipeline
+work into `deployment`) and found three real failures, not flakes:
+`tests/browser/test_frontend_remediation.py::test_developer_inspector_is_opt_in_and_drawer_is_accessible`
+(not yet investigated — check for overlap with `PLAN.MD`'s active frontend
+work before touching it);
+`tests/integration/test_code_generator_verification_worker.py::test_verification_builds_and_promotes_a_clean_candidate`
+and
+`tests/unit/agents/code_generator/test_dependency_manager.py::test_supported_dependency_never_synthesizes_a_package_install_and_unsupported_uses_fallback`,
+both traced to the same root cause: npm invocation resolves to the
+Windows-only `npm.cmd` on Linux CI (`COMMAND_START_FAILED: ... No such file
+or directory: 'npm.cmd'`) — **a real bug that will also break the Code
+Generator's build-verification step on the actual (Linux) Azure VM in
+production**, not merely a CI-environment artifact. Local `pytest -v
+--strict-markers` (matching CI's exact invocation) still passes 100% clean
+on Windows (1433 passed, 5 skipped), confirming this is Linux-specific and
+can't be reproduced on the primary dev machine. Not yet fixed — see
+`docs/deployment/ci-cd-runbook.md` and `docs/project-status.md` for the
+current blocking state; `resolve_npm_executable()` in
+`src/oryxenai/agents/code_generator/core/process_runner.py` is the
+starting point for the fix.
+
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [cbe7c7e] - Document the CI/CD runbook and temporarily disable auto-deploy before a bulk push
 
 Added `docs/deployment/ci-cd-runbook.md`: a standalone operational guide for
 the self-hosted-runner CD pipeline so any future AI session or device can
@@ -188,64 +216,15 @@ The API shell test helper now explicitly selects the local `open` admission
 mode instead of inheriting the integration overlay's restricted `allowlist`
 setting. The focused production-shell test passes with the CI overlay enabled.
 
-### 2026-09-19 23:50 +05:30 — Codex (GPT-5) — [50bf74d] — Clear Code Generator diagnostics name collision
-
-Renamed the route-batch diagnostics local in the generation orchestrator so
-the strict mypy check no longer reports a same-scope redefinition. Runtime
-behavior is unchanged; the type-check failure is removed without a broad
-formatting rewrite.
-
-### 2026-09-19 23:48 +05:30 — Codex (GPT-5) — [f2f4aba] — Reconcile deployment preparation artifacts
-
-Committed the deployment-strategy audit documents, readiness and GitHub CI/CD
-guidance, the project-status cross-link, and the repository ignore rules for
-browser captures and pytest temp directories. The release guidance continues
-to require a clean exact-SHA deployment pointer and does not include secrets,
-caches, or browser/tool artifacts.
-
-### 2026-09-19 22:46 +05:30 — Codex (GPT-5) — [500e58c] — Reconcile Code Generator terminal state and add direct frontend acceptance
-
-Terminal Code Generator failures now reconcile the run to a safe
-`needs_attention` state only after automatic retries are exhausted, while the
-frontend uses the server retry flag, surfaces safe job diagnostics, and stops
-polling truthfully. Added a config-driven standalone-to-product Generate &
-Preview fixture, exact local preview origins, and deterministic regression
-coverage (D-104).
-
-### 2026-09-19 20:00 +05:30 — Antigravity (Gemini 3.8 Flash) — [763ddfb] — Unify auth fallback views into Living Draft Editorial Studio theme
-
-Consolidated all non-admin auth routes (`/`, `/sign-in`, `/auth/callback`,
-`/onboarding`, `/access-not-approved`, `/account-unavailable`) under the canonical
-Living Draft Editorial Studio shell (`.sign-in-workspace` with header and the
-6-stage interactive studio showcase). Completely removed the legacy unstyled
-`.auth-card-outer::before` pseudo-element and fallback layout that leaked
-unformatted `IDENTITY PROOF` text and unstyled progress steps. Extended
-`body:not([data-page="admin"])` flex styling and added dedicated styling for the
-progress, onboarding, access review, unavailable, and workspace-ready panels
-while strictly preserving all DOM IDs, form inputs, and test assertion hooks.
-Passed all 93 Python auth tests, 51 Node frontend tests, and 141 Vitest tests.
-
-### 2026-09-19 19:44 +05:30 — Codex (GPT-5) — [08c6031] — Connect Build Preparation to the live preview control room
-
-Build Preparation completion now unlocks Code Generator in the same polling
-cycle, and its primary action starts generation directly while navigating to
-the control room. Replaced fabricated preparation evidence with the actual
-route/resource/component indexes, removed unsupported follow-up chat controls,
-and added exact-origin preview protocol helpers, reload/degraded states, and a
-gateway-injected fallback bridge. Verified the frontend build, full Vitest
-suite, gateway tests, Ruff, and preview-handshake regression.
-
-### 2026-09-19 19:41 +05:30 — Codex (GPT-5) — [ac1fb98] — Run required toolchain preflight before Code Generator admission
-
-The static Code Generator control room now runs the disposable toolchain
-preflight before provider compatibility and paid planning, keeps the launch
-button busy during the proof, and explains pending preflight readiness without
-leaking the raw blocker code. The same sequencing covers fixture and upload
-fallback starts. Focused static tests and the local disposable preflight pass.
-
 ## Compacted history
 
 ### 2026-09
+- 2026-09-19 — [50bf74d] — Cleared a Code Generator diagnostics name collision flagged by strict mypy (no runtime change).
+- 2026-09-19 — [f2f4aba] — Reconciled deployment preparation artifacts: audit docs, CI/CD guidance, ignore rules.
+- 2026-09-19 — [500e58c] — Reconciled Code Generator terminal state to safe `needs_attention` and added direct frontend acceptance (D-104).
+- 2026-09-19 — [763ddfb] — Unified all non-admin auth routes under the Living Draft Editorial Studio shell.
+- 2026-09-19 — [08c6031] — Connected Build Preparation completion to unlock Code Generator directly into the live preview control room.
+- 2026-09-19 — [ac1fb98] — Ran required toolchain preflight before Code Generator admission.
 - 2026-09-19 — [761a5d8] — Preserved bounded repair evidence and resolved JSX motion targets.
 - 2026-09-19 — [ddab99a] — Made worker capability receipts fail closed for new Code Generator work (D-100).
 - 2026-09-19 — [188af32] — Aligned mapped-content validation with generated source and retained bounded repair deltas (D-101).
@@ -301,7 +280,7 @@ fallback starts. Focused static tests and the local disposable preflight pass.
 
 ---
 
-## Summary (as of last compaction — 2026-09-21)
+## Summary (as of last compaction — 2026-09-22)
 
-- Recent detailed entries retained: 19
-- Compacted milestone bullets: 28
+- Recent detailed entries retained: 15
+- Compacted milestone bullets: 40

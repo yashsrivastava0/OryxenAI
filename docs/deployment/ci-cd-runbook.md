@@ -6,6 +6,31 @@ can operate and troubleshoot the pipeline without re-deriving any of this
 from scratch. See D-107 and D-110 in `DECISIONS.md` for the decision record;
 this file is the operational how-to and issue log that sits underneath it.
 
+## `gh` CLI is now available (set up 2026-09-22)
+
+Installed via `winget install --id GitHub.cli` on the primary dev machine
+and authenticated as `yashsrivastava0` (`gh auth login --web`, scopes:
+`gist`, `read:org`, `repo`, `workflow`). It lives at
+`C:\Program Files\GitHub CLI\gh.exe` — winget's PATH update did not
+propagate to already-open or freshly-spawned tool shells in this
+environment, so call it by full path (or check whether a truly new
+interactive terminal now resolves `gh` directly before assuming it doesn't).
+
+This unlocks direct log/PR access that previously required relaying through
+the operator:
+
+```bash
+gh run list --repo yashsrivastava0/OryxenAI --branch <branch>
+gh run view <run-id> --repo yashsrivastava0/OryxenAI --log-failed
+gh pr view <number-or-branch> --repo yashsrivastava0/OryxenAI --json mergeable,statusCheckRollup
+gh pr merge <number> --repo yashsrivastava0/OryxenAI --merge   # never --squash/--rebase (see below)
+```
+
+Plain GitHub REST API calls (e.g. via WebFetch) work unauthenticated for
+run/job **status** on this public repo, but the log-content endpoints
+return 403 without a token — `gh` is the only zero-friction way to read
+actual failure text.
+
 ## What exists today
 
 - A GitHub Actions self-hosted runner runs as a systemd service directly on
