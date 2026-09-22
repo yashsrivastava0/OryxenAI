@@ -195,7 +195,16 @@ jobs:
           docker compose up -d --wait --wait-timeout 1800 app worker preview-gateway
           curl -fsS http://localhost:8000/health/live
           curl -fsS http://localhost:8000/health/ready
-          curl -fsS http://localhost:8000/api/v1/system/status
+          # /api/v1/system/status is admin-gated (require_admin on the whole
+          # router, added by d288077); the smoke test has no real Supabase
+          # session to authenticate with, so the correct, secure response is
+          # 401, not 200. Assert that the route is reachable and actually
+          # enforcing auth rather than expecting it open.
+          status_code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/system/status)
+          if [ "$status_code" != "401" ]; then
+            echo "Expected /api/v1/system/status to require authentication (401), got $status_code" >&2
+            exit 1
+          fi
           docker compose down -t 5
 
       - name: Dump Compose logs on smoke test failure
