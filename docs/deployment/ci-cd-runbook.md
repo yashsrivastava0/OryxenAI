@@ -87,11 +87,18 @@ with `GH013: Repository rule violations ... Changes must be made through a
 pull request.`
 
 This means "push to deployment" never actually means a raw push in
-practice. The real mechanic is:
+practice. The real mechanic (see AGENTS.md's "Branch workflow: `staging` vs
+`deployment`" for the full policy) is:
 
 ```text
-commit -> push to a side/feature branch (never `deployment` directly)
-  -> open a PR into `deployment`
+day-to-day: commit -> push to `staging` (or a feature branch merged into
+  `staging`) -> quality gate runs automatically -> iterate freely.
+  Pushing to `staging` can never trigger a deploy: the deploy job's `if:`
+  only matches `refs/heads/deployment`.
+
+promotion to production (only when the operator explicitly says so, every
+  time -- never assumed from a prior session or a routine-looking change):
+  open a PR from `staging` into `deployment`
   -> GitHub runs `quality` on the PR automatically
   -> once green, merge the PR (regular merge commit, not squash/rebase --
      squash/rebase rewrites commit SHAs, breaking any doc that references

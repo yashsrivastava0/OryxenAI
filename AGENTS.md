@@ -453,12 +453,41 @@ never touched this repo, and before handling any credential on any machine.
    [`docs/deployment/README.md`](docs/deployment/README.md) →
    [`docs/deployment/ci-cd-runbook.md`](docs/deployment/ci-cd-runbook.md) →
    [`docs/deployment/deployment-issues.md`](docs/deployment/deployment-issues.md).
-   The deployment is already live (see "What to implement next" above) —
-   changes reach it only via `push a side branch -> open a PR into
-   deployment -> quality gate green -> merge`, the same as any other
-   protected-branch change. There is no other path; direct pushes to
-   `deployment` are rejected by branch protection for everyone, including
-   the repo owner.
+   The deployment is already live (see "What to implement next" above). See
+   "Branch workflow: `staging` vs `deployment`" immediately below before
+   opening or merging any PR.
+
+### Branch workflow: `staging` vs `deployment`
+
+Two long-lived branches, two different jobs. Get this wrong and you either
+block your own work with unnecessary ceremony, or trigger a live production
+deploy nobody asked for.
+
+- **`staging`** — day-to-day development. Branch off it (or off `deployment`
+  if you're starting genuinely new work), commit, push, open PRs, merge into
+  `staging` freely. GitHub Actions still runs the full quality gate (lint,
+  type-check, tests, Docker smoke test) on every push/PR here — that's your
+  verification — but pushing to `staging` **can never trigger a live
+  deploy**, by construction: `.github/workflows/ci.yml`'s `deploy` job only
+  fires when `github.ref == 'refs/heads/deployment'`. No amount of pushing
+  to `staging` touches the Azure VM.
+- **`deployment`** — production. This is the *only* branch wired to the
+  Azure VM's self-hosted runner; merging into it is what goes live. It has
+  branch-protection rules (`deployment-ci-gate`) blocking direct pushes from
+  anyone, including the repo owner — the only way in is a PR.
+- **Promotion from `staging` to `deployment` is a separate, explicit,
+  human-initiated step, every single time.** An AI agent must never open a
+  PR targeting `deployment`, and must never merge one, unless the operator
+  has said so *in that session* — "push this," "deploy this," "promote to
+  production," or equivalent. A previous session's approval, a standing
+  habit, or "it's probably fine since the last one worked" do not count.
+  When that instruction comes: open a PR from `staging` (or the exact commit
+  the operator names) into `deployment`, wait for the quality gate to go
+  green, then merge with `gh pr merge --merge` (never `--squash`/`--rebase`
+  — see `docs/deployment/ci-cd-runbook.md`). That merge is what triggers the
+  live redeploy; there is no separate "now actually deploy" step after it.
+- If you're not sure whether the operator's instruction counts as that
+  explicit go-ahead, ask — don't guess in the direction of deploying.
 
 ### Secrets: what's a secret, where it lives, what to never do
 
@@ -495,10 +524,10 @@ never touched this repo, and before handling any credential on any machine.
 
 ### What an AI agent should always ask the operator before doing
 
-- Merging a PR into `deployment` for the **first** time a given class of
-  change goes live (e.g. the first-ever production deploy trigger, now
-  already done). Routine merges that follow an already-approved pattern
-  don't need to ask again every time.
+- Opening a PR that targets `deployment`, or merging one — **every single
+  time**, no exceptions for routine-looking changes. See "Branch workflow"
+  above. Day-to-day work belongs on `staging`, which needs no such
+  permission.
 - Rotating, entering, or changing any secret, on any machine.
 - SSHing into the Azure VM for anything beyond read-only diagnostics
   (`status`, `logs`, `doctor`) already run through the documented script.
@@ -579,7 +608,11 @@ consistent:
      commit protects against working-tree loss but not against losing the
      whole machine or disk. Don't let a branch drift many commits ahead of
      `origin` for extended periods; ask the user before pushing if it's
-     unclear whether they want that branch published yet.
+     unclear whether they want that branch published yet. This "push
+     regularly" guidance is about `staging`/feature branches, which is safe
+     and expected — it never overrides "Branch workflow: `staging` vs
+     `deployment`" above, which still requires explicit per-instance
+     permission for anything touching `deployment`.
 
 ## Related documents
 
