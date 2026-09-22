@@ -79,7 +79,12 @@ def resolve_npm_executable(settings: Any) -> str:
         getattr(getattr(settings, "code_generator_dependencies", None), "npm_executable", "") or ""
     ).strip()
     candidate = configured or "npm"
-    return shutil.which(candidate) or (candidate if configured else "")
+    resolved = shutil.which(candidate)
+    if resolved:
+        return resolved
+    if configured and (sys.platform == "win32" or Path(configured).is_absolute()):
+        return configured
+    return shutil.which("npm") or ""
 
 
 def _validate_command(command: list[str]) -> None:
