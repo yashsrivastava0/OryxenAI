@@ -12,6 +12,9 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-23 02:15 +05:30 — Codex (OpenAI) — [a97a3e7] — Code Generator worker/preflight, config/models.toml, preview bridge, GenerationStage, tests
+Fenced Code Generator claims on a fresh, config-bound worker capability proof, fixed UUID heartbeat identity, and grouped equivalent provider profiles to avoid duplicate preflight calls; corrected preview reload/error lifecycle reporting. Routed Code Generator profiles to the operator-selected OpenAI model while preserving the existing key alias; no live provider or pipeline calls were made.
+
 ### 2026-09-22 22:30 +05:30 — Claude Sonnet 5 (Anthropic), configured via a separate browser-automation AI agent — [17a56e4] — DECISIONS.md, docs/deployment/vm-cost-automation.md, docs/deployment/deployment-issues.md, docs/deployment/README.md
 Configured a daily Azure VM cost-optimization schedule (D-112): auto-shutdown at 01:00 IST via the Portal's free built-in blade, auto-start at 07:00 IST via a new Consumption Logic App `oryxenai-vm-autostart` (system-assigned managed identity, VM-scoped `Virtual Machine Contributor`). No git/application changes — this was Azure Portal/ARM configuration only, done through a separate AI agent with browser control (this session's own browser session hit an MFA wall it correctly couldn't get past). The Logic App's action ended up as a raw ARM HTTP call instead of the native "Start virtual machine" connector, because that connector's API connection would not persist in the Portal (repeatable "Failed to fetch"). Manual test run succeeded (15.76s, VM confirmed Running afterward). Full detail in `docs/deployment/vm-cost-automation.md`; the VM is intentionally unreachable ~01:00-07:00 IST daily going forward.
 
