@@ -11,7 +11,7 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-22 16:40 +05:30 — Antigravity (Gemini 3.8 Flash) — [pending commit] — docs/deployment/deployment-issues.md, docs/deployment/archive/README.md, AGENTS.md
+### 2026-09-22 16:40 +05:30 — Antigravity (Gemini 3.8 Flash) — [0f0cc58] — docs/deployment/deployment-issues.md, docs/deployment/archive/README.md, AGENTS.md
 Established context-bounded multi-agent compaction architecture for `docs/deployment/deployment-issues.md` (< 400 line hard limit). Embedded operational protocol and templates for Codex, Claude Code, Antigravity, and Cursor; converted 130-line narrative session log into high-density Compacted Resolved Ledger preserving all error signatures, root causes, and commit SHAs; created archive directory for overflow history; aligned AGENTS.md instructions.
 
 ### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [d57e3c0, f7b05d6, 4bdea92, 1847d80, cb76076] - Regenerated the stale scaffold lockfile; fixed 4 more CI/Compose bugs found along the way
