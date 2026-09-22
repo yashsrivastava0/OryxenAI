@@ -11,7 +11,23 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
-### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [pending commit] - Fix production Docker network egress bug found during first live Azure deploy
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [pending commit] - Add fully automatic CD via a self-hosted GitHub Actions runner on the Azure VM
+
+Per the owner's request to stop deploying by hand, added a `deploy` job to
+`.github/workflows/ci.yml` (`needs: quality`, restricted to `push`/
+`workflow_dispatch` on `deployment`) that runs `azure-deploy.sh deploy
+${{ github.sha }}` then `verify` directly on the VM's own GitHub Actions
+runner — no SSH secrets, no NSG change, ever, since the runner polls GitHub
+over outbound HTTPS instead of GitHub SSHing in. Registered and started the
+runner (`azure-oryxenai` label, systemd service, `oryxenaiadmin`) on the VM
+at `/home/oryxenaiadmin/oryxenai`, confirmed `active (running)` and
+boot-enabled. No approval gate for now, per explicit "fully automatic,
+temporarily" instruction — trivially reversible (two-line comment left in
+the workflow showing how). Recorded as D-110, superseding D-107 (moved to
+Compacted & Superseded History). Corrected a stale "GitHub Actions not
+required, SSH manually" line in `docs/project-status.md`.
+
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [bf6c6ff] - Fix production Docker network egress bug found during first live Azure deploy
 
 The first real rehearsal deploy against the Azure VM built all 4 images
 successfully (confirming the `d60d40b` npm/npx fix) but then failed with
