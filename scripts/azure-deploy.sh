@@ -72,6 +72,11 @@ env_value() {
   awk -v key="$key" '
     index($0, key "=") == 1 {
       value = substr($0, length(key) + 2)
+      # Strip a trailing CR so a CRLF-terminated .env does not turn a
+      # genuinely blank value into a 1-character "\r" value -- which
+      # would then trivially substring-match almost any log output and
+      # make credential_free_logs() misreport a leak on every container.
+      sub(/\r$/, "", value)
       found = 1
     }
     END {
@@ -807,7 +812,11 @@ credential_free_logs() {
   while IFS= read -r key; do
     [[ -n "$key" ]] || continue
     value="$(env_value "$key" 2>/dev/null || true)"
-    [[ -n "$value" ]] || continue
+    # A value shorter than this can never be reliably attributed to a
+    # real secret leak -- it will trivially substring-match unrelated
+    # log output (timestamps, container-name padding, ANSI resets) and
+    # only produce false positives, not real protection.
+    [[ -n "$value" && "${#value}" -ge 8 ]] || continue
     if grep -Fq -- "$value" "$log_file"; then
       warn "Credential value for $key was found in Compose logs."
       leaks=$((leaks + 1))
