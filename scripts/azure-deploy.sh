@@ -801,7 +801,7 @@ storage_smoke() {
 }
 
 credential_free_logs() {
-  local log_file key value leaks=0 offenders
+  local log_file key value leaks=0 offenders value_hash
   log_file="$(mktemp)"
   if ! compose logs --no-color --tail 10000 >"$log_file" 2>/dev/null; then
     rm -f "$log_file"
@@ -826,6 +826,12 @@ credential_free_logs() {
       # Never let this diagnostic itself abort the scan under set -e.
       offenders="$(grep -F -- "$value" "$log_file" 2>/dev/null | cut -d'|' -f1 | sort -u | tr '\n' ' ' 2>/dev/null)" || offenders="(could not determine)"
       warn "  -> leaked from: ${offenders}"
+      # Extra-safe diagnostic: neither the length nor a SHA-256 hash of
+      # the value reveal the secret itself, but they let a false
+      # positive (e.g. a short/degenerate extracted value) be told
+      # apart from a genuine full-length leak.
+      value_hash="$(printf '%s' "$value" | sha256sum | cut -d' ' -f1)" || value_hash="(hash failed)"
+      warn "  -> value length=${#value} sha256=${value_hash}"
     fi
   done < <(
     {
