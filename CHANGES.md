@@ -11,6 +11,25 @@ Append-only record of major changes, commit hashes, and rationale across AI tool
 
 ## Recent changes
 
+### 2026-09-22 - Claude Sonnet 5 (Anthropic) - [pending commit] - Fix production Docker network egress bug found during first live Azure deploy
+
+The first real rehearsal deploy against the Azure VM built all 4 images
+successfully (confirming the `d60d40b` npm/npx fix) but then failed with
+`EAI_AGAIN` during npm-cache warm-up. Root cause: `compose.production.yaml`'s
+`backend` network was Docker-`internal`, with `app`/`worker`/`migrate`/
+`preview-gateway` attached only to it — blocking *all* outbound routing for
+those services, not just inbound exposure, which would also have blocked
+live Supabase/model-provider/npm calls in production. Removed
+`internal: true` from `backend` (D-109); inbound isolation is unaffected
+since only `caddy` publishes a host port. Verified locally with Docker
+Desktop: DNS resolution + a real HTTPS 200 from a `worker` container on the
+fixed network, then the exact failing warm-cache command re-run clean. Full
+local suite re-run after the fix: `ruff check`/`ruff format --check`/`mypy
+src` clean, `pytest` 1433 passed/5 skipped, frontend `typecheck`/`test`
+(144 passed)/`build` clean. Documented in `docs/azure-issue.md`. Not yet
+redeployed to the VM — pending explicit approval per the operator's
+instruction.
+
 ### 2026-09-21 - Claude Sonnet 5 (Anthropic) - [3615b35] - Close CI/security gaps found in production readiness audit
 
 Independent audit (deployment/infra, CI/testing, auth/security) found and

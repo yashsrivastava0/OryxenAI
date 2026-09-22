@@ -177,6 +177,28 @@ The guest confirms that `sshd` is listening, but external TCP 22 remains unsucce
 
 No deployment retry should occur until external SSH connectivity is restored and the effective Azure path is understood.
 
+## Office-network retest — 2026-09-22
+
+The operator returned to the office Wi-Fi and ran a fresh read-only test from
+the Windows workstation. The current public IP was:
+
+```text
+182.156.19.94
+```
+
+TCP 22 test result:
+
+```text
+TCP22_REACHABLE=False
+```
+
+The Azure NSG was last saved for the mobile-hotspot address
+`152.58.120.139/32`. Therefore the office test is currently blocked by the
+single-IP SSH allow rule. No SSH authentication attempt was made because TCP
+22 was not reachable. The office address is the earlier address associated
+with prior successful SSH sessions; the Azure rule needs to be verified or
+switched back to `182.156.19.94/32` before retesting.
+
 ## Follow-up session — 2026-09-21 (evening): suspected carrier-path filtering
 
 **Context change:** the earlier successful SSH session and first deployment
@@ -304,6 +326,147 @@ diagnostics.
 fix so this doesn't recur regardless of network — e.g. Azure Bastion (no
 public inbound SSH port needed at all) — versus continuing to re-pin the
 NSG rule to whatever IP is current each session.
+
+## Resolution — 2026-09-22 morning: confirmed as office-network-only
+
+The operator returned on office Wi-Fi the next morning. Public IP was
+`182.156.19.94` — exactly the "last known-good" value from the rule-value
+history table above. The NSG rule `Allow-SSH-MyIP` was updated from
+`104.28.192.188/32` back to `182.156.19.94/32` (via the browser controller,
+same pattern as every prior update; TCP 80/443 untouched). SSH succeeded
+immediately on the first attempt:
+
+```text
+SSH_OK
+oryxenai-demo-vm
+oryxenaiadmin
+ 04:19:40 up 21:19,  1 user,  load average: 0.00, 0.00, 0.00
+/dev/root  61G  6.9G  55G  12% /
+Mem: 7.7Gi total, 822Mi used, 3.2Gi free, 6.9Gi available
+Swap: 0B
+```
+
+**This confirms the working conclusion above without further ambiguity:**
+the entire prior evening's SSH failures were specific to the operator's
+non-office network path (Jio hotspot, and separately Jio+Cloudflare One),
+not the VM, NSG, or repository. No Azure-side configuration was changed
+tonight beyond restoring the NSG source IP to the known-good value.
+
+**CURRENT LIVE NSG SOURCE is now `182.156.19.94/32` (office Wi-Fi)** —
+supersedes the `104.28.192.188/32` value recorded earlier in this file.
+
+### VM state confirmed on reconnect
+
+- Docker `29.8.1`, Compose `v5.5.1` — both already installed (from the
+  earlier `setup` run, per the "First deployment attempt" section above).
+- Repo at `~/oryxenai` was still a detached checkout at the old, stale SHA
+  `91f0d18` (the pre-fix commit) — unchanged since last night's failed
+  attempt.
+- `/srv/oryxenai` and `/srv/oryxenai-backups` exist. Leftover artifacts from
+  the failed attempt: a `oryxenai:local` Docker image (1.79 GB) and the
+  `oryxenai_backend` Docker network. Not cleaned up before the new deploy;
+  `docker compose build`/`up` is expected to reconcile or replace these.
+- Production `.env` at `~/oryxenai/.env` already existed (rendered during
+  the earlier `setup` run) and was left untouched.
+
+### Code transfer method (important for future sessions)
+
+The original plan was `git archive HEAD | ssh ... tar -x` to overlay the
+corrected commit onto the VM's working tree without pushing to GitHub.
+**This does not work with `scripts/azure-deploy.sh`**: `deploy`'s
+`resolve_release()` function explicitly refuses to run if the VM's working
+tree has any tracked-file changes (`git status --porcelain
+--untracked-files=no`), which a raw tar overlay would immediately trigger.
+It also does `git fetch origin` + `git rev-parse <sha>` — a SHA that only
+exists locally and was never pushed to `origin` cannot resolve.
+
+**Working method used instead:** push the exact local commit directly into
+the VM's own repository as a new ref, over SSH, without touching `origin`
+or the VM's checked-out branch:
+
+```bash
+git push "ssh://oryxenaiadmin@20.235.74.81/home/oryxenaiadmin/oryxenai" HEAD:refs/heads/incoming-deploy
+```
+
+This transfers the commit object (and any new history) into the VM's local
+git object database as a new branch ref, leaves the working tree and
+current detached HEAD completely untouched (verified via `git status
+--porcelain` returning empty and `git log -1` still showing the old SHA
+immediately after the push), and makes the exact SHA resolvable so
+`./scripts/azure-deploy.sh deploy <sha>` can `git checkout --detach <sha>`
+normally through its real, unmodified code path — no script changes needed.
+The temporary `incoming-deploy` ref can be deleted after a successful
+deploy (`git branch -D incoming-deploy` on the VM); it is not referenced by
+the deploy script itself once checked out.
+
+### Deploy result — partial success, new bug found
+
+`./scripts/azure-deploy.sh deploy a19a7c57fae131e7f6bb9324737fa85d7da494af`
+(the local `deployment` HEAD at the time, 8 commits ahead of
+`origin/deployment`, not pushed — includes the npm/npx symlink fix plus the
+CI/security fixes from the production-readiness audit) got substantially
+further than the previous attempt:
+
+- **All 4 Docker images built successfully.** `npm --version` and `npx
+  --version` both resolved cleanly to `10.9.8` during the build, confirming
+  the `d60d40b` npm/npx symlink fix works correctly in a real build — the
+  original blocker from the first deployment attempt is resolved.
+- **New failure during npm-cache warm-up** (`compose run --rm --no-deps
+  worker bash /app/scripts/warm-npm-cache.sh`):
+
+```text
+npm error code EAI_AGAIN
+npm error syscall getaddrinfo
+npm error errno EAI_AGAIN
+npm error request to https://registry.npmjs.org/@tailwindcss%2fvite failed, reason: getaddrinfo EAI_AGAIN registry.npmjs.org
+[azure] ERROR: command failed at line 57 (exit 1)
+```
+
+`EAI_AGAIN` is a complete DNS-resolution failure — the container had zero
+network route to the internet, not a registry/proxy/rate-limit problem.
+
+### Root cause: `backend` network was Docker-`internal`
+
+`compose.production.yaml`'s `backend` network was declared `internal: true`,
+and `app`, `worker`, `migrate`, and `preview-gateway` (via the shared
+`&application` anchor) were **only** attached to `backend`. Docker's
+`internal: true` blocks *all* outbound routing for every container on that
+network, not just inbound exposure — so this wasn't only an npm-cache-warmup
+problem. As configured, `worker` (model provider calls, Supabase, npm
+registry during live Code Generator runs) and `app` (Supabase JWKS
+verification) would have had **zero outbound internet access once actually
+running in production** — a production-blocking bug. Only `caddy` was also
+attached to the non-internal `edge` network. The dev-only `compose.yaml` has
+no such restriction (plain default bridge network, full egress), which is
+why this never surfaced in local development.
+
+The `internal: true` comment's stated intent — "No service other than Caddy
+is attached to the public-facing network" — was about preventing *inbound*
+exposure. But none of `app`/`worker`/`migrate`/`preview-gateway`/`postgres`
+publish a host `ports:` mapping anyway (only `caddy` does), so a normal,
+non-internal bridge network already gives that same inbound isolation
+without also killing egress. `internal: true` was an over-tightened
+hardening step that broke real functionality; recorded as D-109 in
+`DECISIONS.md`.
+
+**Fix applied:** removed `internal: true` from the `backend` network
+definition in `compose.production.yaml` and corrected the two comments that
+called it "internal-only." No other file needed to change.
+
+**Verified locally** (Docker Desktop, this workstation, against the local
+`.env`): `docker compose -f compose.production.yaml config --quiet` parses;
+a worker container on the fixed network resolves `registry.npmjs.org` via
+DNS and completes a real `HTTP 200` HTTPS request; the exact failing command
+(`bash /app/scripts/warm-npm-cache.sh`) now completes successfully. Full
+local suite also re-run clean after the fix: `ruff check`, `ruff format
+--check`, `mypy src`, `pytest` (1433 passed, 5 skipped), and in `frontend/`:
+`typecheck`, `test` (144 passed), `build`.
+
+**Not yet done:** the fix has not been re-deployed to the Azure VM. Per the
+operator's explicit instruction, no further VM/SSH action (re-running
+`deploy`, cleaning up the leftover `oryxenai:local` image, the
+`oryxenai_backend` Docker network, or the stale `incoming-deploy` git ref on
+the VM) happens without a fresh, explicit go-ahead.
 
 ## Credential handling
 
