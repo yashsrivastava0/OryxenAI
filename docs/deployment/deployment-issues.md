@@ -41,7 +41,7 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 
 ## Active Blockers
 
-- Local source cleanup is incomplete: legacy downstream source modules remain in this checkout, although current API routing and worker registration exclude them. The broad source-deletion request was rejected because its target set also included archive and account-cleanup components. No narrower deletion was attempted, and no deployment or GitHub operation was performed.
+- Local cleanup is incomplete: legacy source modules and historical project reports remain in this checkout, although current API routing and worker registration exclude those stages. The broad deletion request was rejected because its target set also included archive and account-cleanup components. No narrower bulk deletion was attempted, and no deployment or GitHub operation was performed.
 
 ---
 
