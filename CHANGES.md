@@ -12,6 +12,9 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-24 — Codex (OpenAI) — [e5c95bd] — active API, worker, configuration, product UI, and project context
+Removed downstream generation stages from the active API/worker/product workflow, leaving Discovery and Content Architect as the only registered and presented stages (D-113). Historical output cleanup and Git history remain preserved; old source modules remain in the checkout because the broad deletion was rejected by automatic review, and no deployment or GitHub operation was performed.
+
 ### 2026-09-23 16:02 +05:30 — Codex (OpenAI) — [7e1531b] — output/pdf/oryxenai-agent-pipeline-deep-reference-2026-09-23.pdf
 Added a 130-page source-audited reference for Discovery, Content Architect, Visual Design Director, Build Preparation, and their Code Generator handoff. It covers API inputs, model packets, complete prompt assemblies, output contracts, validation, PostgreSQL persistence, worker execution, frontend review, and all 23 checked-in sample/fixture files. The PDF was rendered and checked for extracted prompt/sample boundaries, missing glyphs, blank pages, and clipped text; no application tests or live model/provider workflows were run.
 
