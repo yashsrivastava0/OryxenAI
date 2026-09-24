@@ -27,6 +27,7 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 | Parameter | Current Value | Notes |
 | :--- | :--- | :--- |
 | **Live deployment** | ✅ LIVE at `07132fe823cd0a2279c8ae3dddab9b90277771f6` | First successful production deploy, 2026-09-22 14:51 UTC |
+| **Local checkout** | Retirement changes are local only | Not deployed; active route and worker registries expose only Discovery and Content Architect |
 | **Public URLs** | `https://app.oryxenai.me`, `https://preview.oryxenai.me` | Both confirmed reachable (curl + browser render) |
 | **CI Quality Gate** | ✅ Passing (Docker Smoke Test) | Green since `2ede02a`; all 1,433 pytest tests pass |
 | **Azure VM Deploy Trigger** | ▶️ Enabled, auto-deploy-on-merge to `deployment` only | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
@@ -34,13 +35,13 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 | **Promotion to `deployment`** | Requires explicit, per-instance operator go-ahead | No standing/assumed permission — even for routine changes |
 | **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#7](https://github.com/yashsrivastava0/OryxenAI/pull/7) | All merged into `deployment` (regular merge commits) |
 | **VM power schedule** | ⏰ Auto-shutdown 01:00 IST, auto-start 07:00 IST | **The VM is expected to be unreachable ~01:00-07:00 IST daily** — intentional, see D-112 and `docs/deployment/vm-cost-automation.md` |
-| **Last Updated** | 2026-09-22 22:30 +05:30 | Maintained across multi-agent sessions |
+| **Last Updated** | 2026-09-24 | Local runtime retirement documented; live deployment state remains unchanged |
 
 ---
 
 ## Active Blockers
 
-None open.
+- Local source cleanup is incomplete: legacy downstream source modules remain in this checkout, although current API routing and worker registration exclude them. The broad source-deletion request was rejected because its target set also included archive and account-cleanup components. No narrower deletion was attempted, and no deployment or GitHub operation was performed.
 
 ---
 

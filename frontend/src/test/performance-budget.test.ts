@@ -5,9 +5,9 @@ declare const process: { cwd: () => string };
 
 // Budgets track gzip size — what the browser actually transfers — as the
 // primary guard, with a raw-size ceiling as a secondary sanity check.
-// Raised 2026-09 alongside the full stage-by-stage visual/motion revamp
-// (extracted-profile rail, sitemap, peek-card decks, asset gallery,
-// preview theater, ...): the previous 120kB/45kB raw ceilings were already
+// Raised 2026-09 alongside the workspace and reviewed-content updates
+// (extracted-profile rail, sitemap, and peek-card decks): the previous
+// 120kB/45kB raw ceilings were already
 // silently unenforced (see below) and pre-dated this session's genuine
 // feature growth, not an unexplained regression.
 const JS_RAW_BUDGET_BYTES = 170 * 1024;

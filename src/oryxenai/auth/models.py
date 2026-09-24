@@ -112,7 +112,7 @@ class AppUserCapacity(Base):
 
 
 class PortfolioEntitlement(Base):
-    """The single normal-user portfolio/generation/success binding."""
+    """The single normal-user portfolio slot and deletion lifecycle."""
 
     __tablename__ = "portfolio_entitlements"
 
@@ -130,24 +130,6 @@ class PortfolioEntitlement(Base):
         ),
         nullable=True,
     )
-    generation_run_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(
-            "code_generator_runs.id",
-            name="fk_portfolio_entitlements_generation",
-            ondelete="RESTRICT",
-        ),
-        nullable=True,
-    )
-    successful_run_id: Mapped[UUID | None] = mapped_column(
-        PGUUID(as_uuid=True),
-        ForeignKey(
-            "code_generator_runs.id",
-            name="fk_portfolio_entitlements_success",
-            ondelete="RESTRICT",
-        ),
-        nullable=True,
-    )
     deleted_portfolio_session_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
@@ -156,7 +138,6 @@ class PortfolioEntitlement(Base):
     )
     reset_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     last_reset_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_utcnow
@@ -167,34 +148,13 @@ class PortfolioEntitlement(Base):
 
     __table_args__ = (
         UniqueConstraint("portfolio_session_id", name="uq_portfolio_entitlements_session"),
-        UniqueConstraint("generation_run_id", name="uq_portfolio_entitlements_generation"),
-        UniqueConstraint("successful_run_id", name="uq_portfolio_entitlements_success"),
         UniqueConstraint(
             "deleted_portfolio_session_id", name="uq_portfolio_entitlements_deleted_session"
         ),
         CheckConstraint("revision >= 0", name="ck_portfolio_entitlements_revision"),
         CheckConstraint(
-            "generation_run_id IS NULL OR portfolio_session_id IS NOT NULL",
-            name="ck_portfolio_entitlements_generation_requires_session",
-        ),
-        CheckConstraint(
-            "successful_run_id IS NULL OR generation_run_id IS NOT NULL",
-            name="ck_portfolio_entitlements_success_requires_generation",
-        ),
-        CheckConstraint(
-            "successful_run_id IS NULL OR successful_run_id = generation_run_id",
-            name="ck_portfolio_entitlements_success_matches_generation",
-        ),
-        CheckConstraint(
-            "(consumed_at IS NULL AND successful_run_id IS NULL) OR "
-            "(consumed_at IS NOT NULL AND successful_run_id IS NOT NULL) OR "
-            "(consumed_at IS NOT NULL AND deleted_portfolio_session_id IS NOT NULL)",
-            name="ck_portfolio_entitlements_consumed_consistency",
-        ),
-        CheckConstraint(
             "deleted_portfolio_session_id IS NULL OR "
-            "(project_deleted_at IS NOT NULL AND portfolio_session_id IS NULL "
-            "AND generation_run_id IS NULL AND successful_run_id IS NULL)",
+            "(project_deleted_at IS NOT NULL AND portfolio_session_id IS NULL)",
             name="ck_portfolio_entitlements_deleted_project_consistency",
         ),
         CheckConstraint(
@@ -231,12 +191,7 @@ class AdminAuditEvent(Base):
     )
 
     __table_args__ = (
-        CheckConstraint(
-            "action IN ('suspend', 'restore', 'delete', 'readmit', 'reset_entitlement', "
-            "'promote', 'demote', 'project_delete', 'legacy_project_delete', "
-            "'code_generator_retry', 'code_generator_regenerate', 'operation_resume')",
-            name="ck_admin_audit_action",
-        ),
+        CheckConstraint("action ~ '^[a-z][a-z0-9_]{0,63}$'", name="ck_admin_audit_action"),
         CheckConstraint(
             "target_type IN ('user', 'identity', 'project', 'legacy_project', 'operation')",
             name="ck_admin_audit_target_type",
@@ -289,12 +244,7 @@ class AdminOperation(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        CheckConstraint(
-            "action IN ('suspend', 'restore', 'delete', 'readmit', 'reset_entitlement', "
-            "'promote', 'demote', 'project_delete', 'legacy_project_delete', "
-            "'code_generator_retry', 'code_generator_regenerate')",
-            name="ck_admin_operations_action",
-        ),
+        CheckConstraint("action ~ '^[a-z][a-z0-9_]{0,63}$'", name="ck_admin_operations_action"),
         CheckConstraint(
             "target_type IN ('user', 'identity', 'project', 'legacy_project')",
             name="ck_admin_operations_target_type",
@@ -380,9 +330,6 @@ class DeletedPortfolioTombstone(Base):
     original_session_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     former_owner_user_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), nullable=True)
     legacy_quarantined: Mapped[bool] = mapped_column(nullable=False)
-    had_promoted_success: Mapped[bool] = mapped_column(
-        nullable=False, default=False, server_default="false"
-    )
     deleted_by: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     deleted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_utcnow, server_default=text("now()")

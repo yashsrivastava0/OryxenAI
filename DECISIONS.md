@@ -24,6 +24,17 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-113 — Approved content plan is the terminal active workflow
+
+- **Date & Time:** 2026-09-24 16:17 +05:30 — Codex (OpenAI)
+- **Status:** decided-implemented
+- **Context:** The model engine is being replaced, so active contracts must be explicit and must not imply unsupported downstream work.
+- **Decision:** The active registry, API, configuration, and product support Discovery followed by Content Architect only. Content Architect approval ends the active workflow. Historical records and user output remain stored for authorized cleanup and audit.
+- **Rejected alternatives:** Keeping downstream execution reachable; deleting retained history or output as part of the application-code change.
+- **Consequence:** New engine integrations should target only the registered contracts and must not infer later workflow stages from historical records.
+
+
+
 ## D-112 - Daily Azure VM auto-shutdown/auto-start window (01:00-07:00 IST)
 
 - **Date & Time:** 2026-09-22 22:30 +05:30 - Claude Sonnet 5 (Anthropic), configured via a separate browser-automation AI agent
@@ -907,8 +918,8 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ---
 
-## Summary (as of last update — 2026-09-18)
+## Summary (as of last update — 2026-09-24)
 
-- Total decisions logged: 99 (highest entry ID D-099)
-- Compacted & superseded decisions: 16 (see `## Compacted & Superseded History` below)
-- Last updated: 2026-09-18 00:00 +05:30 — Claude Code (Sonnet 5)
+- Highest decision ID: D-113
+- Superseded history: see the compacted section below.
+- Last updated: 2026-09-24 16:17 +05:30 — Codex (OpenAI)

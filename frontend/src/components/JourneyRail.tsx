@@ -1,7 +1,7 @@
 import type { JourneyStageId } from "../app/url-state";
 import type { StageState } from "../data/adapters/types";
 
-export type FullStageId = JourneyStageId | "prepare" | "generate" | "preview";
+export type FullStageId = JourneyStageId;
 
 export interface JourneyStageVM {
   id: FullStageId;
@@ -28,25 +28,8 @@ function railState(state: StageState): RailState {
   return "default";
 }
 
-const DEFAULT_SUBLABELS: Record<string, string> = {
-  discover: "UNDERSTAND YOUR STORY",
-  content: "SHAPE NARRATIVE",
-  design: "CRAFT PRESENTATION",
-  prepare: "FINALIZE DETAILS",
-  generate: "BUILD PORTFOLIO",
-  preview: "REVIEW AND APPROVE",
-};
-
 export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailProps) {
-  // If the provided journey only has the 3 interactive stages (e.g. in older unit tests),
-  // extend it with the remaining pipeline stages for the complete presentation.
-  const allStages: JourneyStageVM[] = journey.length === 3
-    ? [
-        ...journey,
-        { id: "prepare", ordinal: 4, label: "Prepare", sublabel: DEFAULT_SUBLABELS.prepare, state: "locked", isSelectable: false },
-        { id: "generate", ordinal: 5, label: "Generate & Preview", sublabel: DEFAULT_SUBLABELS.generate, state: "locked", isSelectable: false },
-      ]
-    : journey;
+  const allStages = journey;
 
   const currentStageIndex = allStages.findIndex((s) => s.id === selectedStageId);
 
@@ -57,11 +40,11 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
         <div className="journey-mobile-header">
           <span className="journey-mobile-kicker">CURRENT STAGE</span>
           <div className="journey-mobile-breadcrumbs" aria-hidden="true">
-            <span>BUILD</span>
+            <span>DISCOVER</span>
             <span className="breadcrumb-arrow">›</span>
-            <span className="breadcrumb-active">REVIEW</span>
+            <span className="breadcrumb-active">CONTENT</span>
             <span className="breadcrumb-arrow">›</span>
-            <span>LAUNCH</span>
+            <span>APPROVE</span>
           </div>
         </div>
 
@@ -94,7 +77,7 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
         </div>
       </div>
 
-      {/* Desktop horizontal 5-stage stepper matching 01-shell-overview.png */}
+      {/* Desktop horizontal stepper for the active journey. */}
       <ol className="journey-rail">
         {allStages.map((stage, index) => {
           const state = railState(stage.state);

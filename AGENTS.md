@@ -9,426 +9,169 @@ automatically by this exact filename.
 
 ## What OryxenAI is
 
-OryxenAI is a portfolio-generation platform that transforms a user's intent
-into a deployable portfolio site. The system uses a pipeline of specialized
-agents (discovery, content architect, visual design director, code generator),
-each responsible for one phase of the transformation.
+OryxenAI is a portfolio-planning product. It turns a user's intent into an
+approved Discovery brief and an approved Content Architect plan. The active
+product and API workflow ends after content approval; the repository does not
+currently generate or serve a finished portfolio site.
 
 ## Current implementation status
 
-**Discovery is implemented end to end**, in its simplified/v2 form. The
-platform includes durable jobs, worker lifecycle, session-state persistence,
-5 API endpoints, and the Discovery experience in the authenticated product
-frontend. Discovery stops after
-explicit brief approval; later agents are invoked only by an explicit,
-separate call. Discovery intentionally does NOT include: a separate immutable
-source-documents table (raw intake is stored directly as JSONB on the
-session state), a repair-prompt loop, a few-shot example library, or a
-fact/conflict-graph validation layer — an earlier, more elaborate version had
-these and they were deliberately removed as over-engineering (see
-`DECISIONS.md` D-002). What remains: a 3-file prompt set (system + two
-operation prompts), envelope-only output validation (the brief's Markdown
-content itself is intentionally free text, not schema-validated), a 9-status
-state machine, idempotency keys, and optimistic concurrency via session
-revision.
+**Discovery** is implemented end to end. It has durable jobs, worker
+lifecycle, session-state persistence, five API operations, and an authenticated
+product experience. Discovery stops after explicit brief approval. It does not
+auto-start another stage. Its intake, answers, and brief are JSONB on session
+state; output validation checks the transport envelope while the brief itself
+remains free Markdown text. The prompt set has a shared system prompt and two
+operation prompts. See src/oryxenai/agents/discovery/README.md for routes
+and state transitions.
 
-**Content Architect is also implemented end to end**, as the second stage.
-It consumes only a compact APPROVED Discovery snapshot (never the raw
-resume/document text), requires Discovery's status to be `approved` before
-it will start, and runs as a single durable job (`content_architect.build`)
-whose agent makes 1-3 sequential model calls internally (`plan_content`,
-then optionally `write_pages`, then optionally `integrate_content`) — an
-adaptive bounded workflow, never one call per page/section. It has no chat
-UI (no per-stage user interaction is needed) and is never auto-invoked by
-Discovery approval; a caller must explicitly `POST .../content-architect/start`.
-See `src/oryxenai/agents/content_architect/README.md` for the full route
-table and state machine.
+**Content Architect** is implemented end to end as the second and final
+active stage. It consumes only an approved Discovery snapshot, requires
+Discovery approval to start, and runs as one durable job. The agent makes one
+to three sequential model calls internally (plan_content, optionally
+write_pages, optionally integrate_content). It has no chat UI and is
+started only through its explicit API. Its output remains reviewable and
+requires explicit approval. See
+src/oryxenai/agents/content_architect/README.md for routes and state
+transitions.
 
-**Visual Design Director is also implemented end to end**, as the third
-stage. It consumes only a compact APPROVED Content Architect output (never
-Discovery's raw resume/document text, never Content Architect's internal
-reasoning), requires Content Architect's status to be `approved` before it
-will start, and runs as a single durable job
-(`visual_design_director.build`) whose agent makes 1-3 sequential model
-calls internally (`establish_visual_language`, then optionally
-`direct_page_experience`, then optionally `integrate_site_experience`) —
-the same adaptive bounded workflow shape as Content Architect. It also
-consults a small, checked-in, deterministic local resource catalogue
-(`agents/visual_design_director/resources/catalogue.json`) via plain Python
-tag-overlap lookup — never a model tool-calling loop — to offer adaptable
-design-pattern candidates. It has no chat UI and is never auto-invoked by
-Content Architect approval; a caller must explicitly
-`POST .../visual-design-director/start`. See
-`src/oryxenai/agents/visual_design_director/README.md` for the full route
-table and state machine.
+Every model call uses the provider-neutral ModelClient boundary and the
+profiles in config/models.toml. Treat that configuration as the source of
+truth for provider and model selection; prose may be stale.
 
-**Portfolio Build Preparation is implemented as a hidden pre-code stage.** It
-requires approved Content Architect and Visual Design Director state and is
-started explicitly with `POST .../build-preparation/start`. A durable
-`build_preparation.prepare` job compiles the approved public scope and writes
-two Markdown briefs: `content-and-narrative-brief.md` and
-`visual-and-build-brief.md`. Each brief carries one fenced, hash-checked JSON
-index; the visual index contains researched image/font/component references,
-not ZIP bytes or runtime URLs that the generator must trust blindly. A local
-debug mirror is retained for the standalone Code Generator harness. See
-`src/oryxenai/agents/build_preparation/`.
+**Authentication and ownership** include local foundations for identity
+verification, just-in-time account admission, username onboarding,
+owner-scoped sessions, administrator access, account lifecycle, durable-work
+authorization, and worker fencing. Normal users are restricted to their
+entitled portfolio session. Administrative cleanup removes associated stored
+artifacts when requested. Check src/oryxenai/auth/ for current enforcement.
 
-All model-backed agents call their configured model through the provider-neutral
-`ModelClient` boundary — see `config/models.toml` for the live model/provider
-per profile; never trust a model name written in prose documentation,
-including this one, since it changes independently of any doc.
+**Product UI** is the authenticated Discovery and Content Architect
+workspace. Session and run projections expose only the active workflow's
+fields. Historical database records and stored output remain available to
+authorized cleanup and audit paths; they are not active stages and are not
+returned as current product state.
 
-**Code Generator is implemented as both a standalone development harness and
-an explicit production session stage.** Production start requires the
-immutable pair of approved Build Preparation Markdown briefs and binds their
-content/visual hashes before durable planning. The shared workflow performs
-structured creative direction and planning, deterministic work-graph/resource
-compilation, controlled acquisition of pinned media, progressive generation,
-bounded integration review/repair, clean build, multi-viewport DOM/geometry
-verification, and atomic stable-preview promotion. The active development
-contract is versioned and release-fenced so an older worker cannot claim a
-migrated brief job. It never auto-chains from Build Preparation. See
-`src/oryxenai/agents/code_generator/` and
-`docs/code-generator-architecture/v2-production-architecture.md`.
+**Deployment** configuration describes the app, PostgreSQL, migrations,
+worker, and HTTPS reverse proxy. Repository changes do not deploy themselves.
+Check docs/deployment/ for the separately maintained release and acceptance
+status; do not infer a live state from local source.
 
-**Authentication Phases 1 through 4 are implemented as bounded local
-foundations.**
-Phase 1 provides Supabase Google-only session restoration through a self-hosted
-pinned browser client, asymmetric JWT/JWKS verification, verified-provider
-just-in-time admission, two bootstrap administrators, a 15-normal-user
-capacity gate, one-time username onboarding, `GET /api/v1/me`, and the
-temporary auth page controller/shell. Phase 2 adds `portfolio_sessions`
-ownership, explicit legacy quarantine, active/onboarded/owner/admin FastAPI
-dependencies, owner-scoped product APIs, admin cross-session access, and the
-authenticated product/developer browser boot boundary. Phase 3 adds the
-single normal-user portfolio/generation/success entitlement, trusted durable
-owner/actor snapshots, worker reauthorization, global model-generation lane,
-verified preview finalization, and server-enforced post-success read-only
-behavior. Phase 4 adds audited administrator lifecycle, resumable deletion and
-cleanup, entitlement reset, bounded role transitions, and the local admin
-console. Owner-completed multi-account browser acceptance and production
-deployment remain separate gates; this is not a complete deployment claim.
+## Deliberately excluded behavior
 
-**The committed product shell now includes the explicit Generate/Preview
-stage, real Code Generator milestone progress, preview theater, traceability
-diagnostics, public fictional sample previews, and the administrator control
-plane.** These are repository capabilities and still require live browser
-acceptance after deployment.
-
-**The first deployment path is implemented and executed.** The checked-in
-`compose.production.yaml`, `config/app.production.toml`, Caddy configuration,
-and `scripts/azure-deploy.sh` describe a one-VM Azure Compose release with
-PostgreSQL, migrations, API, worker, preview gateway, and HTTPS. As of
-2026-09-22, release `07132fe823cd0a2279c8ae3dddab9b90277771f6` is live and
-confirmed reachable at `https://app.oryxenai.me` and
-`https://preview.oryxenai.me` (Docker, the repository, production `.env`,
-migrations, containers, and DNS are all in place). What remains is owner-only
-end-to-end acceptance (real Google login, a live Discovery conversation, the
-full agent pipeline) — infrastructure health does not prove that. See
-`docs/deployment/deployment-issues.md` for the live state table and
-`docs/deployment/`.
-
-To verify current status rather than trusting this document: run
-`uv run pytest`, and check `src/oryxenai/agents/<name>/` for an `agent.py`
-**plus** a `service.py`/`state.py` — an agent directory with only
-`schemas.py`, prompts, and samples (no service/state/validators) is still a
-deterministic mock, not a live implementation.
-
-## What is deliberately still mocked or excluded
-
-- The registry-compatible Code Generator agent exposes the same structured
-  planner boundary used by the durable workflow. Its standalone development
-  harness and explicit production-session API share the active brief-contract
-  admission, versioned planning, controlled acquisition, progressive source
-  generation, checkpoints, clean build/runtime verification, finite repair,
-  and atomic preview promotion. Build Preparation still does not auto-chain;
-  see `DECISIONS.md` and `docs/code-generator-architecture/`.
-- Normal tests use checked-in fixtures; live model calls are opt-in. When a
-  user explicitly asks to run an agent or generate a portfolio, execute the
-  configured live LLM/API workflow against the supplied input by default;
-  never silently substitute a mock or fixture response. Mocks are reserved
-  for isolated tests, diagnostics, or a deliberately requested offline run.
-- No automatic chaining, public publishing, or generated-site runtime web
-  access. Production Code Generator starts only through its explicit session
-  endpoint.
-- No agent supervisor or cross-agent sequencing exists — every stage is
-  started by an explicit caller.
-- Executing a production deployment, billing automation, and published-
-  portfolio deployment automation remain outside the completed implementation.
-  A guided one-VM Azure Compose deployment path is implemented, but it has not
-  been run against the live VM. Phase 4 administrator lifecycle, audit,
-  destructive cleanup/reset, local admin UI, and worker fencing are implemented
-  locally; owner-completed multi-account browser acceptance is still an
-  acceptance gate. Preview artifact storage may use the configured
-  S3-compatible backend; Build Preparation's local handoff is the Markdown
-  brief pair.
-- No Redis, Celery, Kafka, or external queue.
+- No automatic stage chaining or agent supervisor; callers explicitly start
+  each active stage.
+- No generated-site runtime, public portfolio publishing, or browser preview
+  in the active product.
+- Normal tests use deterministic fixtures. Live model calls are opt-in except
+  when an operator explicitly asks to run the configured model workflow.
+- No Redis, Celery, Kafka, or external queue; durable jobs use PostgreSQL.
 
 ## Config-driven policy — never hardcode
 
-- **Secrets** (`POSTGRES_PASSWORD`, API keys) live only in `.env`, which is
-  git-ignored. `.env.example` documents variable names with empty/fake
-  values. Secrets are never logged, never returned in API responses, and
-  never displayed by the doctor command.
-- **Non-secret app/db/worker settings** live in `config/app.toml` (local),
-  overlaid by `config/app.docker.toml` (Docker) or `config/app.test.toml`
-  (tests).
-- **Model profiles** live in `config/models.toml` — provider-neutral,
-  per-agent (`[profiles.discovery]`, `[profiles.content_architect]`, ...).
-  API keys are resolved indirectly via an `api_key_env` name, never
-  referenced by literal value or provider name in agent code or business
-  logic. Changing provider/base_url/model/api_key_env must never require an
-  agent-code change.
-- **Migration URL** is resolved from settings, not hardcoded in
-  `alembic.ini`.
-- **This same discipline extends to documentation itself**: never freeze a
-  model name, a test count, or a "currently implemented" snapshot in prose.
-  Point at the source of truth instead — `config/models.toml` for models,
-  `uv run pytest` for test coverage, the relevant `src/oryxenai/agents/*/`
-  directory for implementation status.
+- **Secrets** (POSTGRES_PASSWORD, provider keys) live only in .env, which
+  is git-ignored. .env.example contains empty placeholders. Never log,
+  return, or display secrets.
+- **Non-secret settings** live in config/app.toml and its environment
+  overlays.
+- **Model profiles** live in config/models.toml. Provider, base URL, model,
+  and credential environment-variable names are configuration, not business
+  logic.
+- **Migration URL** is resolved from settings, not hardcoded in alembic.ini.
+- Never freeze a model name, test count, or implementation snapshot in prose.
+  Point to the configuration, test command, or active source directory.
 
 ## Repository map
 
-```text
-src/oryxenai/
-  main.py                    FastAPI application factory
-  core/                      settings, logging, lifecycle
-  db/                        async engine, session, models, repositories
-  jobs/                      durable PostgreSQL job queue, worker, heartbeat
-  agents/shared/             contracts, registry, executor, model_client
-  auth/                      identity, ownership, entitlements/fencing, admin lifecycle
-  agents/{discovery, content_architect, visual_design_director, build_preparation, code_generator}/
-  runtime/                   state_service, mock_runner
-  api/routes/                stage/session APIs including build-preparation and code-generator
-  web/                       Jinja2 templates + FastAPI-served static assets
-frontend/                    Preact/TypeScript/Vite authenticated product shell
-config/                      committed non-secret TOML configuration
-migrations/                  Alembic (async, settings-driven)
-tests/                       unit, api, integration, worker
-scripts/                     cross-platform launcher scripts
-```
+    src/oryxenai/
+      main.py                    FastAPI application factory
+      core/                      settings, logging, lifecycle
+      db/                        async engine, models, repositories
+      jobs/                      durable PostgreSQL queue, worker, heartbeat
+      agents/shared/             contracts, registry, executor, model client
+      agents/discovery/          active intake and brief workflow
+      agents/content_architect/  active content planning workflow
+      auth/                      identity, ownership, entitlements, admin lifecycle
+      api/routes/                active session and stage APIs
+      web/                       product shell and static assets
+      storage/                   archival cleanup interfaces
+    frontend/                    authenticated Preact/TypeScript/Vite product
+    config/                      committed non-secret TOML
+    migrations/                  Alembic schema history
+    tests/                       unit, API, integration, and worker tests
+    scripts/                     cross-platform launch and maintenance tools
 
 ## Database and migration ownership
 
-- Migrations live under `migrations/` and are applied by `alembic upgrade head`.
-- The application database is `oryxenai`. The test database is `oryxenai_test`.
-- In Docker, a one-shot `migrate` service runs migrations once before the
-  `app` and `worker` start. Neither the app nor the worker entrypoint runs
-  `alembic upgrade head` itself.
-- For local development, migrations are run explicitly:
-  `uv run alembic upgrade head`.
-- Integration tests use a dedicated test database and never drop or reset
-  the application database.
+- Migrations live under migrations/ and are applied with
+  uv run alembic upgrade head.
+- The application database is oryxenai; integration tests use the separate
+  oryxenai_test database.
+- Docker runs migrations once in a dedicated service before the app and
+  worker start. The app and worker entrypoints do not run migrations.
+- Historical run and artifact records are preserved. Current projections
+  filter them from active state and run APIs.
 
 ## Worker and job semantics
 
-- Jobs are durable PostgreSQL rows in `background_jobs`.
-- At-least-once execution. Idempotent handlers are expected.
-- Claiming uses `SELECT … FOR UPDATE SKIP LOCKED`. Two workers never own the
-  same job concurrently.
-- Retries use exponential backoff with configurable delay and max attempts.
-- Stale running jobs are recovered via lease/heartbeat expiry.
-- Registered handlers: `system.worker_probe` (diagnostic, never calls an
-  agent or model), `discovery.understand_and_question`, `discovery.build_or_revise_brief`,
-  `content_architect.build`, `visual_design_director.build`,
-  `build_preparation.prepare`, plus two
-  legacy Discovery aliases (`discovery.prepare_questions`,
-  `discovery.build_brief`) kept only so any in-flight pre-rename job payload
-  still executes.
-- The worker is started via `scripts/run-worker.ps1` (or
-  `uv run python -m oryxenai.jobs.worker`).
-- Worker lifecycle: startup validation → heartbeat loop → poll/claim →
-  independent handler sessions → graceful SIGINT/SIGTERM shutdown.
+- Jobs are durable PostgreSQL rows in background_jobs.
+- Execution is at least once; handlers must be idempotent.
+- Claiming uses SELECT … FOR UPDATE SKIP LOCKED.
+- Retries use exponential backoff with configurable limits; stale leases are
+  recovered through heartbeat expiry.
+- Active handlers include the system worker probe, Discovery operations,
+  Content Architect builds, and legacy Discovery aliases needed for existing
+  queued payloads. The registry is the source of truth for claimable work.
+- Start the worker with scripts/run-worker.ps1 or
+  uv run python -m oryxenai.jobs.worker.
+- Lifecycle: validate settings, heartbeat, poll and claim, execute handlers in
+  independent sessions, then shut down gracefully.
 
 ## Current request-to-database flow
 
-```
-Browser → FastAPI API
-  → validate session + agent key
-  → executor creates agent_runs row, snapshots state_before
-  → API stores intake/answers directly on session state (JSONB)
-  → API creates an agent_run and enqueues a durable job
-  → worker loads the run's input payload from DB, calls the agent, and CAS-applies results
-  → browser polls state, saves answers/edits, and POSTs explicit approval
-  → approved snapshot is persisted; the flow stops until the next stage is explicitly started
-```
+    Browser → FastAPI
+      → authenticate and authorize the portfolio session
+      → store intake or answers and enqueue an explicit stage job
+      → worker loads the run input, calls the configured model, and applies the
+        result with a session revision check
+      → browser polls state and lets the user review, revise, and approve
+      → approved Content Architect output is the end of the active workflow
 
-The authenticated product flow is separate from the durable agent workflow:
-
-```text
-Browser → Supabase session restore/PKCE callback
-  → one authorized GET /api/v1/me
-  → provider identity resolution on first approved subject
-  → local app_users admission and safe projection
-  → username onboarding or owner-scoped /app and admin-gated /admin shell
-  → bearer-authenticated product/development requests
-```
-
-The existing portfolio routes use the Phase 2 owner/admin authorization
-boundary plus Phase 3 server-side entitlement mutation guards. Durable work
-stores trusted owner/actor snapshots, and workers reauthorize those snapshots
-before portfolio work, successor enqueue, and preview finalization.
-
-All agent input, output, state snapshots, and errors are stored as JSONB.
-Agent code never receives database sessions or HTTP requests.
-
-## Request-to-worker-to-database flow (durable jobs)
-
-```
-Browser → FastAPI API
-  → enqueue job row in background_jobs (inside API's database tx)
-  → return durable job ID
-  → worker process claims due rows via FOR UPDATE SKIP LOCKED
-  → handler executes in an independent session
-  → result or safe error persisted
-  → status visible via diagnostics API
-```
-
-The API and worker are separate processes. They use the same application
-image but never run inside the same container. Migrations run once via a
-dedicated one-shot migration service before the app or worker start.
+The authenticated product bootstrap restores the Supabase session, resolves a
+safe local identity, then loads the owner-scoped workspace. Agent code does
+not receive database sessions or HTTP requests. Agent input, output, state
+snapshots, and safe errors are persisted as JSONB.
 
 ## Canonical local commands
 
-```powershell
-.\scripts\bootstrap.ps1   # install dependencies into .workspace/venv
-.\scripts\run-api.ps1      # start the FastAPI server
-.\scripts\run-worker.ps1   # start the background worker
-.\scripts\run-native.ps1 migrate  # apply migrations before native services
-.\scripts\run-native.ps1 dev      # start one native API, worker, and preview gateway
-.\scripts\test.ps1         # run the test suite
-.\scripts\check.ps1        # lint, format-check, type-check
-.\scripts\doctor.ps1       # environment diagnostics
-.\scripts\clean.ps1        # remove generated files (preserves .workspace/venv)
-```
+    .\scripts\bootstrap.ps1
+    .\scripts\run-native.ps1 migrate
+    .\scripts\run-native.ps1 dev
+    .\scripts\run-api.ps1
+    .\scripts\run-worker.ps1
+    .\scripts\test.ps1
+    .\scripts\check.ps1
+    .\scripts\doctor.ps1
 
 ## Canonical verification commands
 
-```powershell
-uv run ruff check .                    # lint
-uv run ruff format --check .           # format check
-uv run mypy src                        # type check
-uv run pytest                          # tests (integration requires PostgreSQL)
-alembic upgrade head                   # migrate
-```
+    uv run ruff check .
+    uv run ruff format --check .
+    uv run mypy src
+    uv run pytest
+    uv run alembic upgrade head
+
+Database-backed tests require PostgreSQL. Integration tests must use the
+dedicated test database and must never drop or reset the application database.
 
 ## Where tests belong
 
-All test files live under `tests/`:
+All tests live under tests/:
 
-```text
-tests/unit/          pure unit tests, no database
-tests/api/           FastAPI endpoint tests (may need test DB for system routes)
-tests/integration/   PostgreSQL-backed repository and job tests
-tests/worker/        worker claim, retry, shutdown, and concurrency tests
-```
-
-No test files exist inside any agent directory or under `src/`.
-
-## Discovery Agent — implementation summary
-
-The Discovery Agent is implemented end-to-end with the following architecture:
-
-- **Domain:** envelope schemas, envelope-only validators, 9-status state
-  machine (`agents/discovery/schemas.py`, `validators.py`, `state.py`). The
-  brief's Markdown content is intentionally NOT business-validated — only
-  the transport envelope (mode, assistant_message, question/brief shape) is.
-- **Prompts:** 3 files — `prompts/system.md` (trusted, shared by both
-  operations), `prompts/understand_and_question.md`,
-  `prompts/build_or_revise_brief.md`. No repair-prompt loop and no few-shot
-  example library — the prompts themselves carry inline BAD/GOOD
-  contrastive examples instead.
-- **Model adapter:** OpenAI-compatible `chat/completions` JSON-object mode
-  (`agents/shared/providers/`), sending the trusted system prompt and the
-  untrusted user/document data as separate `system`/`user` chat messages.
-  Tests and the dev-harness mock-run endpoint use `MockModelClient`
-  (`shared/model_client.py`) — no separate fake-client module.
-- **Durable worker:** both operations run through the persisted job queue,
-  each with stale-result detection and CAS revision checks.
-- **Persistence:** Discovery intake/answers/memory/brief live directly as
-  JSONB under `portfolio_sessions.current_state["discovery"]` (no separate
-  source-documents table), plus idempotent job keys and approved brief
-  snapshots (hash-stamped on approval).
-- **API:** 5 REST endpoints — GET state, POST start, PUT answers, POST
-  revise (natural-language brief revision), POST approve. See
-  `agents/discovery/README.md` for the authoritative route table.
-- **Frontend:** The authenticated `/app` experience is a compiled
-  Preact/TypeScript/Vite product shell with adaptive one-at-a-time questions,
-  brief review/edit/revise, explicit stage handoffs, refresh-safe state
-  recovery, and diagnostics. The separate developer fixture harness remains
-  Jinja2 + vanilla JS. See `docs/frontend-behavior-spec.md` for the
-  conversational/UX contract.
-- **Tests:** unit (schemas, state machine, prompt builder, validators,
-  adapter, service), API (HTTP flow, route contract), integration
-  (persistence, worker) — run `uv run pytest -k discovery` for current
-  coverage rather than trusting a frozen number here.
-
-## Visual Design Director Agent — implementation summary
-
-The Visual Design Director Agent is implemented end-to-end, mirroring
-Content Architect's architecture one stage down the pipeline:
-
-- **Domain:** envelope schemas, envelope-only validators, 5-status state
-  machine (`agents/visual_design_director/schemas.py`, `validators.py`,
-  `state.py`). Structured fields (route_id echoes, scene_id, asset_id,
-  resource_id) carry stable IDs for downstream compilation; free-dict
-  fields (`visual_language`, `shared_visual_systems`, `motion_system`,
-  `compiler_handoff`, ...) stay unvalidated prose — the same structured-vs-
-  free split Content Architect's own schema already uses.
-- **Prompts:** 4 files — `prompts/system.md` (trusted, shared by all three
-  operations), `prompts/establish_visual_language.md`,
-  `prompts/direct_page_experience.md`, `prompts/integrate_site_experience.md`.
-- **Resource catalogue:** `resource_catalogue.py::find_candidates` is a
-  deterministic, in-process, tag-overlap lookup over a small checked-in
-  fixture (`resources/catalogue.json`) — computed once per run in plain
-  Python before any model call, never a model tool-calling loop. A
-  `resource_id` the model references must have been in the shortlist
-  actually given to that call; enforced structurally in `validators.py`.
-- **Model adapter:** same OpenAI-compatible `chat/completions` JSON-object
-  mode as Discovery/Content Architect, own `[profiles.visual_design_director]`
-  entry in `config/models.toml`.
-- **Durable worker:** runs through the persisted job queue
-  (`visual_design_director.build`), with stale-result detection (against
-  Content Architect's own approved content hash) and CAS revision checks.
-- **Persistence:** direction output lives directly as JSONB under
-  `portfolio_sessions.current_state["visual_design_director"]` (no
-  dedicated table — same JSONB-on-session-state precedent as Discovery and
-  Content Architect), plus idempotent job keys and approved direction
-  snapshots (hash-stamped on approval).
-- **API:** 4 REST endpoints — GET state, POST start, POST revise
-  (natural-language direction revision), POST approve. See
-  `agents/visual_design_director/README.md` for the authoritative route
-  table.
-- **Tests:** unit (schemas, state machine, prompt builder, resource
-  catalogue, validators, agent workflow orchestration, service helpers),
-  API (HTTP flow, route contract), integration (persistence, worker,
-  staleness) — run `uv run pytest -k visual_design_director` for current
-  coverage rather than trusting a frozen number here.
-
-## What to implement next
-
-- **First live deployment: done.** The Azure VM Compose deployment
-  described below as "implemented but not executed" is now executed —
-  release `07132fe823cd0a2279c8ae3dddab9b90277771f6` is live at
-  `https://app.oryxenai.me` and `https://preview.oryxenai.me`, confirmed
-  reachable via both `curl` and a browser render as of 2026-09-22. See
-  `docs/deployment/deployment-issues.md`'s Current Deployment State table
-  for the live SHA and `CHANGES.md` for the fix history. Do not re-run the
-  VM setup/bootstrap steps in `docs/deployment/02-azure-vm-runbook.md`
-  against this VM — it is already provisioned and live.
-- **Production acceptance follow-up (still owner-only):** the deployment
-  above proves infrastructure health (containers, HTTPS, DB, preview
-  storage). It does **not** prove Google login, a real Discovery
-  conversation, or the full agent pipeline end-to-end — those require the
-  owner's own Google account and are intentionally not something an AI
-  agent should attempt on their behalf.
-- **Authentication follow-up:** the bounded local implementation is complete
-  through Phase 4. Remaining work is the owner-completed Google browser
-  acceptance gate above.
-- **Evaluation follow-up:** continue refining Discovery, Content Architect,
-  Visual Design Director, and Code Generator using the existing campaign
-  ledgers and privacy-safe inputs. A successful local or harness run is not a
-  substitute for the live Azure acceptance gate.
+    tests/unit/          pure unit tests, no database
+    tests/api/           FastAPI endpoint tests
+    tests/integration/   PostgreSQL-backed repository and job tests
+    tests/worker/        worker claim, retry, shutdown, and concurrency tests
 
 ## Fresh-machine setup and secrets policy
 
@@ -442,7 +185,7 @@ never touched this repo, and before handling any credential on any machine.
    `.workspace/venv`.
 3. Copy `.env.example` to `.env` and fill in only the secrets *you* need.
    Most work — the full test suite, running the app/worker locally, and
-   Discovery/Content Architect/Visual Design Director against the
+   Discovery/Content Architect against the
    deterministic mock model client — needs no real model API key at all.
    **Never copy another device's `.env` wholesale**; enter your own values.
 4. `.\scripts\run-native.ps1 migrate`, then `.\scripts\run-native.ps1 dev`
@@ -453,8 +196,8 @@ never touched this repo, and before handling any credential on any machine.
    [`docs/deployment/README.md`](docs/deployment/README.md) →
    [`docs/deployment/ci-cd-runbook.md`](docs/deployment/ci-cd-runbook.md) →
    [`docs/deployment/deployment-issues.md`](docs/deployment/deployment-issues.md).
-   The deployment is already live (see "What to implement next" above). See
-   "Branch workflow: `staging` vs `deployment`" immediately below before
+   The current release and acceptance state are tracked in the deployment
+   documents. See "Branch workflow: `staging` vs `deployment`" below before
    opening or merging any PR.
 
 ### Branch workflow: `staging` vs `deployment`

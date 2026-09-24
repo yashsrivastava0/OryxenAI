@@ -21,10 +21,8 @@ export interface PeekCardProps {
 /**
  * Shared progressive-disclosure card: a compact peek (eyebrow + title +
  * one-line summary) that expands in place to the full detail without a
- * route change or page-length jump. Used by Content Architect's section
- * deck, Visual Design Director's scene cards, and Build Preparation's
- * asset/component decks — anywhere a stage previously flattened a rich
- * structured object into a long wall of markdown.
+ * route change or page-length jump. Content Architect uses it for the
+ * section deck so rich structured content stays easy to scan.
  */
 export function PeekCard({ eyebrow, title, badge, summary, children, defaultOpen = false }: PeekCardProps) {
   const [open, setOpen] = useState(defaultOpen);

@@ -24,16 +24,9 @@ allowed_origins = ["https://<APP_HOST>"]
 [worker]
 concurrency = 1
 
-[image_retrieval]
-cache_root = "/app/.workspace/image-search-cache"
-
 [artifact_storage]
-# The current production handoff is the approved Markdown brief pair and does
-# not create a generic Build Preparation object. Keep this legacy boundary
-# explicitly non-cloud so no object-store credentials are required at boot. The
-# generic ArtifactStore has no local_fs implementation yet; any legacy state
-# containing an ArtifactReference must therefore be treated as a release
-# blocker instead of being silently redirected to an in-memory store.
+# Preserve the configured provider boundary for deletion of historical typed
+# artifact references; production has no object-store credentials configured.
 provider = "local_fs"
 endpoint_url = ""
 bucket = ""
@@ -43,58 +36,15 @@ require_lifecycle = false
 access_key_env = ""
 secret_key_env = ""
 
-[build_preparation]
-fixture_enabled = false
-debug_mirror_enabled = false
-session_staging_root = "/app/.workspace/build-preparation-staging"
-
-[code_generator_development]
-enabled = false
-input_root = "/app/.workspace/code-generator-development"
-build_preparation_mirror_root = "/app/output/build-preparation"
-pipeline_contract_version = "code-generator-v5"
-worker_release_id = "oryxenai-code-generator-v5-quality-v4-capability-proof-v1"
-quality_gate_version = "quality-gate-v3"
-planner_max_attempts = 2
-
-[code_generator_acquisition]
-materials_root = "/app/.workspace/code-generator-materials"
-
-[code_generator_generation]
-artifact_store_provider = "local_fs"
-artifact_root = "/app/.workspace/code-generator-artifacts"
-workspace_root = "/app/.workspace/code-generator-generation"
-checkpoint_root = "/app/.workspace/code-generator-checkpoints"
-typecheck_command = ["npm", "run", "typecheck"]
-source_audit_command = ["npm", "run", "source:audit"]
-
-[code_generator_dependencies]
-workspaces_root = "/app/.workspace/code-generator-workspaces"
-npm_executable = "npm"
-npm_cache_root = "/app/.workspace/npm-cache"
-allow_network_install = false
-allow_install_scripts = false
-
-[code_generator_verification]
-enabled = true
-capability_proof_ttl_seconds = 900
-browser_name = "chromium"
-browser_executable = "/usr/bin/chromium"
-install_command = ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
-typecheck_command = ["npm", "run", "typecheck"]
-build_command = ["npm", "run", "build"]
-preview_root = "/app/.workspace/code-generator-preview"
-preview_base_url = "https://<PREVIEW_HOST>/preview"
-preview_browser_base_url = "https://<PREVIEW_HOST>/preview"
-# The worker cannot use the public hostname as a reliable internal proof
-# target; the shared gateway is reachable by Compose service DNS.
-preview_verifier_base_url = "http://preview-gateway:4174/preview"
-preview_health_url = "http://preview-gateway:4174/health/live"
-preview_host = "0.0.0.0"
-preview_port = 4174
-preview_parent_origin = "https://<APP_HOST>"
-preview_embed_origins = ["https://<APP_HOST>"]
-preview_storage_provider = "local_fs"
-preview_storage_prefix = "preview"
-preview_public_readback_required = true
-export_root = "/app/output/code-gen-output"
+[archive_storage]
+# Compatibility paths are mounted only for deletion cleanup of prior outputs.
+provider = "local_fs"
+root = "/app/.workspace/archive-storage"
+prefix = "preview"
+artifact_root = "/app/.workspace/archive-artifacts"
+generation_root = "/app/.workspace/archive-generation"
+checkpoint_root = "/app/.workspace/archive-checkpoints"
+workspace_root = "/app/.workspace/archive-workspaces"
+export_root = "/app/output/archive-exports"
+handoff_root = "/app/.workspace/archive-handoffs"
+handoff_mirror_root = "/app/output/archive-handoff-mirrors"

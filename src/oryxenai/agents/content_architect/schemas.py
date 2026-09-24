@@ -164,8 +164,7 @@ class ContentSection(BaseModel):
 
     The section CONTAINER is structured (stable ID, purpose, which claims it
     relies on, priority/optionality, mobile handling, outgoing links) so the
-    Visual Design Director, revisions, and the Code Generation Engine have an
-    unambiguous page structure to work from. The section's own `content` stays
+    revisions have an unambiguous page structure to work from. The section's own `content` stays
     a flexible dict — content shape varies too much per section type to force
     one rigid template, same reasoning as Discovery keeping brief_markdown
     free text instead of a rigid schema.
@@ -213,15 +212,14 @@ class DecisionRecord(BaseModel):
 
 
 class ContentArchitectOutput(BaseModel):
-    """Structured output shared by all three internal model calls (stages).
+    """Structured output shared by the three internal model operations.
 
-    `mode` discriminates which stage produced it; validators.py enforces
-    per-stage required-field rules on top of this shared shape. `site_story_strategy`,
-    `public_content_manifest`, and `media_status` are deliberately NOT
+    `mode` discriminates which operation produced it; validators.py enforces
+    operation-specific required-field rules on top of this shared shape.
+    `site_story_strategy` and `public_content_manifest` are deliberately NOT
     force-fit into rigid nested models — content shape varies too much per
     project/page. `page_content_packs` and `claim_grounding`/`route_plan` ARE
-    structured, because downstream stages need stable IDs and unambiguous
-    page structure, not prose.
+    structured because they need stable IDs and unambiguous page structure.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -239,8 +237,6 @@ class ContentArchitectOutput(BaseModel):
     omissions: list[str] = Field(default_factory=list)
     unresolved_issues: list[str] = Field(default_factory=list)
     privacy_and_confidentiality: list[str] = Field(default_factory=list)
-    media_status: dict[str, Any] = Field(default_factory=dict)
-    visual_director_handoff: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
 
@@ -279,7 +275,10 @@ class ContentArchitectState(BaseModel):
     is the only writer.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    # Ignore fields from older persisted output contracts. The response model
+    # below remains strict, so new model results cannot reintroduce removed
+    # fields while historical JSONB rows continue to load safely.
+    model_config = ConfigDict(extra="ignore")
 
     status: ContentArchitectStatus = ContentArchitectStatus.NOT_STARTED
     model_profile: str = ""
@@ -301,8 +300,6 @@ class ContentArchitectState(BaseModel):
     omissions: list[str] = Field(default_factory=list)
     unresolved_issues: list[str] = Field(default_factory=list)
     privacy_and_confidentiality: list[str] = Field(default_factory=list)
-    media_status: dict[str, Any] = Field(default_factory=dict)
-    visual_director_handoff: dict[str, Any] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     stages_run: list[str] = Field(default_factory=list)
     memory: dict[str, Any] = Field(default_factory=dict)

@@ -9,14 +9,10 @@ from uuid import UUID
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oryxenai.agents.build_preparation.service import BuildPreparationService
-from oryxenai.agents.code_generator.core.development_service import CodeGeneratorDevelopmentService
-from oryxenai.agents.code_generator.service import CodeGeneratorService
 from oryxenai.agents.content_architect.service import ContentArchitectService
 from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
 from oryxenai.agents.shared.registry import AgentRegistry, default_registry
-from oryxenai.agents.visual_design_director.service import VisualDesignDirectorService
 from oryxenai.auth.admin.service import AdminService
 from oryxenai.auth.authorization import DurableAuthorizationContext, PortfolioAccess
 from oryxenai.auth.domain import AccountStatus, AuthRole, CurrentUser
@@ -25,18 +21,13 @@ from oryxenai.auth.errors import (
     AdminRequiredError,
     AuthRequiredError,
     OnboardingRequiredError,
-    PortfolioReadOnlyError,
 )
 from oryxenai.auth.jwt import extract_bearer_token
 from oryxenai.auth.service import AuthService
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
-from oryxenai.db.repositories.build_preparation import BuildPreparationRepository
-from oryxenai.db.repositories.code_generator import CodeGeneratorRepository
-from oryxenai.db.repositories.code_generator_development import CodeGeneratorDevelopmentRepository
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
-from oryxenai.db.repositories.visual_design_director import VisualDesignDirectorRepository
 from oryxenai.db.session import reset_engine_cache  # noqa: F401 (re-export for tests)
 from oryxenai.jobs.service import JobService
 from oryxenai.runtime.mock_runner import MockRunner
@@ -82,7 +73,7 @@ def get_admin_service(
     return AdminService(
         db=db,
         provider=request.app.state.auth_admin_provider,
-        preview_storage=getattr(request.app.state, "preview_storage", None),
+        archive_storage=getattr(request.app.state, "archive_storage", None),
         artifact_store=getattr(request.app.state, "artifact_store", None),
         settings=request.app.state.settings,
     )
@@ -188,11 +179,11 @@ async def require_pipeline_mutable(
         return access
     if access.actor.role is AuthRole.ADMIN:
         return access
-    if access.actor.entitlement is not None and access.actor.entitlement.read_only:
-        raise PortfolioReadOnlyError()
     row = await PortfolioEntitlementRepository(db).get_for_user(access.actor.id)
-    if row is not None and row.successful_run_id is not None:
-        raise PortfolioReadOnlyError()
+    if row is None or row.portfolio_session_id != access.session.id:
+        from oryxenai.auth.errors import EntitlementBindingConflictError
+
+        raise EntitlementBindingConflictError()
     return access
 
 
@@ -244,6 +235,7 @@ async def get_durable_context(
     actor = access.actor
     if actor is None:
         return DurableAuthorizationContext.from_access(access)
+    entitlement_revision = None
     if (
         access.session.owner_user_id is not None
         and access.session.owner_user_id == actor.id
@@ -258,7 +250,10 @@ async def get_durable_context(
             from oryxenai.auth.errors import EntitlementBindingConflictError
 
             raise EntitlementBindingConflictError()
-    return DurableAuthorizationContext.from_access(access)
+        entitlement_revision = row.revision
+    return DurableAuthorizationContext.from_access(
+        access, entitlement_revision=entitlement_revision
+    )
 
 
 async def get_pipeline_durable_context(
@@ -269,13 +264,17 @@ async def get_pipeline_durable_context(
     actor = access.actor
     if actor is None:
         return None
+    entitlement_revision = None
     if actor.role is AuthRole.USER:
         row = await PortfolioEntitlementRepository(db).get_for_user(actor.id)
         if row is None or row.portfolio_session_id != access.session.id:
             from oryxenai.auth.errors import EntitlementBindingConflictError
 
             raise EntitlementBindingConflictError()
-    return DurableAuthorizationContext.from_access(access)
+        entitlement_revision = row.revision
+    return DurableAuthorizationContext.from_access(
+        access, entitlement_revision=entitlement_revision
+    )
 
 
 async def require_mutable_portfolio(
@@ -289,11 +288,11 @@ async def require_mutable_portfolio(
         return access
     if actor.role is AuthRole.ADMIN:
         return access
-    if actor.entitlement is not None and actor.entitlement.read_only:
-        raise PortfolioReadOnlyError()
     row = await PortfolioEntitlementRepository(db).get_for_user(actor.id)
-    if row is not None and row.successful_run_id is not None:
-        raise PortfolioReadOnlyError()
+    if row is not None and row.portfolio_session_id != access.session.id:
+        from oryxenai.auth.errors import EntitlementBindingConflictError
+
+        raise EntitlementBindingConflictError()
     return access
 
 
@@ -335,41 +334,4 @@ def get_content_architect_service(
     """Build a Content Architect service bound to the request transaction."""
     return ContentArchitectService(
         ContentArchitectRepository(db), JobService(db, context), registry
-    )
-
-
-def get_visual_design_director_service(
-    db: AsyncSession = Depends(get_db_session),
-    registry: AgentRegistry = Depends(get_agent_registry),
-    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
-) -> VisualDesignDirectorService:
-    """Build a Visual Design Director service bound to the request transaction."""
-    return VisualDesignDirectorService(
-        VisualDesignDirectorRepository(db), JobService(db, context), registry
-    )
-
-
-def get_build_preparation_service(
-    db: AsyncSession = Depends(get_db_session),
-    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
-) -> BuildPreparationService:
-    return BuildPreparationService(BuildPreparationRepository(db), JobService(db, context))
-
-
-def get_code_generator_development_service(
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-) -> CodeGeneratorDevelopmentService:
-    return CodeGeneratorDevelopmentService(
-        CodeGeneratorDevelopmentRepository(db), JobService(db), request.app.state.settings
-    )
-
-
-def get_code_generator_service(
-    request: Request,
-    db: AsyncSession = Depends(get_db_session),
-    context: DurableAuthorizationContext = Depends(get_durable_context),
-) -> CodeGeneratorService:
-    return CodeGeneratorService(
-        CodeGeneratorRepository(db), JobService(db, context), request.app.state.settings
     )

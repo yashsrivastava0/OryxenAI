@@ -15,7 +15,6 @@ export interface BootOptions {
   role: string;
   developer: boolean;
   serverSessionId: string | null;
-  readOnly: boolean;
 }
 
 let mountedRoot: HTMLElement | null = null;
@@ -29,7 +28,6 @@ export function boot(options: BootOptions): void {
       authorizedFetch={options.authorizedFetch}
       me={options.me}
       serverSessionId={options.serverSessionId}
-      readOnly={options.readOnly}
       developer={options.developer}
     />,
     root,

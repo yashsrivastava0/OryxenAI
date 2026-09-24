@@ -58,8 +58,7 @@ export function selectStageJob(
   if (jobKind) {
     return jobs.find((job) =>
       job.kind === jobKind ||
-      job.kind.endsWith(`.${jobKind}`) ||
-      (jobKind === "verify" && job.kind.endsWith(".verify_and_preview")),
+      job.kind.endsWith(`.${jobKind}`),
     ) ?? null;
   }
   return jobs.at(-1) ?? null;

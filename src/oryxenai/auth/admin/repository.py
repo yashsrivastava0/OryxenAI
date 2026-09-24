@@ -20,12 +20,12 @@ from oryxenai.auth.models import (
     PortfolioEntitlement,
 )
 from oryxenai.db.models.agent_run import AgentRun
-from oryxenai.db.models.background_job import BackgroundJob
-from oryxenai.db.models.code_generator_development import (
-    CodeGeneratorDevelopmentEvent,
-    CodeGeneratorDevelopmentRun,
-    CodeGeneratorStageAttempt,
+from oryxenai.db.models.archived_output import (
+    ArchivedOutputAttempt,
+    ArchivedOutputEvent,
+    ArchivedOutputRun,
 )
+from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.jobs.contracts import JobStatus
 
@@ -41,7 +41,6 @@ _SAFE_DETAIL_KEYS = frozenset(
         "portfolio_count",
         "readmission_approved",
         "portfolio_deleted",
-        "had_promoted_success",
         "accepted",
         "session_id",
     }
@@ -52,7 +51,6 @@ _SAFE_BOOLEAN_KEYS = frozenset(
         "can_create_portfolio",
         "readmission_approved",
         "portfolio_deleted",
-        "had_promoted_success",
         "accepted",
     }
 )
@@ -471,14 +469,10 @@ class AdminRepository:
     ) -> None:
         """Delete one already-fenced aggregate in declared FK order."""
         entitlement = None
-        had_success = False
         if session.owner_user_id is not None and not session.legacy_quarantined:
             entitlement = await self.get_entitlement(session.owner_user_id, lock=True)
-            had_success = entitlement is not None and entitlement.successful_run_id is not None
             if entitlement is not None and entitlement.portfolio_session_id == session.id:
                 entitlement.portfolio_session_id = None
-                entitlement.generation_run_id = None
-                entitlement.successful_run_id = None
                 entitlement.deleted_portfolio_session_id = session.id
                 entitlement.project_deleted_at = datetime.now(UTC)
                 entitlement.revision += 1
@@ -490,21 +484,17 @@ class AdminRepository:
         await self.session.execute(
             delete(AgentRun).where(AgentRun.portfolio_session_id == session.id)
         )
-        run_ids = select(CodeGeneratorDevelopmentRun.id).where(
-            CodeGeneratorDevelopmentRun.portfolio_session_id == session.id
+        run_ids = select(ArchivedOutputRun.id).where(
+            ArchivedOutputRun.portfolio_session_id == session.id
         )
         await self.session.execute(
-            delete(CodeGeneratorStageAttempt).where(CodeGeneratorStageAttempt.run_id.in_(run_ids))
+            delete(ArchivedOutputAttempt).where(ArchivedOutputAttempt.run_id.in_(run_ids))
         )
         await self.session.execute(
-            delete(CodeGeneratorDevelopmentEvent).where(
-                CodeGeneratorDevelopmentEvent.run_id.in_(run_ids)
-            )
+            delete(ArchivedOutputEvent).where(ArchivedOutputEvent.run_id.in_(run_ids))
         )
         await self.session.execute(
-            delete(CodeGeneratorDevelopmentRun).where(
-                CodeGeneratorDevelopmentRun.portfolio_session_id == session.id
-            )
+            delete(ArchivedOutputRun).where(ArchivedOutputRun.portfolio_session_id == session.id)
         )
         await self.session.execute(
             delete(DeletedPortfolioTombstone).where(
@@ -516,7 +506,6 @@ class AdminRepository:
                 original_session_id=session.id,
                 former_owner_user_id=None if session.legacy_quarantined else session.owner_user_id,
                 legacy_quarantined=session.legacy_quarantined,
-                had_promoted_success=had_success,
                 deleted_by=actor_id,
             )
         )
@@ -529,5 +518,5 @@ class AdminRepository:
                 actor_id=actor_id,
                 outcome="completed",
                 request_id=request_id,
-                safe_state={"portfolio_deleted": True, "had_promoted_success": had_success},
+                safe_state={"portfolio_deleted": True},
             )

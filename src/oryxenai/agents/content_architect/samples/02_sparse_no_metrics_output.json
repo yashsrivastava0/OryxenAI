@@ -6,10 +6,16 @@
     "secondary_audience": "",
     "primary_action": "Contact for an entry-level interview",
     "narrative_thesis": "A focused, honest first portfolio: what Sam built and specifically contributed, without inflating scope.",
-    "leading_evidence": ["Campus Event Finder"],
-    "supporting_evidence": ["Habit Tracker"],
+    "leading_evidence": [
+      "Campus Event Finder"
+    ],
+    "supporting_evidence": [
+      "Habit Tracker"
+    ],
     "shortened_or_omitted": [],
-    "content_risks": ["No metrics available for either project — public copy must stay qualitative."],
+    "content_risks": [
+      "No metrics available for either project — public copy must stay qualitative."
+    ],
     "presentation_mode": "single_page",
     "presentation_rationale": "Two small projects and no work history do not justify separate routes; one honest page reads stronger than a padded multi-page site."
   },
@@ -38,9 +44,17 @@
       "audience_takeaway": "Sam has hands-on project experience and clear, honest contributions.",
       "priority": "primary",
       "content_density": "light",
-      "section_sequence": ["hero", "about", "projects", "contact"],
+      "section_sequence": [
+        "hero",
+        "about",
+        "projects",
+        "contact"
+      ],
       "mobile_notes": "",
-      "source_refs": ["profile.projects", "profile.education[0]"],
+      "source_refs": [
+        "profile.projects",
+        "profile.education[0]"
+      ],
       "publication_status": "approved"
     }
   ],
@@ -51,17 +65,29 @@
         {
           "section_id": "hero",
           "purpose": "Introduce Sam.",
-          "content": {"eyebrow": "Computer Science Graduate", "headline": "Building things, one project at a time.", "cta": "Get in touch"},
+          "content": {
+            "eyebrow": "Computer Science Graduate",
+            "headline": "Building things, one project at a time.",
+            "cta": "Get in touch"
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
-          "link_targets": [{"label": "Get in touch", "href": "#contact", "kind": "anchor"}]
+          "link_targets": [
+            {
+              "label": "Get in touch",
+              "href": "#contact",
+              "kind": "anchor"
+            }
+          ]
         },
         {
           "section_id": "about",
           "purpose": "Summarize background.",
-          "content": {"text": "Sam recently graduated with a B.S. in Computer Science and has built two small projects — a group course project and a personal side project."},
+          "content": {
+            "text": "Sam recently graduated with a B.S. in Computer Science and has built two small projects — a group course project and a personal side project."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -83,7 +109,10 @@
               }
             ]
           },
-          "claim_ids": ["claim_campus_event_finder_contribution", "claim_habit_tracker_solo"],
+          "claim_ids": [
+            "claim_campus_event_finder_contribution",
+            "claim_habit_tracker_solo"
+          ],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
@@ -92,7 +121,9 @@
         {
           "section_id": "contact",
           "purpose": "Closing CTA.",
-          "content": {"text": "Looking for a first developer role — happy to talk."},
+          "content": {
+            "text": "Looking for a first developer role — happy to talk."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -106,7 +137,12 @@
     }
   ],
   "public_content_manifest": {
-    "nav": [{"label": "Home", "target": "home"}],
+    "nav": [
+      {
+        "label": "Home",
+        "target": "home"
+      }
+    ],
     "contact_cta": "Looking for a first developer role — happy to talk."
   },
   "claim_grounding": [
@@ -131,27 +167,20 @@
       "confidence_or_warning": ""
     }
   ],
-  "omissions": ["No employer/work history section — none exists yet."],
+  "omissions": [
+    "No employer/work history section — none exists yet."
+  ],
   "unresolved_issues": [
     "No metrics available for either project; public copy stays qualitative rather than inventing numbers.",
     "Exact team scope of Campus Event Finder is unclear beyond Sam's stated feature."
   ],
   "privacy_and_confidentiality": [],
-  "media_status": {"screenshots": "unknown", "demo_links": "unavailable"},
-  "visual_director_handoff": {
-    "content_hierarchy": ["hero", "projects", "contact"],
-    "density_guidance": {"home": "light"},
-    "long_copy_risks": [],
-    "storytelling_opportunities": ["A screenshot of either project, if one becomes available, would help more than prose."],
-    "available_media": [],
-    "unavailable_media": ["screenshots", "live demo links"],
-    "diagram_opportunities": [],
-    "confidentiality_restrictions": [],
-    "must_preserve": ["Sam's contribution is scoped to the search/filtering feature only"],
-    "mobile_shortenable": [],
-    "never_fabricate": ["usage metrics", "team size", "a live demo link"]
-  },
-  "warnings": ["Campus Event Finder's contribution claim is pending — team scope is unconfirmed."],
-  "stages_run": ["plan_content"],
-  "memory_update": {}
+  "warnings": [
+    "Campus Event Finder's contribution claim is pending — team scope is unconfirmed."
+  ],
+  "memory_update": {},
+  "mode": "STRATEGY_AND_CONTENT",
+  "content_included": true,
+  "integration_needed": false,
+  "user_summary": "Sam's plan stays concise and grounded in the available evidence: a student profile, a group course project, and a personal habit-tracking app. It makes the internship goal clear without adding metrics, work experience, or unsupported project outcomes. The course project's team context remains distinct from Sam's individual contribution, and the public copy uses neutral wording where team scope is unclear. The result gives Sam a useful starting point without padding a sparse profile with generic claims. The available material is enough to review the positioning, project descriptions, open details, and contact path together. The site content is ready for Sam to review and approve."
 }

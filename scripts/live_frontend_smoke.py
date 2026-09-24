@@ -1,8 +1,8 @@
 """Live smoke test through the HTTP API used by the frontend.
 
 This creates a session, drives Discovery through approval, then explicitly
-starts and approves Content Architect and Visual Design Director. It uses the
-live configured model and has a hard overall timeout so it cannot wait forever.
+starts and approves Content Architect. It uses the live configured model and
+has a hard overall timeout so it cannot wait forever.
 
 Run:
     uv run python scripts/live_frontend_smoke.py
@@ -232,34 +232,9 @@ async def main() -> None:
             f"hash={content_approved['content_architect']['approved']['content_hash'][:16]}"
         )
 
-        design_path = f"/api/v1/sessions/{session_id}/visual-design-director"
-        design_start_path = f"{design_path}/start"
-        design_approve_path = f"{design_path}/approve"
-        design_started = await _request(client, "POST", design_start_path, json={})
-        print(f"[design-start] status={design_started['visual_design_director']['status']}")
-        design_review = await _poll_stage(
-            client, design_path, "visual_design_director", {"design_review"}, deadline
-        )
-        design = design_review["visual_design_director"]
-        if not design.get("visual_language") or not design.get("pages"):
-            raise SmokeFailure("design_review returned incomplete visual direction")
-        print(
-            f"[design-review] pages={len(design['pages'])} "
-            f"resources={len(design.get('resource_candidates') or [])}"
-        )
-        design_approved = await _request(client, "POST", design_approve_path, json={})
-        if design_approved["visual_design_director"]["status"] != "approved":
-            raise SmokeFailure(
-                f"design approval returned {design_approved['visual_design_director']['status']}"
-            )
-        print(
-            "[design-approve] status=approved "
-            f"hash={design_approved['visual_design_director']['approved']['visual_direction_hash'][:16]}"
-        )
-
         runs = await _request(client, "GET", f"/api/v1/sessions/{session_id}/runs")
         keys = {run["agent_key"] for run in runs}
-        expected_keys = {"discovery", "content_architect", "visual_design_director"}
+        expected_keys = {"discovery", "content_architect"}
         if keys != expected_keys:
             raise SmokeFailure(f"unexpected agent keys: {keys}")
         print(f"[runs] count={len(runs)} agent_keys={sorted(keys)}")

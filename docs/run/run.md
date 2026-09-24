@@ -13,27 +13,14 @@ or modify the Compose stack.
 
 ## What actually runs
 
-The main frontend is served by FastAPI. There is no separate frontend dev
-server for the Discovery or authenticated product workspace.
+FastAPI serves the authenticated product workspace and API. The active
+workflow has two explicit stages: Discovery and Content Architect. One
+PostgreSQL-backed worker executes their durable jobs. Approval is a separate
+user action, and approving the content plan ends the current workflow.
 
-The application process serves (native base config is detached; Docker is
-attached):
-
-- `/` — mode-aware entry controller
-- `/app` — login-free detached pipeline workspace in native mode, or the
-  authenticated product workspace in attached mode
-- `/dev/build-preparation-fixture` — detached Build Preparation diagnostic UI
-- `/dev/code-generator-development` — standalone Code Generator UI
-- `/health/live` and `/health/ready` — process and database checks
-- `/api/v1/*` — session, stage, job, and diagnostic APIs
-
-One separate durable worker is required for queued Discovery, Content
-Architect, Visual Design Director, Build Preparation, and Code Generator jobs.
-The agents are not separate operating-system services; they are registered
-handlers executed by PostgreSQL-backed jobs.
-
-The preview gateway is optional for the main Discovery → Build Preparation
-flow. Start it for the standalone Code Generator workflow.
+The app and worker are separate processes. PostgreSQL stores sessions, current
+state, run snapshots, and durable jobs. Historical output remains stored for
+authorized cleanup and audit; current APIs project only supported state.
 
 ## One-time setup
 
@@ -42,17 +29,14 @@ from another machine.
 
 ### Required tools
 
-- Python `3.13` — the project requires `>=3.13,<3.14`.
-- `uv`.
-- PostgreSQL. The doctor locates `psql` and `pg_isready` through `PATH` or
-  standard installed PostgreSQL directories.
-- Docker Desktop only when using Docker mode.
-- Node.js/npm when running Code Generator generation and verification.
-- Chromium or the browser required by the configured verification profile for
-  Code Generator verification.
+- Python 3.13; the project requires >=3.13,<3.14.
+- uv.
+- PostgreSQL for native development and database-backed checks.
+- Docker Desktop for Compose mode.
+- Node.js/npm only when building or checking the product frontend.
 
-The main FastAPI frontend uses checked-in static assets. npm dependencies are
-not required merely to start the frontend or worker.
+The frontend uses the checked-in static bundle when serving the product.
+npm dependencies are not needed to start the API or worker.
 
 ### Python environment
 
@@ -73,51 +57,26 @@ those directories.
 
 ### Secrets and provider configuration
 
-Create the local secret file once:
+Create the local secret file only when it does not already exist:
 
-```powershell
-if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-notepad .env
-```
+    if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 
 Linux/macOS:
 
-```bash
-test -f .env || cp .env.example .env
-${EDITOR:-vi} .env
-```
+    test -f .env || cp .env.example .env
 
-At minimum, set `POSTGRES_PASSWORD` to the password of the local `oryxen`
-database role in native mode. Docker uses the same value to initialize its
-PostgreSQL container.
-
-Model profiles name their credential environment variables through
-`api_key_env` in `config/models.toml`. Do not hardcode provider, model, or key
-names in scripts or documentation. Inspect the configured names safely:
-
-```powershell
-Select-String -Path config/models.toml -Pattern 'api_key_env'
-```
-
-```bash
-rg 'api_key_env' config/models.toml
-```
-
-Set the corresponding values in `.env` before starting a real model-backed
-stage. The application and worker can boot without model credentials, but a
-requested live operation fails clearly when its configured key is missing.
-
-`.env.example` also documents optional credentials for Supabase, image
-retrieval, and temporary artifact storage. Only fill credentials for the
-workflow being run. Never print, commit, or paste secret values into this
-runbook or terminal output.
+Never overwrite an existing .env or inspect another device's secrets.
+Set the local PostgreSQL password and only the model-provider credentials
+needed for a live operation. Model profile names and credential-variable names
+come from config/models.toml. The API and worker can start without model
+credentials; a requested live call reports a safe configuration error if its
+credential is missing.
 
 ## Option A — native development, no Docker
 
-This is the fast iteration path. PostgreSQL, migrations, FastAPI, the worker,
-and the optional preview gateway run natively. The helper scripts select
-`config/app.native.toml`, which uses `127.0.0.1:5432` and enables developer
-surfaces.
+PostgreSQL, migrations, FastAPI, and the durable worker run natively. The
+helper scripts use config/app.native.toml and the local PostgreSQL default on
+127.0.0.1:5432.
 
 ### Create the local PostgreSQL role and database
 
@@ -183,76 +142,49 @@ They take priority over the TOML `[database]` block wherever
 
 Run migrations once after PostgreSQL is available:
 
-```powershell
-.\scripts\run-native.ps1 migrate
-```
+    .\scripts\run-native.ps1 migrate
 
 Open separate PowerShell windows from the repository root:
 
-```powershell
-# Window 1 — FastAPI, frontend, and API; reloads Python changes.
-.\scripts\run-native.ps1 api
-
-# Window 2 — durable PostgreSQL worker; keep exactly one worker on this DB.
-.\scripts\run-native.ps1 worker
-
-# Window 3 — optional Code Generator preview gateway.
-.\scripts\run-native.ps1 preview
-```
+    .\scripts\run-native.ps1 api
+    .\scripts\run-native.ps1 worker
 
 Run diagnostics in another window when needed:
 
-```powershell
-.\scripts\run-native.ps1 doctor
-```
+    .\scripts\run-native.ps1 doctor
 
 ### Run native services on Linux/macOS
 
 Make the shell helper executable once:
 
-```bash
-chmod +x scripts/run-native.sh
-```
+    chmod +x scripts/run-native.sh
 
 Then run migrations and use separate terminals:
 
-```bash
-./scripts/run-native.sh migrate
-./scripts/run-native.sh api
-./scripts/run-native.sh worker
-./scripts/run-native.sh preview
-```
+    ./scripts/run-native.sh migrate
+    ./scripts/run-native.sh api
+    ./scripts/run-native.sh worker
 
-The preview command is optional. Run diagnostics with:
+Run diagnostics with:
 
-```bash
-./scripts/run-native.sh doctor
-```
+    ./scripts/run-native.sh doctor
 
 ### Verify native startup
 
-These checks do not make a model call:
+These checks do not call a model:
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health/live
-Invoke-RestMethod http://127.0.0.1:8000/health/ready
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/
-uv run alembic current
-```
+    Invoke-RestMethod http://127.0.0.1:8000/health/live
+    Invoke-RestMethod http://127.0.0.1:8000/health/ready
+    Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/app
+    uv run alembic current
 
 Expected results:
 
-- `/health/live` returns `{"status":"alive"}`.
-- `/health/ready` returns HTTP `200` with database `up`.
-- `/app` returns no-store detached HTML directly, without Supabase or a bearer
-  token. PostgreSQL owns its opaque pipeline UUID and stage state.
-- `alembic current` reports the checked-in head without a hardcoded revision
-  number in this document.
-- The worker terminal continues without a database or configuration exception.
-
-The detached four-stage workspace does not require authentication. Administrator
-APIs, Code Generator surfaces, `/api/v1/system/status`, and other protected
-product/developer routes retain their attached authorization boundaries.
+- /health/live reports process liveness.
+- /health/ready returns HTTP 200 when PostgreSQL is available.
+- /app serves the configured product shell.
+- alembic current reports the checked-in database revision.
+- The worker remains running without configuration or database errors.
 
 ### Native change workflow
 
@@ -268,217 +200,59 @@ product/developer routes retain their attached authorization boundaries.
 ## Option B — Docker Compose development
 
 Use this mode for the production-like local topology. Compose supplies
-PostgreSQL, the migration job, FastAPI/UI, the durable worker, and the shared
-preview gateway.
+PostgreSQL, the migration job, the API, and the durable worker.
 
 ### Start the main stack
 
-Create `.env`, ensure Docker Desktop is running, and run:
+Create .env only if it is absent, ensure Docker Desktop is running, and run:
 
-```powershell
-docker info
-docker compose build migrate app worker preview-gateway
-docker compose up -d migrate app worker preview-gateway
-docker compose ps
-```
+    docker info
+    docker compose build migrate app worker
+    docker compose up -d migrate app worker
+    docker compose ps
 
-The migration service must complete successfully before the API and worker
-start. The normal topology is:
-
-```text
-postgres (host 5544) → migrate → app (host 8000) + worker + preview-gateway (host 4174)
-```
+The migration service must finish successfully before the API and worker
+start. PostgreSQL is published on host port 5544; the app is on port 8000.
 
 Verify it:
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health/live
-Invoke-RestMethod http://127.0.0.1:8000/health/ready
-Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/
-docker compose ps
-```
+    Invoke-RestMethod http://127.0.0.1:8000/health/live
+    Invoke-RestMethod http://127.0.0.1:8000/health/ready
+    Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/app
+    docker compose ps
 
-The app and worker containers must be running, PostgreSQL must be healthy,
-and the migration container must have exited successfully. Use
-`docker compose logs --tail 200 app worker preview-gateway migrate` for diagnostics.
+The API and worker must be running, PostgreSQL must be healthy, and the
+migration container must have exited successfully. For diagnostics, use
+docker compose logs --tail 200 app worker migrate.
 
-The application image contains a copy of the repository. Rebuild after
-Python, prompt, configuration, migration, or dependency changes:
+Rebuild after Python, prompt, configuration, migration, or dependency changes:
 
-```powershell
-docker compose build migrate app worker preview-gateway
-docker compose up -d migrate app worker preview-gateway
-```
+    docker compose build migrate app worker
+    docker compose up -d migrate app worker
 
-Changing `.env` also requires recreating affected containers so the new
-environment is loaded. A plain restart does not copy changed source files into
-an old image.
+Changing .env requires recreating affected containers. A plain restart does
+not copy source changes into an old image.
 
 ### Stop the main stack safely
 
-```powershell
-docker compose stop app worker preview-gateway postgres
-docker compose ps
-```
+    docker compose stop app worker postgres
+    docker compose ps
 
-`docker compose down` removes containers but preserves the named volume unless
-`-v` is supplied. Do not use `docker compose down -v`, `DROP DATABASE`, or
-`TRUNCATE` during ordinary development; those commands can remove sessions,
-jobs, and generated-work evidence.
+docker compose down removes containers but preserves the named volume unless
+-v is supplied. Do not use docker compose down -v, DROP DATABASE, or TRUNCATE
+during ordinary development; those commands can remove user sessions and
+historical work.
 
-### Docker Build Preparation validation
+## Run the active workflow
 
-The detached validation service is not part of the default stack:
+1. Start Discovery, provide the requested information, review the brief, and
+   approve it.
+2. Explicitly start Content Architect from the approved Discovery snapshot.
+3. Review, revise if needed, and approve the content plan.
 
-```powershell
-# Deterministic fixture validation.
-docker compose --profile build-validation run --rm build-validation
-
-# Explicit live model/provider validation.
-docker compose --profile build-validation run --rm build-validation --live-model --live-providers
-```
-
-The live form requires configured model, image-provider, and temporary
-artifact credentials. It must fail visibly when a requested provider is not
-available; it must not silently substitute fixture output.
-
-## Running the agent pipeline
-
-Use the authenticated product workspace at `http://127.0.0.1:8000/` and follow
-the explicit stage order:
-
-1. Complete Discovery and approve its brief.
-2. Explicitly start Content Architect and approve its output.
-3. Explicitly start Visual Design Director and approve its output.
-4. Explicitly start Build Preparation and wait for its durable job.
-5. Start Code Generator only when the Build Preparation handoff is eligible.
-
-Approval does not automatically start the next stage. Each stage uses the
-shared API/worker and the configured model profile. Startup checks do not call
-the model; live calls happen only after the user starts a live operation.
-
-For a detached Build Preparation run, use:
-
-- `http://127.0.0.1:8000/dev/build-preparation-fixture`
-- `http://127.0.0.1:8000/dev/build-preparation-fixture/progress`
-
-The fixture page is diagnostic/development-only. Use the production session
-route when testing the approved session pipeline.
-
-## Standalone Code Generator development
-
-### Native Code Generator
-
-The native overlay enables the developer UI and uses local filesystem preview
-storage. Start the native API, worker, and preview gateway, then open:
-
-```text
-http://127.0.0.1:8000/dev/code-generator-development
-```
-
-Before generating, check the page readiness result and run its provider
-preflight. A real run also needs configured Code Generator credentials,
-Node/npm, a valid Build Preparation pack or privacy-safe fixture, and the
-configured browser.
-
-### Product Generate & Preview without upstream stages
-
-The standalone control room and the authenticated product shell are separate
-surfaces. To validate the product Generate & Preview UI against a real
-standalone run, start the browser fixture server in another terminal:
-
-```powershell
-Set-Location frontend
-npx vite --config vite.browser-test.config.ts
-```
-
-After the standalone control room creates a run, use its **Open product
-preview fixture** link. It opens
-`http://127.0.0.1:4178/?fixture=generation-direct&run_id=<RUN_ID>`.
-The fixture reads only the existing development run and preview projections,
-polls while the run is active, stops on `ready` or `needs_attention`, and
-renders the same Preact `GenerationStage` used by the product shell. The Vite
-`/api` proxy and preview embed allowlist are already configured for the native
-ports.
-
-For a deterministic UI-only failure check that does not call the API, open:
-
-```text
-http://127.0.0.1:4178/?fixture=generation-planning-failed
-```
-
-That fixture reproduces the important regression shape: the run still says
-`planning`, its active job is `failed`, and the run-level error is absent. The
-adapter must show **Generation needs attention**, surface the safe job error,
-stop polling, and avoid offering a retry when `retry_available` is false.
-This gives us a two-layer test strategy: real standalone runs validate the
-run/preview projection and preview origin, while deterministic fixtures and
-unit tests validate failure convergence and control behavior without needing
-to execute Discovery, Content Architect, or Visual Design Director first.
-
-### Isolated Docker Code Generator
-
-The standalone Docker workflow uses a separate database and Compose project.
-The checked-in overlay is `config/app.docker.codegen-run.toml`.
-
-```powershell
-$Project = "oryxenai-codegen"
-$Overlay = "config/app.docker.codegen-run.toml"
-$Workspace = (Resolve-Path (New-Item -ItemType Directory -Force .workspace)).Path
-
-docker compose -p $Project build migrate app worker preview-gateway
-docker compose -p $Project up -d postgres
-
-$ready = $false
-while (-not $ready) {
-    docker compose -p $Project exec -T postgres pg_isready -U oryxen -d oryxenai *> $null
-    $ready = $LASTEXITCODE -eq 0
-    if (-not $ready) { Start-Sleep -Seconds 2 }
-}
-
-$dbExists = docker compose -p $Project exec -T postgres psql -U oryxen -d oryxenai -Atc `
-    "SELECT 1 FROM pg_database WHERE datname = 'oryxenai_codegen_run';"
-if (($dbExists | Out-String).Trim() -ne "1") {
-    docker compose -p $Project exec -T postgres psql -U oryxen -d oryxenai -c `
-        "CREATE DATABASE oryxenai_codegen_run;"
-}
-
-docker compose -p $Project run --rm --no-deps `
-    -e OryxenAI_CONFIG_OVERLAY=$Overlay migrate
-
-docker compose -p $Project run --rm -d --no-deps -p 8001:8000 `
-    -v "${Workspace}:/app/.workspace" `
-    -v "${PWD}/output:/app/output" `
-    -e OryxenAI_CONFIG_OVERLAY=$Overlay `
-    app uvicorn oryxenai.main:app --host 0.0.0.0 --port 8000
-
-docker compose -p $Project run --rm -d --no-deps `
-    -v "${Workspace}:/app/.workspace" `
-    -e OryxenAI_CONFIG_OVERLAY=$Overlay `
-    worker python -m oryxenai.jobs.worker
-
-docker compose -p $Project run --rm -d --no-deps -p 4174:4174 `
-    -v "${Workspace}:/app/.workspace" `
-    -e OryxenAI_CONFIG_OVERLAY=$Overlay `
-    preview-gateway python -m oryxenai.preview.gateway
-
-docker compose -p $Project ps
-```
-
-Open `http://127.0.0.1:8001/dev/code-generator-development`. The detached
-page has no auth or session logic; it reads the latest eligible pack from
-`output/build-preparation`. Generated sites are exported under
-`output/code-gen-output`; preview objects are stored in
-`.workspace/code-generator-preview`. Stop the isolated containers without
-deleting evidence:
-
-```powershell
-docker compose -p $Project rm -f -s app worker preview-gateway
-docker compose -p $Project stop postgres
-```
-
-Do not use `down -v` unless intentionally resetting this separate Code
-Generator database and its volumes.
+Approval never silently starts another stage. The worker handles each durable
+job, and model calls use the configured profile. Local liveness and readiness
+checks do not call the model.
 
 ## Tests and checks
 
@@ -545,16 +319,6 @@ docker compose up -d migrate app worker
 ```
 
 Use native mode when rapid source iteration is the priority.
-
-### Preview gateway port `4174` conflict (native + isolated Docker Code Generator)
-
-Native mode's preview gateway (`config/app.toml` `preview_port`) and the
-isolated Docker Code Generator workflow's published port both default to
-`4174`. Running both at once on the same machine collides. Stop whichever
-one you're not actively using, or change one side's port (native:
-`preview_port` in an overlay; isolated Docker: the `-p 4174:4174` mapping in
-the command above) — they don't need to match each other since they're
-unrelated stacks.
 
 ### Switching between native and Docker shows different data
 

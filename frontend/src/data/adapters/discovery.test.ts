@@ -62,12 +62,12 @@ describe("adaptDiscovery", () => {
     const vm = adaptDiscovery({
       status: "needs_attention",
       latest_error: {
-        message: "Question generation timed out.",
+        message: "Question drafting timed out.",
         operation: "understand_and_question",
       },
     });
     expect(vm.safeError).toEqual({
-      summary: "Question generation timed out.",
+      summary: "Question drafting timed out.",
       operationLabel: "understand_and_question",
       retryOperation: "questions",
     });

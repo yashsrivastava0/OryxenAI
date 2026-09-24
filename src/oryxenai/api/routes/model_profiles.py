@@ -86,8 +86,6 @@ async def preflight_pipeline_model_profile(
             [
                 "discovery",
                 "content_architect",
-                "visual_design_director",
-                "build_preparation",
             ],
             body.model_profile,
         )

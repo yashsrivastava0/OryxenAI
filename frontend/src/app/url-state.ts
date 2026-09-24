@@ -1,8 +1,6 @@
-// Small URL codec for the authenticated five-stage product. Generate &
-// Preview is a merged final stage (D-081 supersedes D-063's "ends at Build
-// Preparation" boundary); there is no separate "preview" stage id.
+// URL codec for the supported two-stage portfolio workflow.
 
-export type JourneyStageId = "discover" | "content" | "design" | "prepare" | "generate";
+export type JourneyStageId = "discover" | "content";
 export type ViewId = "start" | "work" | "artifact" | "progress";
 
 export interface AppUrlState {
@@ -10,7 +8,7 @@ export interface AppUrlState {
   view: ViewId | null;
 }
 
-const STAGE_VALUES: readonly JourneyStageId[] = ["discover", "content", "design", "prepare", "generate"];
+const STAGE_VALUES: readonly JourneyStageId[] = ["discover", "content"];
 const VIEW_VALUES: readonly ViewId[] = ["start", "work", "artifact", "progress"];
 
 function includesValue<T extends string>(values: readonly T[], candidate: string | null): candidate is T {

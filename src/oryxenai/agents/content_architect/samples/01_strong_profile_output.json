@@ -6,8 +6,14 @@
     "secondary_audience": "Peer engineers evaluating technical depth",
     "primary_action": "Schedule an interview",
     "narrative_thesis": "Depth over breadth: three distinct, adopted infrastructure systems, each with a clear personal contribution.",
-    "leading_evidence": ["QueueGuard", "LatencyLens"],
-    "supporting_evidence": ["Migrate-Safe", "Platform reliability working group"],
+    "leading_evidence": [
+      "QueueGuard",
+      "LatencyLens"
+    ],
+    "supporting_evidence": [
+      "Migrate-Safe",
+      "Platform reliability working group"
+    ],
     "shortened_or_omitted": [],
     "content_risks": [],
     "presentation_mode": "multi_page",
@@ -38,9 +44,17 @@
       "audience_takeaway": "Priya designs and ships infrastructure that other engineers depend on.",
       "priority": "primary",
       "content_density": "medium",
-      "section_sequence": ["hero", "about", "project_index", "contact"],
+      "section_sequence": [
+        "hero",
+        "about",
+        "project_index",
+        "contact"
+      ],
       "mobile_notes": "Collapse project_index into stacked cards.",
-      "source_refs": ["profile.experience[0]", "profile.projects"],
+      "source_refs": [
+        "profile.experience[0]",
+        "profile.projects"
+      ],
       "publication_status": "approved"
     },
     {
@@ -51,9 +65,16 @@
       "audience_takeaway": "Priya designs for failure, not just the happy path.",
       "priority": "primary",
       "content_density": "dense",
-      "section_sequence": ["problem", "contribution", "decisions", "outcome"],
+      "section_sequence": [
+        "problem",
+        "contribution",
+        "decisions",
+        "outcome"
+      ],
       "mobile_notes": "Keep the decisions section scannable with subheadings.",
-      "source_refs": ["profile.projects[0]"],
+      "source_refs": [
+        "profile.projects[0]"
+      ],
       "publication_status": "approved"
     },
     {
@@ -64,9 +85,15 @@
       "audience_takeaway": "Priya builds tools that make other engineers faster.",
       "priority": "secondary",
       "content_density": "medium",
-      "section_sequence": ["problem", "contribution", "outcome"],
+      "section_sequence": [
+        "problem",
+        "contribution",
+        "outcome"
+      ],
       "mobile_notes": "",
-      "source_refs": ["profile.projects[1]"],
+      "source_refs": [
+        "profile.projects[1]"
+      ],
       "publication_status": "approved"
     }
   ],
@@ -77,17 +104,29 @@
         {
           "section_id": "hero",
           "purpose": "Establish positioning and lead to the case studies.",
-          "content": {"eyebrow": "Senior Backend Engineer", "headline": "Infrastructure other engineers depend on.", "cta": "View case studies"},
+          "content": {
+            "eyebrow": "Senior Backend Engineer",
+            "headline": "Infrastructure other engineers depend on.",
+            "cta": "View case studies"
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "Keep the headline; shorten the eyebrow if needed.",
-          "link_targets": [{"label": "View case studies", "href": "#project_index", "kind": "anchor"}]
+          "link_targets": [
+            {
+              "label": "View case studies",
+              "href": "#project_index",
+              "kind": "anchor"
+            }
+          ]
         },
         {
           "section_id": "about",
           "purpose": "Summarize professional identity.",
-          "content": {"text": "Priya is a senior backend engineer who designs reliability-critical systems, from durable job queues to zero-downtime migration tooling."},
+          "content": {
+            "text": "Priya is a senior backend engineer who designs reliability-critical systems, from durable job queues to zero-downtime migration tooling."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -97,20 +136,36 @@
         {
           "section_id": "project_index",
           "purpose": "Link out to the three case studies.",
-          "content": {"items": ["queueguard", "latencylens", "migrate-safe"]},
+          "content": {
+            "items": [
+              "queueguard",
+              "latencylens",
+              "migrate-safe"
+            ]
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "Collapse into stacked cards.",
           "link_targets": [
-            {"label": "QueueGuard", "href": "/work/queueguard", "kind": "internal"},
-            {"label": "LatencyLens", "href": "/work/latencylens", "kind": "internal"}
+            {
+              "label": "QueueGuard",
+              "href": "/work/queueguard",
+              "kind": "internal"
+            },
+            {
+              "label": "LatencyLens",
+              "href": "/work/latencylens",
+              "kind": "internal"
+            }
           ]
         },
         {
           "section_id": "contact",
           "purpose": "Closing CTA.",
-          "content": {"text": "Open to staff backend roles."},
+          "content": {
+            "text": "Open to staff backend roles."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -126,7 +181,9 @@
         {
           "section_id": "problem",
           "purpose": "State the problem QueueGuard solved.",
-          "content": {"text": "Internal services needed a durable job queue that survives worker crashes without losing or duplicating work."},
+          "content": {
+            "text": "Internal services needed a durable job queue that survives worker crashes without losing or duplicating work."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -136,8 +193,12 @@
         {
           "section_id": "contribution",
           "purpose": "State Priya's personal contribution.",
-          "content": {"text": "Priya designed the retry/backoff strategy and the stale-job recovery model from scratch."},
-          "claim_ids": ["claim_queueguard_design"],
+          "content": {
+            "text": "Priya designed the retry/backoff strategy and the stale-job recovery model from scratch."
+          },
+          "claim_ids": [
+            "claim_queueguard_design"
+          ],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
@@ -146,7 +207,9 @@
         {
           "section_id": "decisions",
           "purpose": "Explain a key technical decision.",
-          "content": {"text": "Chose PostgreSQL row-locking over a dedicated queue broker to avoid adding new infrastructure."},
+          "content": {
+            "text": "Chose PostgreSQL row-locking over a dedicated queue broker to avoid adding new infrastructure."
+          },
           "claim_ids": [],
           "priority": "secondary",
           "optional": true,
@@ -156,8 +219,12 @@
         {
           "section_id": "outcome",
           "purpose": "State the supported outcome.",
-          "content": {"text": "Adopted by more than 40 internal services."},
-          "claim_ids": ["claim_queueguard_adoption"],
+          "content": {
+            "text": "Adopted by more than 40 internal services."
+          },
+          "claim_ids": [
+            "claim_queueguard_adoption"
+          ],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
@@ -172,7 +239,9 @@
         {
           "section_id": "problem",
           "purpose": "State the problem LatencyLens solved.",
-          "content": {"text": "Debugging P95 latency regressions required manually correlating logs across services."},
+          "content": {
+            "text": "Debugging P95 latency regressions required manually correlating logs across services."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -182,8 +251,12 @@
         {
           "section_id": "contribution",
           "purpose": "State Priya's personal contribution.",
-          "content": {"text": "Priya built the sampling and aggregation core of the tracing pipeline."},
-          "claim_ids": ["claim_latencylens_core"],
+          "content": {
+            "text": "Priya built the sampling and aggregation core of the tracing pipeline."
+          },
+          "claim_ids": [
+            "claim_latencylens_core"
+          ],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
@@ -192,7 +265,9 @@
         {
           "section_id": "outcome",
           "purpose": "State the supported outcome.",
-          "content": {"text": "Cut the time to root-cause a latency regression."},
+          "content": {
+            "text": "Cut the time to root-cause a latency regression."
+          },
           "claim_ids": [],
           "priority": "secondary",
           "optional": true,
@@ -205,9 +280,18 @@
   ],
   "public_content_manifest": {
     "nav": [
-      {"label": "Home", "target": "home"},
-      {"label": "QueueGuard", "target": "queueguard"},
-      {"label": "LatencyLens", "target": "latencylens"}
+      {
+        "label": "Home",
+        "target": "home"
+      },
+      {
+        "label": "QueueGuard",
+        "target": "queueguard"
+      },
+      {
+        "label": "LatencyLens",
+        "target": "latencylens"
+      }
     ],
     "contact_cta": "Open to staff backend roles — reach out via LinkedIn."
   },
@@ -253,24 +337,15 @@
       "confidence_or_warning": ""
     }
   ],
-  "omissions": ["Detailed org chart / team size not published — not relevant to the case studies."],
+  "omissions": [
+    "Detailed org chart / team size not published — not relevant to the case studies."
+  ],
   "unresolved_issues": [],
   "privacy_and_confidentiality": [],
-  "media_status": {"screenshots": "unavailable", "diagrams": "unavailable"},
-  "visual_director_handoff": {
-    "content_hierarchy": ["home.hero", "queueguard", "latencylens", "migrate-safe"],
-    "density_guidance": {"home": "medium", "queueguard": "dense"},
-    "long_copy_risks": [],
-    "storytelling_opportunities": ["A before/after latency diagram for LatencyLens would strengthen the case study."],
-    "available_media": [],
-    "unavailable_media": ["screenshots", "architecture diagrams"],
-    "diagram_opportunities": ["QueueGuard's retry/backoff flow could be shown as a simple process diagram."],
-    "confidentiality_restrictions": [],
-    "must_preserve": ["40+ internal services", "zero-downtime"],
-    "mobile_shortenable": ["home.project_index"],
-    "never_fabricate": ["specific latency numbers", "team size"]
-  },
   "warnings": [],
-  "stages_run": ["plan_content", "write_pages", "integrate_content"],
-  "memory_update": {}
+  "memory_update": {},
+  "mode": "STRATEGY_AND_CONTENT",
+  "content_included": true,
+  "integration_needed": true,
+  "user_summary": "This plan presents Priya as a backend engineer who builds reliability-focused infrastructure. The overview introduces her positioning and points visitors toward distinct case studies for QueueGuard and LatencyLens. QueueGuard leads with the documented retry and stale-job recovery work; LatencyLens supports the story with her tracing pipeline contribution. The profile also includes relevant skills, education, and a clear contact path. The copy keeps claims tied to the supplied evidence and distinguishes her contribution from broader team results. It avoids adding performance figures, team size, or outcomes not present in the source. The plan is ready for Priya to review the wording, route order, claims, and contact details together, then approve the final content."
 }

@@ -21,6 +21,11 @@ from oryxenai.api.dependencies import (
     require_session_owner_or_admin,
 )
 from oryxenai.api.errors import PayloadTooLargeError, ValidationError
+from oryxenai.api.projections import (
+    project_agent_input,
+    project_agent_output,
+    project_session_state,
+)
 from oryxenai.auth.authorization import PortfolioAccess
 from oryxenai.auth.domain import CurrentUser
 from oryxenai.core.logging import get_request_id
@@ -69,10 +74,10 @@ def _to_run_response(run: AgentRun) -> RunResponse:
         portfolio_session_id=str(run.portfolio_session_id),
         agent_key=run.agent_key,
         status=run.status,
-        input_payload=dict(run.input_payload or {}),
-        output_payload=run.output_payload,
-        state_before=dict(run.state_before or {}),
-        state_after=run.state_after,
+        input_payload=project_agent_input(run.agent_key, run.input_payload),
+        output_payload=project_agent_output(run.agent_key, run.output_payload),
+        state_before=project_session_state(run.state_before),
+        state_after=project_session_state(run.state_after),
         error_payload=run.error_payload,
         attempt=run.attempt,
         idempotency_key=run.idempotency_key,

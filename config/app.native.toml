@@ -7,8 +7,7 @@
 [app]
 host = "127.0.0.1"
 port = 8000
-# Keep the separate diagnostic/developer harnesses available in native runs.
-# The retired legacy pipeline shell is not mounted at /dev.
+# Keep the remaining diagnostic/developer harnesses available in native runs.
 enable_dev_ui = true
 
 [database]
@@ -25,24 +24,3 @@ allowed_origins = [
     "http://localhost:8001",
     "http://127.0.0.1:8001",
 ]
-
-# npm is resolved through PATH on both Windows (npm.cmd) and Unix-like hosts.
-[code_generator_dependencies]
-npm_executable = "npm"
-
-[code_generator_generation]
-typecheck_command = ["npm", "run", "typecheck"]
-source_audit_command = ["npm", "run", "source:audit"]
-
-[code_generator_verification]
-capability_proof_ttl_seconds = 900
-# D-094's preview-first acceptance policy is superseded (see DECISIONS.md):
-# it could downgrade required source/build/runtime diagnostics to advisory
-# and certify a broken candidate as `ready`. Native runs now use the same
-# strict, functionally-required acceptance behavior as every other overlay;
-# an unverified candidate remains visible via candidate_preview when the
-# build itself is safe, but only a verified candidate reaches `ready`.
-preview_first_acceptance = false
-install_command = ["npm", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
-typecheck_command = ["npm", "run", "typecheck"]
-build_command = ["npm", "run", "build"]

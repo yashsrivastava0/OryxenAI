@@ -185,7 +185,7 @@ class ContentArchitectService:
         running.run_id = str(run.id)
         running.job_id = str(job.id)
         running.attempt = 0
-        running.max_attempts = self._settings.worker_retry.first_four_max_attempts
+        running.max_attempts = self._settings.worker_retry.agent_job_max_attempts
         updated = await self._repository.save_content_architect_state(
             session_id, running, session.revision
         )
@@ -377,7 +377,6 @@ class ContentArchitectService:
             ],
             "public_content_manifest": state.public_content_manifest,
             "claim_grounding": [claim.model_dump(mode="json") for claim in state.claim_grounding],
-            "visual_director_handoff": state.visual_director_handoff,
         }
 
     def _check_discovery_not_stale(

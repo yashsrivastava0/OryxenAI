@@ -75,7 +75,6 @@ export async function bootDetachedProductShell({
     status: "active",
     onboarding_required: false,
     admin_available: true,
-    read_only: false,
     portfolio_session_id: null,
   };
   appController.boot({
@@ -86,7 +85,6 @@ export async function bootDetachedProductShell({
     role: "admin",
     me: defaultMe,
     serverSessionId: null,
-    readOnly: false,
   });
   reveal(globalRef.document);
   globalRef.addEventListener?.("pageshow", (event) => {

@@ -26,9 +26,7 @@ if TYPE_CHECKING:
     from oryxenai.agents.shared.model_runtime import ModelRuntime
 
 
-_FIRST_FOUR = frozenset(
-    {"discovery", "content_architect", "visual_design_director", "build_preparation"}
-)
+_PIPELINE_ENGINES = frozenset({"discovery", "content_architect"})
 
 
 class RoutedModelClient(ModelClient):
@@ -75,7 +73,9 @@ class RoutedModelClient(ModelClient):
                 input_classification=classification,
                 # A legacy first-four profile lock must not silently route to
                 # OpenAI/Anthropic.  It is retained only for API compatibility.
-                override_profile_name=(self._override if self._engine not in _FIRST_FOUR else ""),
+                override_profile_name=(
+                    self._override if self._engine not in _PIPELINE_ENGINES else ""
+                ),
             )
         )
         if not names:
@@ -176,7 +176,9 @@ class RoutedModelClient(ModelClient):
                 self._engine,
                 operation,
                 input_classification=classification,
-                override_profile_name=(self._override if self._engine not in _FIRST_FOUR else ""),
+                override_profile_name=(
+                    self._override if self._engine not in _PIPELINE_ENGINES else ""
+                ),
             ),
             estimated_input_tokens=max(1, len(str(input_payload)) // 4),
             input_classification=classification,
@@ -389,7 +391,7 @@ class RoutedModelClient(ModelClient):
 
     def _build_budget(self) -> OperationBudget:
         normal = 1
-        if self._engine in {"content_architect", "visual_design_director"}:
+        if self._engine == "content_architect":
             normal = 3
         route = self._runtime.router.operation_route(self._engine, "plan_content")
         recovery = int(route.recovery_allowance) if route is not None else 1
