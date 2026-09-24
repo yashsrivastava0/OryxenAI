@@ -21,7 +21,7 @@ describe("persisted final agent output", () => {
     expect(output).not.toHaveProperty("intake");
   });
 
-  it("keeps Content and Design artifacts exact when the server provides them", () => {
+  it("keeps Content Architect artifacts exact when the server provides them", () => {
     const content = finalAgentOutput("content_architect", {
       agent_output: {
         route_plan: [{ route_id: "home" }],
@@ -29,39 +29,10 @@ describe("persisted final agent output", () => {
         custom: { score: 0.8 },
       },
     });
-    const design = finalAgentOutput("visual_design_director", {
-      agent_output: {
-        visual_language: { creative_thesis: "Systems made visible" },
-        pages: [{ route_id: "home" }],
-        custom: { density: "high" },
-      },
-    });
-
     expect(content).toEqual({
       route_plan: [{ route_id: "home" }],
       page_content_packs: [{ route_id: "home" }],
       custom: { score: 0.8 },
-    });
-    expect(design).toEqual({
-      visual_language: { creative_thesis: "Systems made visible" },
-      pages: [{ route_id: "home" }],
-      custom: { density: "high" },
-    });
-  });
-
-  it("keeps Build Preparation's complete handoff output", () => {
-    expect(finalAgentOutput("build_preparation", {
-      agent_output: {
-        content_brief_markdown: "# Content brief",
-        visual_brief_markdown: "# Visual brief",
-        routes: [{ route_id: "home" }],
-        target_contract: "react-vite-v1",
-      },
-    })).toEqual({
-      content_brief_markdown: "# Content brief",
-      visual_brief_markdown: "# Visual brief",
-      routes: [{ route_id: "home" }],
-      target_contract: "react-vite-v1",
     });
   });
 });

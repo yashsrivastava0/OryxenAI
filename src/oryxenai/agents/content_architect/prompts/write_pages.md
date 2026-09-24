@@ -69,26 +69,18 @@ inside a specific page_content_packs entry. This is the approved public projecti
 or summarize a route or claim whose publication_status is "pending" or "blocked".
 </public_content_manifest>
 
-<visual_director_handoff>
-Populate visual_director_handoff now that the complete public content exists. Include content
-hierarchy and emphasis, density and responsive risks, storytelling/diagram opportunities, available
-and unavailable media, confidentiality restrictions, must-preserve wording, mobile-shortenable
-elements, and never-fabricate rules. This is the complete non-visual handoff that Visual Design
-Director needs; do not defer it merely because this is the page-writing operation.
-</visual_director_handoff>
-
 <integration_signal>
 Set integration_needed=true if, while writing multiple routes, you notice inconsistent terminology,
 repeated phrasing across routes, or navigation labels that do not read as one coherent site —
-someone else will run a short reconciliation pass afterward. Otherwise leave it false.
+the integrate_content operation should run afterward. Otherwise leave it false.
 </integration_signal>
 
 <approval_readiness>
 Before returning, verify that every approved route has exactly one complete content pack, section
 IDs exactly match its section_sequence in order, every section contains real visitor-facing copy,
-no approved-route section references a pending/blocked claim, and both public_content_manifest and
-visual_director_handoff are populated. The output must be immediately approvable without another
-content-writing step.
+no approved-route section references a pending/blocked claim, and
+public_content_manifest is populated. The output must be immediately approvable
+without another content-writing step.
 </approval_readiness>
 
 <format>

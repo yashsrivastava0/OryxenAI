@@ -66,8 +66,8 @@ async def _on_timeout_persisted(payload: dict[str, Any], error: dict[str, Any]) 
     outside, so its own try/except (which calls _persist_failure) never
     runs — this is the only chance to reflect a terminal timeout into the
     discovery session state instead of leaving it stuck at a "*_running"
-    status forever. See visual_design_director.py's identical hook for the
-    same live-reproduced issue.
+    status forever. Every durable agent handler uses the same timeout
+    reconciliation contract.
     """
     from oryxenai.core.settings import get_settings
 
@@ -76,7 +76,7 @@ async def _on_timeout_persisted(payload: dict[str, Any], error: dict[str, Any]) 
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.agent_job_max_attempts))
     operation = ""
     async with sessionmaker() as db:
         run = await DiscoveryRepository(db).get_run(run_id)
@@ -187,7 +187,7 @@ async def _execute_persisted(
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.agent_job_max_attempts))
     raw_job_id = payload.get("job_id")
     job_id = UUID(str(raw_job_id)) if raw_job_id else None
 

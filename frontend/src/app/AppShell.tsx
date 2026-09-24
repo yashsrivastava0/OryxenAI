@@ -3,9 +3,6 @@ import { AppStoreContext, appReducer, initialAppState } from "./store";
 import { createApiClient, type AuthorizedFetch, type CacheReceipt, type MeProjection, type StageEnvelope } from "../data/api-client";
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
-import { adaptVisualDesignDirector } from "../data/adapters/design";
-import { adaptBuildPreparation } from "../data/adapters/preparation";
-import { adaptCodeGenerator } from "../data/adapters/generation";
 import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "../data/idempotency";
 import { ApiError } from "../data/errors";
@@ -18,9 +15,6 @@ import { JourneyRail, type JourneyStageVM } from "../components/JourneyRail";
 import { StartSurface } from "../components/StartSurface";
 import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { ContentStage } from "../stages/content/ContentStage";
-import { DesignStage } from "../stages/design/DesignStage";
-import { BuildPreparationStage } from "../stages/preparation/BuildPreparationStage";
-import { GenerationStage } from "../stages/generation/GenerationStage";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
 import { safeSessionStorage } from "../data/safe-storage";
@@ -33,7 +27,6 @@ export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
   me: MeProjection;
   serverSessionId: string | null;
-  readOnly: boolean;
   developer?: boolean;
 }
 
@@ -45,9 +38,6 @@ function stageDisplayName(stage: JourneyStageId): string {
   switch (stage) {
     case "discover": return "Discover";
     case "content": return "Content";
-    case "design": return "Design";
-    case "prepare": return "Prepare";
-    case "generate": return "Generate & Preview";
     default: return "Studio";
   }
 }
@@ -56,9 +46,6 @@ function stagePurposeText(stage: JourneyStageId): string {
   switch (stage) {
     case "discover": return "Capture your goal, audience, key message and any reference material.";
     case "content": return "Define routes, narrative positioning, and section copy.";
-    case "design": return "Establish visual language, motion, and scene storyboards.";
-    case "prepare": return "Compile immutable brief pairs and verify readiness.";
-    case "generate": return "Synthesize code, verify multi-viewport quality, and promote preview.";
     default: return "Creative portfolio studio.";
   }
 }
@@ -82,63 +69,23 @@ function activeSessionStorageKey(userId: string): string {
 export function resolveInitialStage(
   requested: JourneyStageId | null,
   discoveryApproved: boolean,
-  contentApproved: boolean,
-  designApproved: boolean,
-  preparationApproved: boolean,
 ): { stage: JourneyStageId | null; corrected: boolean } {
   let fallback: JourneyStageId | null = null;
   if (requested === "content" && !discoveryApproved) fallback = "discover";
-  if (requested === "design" && !contentApproved) {
-    fallback = discoveryApproved ? "content" : "discover";
-  }
-  if (requested === "prepare" && !designApproved) {
-    fallback = contentApproved ? "design" : discoveryApproved ? "content" : "discover";
-  }
-  if (requested === "generate" && !preparationApproved) {
-    fallback = designApproved ? "prepare" : contentApproved ? "design" : discoveryApproved ? "content" : "discover";
-  }
   if (fallback) return { stage: fallback, corrected: true };
 
   // None of the backward branches fired, so the requested stage was never
   // ahead of approved progress. Now check the opposite: the requested/
-  // default stage sitting on "discover" while later stages are already
+  // default stage sitting on "discover" after the Discovery brief is
   // approved, which otherwise leaves the user stranded on stale Discovery
-  // content even though real progress exists.
+  // content even though Content is available.
   if (requested === null || requested === "discover") {
     let furthest: JourneyStageId = "discover";
     if (discoveryApproved) furthest = "content";
-    if (discoveryApproved && contentApproved) furthest = "design";
-    if (discoveryApproved && contentApproved && designApproved) furthest = "prepare";
-    if (discoveryApproved && contentApproved && designApproved && preparationApproved) furthest = "generate";
     if (furthest !== "discover") return { stage: furthest, corrected: true };
   }
 
   return { stage: null, corrected: false };
-}
-
-// Whether refetchCurrentSession should fetch Code Generator state at all
-// this pass. Fetching it unconditionally on every refresh (regardless of
-// whether generation was ever started) made the backend's correct 409
-// ENTITLEMENT_BINDING_CONFLICT rejection mark the whole refetch "stale" for
-// every session sitting in Discovery/Content/Design/Prepare. Pure and
-// exported for the same reason as resolveInitialStage.
-export function shouldFetchGenerationState(
-  preparationApproved: boolean,
-  knownGeneration: { sessionId: string; status: string } | null,
-  sessionId: string,
-): boolean {
-  if (preparationApproved) return true;
-  return knownGeneration !== null && knownGeneration.sessionId === sessionId && knownGeneration.status !== "not_started";
-}
-
-// Build Preparation completion is also the handoff that unlocks Code
-// Generator. The poller can finish the handoff between full session refetches,
-// so expose the available projection immediately instead of leaving the
-// navigator and Generate screen on the old locked projection until refresh.
-export function shouldExposeGenerationAfterPreparation(
-  currentState: string | null | undefined,
-): boolean {
-  return currentState === null || currentState === undefined || currentState === "locked";
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -155,7 +102,6 @@ export function AppShell({
   authorizedFetch,
   me,
   serverSessionId,
-  readOnly,
   developer = false,
 }: AppShellProps) {
   const initialUrl = useMemo(
@@ -178,7 +124,6 @@ export function AppShell({
   const [state, dispatch] = useReducer(appReducer, {
     ...initialAppState,
     me,
-    readOnly,
     sessionId: initialSessionId,
     activeStage: initialStage,
   });
@@ -187,13 +132,6 @@ export function AppShell({
   const pollerRef = useRef<PollCoordinator | null>(null);
   const invalidationChannelRef = useRef<InvalidationChannel | null>(null);
   const initialNormalizationDone = useRef(false);
-  // Tracks the last real (non-"not_started") Code Generator status seen for
-  // a session, so a later refetch keeps polling an already-started
-  // generation run even if an upstream stage's own state looks momentarily
-  // stale — a stale upstream edit must not hide a prior preview. Keyed by
-  // session id so switching sessions within one mounted AppShell (e.g. an
-  // administrator) never carries a prior session's generation state over.
-  const lastKnownGeneration = useRef<{ sessionId: string; status: string } | null>(null);
   const seenCacheReceipts = useRef(new Set<string>());
   const cacheNoticeId = useRef(0);
   const [cacheNotice, setCacheNotice] = useState<{ id: number; message: string } | null>(null);
@@ -210,7 +148,7 @@ export function AppShell({
     const cachedStages = Number(receipt.cached_stage_count ?? 0);
     const totalStages = Number(receipt.stage_count ?? 0);
     const detail = cachedStages > 0 && totalStages > cachedStages
-      ? `${cachedStages} of ${totalStages} generation steps`
+      ? `${cachedStages} of ${totalStages} model calls`
       : "this response";
     setCacheNotice({
       id: cacheNoticeId.current,
@@ -237,149 +175,60 @@ export function AppShell({
     dispatch({ type: "connection/set", state: "checking" });
     const sessionId = state.sessionId;
 
-    try {
-      const [sessionResult, discoveryResult, contentResult, designResult, preparationResult] = await Promise.allSettled([
-        api.getSession(sessionId),
-        api.getDiscovery(sessionId),
-        api.getContentArchitect(sessionId),
-        api.getVisualDesignDirector(sessionId),
-        api.getBuildPreparation(sessionId),
-      ]);
+    const [sessionResult, discoveryResult, contentResult] = await Promise.allSettled([
+      api.getSession(sessionId),
+      api.getDiscovery(sessionId),
+      api.getContentArchitect(sessionId),
+    ]);
 
-      if (sessionResult.status === "fulfilled") {
-        dispatch({
-          type: "session/set",
-          sessionId: sessionResult.value.id,
-          revision: sessionResult.value.revision,
-        });
-      }
-
-      let discoveryApproved = false;
-      if (discoveryResult.status === "fulfilled") {
-        inspectCacheReceipt("discovery", discoveryResult.value);
-        const view = adaptDiscovery(discoveryResult.value.discovery, discoveryResult.value.jobs);
-        discoveryApproved = view.state === "complete";
-        dispatch({ type: "discovery/set", view });
-      }
-
-      let contentApproved = false;
-      if (contentResult.status === "fulfilled") {
-        inspectCacheReceipt("content_architect", contentResult.value);
-        const view = adaptContentArchitect(
-          contentResult.value.content_architect,
-          discoveryApproved,
-          contentResult.value.jobs,
-        );
-        contentApproved = view.state === "complete";
-        dispatch({ type: "content/set", view });
-      }
-
-      let designApproved = false;
-      if (designResult.status === "fulfilled") {
-        inspectCacheReceipt("visual_design_director", designResult.value);
-        const view = adaptVisualDesignDirector(
-          designResult.value.visual_design_director,
-          contentApproved,
-          designResult.value.jobs,
-        );
-        designApproved = view.state === "complete";
-        dispatch({
-          type: "design/set",
-          view,
-        });
-      }
-
-      let preparationApproved = false;
-      if (preparationResult.status === "fulfilled") {
-        inspectCacheReceipt("build_preparation", preparationResult.value);
-        const view = adaptBuildPreparation(
-          preparationResult.value.build_preparation,
-          contentApproved,
-          designApproved,
-          preparationResult.value.jobs,
-        );
-        preparationApproved = view.state === "complete";
-        dispatch({ type: "preparation/set", view });
-      }
-
-      // Fetch Code Generator state only when it is actually relevant: once
-      // Build Preparation is ready, or when a prior fetch for this exact
-      // session already showed a real (non-"not_started") generation
-      // status. Fetching it unconditionally (as before) speculatively
-      // polled a stage that had never been started for every session on
-      // every refresh, and the backend's correct 409
-      // ENTITLEMENT_BINDING_CONFLICT rejection made the *entire* refetch
-      // report "stale" even though every other stage had just loaded fine.
-      let generationResult: PromiseSettledResult<StageEnvelope> | null = null;
-      if (shouldFetchGenerationState(preparationApproved, lastKnownGeneration.current, sessionId)) {
-        generationResult = await api.getCodeGenerator(sessionId).then(
-          (value) => ({ status: "fulfilled", value }) as const,
-          (reason) => ({ status: "rejected", reason }) as const,
-        );
-      }
-
-      if (generationResult !== null && generationResult.status === "fulfilled") {
-        inspectCacheReceipt("code_generator", generationResult.value);
-        const view = adaptCodeGenerator(
-          generationResult.value.code_generator,
-          preparationApproved,
-          generationResult.value.jobs,
-        );
-        dispatch({ type: "generation/set", view });
-        if (view.status !== "not_started") {
-          lastKnownGeneration.current = { sessionId, status: view.status };
-        }
-      } else if (generationResult === null) {
-        // Not started and not relevant yet -- use the explicit locked
-        // projection instead of leaving stale or absent generation state.
-        dispatch({
-          type: "generation/set",
-          view: adaptCodeGenerator({ status: "not_started" }, preparationApproved, []),
-        });
-      }
-
-      if (!initialNormalizationDone.current) {
-        initialNormalizationDone.current = true;
-        const requested = initialUrl.stage;
-        const resolved = resolveInitialStage(
-          requested,
-          discoveryApproved,
-          contentApproved,
-          designApproved,
-          preparationApproved,
-        );
-        if (resolved.corrected && resolved.stage) {
-          const target = resolved.stage;
-          selectStage(target, true);
-          dispatch({
-            type: "announce",
-            message:
-              requested === null || requested === "discover"
-                ? "Continuing from where you left off."
-                : `That stage is locked. Showing ${target} instead.`,
-          });
-        } else if (!requested && window.location.search) {
-          selectStage("discover", true);
-        }
-      }
-
-      // Freshness reflects only the requests actually attempted this pass —
-      // an intentionally-skipped Code Generator fetch is not a failure.
-      const attemptedResults: PromiseSettledResult<unknown>[] = [
-        sessionResult,
-        discoveryResult,
-        contentResult,
-        designResult,
-        preparationResult,
-      ];
-      if (generationResult !== null) attemptedResults.push(generationResult);
+    if (sessionResult.status === "fulfilled") {
       dispatch({
-        type: "connection/set",
-        state: attemptedResults.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
+        type: "session/set",
+        sessionId: sessionResult.value.id,
+        revision: sessionResult.value.revision,
       });
-    } catch {
-      dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
     }
+
+    let discoveryApproved = false;
+    if (discoveryResult.status === "fulfilled") {
+      inspectCacheReceipt("discovery", discoveryResult.value);
+      const view = adaptDiscovery(discoveryResult.value.discovery, discoveryResult.value.jobs);
+      discoveryApproved = view.state === "complete";
+      dispatch({ type: "discovery/set", view });
+    }
+
+    if (contentResult.status === "fulfilled") {
+      inspectCacheReceipt("content_architect", contentResult.value);
+      const view = adaptContentArchitect(
+        contentResult.value.content_architect,
+        discoveryApproved,
+        contentResult.value.jobs,
+      );
+      dispatch({ type: "content/set", view });
+    }
+
+    if (!initialNormalizationDone.current) {
+      initialNormalizationDone.current = true;
+      const requested = initialUrl.stage;
+      const resolved = resolveInitialStage(requested, discoveryApproved);
+      if (resolved.corrected && resolved.stage) {
+        selectStage(resolved.stage, true);
+        dispatch({
+          type: "announce",
+          message: requested === null || requested === "discover"
+            ? "Continuing from where you left off."
+            : "That stage is locked. Showing Discover instead.",
+        });
+      } else if (!requested && window.location.search) {
+        selectStage("discover", true);
+      }
+    }
+
+    const results = [sessionResult, discoveryResult, contentResult];
+    dispatch({
+      type: "connection/set",
+      state: results.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
+    });
   }, [api, initialUrl.stage, inspectCacheReceipt, selectStage, state.sessionId]);
 
   useEffect(() => {
@@ -470,97 +319,15 @@ export function AppShell({
       });
     } else poller.unsubscribe("content_architect");
 
-    if (state.design?.state === "working") {
-      poller.subscribe("visual_design_director", async () => {
-        try {
-          const result = await api.getVisualDesignDirector(sessionId);
-          inspectCacheReceipt("visual_design_director", result);
-          const view = adaptVisualDesignDirector(
-            result.visual_design_director,
-            state.content?.state === "complete",
-            result.jobs,
-          );
-          dispatch({ type: "design/set", view });
-          dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-          dispatch({ type: "connection/set", state: "confirmed" });
-          if (view.state === "review") {
-            dispatch({ type: "announce", message: "Visual direction ready for review." });
-          }
-        } catch (error) {
-          dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
-          throw error;
-        }
-      });
-    } else poller.unsubscribe("visual_design_director");
-
-    if (state.preparation?.state === "working") {
-      poller.subscribe("build_preparation", async () => {
-        try {
-          const result = await api.getBuildPreparation(sessionId);
-          inspectCacheReceipt("build_preparation", result);
-          const view = adaptBuildPreparation(
-            result.build_preparation,
-            state.content?.state === "complete",
-            state.design?.state === "complete",
-            result.jobs,
-          );
-          dispatch({ type: "preparation/set", view });
-          dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-          dispatch({ type: "connection/set", state: "confirmed" });
-          if (view.state === "complete") {
-            if (shouldExposeGenerationAfterPreparation(state.generation?.state)) {
-              dispatch({
-                type: "generation/set",
-                view: adaptCodeGenerator({ status: "not_started" }, true, []),
-              });
-            }
-            dispatch({ type: "announce", message: "Build handoff ready for generation." });
-          }
-        } catch (error) {
-          dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
-          throw error;
-        }
-      });
-    } else poller.unsubscribe("build_preparation");
-
-    if (state.generation?.state === "working") {
-      poller.subscribe("code_generator", async () => {
-        try {
-          const result = await api.getCodeGenerator(sessionId);
-          inspectCacheReceipt("code_generator", result);
-          const view = adaptCodeGenerator(
-            result.code_generator,
-            state.preparation?.state === "complete",
-            result.jobs,
-          );
-          dispatch({ type: "generation/set", view });
-          dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-          dispatch({ type: "connection/set", state: "confirmed" });
-          if (view.state === "complete") {
-            dispatch({ type: "announce", message: "Portfolio generated and ready to preview." });
-          }
-        } catch (error) {
-          dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
-          throw error;
-        }
-      });
-    } else poller.unsubscribe("code_generator");
-
     return () => {
       poller.unsubscribe("discovery");
       poller.unsubscribe("content_architect");
-      poller.unsubscribe("visual_design_director");
-      poller.unsubscribe("build_preparation");
-      poller.unsubscribe("code_generator");
     };
   }, [
     api,
     inspectCacheReceipt,
     state.content?.state,
-    state.design?.state,
     state.discovery?.state,
-    state.generation?.state,
-    state.preparation?.state,
     state.sessionId,
   ]);
 
@@ -568,20 +335,11 @@ export function AppShell({
     const discoveryState = state.discovery?.state ?? "available";
     const discoveryApproved = discoveryState === "complete";
     const contentState = state.content?.state ?? (discoveryApproved ? "available" : "locked");
-    const contentApproved = contentState === "complete";
-    const designState = state.design?.state ?? (contentApproved ? "available" : "locked");
-    const designApproved = designState === "complete";
-    const preparationState = state.preparation?.state ?? (contentApproved && designApproved ? "available" : "locked");
-    const preparationApproved = preparationState === "complete";
-    const generationState = state.generation?.state ?? (preparationApproved ? "available" : "locked");
     return [
       { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: discoveryState, isSelectable: true },
       { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: contentState, isSelectable: contentState !== "locked" },
-      { id: "design", ordinal: 3, label: "Design", sublabel: "CRAFT PRESENTATION", state: designState, isSelectable: designState !== "locked" },
-      { id: "prepare", ordinal: 4, label: "Prepare", sublabel: "FINALIZE DETAILS", state: preparationState, isSelectable: preparationState !== "locked" && preparationState !== "unsupported" },
-      { id: "generate", ordinal: 5, label: "Generate & Preview", sublabel: "BUILD AND PREVIEW", state: generationState, isSelectable: generationState !== "locked" && generationState !== "unsupported" },
     ];
-  }, [state.content, state.design, state.discovery, state.generation, state.preparation]);
+  }, [state.content, state.discovery]);
 
   const outputEntries = useMemo(() => [
     {
@@ -598,30 +356,7 @@ export function AppShell({
       agentOutput: state.content?.agentOutput ?? null,
       available: hasCopyableOutput("content", state.content?.agentOutput),
     },
-    {
-      id: "design",
-      label: "Visual Design Director",
-      state: state.design?.state ?? "locked",
-      agentOutput: state.design?.agentOutput ?? null,
-      available: hasCopyableOutput("design", state.design?.agentOutput),
-    },
-    {
-      id: "prepare",
-      label: "Build Preparation Agent",
-      state: state.preparation?.state ?? "locked",
-      agentOutput: state.preparation?.agentOutput ?? null,
-      available: hasCopyableOutput("prepare", state.preparation?.agentOutput),
-      stale: state.preparation?.stale ?? false,
-    },
-    {
-      id: "generate",
-      label: "Code Generator",
-      state: state.generation?.state ?? "locked",
-      agentOutput: state.generation?.agentOutput ?? null,
-      available: hasCopyableOutput("generate", state.generation?.agentOutput),
-      stale: state.generation?.stale ?? false,
-    },
-  ], [state.content, state.design, state.discovery, state.generation, state.preparation]);
+  ], [state.content, state.discovery]);
 
   const notifyMutation = (sessionId: string) => invalidationChannelRef.current?.broadcast(sessionId);
 
@@ -765,30 +500,6 @@ export function AppShell({
     }
   };
 
-  const handleStopDesign = async () => {
-    if (!state.sessionId || mutatingStage) return;
-    const sessionId = state.sessionId;
-    recordClientEvent({ kind: "user_action", stage: "visual_design_director", action: "stop" });
-    setMutatingStage("design");
-    try {
-      pollerRef.current?.unsubscribe("visual_design_director");
-      const result = await api.stopVisualDesignDirector(sessionId);
-      inspectCacheReceipt("visual_design_director", result);
-      dispatch({
-        type: "design/set",
-        view: adaptVisualDesignDirector(result.visual_design_director, state.content?.state === "complete", result.jobs),
-      });
-      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-      dispatch({ type: "announce", message: "Visual Design Director stopped. Your approved Content Plan is preserved." });
-      notifyMutation(sessionId);
-    } catch (error) {
-      void refetchCurrentSession();
-      throw error;
-    } finally {
-      setMutatingStage(null);
-    }
-  };
-
   const handleReviseBrief = async (request: string) => {
     if (!state.sessionId) return;
     const result = await api.reviseDiscovery(state.sessionId, request);
@@ -886,169 +597,11 @@ export function AppShell({
     }
   };
 
-  // Approval is committed before the separate "start Visual Design Director"
-  // action is offered. If approval silently reroutes into the safety
-  // repair path instead (public-scope validation failure), stay on Content
-  // so the user can review the corrected plan — never silently advance past
-  // an artifact that was not actually approved.
-  const handleApproveContentAndContinue = async () => {
-    const completedOperation = await runContentMutation("approve");
-    if (completedOperation !== "approve") return;
-  };
-
-  const runDesignMutation = async (
-    operation: "start" | "approve" | "revise",
-    revisionRequest = "",
-  ) => {
-    if (!state.sessionId || mutatingStage) return;
-    setMutatingStage("design");
-    try {
-      const action = `design-${operation}`;
-      const result = operation === "start"
-        ? await api.startVisualDesignDirector(
-            state.sessionId,
-            { preferences: {} },
-            getOrCreateIdempotencyKey(state.sessionId, action),
-          )
-        : operation === "approve"
-          ? await api.approveVisualDesignDirector(state.sessionId)
-          : await api.reviseVisualDesignDirector(state.sessionId, revisionRequest);
-      if (operation === "start") clearIdempotencyKey(state.sessionId, action);
-      inspectCacheReceipt("visual_design_director", result);
-      dispatch({
-        type: "design/set",
-        view: adaptVisualDesignDirector(result.visual_design_director, true, result.jobs),
-      });
-      dispatch({
-        type: "announce",
-        message: operation === "approve" ? "Creative handoff saved." : operation === "revise" ? "Visual direction revision requested." : "Visual Design Director started.",
-      });
-      notifyMutation(state.sessionId);
-      if (operation === "approve") await refetchCurrentSession();
-    } catch (error) {
-      void refetchCurrentSession();
-      throw error;
-    } finally {
-      setMutatingStage(null);
-    }
-  };
-
-  // Approval is committed before the separate "start Build Preparation" action.
-  const handleApproveDesignAndContinue = async () => {
-    await runDesignMutation("approve");
-  };
-
-  const runPreparationMutation = async (operation: "start" | "regenerate") => {
-    if (!state.sessionId || mutatingStage) {
-      return;
-    }
-    const sessionId = state.sessionId;
-    setMutatingStage("prepare");
-    try {
-      const action = `build-preparation-${operation}`;
-      const idempotencyKey = getOrCreateIdempotencyKey(sessionId, action);
-      const result = operation === "start"
-        ? await api.startBuildPreparation(sessionId, {}, idempotencyKey)
-        : await api.regenerateBuildPreparation(sessionId, {}, idempotencyKey);
-      clearIdempotencyKey(sessionId, action);
-      inspectCacheReceipt("build_preparation", result);
-      dispatch({
-        type: "preparation/set",
-        view: adaptBuildPreparation(result.build_preparation, true, true, result.jobs),
-      });
-      dispatch({
-        type: "session/set",
-        sessionId: result.session_id,
-        revision: result.session_revision,
-      });
-      dispatch({
-        type: "announce",
-        message: operation === "regenerate"
-          ? "Build handoff regeneration started."
-          : "Build Preparation started.",
-      });
-      notifyMutation(sessionId);
-      selectStage("prepare");
-    } catch (error) {
-      void refetchCurrentSession();
-      throw error;
-    } finally {
-      setMutatingStage(null);
-    }
-  };
-
-  const runGenerationMutation = async (operation: "start" | "regenerate") => {
-    if (!state.sessionId || mutatingStage || state.preparation?.state !== "complete") {
-      return;
-    }
-    const sessionId = state.sessionId;
-    // Move to the generation control room before the network round trip so a
-    // one-click handoff never appears to do nothing while the durable job is
-    // being enqueued.
-    selectStage("generate");
-    setMutatingStage("generate");
-    try {
-      const action = `code-generator-${operation}`;
-      const idempotencyKey = getOrCreateIdempotencyKey(sessionId, action);
-      const result = operation === "start"
-        ? await api.startCodeGenerator(sessionId, idempotencyKey)
-        : await api.regenerateCodeGenerator(sessionId, idempotencyKey);
-      clearIdempotencyKey(sessionId, action);
-      inspectCacheReceipt("code_generator", result);
-      dispatch({
-        type: "generation/set",
-        view: adaptCodeGenerator(result.code_generator, true, result.jobs),
-      });
-      dispatch({
-        type: "session/set",
-        sessionId: result.session_id,
-        revision: result.session_revision,
-      });
-      dispatch({
-        type: "announce",
-        message: operation === "regenerate"
-          ? "Portfolio regeneration started."
-          : "Portfolio generation started.",
-      });
-      notifyMutation(sessionId);
-    } catch (error) {
-      void refetchCurrentSession();
-      throw error;
-    } finally {
-      setMutatingStage(null);
-    }
-  };
-
-  const retryGeneration = async () => {
-    if (
-      !state.sessionId ||
-      mutatingStage ||
-      state.preparation?.state !== "complete" ||
-      state.generation?.state !== "attention" ||
-      state.generation.stale
-    ) return;
-    const sessionId = state.sessionId;
-    setMutatingStage("generate");
-    try {
-      const action = "code-generator-retry";
-      const idempotencyKey = getOrCreateIdempotencyKey(sessionId, action);
-      const result = await api.retryCodeGenerator(sessionId, idempotencyKey);
-      clearIdempotencyKey(sessionId, action);
-      inspectCacheReceipt("code_generator", result);
-      dispatch({
-        type: "generation/set",
-        view: adaptCodeGenerator(result.code_generator, true, result.jobs),
-      });
-      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-      dispatch({ type: "announce", message: "Portfolio retry started." });
-      notifyMutation(sessionId);
-      selectStage("generate");
-    } catch (error) {
-      void refetchCurrentSession();
-      throw error;
-    } finally {
-      setMutatingStage(null);
-    }
+  // If approval routes into the safety repair path (public-scope validation
+  // failure), stay on Content so the user can review the corrected plan.
+  // Never treat a repaired, unapproved result as complete.
+  const handleApproveContent = async () => {
+    await runContentMutation("approve");
   };
 
   const startContentAfterApproval = async () => {
@@ -1060,23 +613,7 @@ export function AppShell({
     }
   };
 
-  const startDesignAfterApproval = async () => {
-    try {
-      await runDesignMutation("start");
-      selectStage("design");
-    } catch (error) {
-      dispatch({ type: "announce", message: `Visual Design Director could not start: ${error instanceof Error ? error.message : "try again."}` });
-    }
-  };
 
-  const startPreparationAfterApproval = async () => {
-    try {
-      await runPreparationMutation("start");
-      selectStage("prepare");
-    } catch (error) {
-      dispatch({ type: "announce", message: `Build Preparation could not start: ${error instanceof Error ? error.message : "try again."}` });
-    }
-  };
 
   return (
     <AppStoreContext.Provider value={{ state, dispatch }}>
@@ -1096,7 +633,7 @@ export function AppShell({
             <span className="header-descriptor">IDEAS TO IMPACT</span>
           </a>
 
-          {/* Centered horizontal 5-stage navigator matching 01-shell-overview.png */}
+          {/* The journey ends when the approved content plan is ready. */}
           <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
 
           <div className="app-topbar-actions">
@@ -1109,7 +646,6 @@ export function AppShell({
               </summary>
               <div className="account-popover">
                 <p><strong>{me.username ?? "OryxenAI account"}</strong><span>{me.role === "admin" ? "Administrator" : "Portfolio owner"}</span></p>
-                {state.readOnly ? <span className="read-only-tag">Read-only workspace</span> : null}
                 {me.role === "admin" ? <a id="app-admin-link" href="/admin">Administration</a> : null}
                 <button id="app-logout" type="button">Sign out</button>
               </div>
@@ -1138,7 +674,7 @@ export function AppShell({
               {!state.sessionId ? (
                 <StartSurface
                   onStart={handleStartPortfolio}
-                  disabled={state.readOnly || me.can_create_portfolio === false || mutatingStage === "discover"}
+                  disabled={me.can_create_portfolio === false || mutatingStage === "discover"}
                   disabledReason={me.can_create_portfolio === false ? "Your account cannot start another portfolio." : undefined}
                 />
               ) : null}
@@ -1147,7 +683,7 @@ export function AppShell({
                 <DiscoveryStage
                   view={state.discovery}
                   history={state.discovery?.answeredTurns ?? []}
-                  canMutate={!state.readOnly && mutatingStage === null}
+                  canMutate={mutatingStage === null}
                   onStartDiscovery={handleStartPortfolio}
                   onSubmitAnswer={handleSubmitDiscoveryAnswer}
                   onGenerateBriefNow={handleGenerateBrief}
@@ -1163,60 +699,16 @@ export function AppShell({
               {state.sessionId && activeStage === "content" ? (
                 <ContentStage
                   view={state.content}
-                  canMutate={!state.readOnly}
+                  canMutate={true}
                   inFlight={mutatingStage === "content"}
                   onStart={async () => { await runContentMutation("start"); }}
-                  onApproveAndContinue={handleApproveContentAndContinue}
-                  onStartNextStage={startDesignAfterApproval}
+                  onApproveAndContinue={handleApproveContent}
                   onRevise={async (request) => { await runContentMutation("revise", request); }}
                   onStop={handleStopContent}
                 />
               ) : null}
 
-                {state.sessionId && activeStage === "design" ? (
-                <DesignStage
-                  view={state.design}
-                  canMutate={!state.readOnly}
-                  inFlight={mutatingStage === "design"}
-                  onStart={() => runDesignMutation("start")}
-                  onApproveAndContinue={handleApproveDesignAndContinue}
-                  onStartNextStage={startPreparationAfterApproval}
-                  onRevise={(request) => runDesignMutation("revise", request)}
-                  onStop={handleStopDesign}
-                />
-              ) : null}
-                {state.sessionId && activeStage === "prepare" ? (
-                  <BuildPreparationStage
-                    view={state.preparation}
-                    canMutate={!state.readOnly && mutatingStage === null}
-                    inFlight={mutatingStage === "prepare"}
-                    generationInFlight={mutatingStage === "generate"}
-                    onStart={() => runPreparationMutation("start")}
-                    onRegenerate={() => runPreparationMutation("regenerate")}
-                    onStartGeneration={async () => {
-                      try {
-                        await runGenerationMutation("start");
-                      } catch (error) {
-                        dispatch({
-                          type: "announce",
-                          message: `Portfolio generation could not start: ${error instanceof Error ? error.message : "try again."}`,
-                        });
-                      }
-                    }}
-                  />
-                ) : null}
-                {state.sessionId && activeStage === "generate" ? (
-                  <GenerationStage
-                    view={state.generation}
-                    sessionId={state.sessionId}
-                    canMutate={!state.readOnly && mutatingStage === null}
-                    inFlight={mutatingStage === "generate"}
-                    onStart={() => runGenerationMutation("start")}
-                    onRetry={retryGeneration}
-                    onRegenerate={() => runGenerationMutation("regenerate")}
-                    onRefresh={refetchCurrentSession}
-                  />
-                ) : null}
+
               </div>
               </section>
             </ErrorBoundary>

@@ -10,12 +10,12 @@ from oryxenai.auth.models import (
     PortfolioEntitlement,
 )
 from oryxenai.db.models.agent_run import AgentRun
-from oryxenai.db.models.background_job import BackgroundJob
-from oryxenai.db.models.code_generator_development import (
-    CodeGeneratorDevelopmentEvent,
-    CodeGeneratorDevelopmentRun,
-    CodeGeneratorStageAttempt,
+from oryxenai.db.models.archived_output import (
+    ArchivedOutputAttempt,
+    ArchivedOutputEvent,
+    ArchivedOutputRun,
 )
+from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.model_call_cache import ModelCallCache
 from oryxenai.db.models.model_usage import (
     ModelBudgetReservation,
@@ -33,10 +33,10 @@ __all__ = [
     "AgentRun",
     "AppUser",
     "AppUserCapacity",
+    "ArchivedOutputAttempt",
+    "ArchivedOutputEvent",
+    "ArchivedOutputRun",
     "BackgroundJob",
-    "CodeGeneratorDevelopmentEvent",
-    "CodeGeneratorDevelopmentRun",
-    "CodeGeneratorStageAttempt",
     "DeletedIdentityTombstone",
     "DeletedPortfolioTombstone",
     "ModelBudgetReservation",

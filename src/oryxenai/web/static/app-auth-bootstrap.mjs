@@ -47,15 +47,12 @@ function renderTemporaryDashboard(documentRef, me) {
       if (element) element.textContent = value;
     };
     set("policy", policy === "unlimited_admin" ? "unlimited admin" : "single portfolio");
-    set("generation", me.read_only ? "promoted success" : me.generation_run_id ? "one variant bound" : "available");
-    set("mode", me.read_only ? "read-only" : "mutable");
+    set("portfolio", me.portfolio_session_id ? "in use" : "available");
   }
   if (state) {
-    state.textContent = me?.read_only
-      ? "A verified success is complete. This portfolio is now read-only."
-      : me?.can_start_generation === false && me?.generation_run_id
-        ? "Your one generation variant is in progress. Retry is controlled by the server."
-        : "No protected product data was loaded before authentication and /me verification.";
+    state.textContent = me?.portfolio_session_id
+      ? "Your private portfolio workspace is ready."
+      : "No protected product data was loaded before authentication and /me verification.";
   }
 }
 
@@ -133,7 +130,6 @@ export async function bootProductShell({
       status: "active",
       onboarding_required: false,
       admin_available: true,
-      read_only: false,
       portfolio_session_id: null,
     };
     appController.boot({
@@ -144,7 +140,6 @@ export async function bootProductShell({
       role: "admin",
       me: defaultMe,
       serverSessionId: null,
-      readOnly: false,
     });
     revealWorkspace(globalRef.document);
     return { kind: "detached" };
@@ -200,7 +195,7 @@ export async function bootProductShell({
     showBootstrapError(
       globalRef.document,
       context.kind === "provider_credit_exhausted"
-        ? "Generation is temporarily unavailable. Retry this same run later."
+        ? "The model provider is temporarily unavailable. Please try again later."
         : "Authentication is temporarily unavailable. Please try again shortly.",
     );
     revealWorkspace(globalRef.document);
@@ -241,7 +236,6 @@ export async function bootProductShell({
       role: context.me.role,
       developer: false,
       serverSessionId: context.me.portfolio_session_id || null,
-      readOnly: Boolean(context.me.read_only),
     });
   }
 

@@ -46,9 +46,8 @@ export interface WorkspaceCanvasProps {
  * tokens.css — so reduced motion is honored without a duplicate override
  * here.
  *
- * This component intentionally contains NO Discovery/Content/Design/
- * Preparation/Generation markup. Each stage composes its own rail and
- * artifact content into the slots.
+ * This component contains no stage-specific markup. Each stage composes its
+ * own rail and artifact content into the slots.
  */
 export function WorkspaceCanvas({
   rail,

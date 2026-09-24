@@ -6,10 +6,18 @@
     "secondary_audience": "",
     "primary_action": "Book an intro call",
     "narrative_thesis": "Discretion and range: confidential client work described by problem and role, never by name or unshared numbers.",
-    "leading_evidence": ["Fintech onboarding redesign"],
-    "supporting_evidence": ["Healthcare intake system"],
-    "shortened_or_omitted": ["Client company names — generalized per NDA."],
-    "content_risks": ["No outcome metrics were ever shared with Jordan for either engagement."],
+    "leading_evidence": [
+      "Fintech onboarding redesign"
+    ],
+    "supporting_evidence": [
+      "Healthcare intake system"
+    ],
+    "shortened_or_omitted": [
+      "Client company names — generalized per NDA."
+    ],
+    "content_risks": [
+      "No outcome metrics were ever shared with Jordan for either engagement."
+    ],
     "presentation_mode": "single_page",
     "presentation_rationale": "Two engagements, both NDA-restricted to problem/role level, fit comfortably on one page without needing dedicated case-study routes."
   },
@@ -38,9 +46,16 @@
       "audience_takeaway": "Jordan handles confidential, end-to-end product work responsibly.",
       "priority": "primary",
       "content_density": "medium",
-      "section_sequence": ["hero", "about", "engagements", "contact"],
+      "section_sequence": [
+        "hero",
+        "about",
+        "engagements",
+        "contact"
+      ],
       "mobile_notes": "",
-      "source_refs": ["profile.projects"],
+      "source_refs": [
+        "profile.projects"
+      ],
       "publication_status": "approved"
     }
   ],
@@ -51,17 +66,29 @@
         {
           "section_id": "hero",
           "purpose": "Introduce Jordan.",
-          "content": {"eyebrow": "Freelance Product Designer & Developer", "headline": "Design and code, trusted with confidential work.", "cta": "Book an intro call"},
+          "content": {
+            "eyebrow": "Freelance Product Designer & Developer",
+            "headline": "Design and code, trusted with confidential work.",
+            "cta": "Book an intro call"
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
-          "link_targets": [{"label": "Book an intro call", "href": "#contact", "kind": "anchor"}]
+          "link_targets": [
+            {
+              "label": "Book an intro call",
+              "href": "#contact",
+              "kind": "anchor"
+            }
+          ]
         },
         {
           "section_id": "about",
           "purpose": "Summarize professional identity.",
-          "content": {"text": "Jordan is a freelance product designer and developer who owns both design and frontend implementation on client engagements, several of which are confidential."},
+          "content": {
+            "text": "Jordan is a freelance product designer and developer who owns both design and frontend implementation on client engagements, several of which are confidential."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -83,7 +110,10 @@
               }
             ]
           },
-          "claim_ids": ["claim_fintech_ownership", "claim_healthcare_sole_dev"],
+          "claim_ids": [
+            "claim_fintech_ownership",
+            "claim_healthcare_sole_dev"
+          ],
           "priority": "primary",
           "optional": false,
           "mobile_condensation": "",
@@ -92,7 +122,9 @@
         {
           "section_id": "contact",
           "purpose": "Closing CTA.",
-          "content": {"text": "Available for new freelance engagements — let's talk."},
+          "content": {
+            "text": "Available for new freelance engagements — let's talk."
+          },
           "claim_ids": [],
           "priority": "primary",
           "optional": false,
@@ -104,7 +136,12 @@
     }
   ],
   "public_content_manifest": {
-    "nav": [{"label": "Home", "target": "home"}],
+    "nav": [
+      {
+        "label": "Home",
+        "target": "home"
+      }
+    ],
     "contact_cta": "Available for new freelance engagements — let's talk."
   },
   "claim_grounding": [
@@ -129,27 +166,20 @@
       "confidence_or_warning": ""
     }
   ],
-  "omissions": ["Client company names — withheld per NDA, generalized to industry only."],
-  "unresolved_issues": ["No outcome metrics exist for either engagement; public copy stays qualitative."],
+  "omissions": [
+    "Client company names — withheld per NDA, generalized to industry only."
+  ],
+  "unresolved_issues": [
+    "No outcome metrics exist for either engagement; public copy stays qualitative."
+  ],
   "privacy_and_confidentiality": [
     "Both client company names are withheld under NDA and generalized to 'a Series B fintech startup' / 'a healthcare client'.",
     "Client contact details are never published."
   ],
-  "media_status": {"screenshots": "unavailable (NDA)", "case_study_assets": "unavailable (NDA)"},
-  "visual_director_handoff": {
-    "content_hierarchy": ["hero", "engagements", "contact"],
-    "density_guidance": {"home": "medium"},
-    "long_copy_risks": [],
-    "storytelling_opportunities": ["A generic process diagram (discovery -> design -> build) could substitute for unavailable NDA screenshots."],
-    "available_media": [],
-    "unavailable_media": ["client screenshots", "case study visuals"],
-    "diagram_opportunities": ["A generalized process diagram not tied to any specific client."],
-    "confidentiality_restrictions": ["Never name either client.", "Never publish an outcome metric Jordan was not given."],
-    "must_preserve": ["client names generalized", "no invented metrics"],
-    "mobile_shortenable": [],
-    "never_fabricate": ["client names", "outcome metrics", "team size details beyond what is stated"]
-  },
   "warnings": [],
-  "stages_run": ["plan_content"],
-  "memory_update": {}
+  "memory_update": {},
+  "mode": "STRATEGY_AND_CONTENT",
+  "content_included": true,
+  "integration_needed": false,
+  "user_summary": "This plan positions Jordan as a freelance product designer and developer, with concise project summaries that preserve the supplied scope while respecting the NDA. The fintech and healthcare client names remain generalized, and the copy avoids outcome metrics that were not shared. The content emphasizes Jordan's supported work across product design and frontend implementation, while separating individual responsibilities from team outcomes. A public contact action appears only where the approved profile supports it. The available material is enough to review the wording, routes, claims, and privacy choices together. It avoids requesting information that is unnecessary to understand the current project summaries. The site content is ready for Jordan to review and approve."
 }

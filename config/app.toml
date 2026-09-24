@@ -47,39 +47,17 @@ handler_timeout = 300.0        # max seconds a handler may run
 lease_duration = 120.0         # seconds before a claimed job is considered stale
 
 [worker.job.kind_timeouts]
-# Per-kind overrides for handlers that legitimately run long: Code Generator
-# stages drive multiple sequential structured model calls (24k-token ceilings)
-# plus clean npm installs and Playwright journeys inside one job. Keys are
-# quoted so TOML keeps them flat instead of nesting on the dot.
-"code_generator.plan" = 900.0                 # 15 min: admission + one planner call
-"code_generator.acquire" = 1200.0             # 20 min: provider searches + npm resolution
-"code_generator.generate" = 5400.0            # 90 min: several builder/integrator calls + typechecks
-"code_generator.verify_and_preview" = 3600.0  # 60 min: clean build + Playwright journeys + repair
-# V5 has its own queue namespace so a stale pre-migration worker cannot claim
-# a Markdown-brief job. Keep the same generous stage budgets as the legacy
-# aliases; otherwise the worker falls back to the 300s default and interrupts
-# a valid long-running generation.
-"code_generator.v5.plan" = 900.0
-"code_generator.v5.acquire" = 1200.0
-"code_generator.v5.generate" = 5400.0
-"code_generator.v5.verify_and_preview" = 3600.0
-# Content Architect and Visual Design Director each drive up to 3 sequential
-# model calls per job (each profile's own timeout_seconds=180) — worst case
-# ~540s alone, over the 300s default. Live-reproduced: a real content-rich
-# portfolio hit JOB_TIMEOUT here after the per-call budget was correctly
-# raised for MODEL_OUTPUT_TRUNCATED/PROVIDER_TIMEOUT_ERROR (see
-# config/models.toml). Build Preparation drives 5 sequential stages
-# (timeout_seconds=180 each, worst case ~900s) plus real Pexels/Pixabay/
-# component-registry network I/O on top — needs the largest margin.
-"content_architect.build" = 900.0             # 15 min
-"visual_design_director.build" = 900.0        # 15 min
-"build_preparation.prepare" = 1800.0          # 30 min
+# The retained model-backed jobs have bounded call graphs.
+"discovery.understand_and_question" = 900.0
+"discovery.build_or_revise_brief" = 900.0
+"discovery.prepare_questions" = 900.0
+"discovery.build_brief" = 900.0
+"content_architect.build" = 900.0
 
 [worker.retry]
 # Retry scheduling for transient failures.
 max_attempts = 3               # total attempts (1 initial + 2 retries)
-first_four_max_attempts = 2    # first-four stages: one initial execution + one redelivery
-code_generator_max_attempts = 2 # code generator jobs: one initial execution + one redelivery
+agent_job_max_attempts = 2     # one initial execution plus one redelivery
 base_delay = 1.0               # base delay in seconds (doubled each retry)
 max_delay = 60.0               # cap on exponential backoff
 jitter = true                  # add random jitter to retry delays
@@ -115,7 +93,7 @@ export_enabled = true
 provider = "supabase"
 enabled = true
 required = false                # production and the Docker overlay require it
-# The normal product is authenticated through Visual Design Director.
+# The normal product uses the retained portfolio workflow.
 pipeline_mode = "attached"
 # Later-stage fixture/control-room pages remain anonymous local development
 # harnesses. This never relaxes session API ownership or the /app boundary.
@@ -154,257 +132,10 @@ max_answer_chars = 10000
 # for business content — only shape/limits are enforced here.
 max_routes = 12                # route_plan / page_content_packs truncated to this, never rejected
 
-[visual_design_director]
-# Visual Design Director agent output limits. Input snapshot (from Content
-# Architect) is never re-validated for business content — only shape/limits
-# enforced here.
-max_pages = 12                     # pages truncated to this, never rejected
-max_catalogue_candidates = 6       # resource-catalogue shortlist size per model call
-
-[image_retrieval]
-# Shared by Build Preparation and Code Generator. Search responses are cached
-# for one day and selected bytes are always materialized into the generated site.
-provider_order = ["pexels", "pixabay"]
-cache_root = ".workspace/image-search-cache"
-cache_ttl_seconds = 86400
-max_queries = 3
-max_candidates_per_query = 6
-max_candidates_total = 12
-max_dimension = 2400
-raw_download_max_bytes = 25165824
-optimized_max_bytes = 8388608
-minimum_width = 1200
-minimum_height = 700
-responsive_widths = [480, 768, 1280, 1920]
-responsive_formats = ["webp", "jpeg"]
-responsive_quality = 84
-timeout_seconds = 15.0
-retry_count = 2
-max_retry_wait_seconds = 8.0
-unsplash_enabled = false
-unsplash_local_vendoring_authorized = false
-
-[build_preparation]
-# User-visible pre-code stage. Output is two Markdown briefs stored directly
-# on session state -- no ZIP, no object storage.
-max_routes = 12
-network_timeout_seconds = 15.0
-network_retry_count = 2
-target_contract = "react-vite-v1"
-fixture_enabled = true
-fixture_input_path = "Input-Output-Of-Engine/Visual Design Director output.md"
-# Matching Content Architect snapshot that reunites the fixture (CA, VDD) pair.
-fixture_content_input_path = "Input-Output-Of-Engine/Content Architect output.MD"
-fixture_output_dir = "output"
-# Local debug mirror: a courtesy copy of both briefs written to disk for
-# developer inspection. Never the source of truth.
-debug_mirror_enabled = true
-model_profile = "build_preparation"
-reasoning_enabled = true
-# Advisory targets for how many image/component roles a portfolio typically
-# needs. VDD may explicitly authorize fewer for text-led or privacy-limited
-# portfolios; a role short of the target is never manufactured to meet it.
-editorial_image_budget = 5
-editorial_image_maximum = 6
-visual_component_budget = 4
-visual_component_maximum = 6
-provider_max_concurrency = 2
-auto_derive_visual_resources = true
-
-[code_generator_development]
-# Standalone Phase 1 developer workflow. It has no portfolio-session coupling.
-enabled = true
-input_root = ".workspace/code-generator-development"
-fixture_map = { "privacy-safe-v3" = "tests/fixtures/code_generator_v3_privacy_safe", "privacy-safe-v3-rich" = "tests/fixtures/code_generator_v3_rich_privacy_safe" }
-pack_version = "build-preparation-pack-v3"
-schema_version = "build-preparation-contract-v3"
-accepted_pack_versions = ["build-preparation-pack-v3", "build-preparation-pack-v4"]
-accepted_schema_versions = ["build-preparation-contract-v3", "build-preparation-contract-v4"]
-target_contract = "react-vite-v1"
-director_profile = "code_generator_director"
-planner_profile = "code_generator_planner"
-max_upload_bytes = 16777216
-max_uncompressed_bytes = 67108864
-max_entries = 256
-max_compression_ratio = 100.0
-max_routes = 12
-max_work_units = 64
-max_events_page_size = 100
-# Local Build Preparation debug mirror consumed by the "from Build Preparation"
-# run source (newest eligible pair of Markdown briefs wins). The v5 namespace
-# is a deliberate queue boundary for the migrated two-brief contract.
-build_preparation_mirror_root = "output/build-preparation"
-pipeline_contract_version = "code-generator-v5"
-worker_release_id = "oryxenai-code-generator-v5-quality-v4-capability-proof-v1"
-quality_gate_version = "quality-gate-v3"
-planner_max_attempts = 2
-minimum_visible_images = 2
-preferred_visible_images = 2
-require_primary_route_image = true
-design_similarity_threshold = 0.82
-design_similarity_history = 3
-
-[code_generator_acquisition]
-allowlist_image_providers = ["pexels", "pixabay"]
-allowlist_font_formats = ["woff2", "woff"]
-allowlist_icon_package = "lucide"
-allowlist_component_registries = ["shadcn", "magicui", "smoothui", "cultui"]
-allowlist_style_kinds = ["pattern", "token_preset", "helper"]
-forbidden_subject_terms = []
-user_media_substitution_allowed = false
-max_request_rounds = 4
-image_max_bytes = 4194304
-font_max_bytes = 2097152
-icon_svg_max_bytes = 393216
-component_max_bytes = 524288
-style_max_bytes = 262144
-materials_root = ".workspace/code-generator-materials"
-# Model-assisted candidate selection through the code_generator_resource_scout
-# profile; falls back to the deterministic scorer when the profile is unusable.
-prefer_resource_scout_model = true
-resource_scout_profile = "code_generator_resource_scout"
-
-[code_generator_generation]
-scaffold_profile = "react-vite-v1"
-scaffold_root = "src/oryxenai/agents/code_generator/scaffolds"
-workspace_root = ".workspace/code-generator-generation"
-checkpoint_root = ".workspace/code-generator-checkpoints"
-route_profile = "code_generator_route_builder"
-compose_profile = "code_generator_route_composer"
-integration_profile = "code_generator_integrator"
-repair_profile = "code_generator_repairer"
-max_file_bytes = 262144
-max_response_bytes = 2097152
-# A real portfolio's own responsive image renditions (generated locally from
-# one fetched original per photo, whether pack-embedded or D-060 deferred --
-# see _pack_image_renditions) are real, necessary output, not runaway
-# generation: a single six-photo route measured ~10-13MB of legitimate
-# renditions plus generated JS/CSS/content. The prior 8MB ceiling had never
-# been exercised against a real, full-content pack before this session's
-# live-verification pass. This still bounds genuinely unbounded generation;
-# it is not a size an ordinary multi-route portfolio should ever approach.
-max_source_bytes = 33554432
-max_request_rounds = 4
-# Repair rounds were 3/6/5. Lowered after fixing the two known causes of
-# wasted repair rounds (an honest model decline with no escape hatch always
-# raised and got blindly retried; a shared-cause width-ratio defect reported
-# as several independent findings) -- this project's own live history shows
-# genuinely fixable repairs reaching a clean review within 1-2 real rounds,
-# so these keep headroom for that while no longer funding rounds spent
-# repeating an already-declined or already-diagnosed fix.
-max_repair_rounds_per_unit = 2
-max_repair_rounds_total = 4
-max_integration_polish_rounds = 3
-max_route_batch_sections = 3
-max_concurrency = 1
-typecheck_timeout_seconds = 120.0
-typecheck_command = ["npm.cmd", "run", "typecheck"]
-source_audit_command = ["npm.cmd", "run", "source:audit"]
-format_command = []
-use_real_typecheck = true
-# Keep provider-backed route calls serial. A portfolio can have several route
-# batches, but parallel structured requests make rate limits look like source
-# failures and waste retries; reliability is more valuable than this small
-# throughput gain for the bounded generation lane.
-route_concurrency = 1
-artifact_store_provider = "local_fs"
-artifact_root = ".workspace/code-generator-artifacts"
-max_context_chars = 170000
-quality_review_max_context_chars = 600000
-stable_prompt_prefix_version = "code-generator-prompts-v4"
-
-[code_generator_dependencies]
-workspaces_root = ".workspace/code-generator-workspaces"
-npm_executable = "npm"
-npm_cache_root = ".workspace/npm-cache"
-allow_network_install = false
-allow_install_scripts = false
-
-[code_generator_dependencies.supported_packages.lucide-react]
-# 0.460.0's peer range excludes stable react 19 (only 19.0.0-rc); 0.500.0
-# accepts ^19.0.0 and matches the pack target's ^0.500 declaration.
-version_pin = "0.500.0"
-transitive = ["react@19.0.0"]
-licence = "ISC"
-
-[code_generator_dependencies.supported_packages.motion]
-version_pin = "12.0.0"
-transitive = ["react@19.0.0"]
-licence = "MIT"
-
-[code_generator_dependencies.supported_packages.clsx]
-version_pin = "2.1.1"
-transitive = []
-licence = "MIT"
-
-[code_generator_dependencies.supported_packages.tailwind-merge]
-version_pin = "3.0.0"
-transitive = []
-licence = "MIT"
-
-[code_generator_dependencies.supported_packages.tailwindcss]
-version_pin = "4.3.3"
-transitive = []
-licence = "MIT"
-
-[code_generator_dependencies.supported_packages."@tailwindcss/vite"]
-version_pin = "4.3.3"
-transitive = []
-licence = "MIT"
-
-[code_generator_verification]
-# Standalone Phase 4 final build, DOM verification, and promoted preview.
-enabled = true
-capability_proof_ttl_seconds = 900
-profile_id = "code-generator-verification-v1"
-browser_name = "chromium"
-browser_executable = ""
-browser_headless = true
-browser_timeout_ms = 15000
-install_timeout_seconds = 180.0
-typecheck_timeout_seconds = 180.0
-format_timeout_seconds = 60.0
-build_timeout_seconds = 180.0
-runtime_timeout_ms = 15000
-max_output_bytes = 65536
-max_artifact_bytes = 33554432
-reject_source_maps = true
-install_command = ["npm.cmd", "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"]
-typecheck_command = ["npm.cmd", "run", "typecheck"]
-format_command = []
-build_command = ["npm.cmd", "run", "build"]
-preview_root = ".workspace/code-generator-preview"
-preview_base_url = "http://127.0.0.1:4174/preview"
-preview_host = "127.0.0.1"
-preview_port = 4174
-preview_parent_origin = "http://127.0.0.1:8000"
-preview_embed_origins = ["http://127.0.0.1:8000", "http://localhost:8000", "http://127.0.0.1:4178", "http://localhost:4178"]
-preview_retention_days = 3
-preview_route_prefix = "/preview"
-# Local runs may use the in-process/filesystem preview without a public
-# gateway. Hosted Docker profiles turn this on so promotion proves the URL.
-preview_public_readback_required = false
-preview_storage_provider = "local_fs"
-preview_storage_prefix = "preview"
-# Complete-portfolio export destination (source + built dist + metadata).
-export_root = "output/code-gen-output"
-export_timezone = "Asia/Kolkata"
-release_viewport_profiles = ["desktop", "laptop"]
-
-[code_generator_verification.viewport_profiles]
-desktop = { width = 1440, height = 900 }
-laptop = { width = 1280, height = 800 }
-
-[code_generator_verification.geometry_thresholds]
-min_text_px = 12.0
-min_touch_target_px = 44.0
-max_section_gap_vh = 0.9
-max_section_overlap_ratio = 0.2
-
 [artifact_storage]
-# Non-secret coordinates for the configured private preparation bucket.
-# Credentials remain in .env or the hosting provider secret store. A deployment
-# overlay may replace these coordinates for another account/bucket.
+# Existing packed-object coordinates retained for privacy cleanup of records
+# created by earlier releases. Credentials remain in .env or the hosting
+# provider secret store.
 provider = "r2_s3"
 endpoint_url = "https://d20ab3b9469c0c46731f758a03af4e3c.r2.cloudflarestorage.com"
 bucket = "oryxenai-build-preparation"
@@ -414,50 +145,16 @@ require_lifecycle = true
 access_key_env = "R2_ACCESS_KEY_ID"
 secret_key_env = "R2_SECRET_ACCESS_KEY"
 
-[resource_providers]
-# Only configured, trusted sources may participate in execution enrichment.
-# Animate UI is intentionally absent: its Commons-Clause licence is not
-# approved for vendoring or distribution.
-registries_enabled = true
-# The public shadcn catalog is style-versioned.  The root /r/registry.json
-# endpoint is not a public catalog.
-shadcn_catalog_url = "https://ui.shadcn.com/r/styles/new-york-v4/registry.json"
-shadcn_item_url_template = "https://ui.shadcn.com/r/styles/new-york-v4/{name}.json"
-magicui_catalog_url = "https://magicui.design/r/registry.json"
-magicui_item_url_template = "https://magicui.design/r/{name}.json"
-magicui_enabled = true
-smoothui_api_base_url = "https://smoothui.dev/api/v1"
-smoothui_item_url_template = "https://smoothui.dev/r/{name}.json"
-smoothui_enabled = true
-cultui_catalog_url = "https://cult-ui.com/r/registry.json"
-cultui_item_url_template = "https://cult-ui.com/r/{name}.json"
-cultui_enabled = true
-aceternity_catalog_url = "https://ui.aceternity.com/registry/registry.json"
-aceternity_item_url_template = "https://ui.aceternity.com/registry/{name}.json"
-aceternity_enabled = false
-registry_order = ["shadcn", "magicui", "smoothui", "cultui"]
-execution_provider_order = ["fontsource", "shadcn", "magicui", "smoothui", "cultui", "motion_primitives", "lucide", "pexels"]
-licence_policy = "permissive-local-vendoring-only"
-fontsource_enabled = true
-fontsource_api_base_url = "https://api.fontsource.org/v1"
-fontsource_format = "woff2"
-fontsource_latin_only = true
-font_profiles = { editorial_technical = { display = "space-grotesk", body = "manrope", utility = "jetbrains-mono" }, neutral_systems = { display = "geist", body = "geist", utility = "jetbrains-mono" }, warm_technical = { display = "hanken-grotesk", body = "manrope", utility = "jetbrains-mono" } }
-shadcn_release_pin = "new-york-v4"
-magicui_release_pin = "registry-v1"
-smoothui_release_pin = "registry-v1"
-cultui_release_pin = "registry-v1"
-# Empty means discover the configured registry's live metadata. Deployments may
-# provide an explicit allowlist when their target contract requires one.
-shadcn_allowed_components = []
-magicui_allowed_components = []
-smoothui_allowed_components = []
-cultui_allowed_components = []
-motion_primitives_enabled = true
-motion_primitives_commit = "immutable-pin-required"
-motion_primitives_allowed_components = ["cursor", "magnetic", "text-effect"]
-animate_ui_enabled = false
-pexels_api_key_env = "PEXELS_API_KEY"
-pixabay_api_key_env = "PIXABAY_API_KEY"
-unsplash_access_key_env = "UNSPLASH_ACCESS_KEY"
-lucide_icon_url_template = "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"
+[archive_storage]
+# Compatibility paths only: deletion cleanup may remove outputs saved by
+# previous releases. These paths do not enable a generation stage.
+provider = "local_fs"
+root = ".workspace/code-generator-preview"
+prefix = "preview"
+artifact_root = ".workspace/code-generator-artifacts"
+generation_root = ".workspace/code-generator-generation"
+checkpoint_root = ".workspace/code-generator-checkpoints"
+workspace_root = ".workspace/code-generator-workspaces"
+export_root = "output/code-gen-output"
+handoff_root = ".workspace/build-preparation-staging"
+handoff_mirror_root = "output/build-preparation"

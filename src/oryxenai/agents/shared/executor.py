@@ -29,7 +29,7 @@ from oryxenai.auth.authorization import (
     durable_snapshot_for_session,
 )
 from oryxenai.auth.entitlements import PortfolioEntitlementRepository
-from oryxenai.auth.errors import EntitlementBindingConflictError, PortfolioReadOnlyError
+from oryxenai.auth.errors import EntitlementBindingConflictError
 from oryxenai.core.logging import get_logger, set_agent_run_id
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.agent_runs import AgentRunRepository
@@ -201,7 +201,7 @@ class AgentExecutor:
             )
             return await self._run_repo.get_by_id(run_id)  # type: ignore[return-value]
 
-        except (EntitlementBindingConflictError, PortfolioReadOnlyError):
+        except EntitlementBindingConflictError:
             raise
         except Exception as exc:
             # Persist a safe structured error on failure inside the same tx.
@@ -240,8 +240,6 @@ class AgentExecutor:
         )
         if entitlement.portfolio_session_id != session_id:
             raise EntitlementBindingConflictError()
-        if entitlement.successful_run_id is not None:
-            raise PortfolioReadOnlyError()
 
     async def find_idempotent(
         self,

@@ -6,11 +6,11 @@ import { safeLocalStorage, safeSessionStorage } from "../data/safe-storage";
 
 describe("product resilience", () => {
   it("maps structured server errors without exposing internal copy", async () => {
-    const response = new Response(JSON.stringify({ error: { code: "PORTFOLIO_READ_ONLY", message: "internal" } }), { status: 409, headers: { "Content-Type": "application/json" } });
+    const response = new Response(JSON.stringify({ error: { code: "PORTFOLIO_SESSION_STALE", message: "internal" } }), { status: 409, headers: { "Content-Type": "application/json" } });
     const error = await parseApiError(response);
     expect(error).toBeInstanceOf(ApiError);
-    expect(error.code).toBe("PORTFOLIO_READ_ONLY");
-    expect(error.message).toBe("This portfolio has a verified success and is now read-only.");
+    expect(error.code).toBe("PORTFOLIO_SESSION_STALE");
+    expect(error.message).toBe("This portfolio changed in another tab. Refresh to see the latest state.");
   });
 
   it("keeps only safe provider attribution and retry guidance", async () => {
@@ -39,28 +39,6 @@ describe("product resilience", () => {
     expect(error.supportReference).toBe("model-abcdef123456");
     expect(String(error)).not.toContain("GEMINI_2");
     expect(String(error)).not.toContain("must-not-escape");
-  });
-
-  it("uses safe copy for an approved-handoff identity mismatch", async () => {
-    const response = new Response(
-      JSON.stringify({
-        error: {
-          code: "PACK_VISUAL_IDENTITY_MISMATCH",
-          message: "internal validator detail",
-          details: {
-            approved_name: "Owner Name",
-            mismatched_names: "Other Name",
-          },
-        },
-      }),
-      { status: 409, headers: { "Content-Type": "application/json" } },
-    );
-    const error = await parseApiError(response);
-    expect(error.message).toBe(
-      "The visual direction needs an identity correction before the build handoff can start.",
-    );
-    expect(String(error)).not.toContain("Owner Name");
-    expect(String(error)).not.toContain("Other Name");
   });
 
   it("preserves drafts when browser storage is available", () => {

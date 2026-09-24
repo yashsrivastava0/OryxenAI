@@ -16,11 +16,6 @@ database = "oryxenai_test"
 pool_size = 3          # smaller pool for test isolation
 max_overflow = 5
 
-[artifact_storage]
-# Tests inject MemoryArtifactStore and never contact an object provider.
-provider = "memory"
-require_lifecycle = false
-
 [client_diagnostics]
 enabled = false
 output_root = ".workspace/test-diagnostics"
@@ -34,60 +29,6 @@ lease_seconds = 30
 wait_seconds = 2.0
 output_root = ".workspace/model-cache-output-test"
 export_enabled = false
-
-[build_preparation]
-fixture_enabled = true
-fixture_output_dir = "output"
-debug_mirror_enabled = true
-reasoning_enabled = false
-
-[code_generator_development]
-enabled = true
-input_root = ".workspace/code-generator-development-test"
-# Legacy fixtures keep exercising read compatibility. Focused v4 tests opt in
-# explicitly and assert that the committed live configuration is v4.
-pipeline_contract_version = "code-generator-v3"
-
-[code_generator_acquisition]
-materials_root = ".workspace/code-generator-materials-test"
-offline_resource_root = "tests/fixtures/code_generator_resources"
-prefer_resource_scout_model = false
-allowlist_image_providers = []
-
-[code_generator_dependencies]
-workspaces_root = ".workspace/code-generator-workspaces-test"
-npm_executable = "npm"
-npm_cache_root = ".workspace/npm-cache"
-allow_network_install = false
-allow_install_scripts = false
-
-[code_generator_generation]
-workspace_root = ".workspace/code-generator-generation-test"
-checkpoint_root = ".workspace/code-generator-checkpoints-test"
-use_real_typecheck = false
-max_concurrency = 1
-
-[code_generator_verification]
-enabled = true
-capability_proof_ttl_seconds = 900
-preview_root = ".workspace/code-generator-preview-test"
-preview_base_url = "http://127.0.0.1:4174/preview"
-preview_host = "127.0.0.1"
-preview_port = 4175
-preview_parent_origin = "http://test"
-preview_embed_origins = ["http://test"]
-preview_public_readback_required = false
-preview_storage_provider = "memory"
-preview_storage_prefix = "preview"
-export_timezone = "Asia/Kolkata"
-browser_timeout_ms = 5000
-runtime_timeout_ms = 5000
-install_timeout_seconds = 60.0
-typecheck_timeout_seconds = 60.0
-build_timeout_seconds = 60.0
-
-[resource_providers]
-registries_enabled = false
 
 [auth]
 # Unit/API tests use injected JWT/provider doubles and never call Supabase.
@@ -113,18 +54,32 @@ handler_timeout = 10.0      # short timeout for deterministic test handlers
 lease_duration = 5.0
 
 [worker.job.kind_timeouts]
-# Keep the production model-backed call graphs configuration-valid while
-# retaining the short default for deterministic probe/test handlers.
 "discovery.understand_and_question" = 300.0
 "discovery.build_or_revise_brief" = 300.0
 "discovery.prepare_questions" = 300.0
 "discovery.build_brief" = 300.0
 "content_architect.build" = 900.0
-"visual_design_director.build" = 900.0
-"build_preparation.prepare" = 1800.0
 
 [worker.retry]
 max_attempts = 3
+agent_job_max_attempts = 2
 base_delay = 0.01
 max_delay = 0.5
 jitter = false               # deterministic for tests
+
+[archive_storage]
+provider = "memory"
+root = ".workspace/archive-storage-test"
+prefix = "preview"
+artifact_root = ".workspace/archive-artifacts-test"
+generation_root = ".workspace/archive-generation-test"
+checkpoint_root = ".workspace/archive-checkpoints-test"
+workspace_root = ".workspace/archive-workspaces-test"
+export_root = ".workspace/archive-exports-test"
+handoff_root = ".workspace/archive-handoffs-test"
+handoff_mirror_root = ".workspace/archive-handoff-mirrors-test"
+
+[artifact_storage]
+# Tests inject MemoryArtifactStore and never contact an object provider.
+provider = "memory"
+require_lifecycle = false

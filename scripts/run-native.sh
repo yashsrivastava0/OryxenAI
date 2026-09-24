@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 || ! "$1" =~ ^(align-db|migrate|api|worker|preview|doctor)$ ]]; then
-  echo "Usage: $0 {align-db|migrate|api|worker|preview|doctor}" >&2
+if [[ $# -ne 1 || ! "$1" =~ ^(align-db|migrate|api|worker|doctor)$ ]]; then
+  echo "Usage: $0 {align-db|migrate|api|worker|doctor}" >&2
   exit 2
 fi
 
@@ -34,9 +34,6 @@ case "$1" in
     ;;
   worker)
     exec uv run python -m oryxenai.jobs.worker
-    ;;
-  preview)
-    exec uv run python -m oryxenai.preview.gateway
     ;;
   doctor)
     uv run python scripts/verify_environment.py

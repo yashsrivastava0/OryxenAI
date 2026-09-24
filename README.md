@@ -1,137 +1,71 @@
 # OryxenAI
 
-Production-oriented OryxenAI backend: a staged portfolio-generation pipeline
-(Discovery through Code Generator), a bounded local Phase 1-4 authentication/
-ownership/admin foundation, and a developer testing harness.
+OryxenAI is a portfolio-planning product with two active, explicit stages:
+Discovery and Content Architect. The active workflow ends after the user
+approves the content plan. The product does not currently create or serve a
+finished portfolio site.
 
-> **Discovery, Content Architect, Visual Design Director, the hidden
-> Portfolio Build Preparation stage, Code Generator, and Authentication
-> Phases 1-4 are all implemented**, each as a bounded local foundation. See
-> [docs/architecture.md](docs/architecture.md) for design rationale and
-> [docs/frontend-behavior-spec.md](docs/frontend-behavior-spec.md) for the
-> chat/UX contract. Production deployment and the owner-completed
-> multi-account browser acceptance gate remain separate, not-yet-done steps
-> — see `AGENTS.md` for the exact boundary.
-
-> **Current handoff:** Read [docs/project-status.md](docs/project-status.md)
-> for the current implemented/pending/next-state summary. Azure infrastructure
-> exists, but the application has not yet been deployed to the VM.
-
-> **AI agents working on this repo:** start with
-> [`AGENTS.md`](AGENTS.md), not this file — it's the canonical, current
-> project context. See also [`CHANGES.md`](CHANGES.md) (change history) and
-> [`DECISIONS.md`](DECISIONS.md) (decisions and open issues).
->
-> **Continuing Code Generator reliability work?** Read
-> [<code generator issues.md>](<code generator issues.md>) first — it is
-> the handoff log for exactly this work: what was fixed, how far live runs
-> got, and the prioritized next steps. `docs/code-generator-architecture/`
-> covers the design; `DECISIONS.md` (D-072 onward) has the evidence trail
-> behind the most recent fixes.
+> AI coding tools should read AGENTS.md first. It is the canonical current
+> project context. See docs/project-status.md for release and acceptance
+> status, CHANGES.md for append-only change history, and DECISIONS.md for
+> recorded architectural decisions.
 
 ## Current purpose
 
-Prove the staged pipeline works end to end:
-
-```
-Application starts → PostgreSQL connects → authenticated session → approved
-Discovery/Content/Visual snapshots → explicit Build Preparation → immutable
-Markdown brief pair → explicit Code Generator session → generated portfolio
-source, clean build, and multi-viewport verification screenshots
-```
-
-## Current non-goals
-
-- Automatic cross-agent chaining or a supervisor agent — every stage (through
-  Code Generator) is started by an explicit caller, never auto-invoked
-- LangChain/LangGraph or any other agent framework
-- Redis, Celery, Temporal, Kafka, or any external queue — jobs are durable
-  PostgreSQL rows (see `src/oryxenai/jobs/`)
-- Executing the production deployment, billing automation, and
-  published-portfolio hosting automation; the guided one-VM Azure deployment
-  path is implemented and documented, but the owner-completed multi-account
-  browser acceptance gate is still open (see `AGENTS.md`)
-- A separate frontend framework, visual editor, SEO/analytics for the
-  *generated* portfolios themselves
-- Vector database, embeddings, prompt-management platform, observability SaaS
-- Multiple microservices, Kubernetes, Terraform
+Capture a user's intent, produce a reviewed Discovery brief, then produce a
+reviewed Content Architect plan. Starting either stage is an explicit API
+action; approval does not automatically start another stage.
 
 ## Architecture summary
 
-- **Backend:** FastAPI + Pydantic + SQLAlchemy async (asyncpg) + Alembic
-- **Database:** PostgreSQL (JSONB for state and payloads)
-- **Preparation artifacts:** private S3-compatible object storage (Cloudflare
-  R2 by default); PostgreSQL stores metadata and hashes only
-- **Product frontend:** Preact + TypeScript + Vite, compiled into the static
-  bundle served by FastAPI; it does not run a separate production server
-- **Developer harness:** Jinja2 templates + vanilla JS/CSS, served by FastAPI
-- **Agents:** Ordinary Python protocols + Pydantic models (no agent framework)
-- **Model:** Provider-neutral `ModelClient` protocol with profiles and
-  credential names controlled by `config/models.toml`
-- **Config:** Secrets in `.env`; non-secret config in committed `config/app.toml` + `config/models.toml`
-- **Docker:** One app image (API/UI, worker, and preview gateway all run
-  from it as separate services) + one PostgreSQL container; production adds
-  Compose-managed Caddy
+- Backend: FastAPI, Pydantic, SQLAlchemy async, and Alembic.
+- Database: PostgreSQL, with JSONB for session state and job payloads.
+- Product frontend: Preact, TypeScript, and Vite, served by FastAPI.
+- Durable work: PostgreSQL-backed jobs executed by a separate worker.
+- Model access: provider-neutral ModelClient with profiles in
+  config/models.toml.
+- Configuration: secrets in .env; non-secret settings in config/.
+- Docker: app, migration, worker, PostgreSQL, and HTTPS reverse proxy.
 
-## Folder structure
+## Repository map
 
-```
-OryxenAI/
-├── src/oryxenai/
-│   ├── main.py                    # FastAPI app factory + middleware
-│   ├── core/                      # settings, logging, lifecycle
-│   ├── db/                        # models, repositories, async session
-│   ├── jobs/                      # durable PostgreSQL job queue, worker, heartbeat
-│   ├── auth/                      # identity, ownership, entitlements/fencing, admin lifecycle
-│   ├── agents/shared/             # contracts, registry, executor, model_client
-│   ├── agents/{discovery,content_architect,visual_design_director,
-│   │            build_preparation,code_generator}/
-│   │   ├── agent.py  schemas.py  README.md
-│   │   ├── prompts/                (per-agent prompt set)
-│   │   └── samples/{input.json,output.json}
-│   ├── runtime/                   # state_service, mock_runner
-│   ├── api/routes/                # stage/session APIs — see docs/run/run.md
-│   └── web/                       # templates, static (css/js)
-├── config/                        # committed non-secret TOML config
-├── migrations/                    # Alembic
-├── tests/                         # unit, api, integration, worker
-├── frontend/                      # authenticated Preact/TypeScript product shell
-├── docs/                          # architecture, frontend, deployment, and
-│                                   # Code Generator documentation
-├── scripts/                       # cross-platform launcher scripts — see docs/run/run.md
-├── .github/workflows/ci.yml
-├── Dockerfile, compose*.yaml, Caddyfile, alembic.ini, pyproject.toml, uv.lock
-└── README.md
-```
+    src/oryxenai/
+      main.py
+      agents/discovery/
+      agents/content_architect/
+      agents/shared/
+      api/routes/
+      auth/
+      db/
+      jobs/
+      web/
+    frontend/
+    config/
+    migrations/
+    scripts/
+    tests/
+    docs/
 
 ## Prerequisites
 
-- **Python 3.13** (pinned via `requires-python = ">=3.13,<3.14"`)
-- **uv** — [install](https://docs.astral.sh/uv/getting-started/installation/)
-- **Docker Desktop** (optional; required only for the Docker Compose mode)
-- **PostgreSQL** (local native mode uses port `5432`; Docker mode publishes
-  PostgreSQL on host port `5544`). If `5432` is already taken by another
-  local PostgreSQL install, don't edit the committed TOML — set
-  `DB_HOST_OVERRIDE`/`DB_PORT_OVERRIDE` in your `.env` instead (see
-  `.env.example` and the Troubleshooting section below).
-- **Node.js/npm** and a **Chromium-family browser** — only needed to run
-  Code Generator generation and verification (source builds and Playwright
-  DOM checks); not required to start the API, worker, or any other stage.
+- Python 3.13 and uv.
+- PostgreSQL for native development and database-backed tests.
+- Docker Desktop for Compose mode.
+- Node.js/npm only when building or checking the product frontend.
 
-For complete startup, service, agent, credential, and troubleshooting
-instructions, use the canonical [development runbook](docs/run/run.md) —
-it covers both modes in full and is kept current; treat this README's setup
-steps below as a quick start, not the authoritative reference.
+For startup, credentials, and troubleshooting, use the development runbook at
+docs/run/run.md. The remaining setup sections here are a quick reference.
 
 ## Environment setup
 
 ### Secrets (`.env`)
 
 The root `.env` contains **secrets only** — database password and optional API keys.
-Copy `.env.example` and fill in real values:
+Create it from `.env.example` only if it does not already exist, then fill in
+the values needed on this machine:
 
 ```powershell
-PS > Copy-Item .env.example .env
+PS > if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 # Edit .env: set POSTGRES_PASSWORD (and optionally API keys)
 ```
 
@@ -144,104 +78,43 @@ committed files under `config/`:
 
 ## Windows PowerShell setup
 
-```powershell
-uv python install 3.13
-uv sync --frozen
-.\scripts\run-native.ps1 align-db   # one-time: creates the local DB role/database
-.\scripts\run-native.ps1 migrate    # one-time (and after pulling new migrations)
-.\scripts\run-native.ps1 dev        # starts api + worker + preview gateway together
-```
+    uv python install 3.13
+    uv sync --frozen
+    .\scripts\run-native.ps1 align-db
+    .\scripts\run-native.ps1 migrate
+    .\scripts\run-native.ps1 dev
 
-`dev` launches all three as background windows. To run them individually
-instead (useful when you want each one's logs in its own foreground
-terminal), open separate PowerShell windows and run `.\scripts\run-native.ps1 api`,
-then `worker`, then `preview` — each blocks its terminal until you `Ctrl+C` it.
-Run `.\scripts\run-native.ps1 doctor` any time to check the environment.
-
-The native commands require a local PostgreSQL role/database. Docker users
-should follow the Docker Compose section in `docs/run/run.md` instead.
-
-Open `http://127.0.0.1:8000/app` for the login-free native four-stage
-workspace. Docker remains attached and production-like.
+The native development command starts the API and worker. Open
+http://127.0.0.1:8000/app and follow the configured authentication mode.
+For separate terminals, run run-native.ps1 api and run-native.ps1 worker.
 
 ## Linux/macOS setup
 
-```bash
-uv python install 3.13
-uv sync --frozen
-chmod +x scripts/run-native.sh      # one-time
-./scripts/run-native.sh align-db    # one-time: creates the local DB role/database
-./scripts/run-native.sh migrate     # one-time (and after pulling new migrations)
-```
+    uv python install 3.13
+    uv sync --frozen
+    chmod +x scripts/run-native.sh
+    ./scripts/run-native.sh align-db
+    ./scripts/run-native.sh migrate
+    ./scripts/run-native.sh dev
 
-Then, in separate terminals (each blocks in the foreground until `Ctrl+C`):
-
-```bash
-./scripts/run-native.sh api
-./scripts/run-native.sh worker
-./scripts/run-native.sh preview   # optional; only needed for Code Generator
-```
-
-Run `./scripts/run-native.sh doctor` any time to check the environment.
-
-## uv commands
-
-```powershell
-uv sync                    # create/refresh venv from lockfile
-uv sync --frozen           # strict: fail if lockfile is stale
-uv add <package>           # add a production dependency
-uv add --group dev <pkg>   # add a dev dependency
-uv run <command>           # run a command in the project venv
-uv lock --check             # verify lockfile is up to date
-```
+The native development command starts the API and worker. Open
+http://127.0.0.1:8000/app and follow the configured authentication mode.
+For separate terminals, run run-native.sh api and run-native.sh worker.
 
 ## Direct local startup
 
-Use `scripts/run-native.ps1` or `scripts/run-native.sh` so migrations, API,
-worker, and optional preview gateway all load the same native configuration
-overlay. The full sequence and local PostgreSQL setup are in the
-[development runbook](docs/run/run.md).
+Use scripts/run-native.ps1 or scripts/run-native.sh so the API and worker
+load the same configuration overlay. The full PostgreSQL setup and service
+details are in docs/run/run.md.
 
 ## Docker Compose startup
 
-```powershell
-# Main workflow: PostgreSQL, migrations, FastAPI/UI, and durable worker.
-docker compose up --build -d
-# App at http://localhost:8000, PostgreSQL on localhost:5544
-docker compose ps
-```
+    docker compose up --build -d
+    docker compose ps
 
-The Docker Compose stack:
-- Builds the app image from `Dockerfile` (multi-stage, non-root, no dev deps)
-- Starts PostgreSQL 16.4 (Alpine) with a persistent named volume
-- A one-shot migration service runs `alembic upgrade head` before the app and worker
-- Worker runs as a separate durable PostgreSQL-backed process
-- Exposes app on port 8000 and PostgreSQL on port 5544 (host) → 5432 (container)
-
-Build Preparation validation is deliberately a separate run and is not
-started by the main stack:
-
-```powershell
-# Offline/deterministic validation using the checked-in VDD fixture.
-PS > docker compose --profile build-validation run --rm build-validation
-
-# Optional live model/provider validation; requires the relevant .env keys
-# and configured temporary artifact storage credentials.
-PS > docker compose --profile build-validation run --rm build-validation --live-model --live-providers
-```
-
-The validation service exits after one detached Stage 0 → Phase 3 run. It does
-not start the API, worker, migrations, or a portfolio session. For a local
-non-Docker run, use the same entry point:
-
-```powershell
-PS > uv run python -m oryxenai.agents.build_preparation.cli
-PS > uv run python -m oryxenai.agents.build_preparation.cli --live-model --live-providers
-```
-
-The two-page browser harness remains available from the main app at
-`/dev/build-preparation-fixture` and `/dev/build-preparation-fixture/progress`.
-
+The stack starts PostgreSQL, runs migrations once, then starts the API and
+durable worker. The app is available on port 8000; PostgreSQL is published
+on host port 5544. See docs/run/run.md for configuration and safe shutdown.
 ## Migration commands
 
 ```powershell
@@ -290,62 +163,37 @@ uv run ruff format --check .  # format check (CI)
 uv run mypy src                # type check
 ```
 
-## API routes
+## Product and API routes
+
+The product workspace is served at http://127.0.0.1:8000/app after sign-in
+when authentication is enabled. The API schema is available at /docs in
+development.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health/live` | Process liveness (no DB dependency) |
-| GET | `/health/ready` | Dependency readiness (checks PostgreSQL) |
-| GET | `/api/v1/me` | Verify the Supabase session and resolve the safe local identity projection |
-| PUT | `/api/v1/me/username` | Claim the unique one-time onboarding username |
-| GET | `/api/v1/agents` | List registered mock agents |
-| POST | `/api/v1/sessions` | Create a portfolio test session |
-| GET | `/api/v1/sessions` | List recent sessions |
-| GET | `/api/v1/sessions/{id}` | Get one session and its current state |
-| GET | `/api/v1/sessions/{id}/runs` | Run history for a session |
-| POST | `/api/v1/sessions/{id}/runs/mock` | Execute a deterministic mock run |
-| GET | `/api/v1/sessions/{id}/discovery` | Get user-safe Discovery state |
-| POST | `/api/v1/sessions/{id}/discovery/start` | Store intake, queue Discovery Call A |
-| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save answers; `complete: true` queues Call B |
-| POST | `/api/v1/sessions/{id}/discovery/revise` | Natural-language brief revision (re-runs Call B) |
-| POST | `/api/v1/sessions/{id}/discovery/approve` | Create immutable approved brief |
-| GET | `/api/v1/sessions/{id}/content-architect` | Get Content Architect state |
-| POST | `/api/v1/sessions/{id}/content-architect/start` | Snapshot approved Discovery, queue build (requires Discovery approved) |
-| POST | `/api/v1/sessions/{id}/content-architect/revise` | Natural-language content revision (re-runs build) |
-| POST | `/api/v1/sessions/{id}/content-architect/approve` | Approve the reviewed content |
-| GET | `/api/v1/sessions/{id}/visual-design-director` | Get Visual Design Director state |
-| POST | `/api/v1/sessions/{id}/visual-design-director/start` | Snapshot approved Content Architect output, queue build (requires Content Architect approved) |
-| POST | `/api/v1/sessions/{id}/visual-design-director/revise` | Natural-language visual-direction revision (re-runs build) |
-| POST | `/api/v1/sessions/{id}/visual-design-director/approve` | Approve the reviewed visual direction |
+| GET | /health/live | Process liveness |
+| GET | /health/ready | Dependency readiness |
+| GET | /api/v1/me | Resolve the authenticated local identity |
+| PUT | /api/v1/me/username | Claim the onboarding username |
+| GET | /api/v1/agents | List active registered agents |
+| POST | /api/v1/sessions | Create an owned portfolio session |
+| GET | /api/v1/sessions | List owned sessions |
+| GET | /api/v1/sessions/{id} | Get session and projected current state |
+| GET | /api/v1/sessions/{id}/runs | List active-workflow runs |
+| POST | /api/v1/sessions/{id}/runs/mock | Run an administrator-only development mock |
+| GET | /api/v1/sessions/{id}/discovery | Read Discovery state |
+| POST | /api/v1/sessions/{id}/discovery/start | Store intake and enqueue Discovery |
+| PUT | /api/v1/sessions/{id}/discovery/answers | Save answers and continue Discovery |
+| POST | /api/v1/sessions/{id}/discovery/revise | Revise the Discovery brief |
+| POST | /api/v1/sessions/{id}/discovery/approve | Approve the Discovery brief |
+| GET | /api/v1/sessions/{id}/content-architect | Read Content Architect state |
+| POST | /api/v1/sessions/{id}/content-architect/start | Start from approved Discovery |
+| POST | /api/v1/sessions/{id}/content-architect/revise | Revise the content plan |
+| POST | /api/v1/sessions/{id}/content-architect/approve | Approve the content plan |
 
-This table covers the first three stages only. Build Preparation and Code
-Generator each have their own larger route set — see
-`src/oryxenai/agents/build_preparation/README.md` and
-`src/oryxenai/agents/code_generator/README.md` for their full tables, and
-`docs/run/run.md` for how to exercise them locally.
-
-All errors return a structured envelope:
-
-```json
-{
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "Human-readable message.",
-    "requestId": "correlation-id"
-  }
-}
-```
-
-## Authentication and diagnostic harness URLs
-
-Authentication starts at `http://127.0.0.1:8000/` (or
-`http://localhost:8000/` in Docker). The normal product workspace is at
-`/app`; the separate diagnostic harnesses are explicitly development-only.
-
-The diagnostic harnesses allow you to inspect Build Preparation at
-`/dev/build-preparation-fixture` or the Code Generator control room at
-`/dev/code-generator-development` when their feature flags are enabled.
-
+Errors use a structured envelope containing a stable code, safe message, and
+request ID. The route implementations and stage READMEs are the source of
+truth when this table drifts.
 ## How mock agent runs work
 
 1. The API validates the session and agent key.

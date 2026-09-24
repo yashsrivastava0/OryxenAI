@@ -231,24 +231,6 @@ class StorageCleanupFailedError(AuthError):
         super().__init__("The portfolio storage cleanup needs a safe retry.", retryable=True)
 
 
-class GenerationVariantLockedError(AuthError):
-    code = "GENERATION_VARIANT_LOCKED"
-    status_code = 409
-
-    def __init__(self) -> None:
-        super().__init__(
-            "This account already has its one Code Generator variant. Retry the existing run."
-        )
-
-
-class PortfolioReadOnlyError(AuthError):
-    code = "PORTFOLIO_READ_ONLY"
-    status_code = 409
-
-    def __init__(self) -> None:
-        super().__init__("This portfolio has a promoted success and is now read-only.")
-
-
 class EntitlementBindingConflictError(AuthError):
     code = "ENTITLEMENT_BINDING_CONFLICT"
     status_code = 409

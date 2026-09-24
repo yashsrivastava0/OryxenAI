@@ -53,9 +53,6 @@ def _register_builtins() -> None:
         register(WorkerProbeHandler())
     _register_discovery_handlers()
     _register_content_architect_handlers()
-    _register_visual_design_director_handlers()
-    _register_build_preparation_handlers()
-    _register_code_generator_handlers()
 
 
 def _register_discovery_handlers() -> None:
@@ -81,52 +78,6 @@ def _register_content_architect_handlers() -> None:
     from oryxenai.jobs.handlers.content_architect import ContentArchitectBuildHandler
 
     for handler_cls in (ContentArchitectBuildHandler,):
-        instance = handler_cls()
-        if not is_registered(instance.kind):
-            register(instance)
-
-
-def _register_visual_design_director_handlers() -> None:
-    from oryxenai.jobs.handlers.visual_design_director import VisualDesignDirectorBuildHandler
-
-    for handler_cls in (VisualDesignDirectorBuildHandler,):
-        instance = handler_cls()
-        if not is_registered(instance.kind):
-            register(instance)
-
-
-def _register_build_preparation_handlers() -> None:
-    from oryxenai.jobs.handlers.build_preparation import BuildPreparationHandler
-
-    instance = BuildPreparationHandler()
-    if not is_registered(instance.kind):
-        register(instance)
-
-
-def _register_code_generator_handlers() -> None:
-    from oryxenai.jobs.handlers.code_generator import (
-        CodeGeneratorAcquisitionHandler,
-        CodeGeneratorGenerationHandler,
-        CodeGeneratorPlanningHandler,
-        CodeGeneratorV5AcquisitionHandler,
-        CodeGeneratorV5GenerationHandler,
-        CodeGeneratorV5PlanningHandler,
-    )
-    from oryxenai.jobs.handlers.code_generator_verification import (
-        CodeGeneratorV5VerificationHandler,
-        CodeGeneratorVerificationHandler,
-    )
-
-    for handler_cls in (
-        CodeGeneratorPlanningHandler,
-        CodeGeneratorAcquisitionHandler,
-        CodeGeneratorGenerationHandler,
-        CodeGeneratorVerificationHandler,
-        CodeGeneratorV5PlanningHandler,
-        CodeGeneratorV5AcquisitionHandler,
-        CodeGeneratorV5GenerationHandler,
-        CodeGeneratorV5VerificationHandler,
-    ):
         instance = handler_cls()
         if not is_registered(instance.kind):
             register(instance)

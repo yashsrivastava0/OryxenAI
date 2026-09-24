@@ -1,7 +1,5 @@
-// Discovery stage adapter — the Phase 1 spike proving the adapter pattern
-// end to end (docs/Frontend/05 §19 Phase 1 "adapter fixtures for current
-// stage payloads"; status map in §6.2). Content, Design, Build Preparation,
-// and Code Generator adapters follow the same shape in their owning phases.
+// Discovery stage adapter. The response contract is defined by the active
+// Discovery API and state schema.
 //
 // Backend contract (verified against source, not just docs):
 // src/oryxenai/agents/discovery/schemas.py::DiscoveryState,

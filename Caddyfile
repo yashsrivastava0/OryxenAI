@@ -1,11 +1,10 @@
 # Compose-managed Caddy configuration.
-# APP_HOST and PREVIEW_HOST are supplied by the VM-local .env file.
-# Caddy reaches the application over the Compose network, so host port
-# publishes for the application and preview remain unnecessary.
+# APP_HOST is supplied by the VM-local .env file.
+# Caddy reaches the application over the Compose network, so the app needs no
+# host port publish.
 #
-# Neither upstream service sets HSTS itself (the app layer only adds a CSP
-# to its own auth pages), so the edge is the one place that can guarantee it
-# for every response on both hostnames.
+# The app layer only adds a CSP to its auth pages, so the edge is the one
+# place that can guarantee HSTS for every response.
 (security_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -17,9 +16,4 @@
 {$APP_HOST} {
 	import security_headers
 	reverse_proxy app:8000
-}
-
-{$PREVIEW_HOST} {
-	import security_headers
-	reverse_proxy preview-gateway:4174
 }

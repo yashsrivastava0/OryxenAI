@@ -1,10 +1,9 @@
 # Content Architect Agent
 
 Content Architect is the second OryxenAI workflow. It converts an **approved**
-Discovery result into final, grounded, publish-ready portfolio content and a
-justified site/route architecture, so the Visual Design Director and Code
-Generation Engine never need to invent copy, achievements, links, or route
-purposes.
+Discovery result into grounded, publish-ready portfolio content and justified
+site/route architecture. Its complete public copy is ready for user review and
+approval.
 
 ## Responsibilities
 
@@ -16,12 +15,9 @@ purposes.
 - Carry claim-level grounding (source, evidence status, individual vs team
   ownership, publication status) for every important claim, and gate
   publication so unresolved material never reaches finished public copy.
-- Produce a handoff for the Visual Design Director (content hierarchy,
-  density guidance, storytelling opportunities, confidentiality
-  restrictions, must-preserve facts) without picking exact visual decisions.
-- Record the provenance of major site-strategy decisions (audience,
-  presentation mode, CTA) so later stages know what's user-confirmed versus
-  a safe default.
+- Produce a complete, grounded content plan and public content projection for user review.
+- Record why major site-strategy decisions (audience, presentation mode, CTA, tone, and density)
+  were made, so user-confirmed preferences remain distinct from safe defaults.
 - Stop after producing content; never invoke another agent.
 
 ## Non-responsibilities
@@ -31,7 +27,6 @@ Content Architect must NOT:
 - Re-interview the user or repeat Discovery.
 - Change facts the user already approved in Discovery.
 - Invent employers, dates, metrics, awards, testimonials, links, or outcomes.
-- Pick exact visual components, layouts, typography, colors, or motion.
 - Generate React, CSS, SVG, or any portfolio code.
 - Perform external research or crawl links.
 
@@ -45,8 +40,8 @@ session revision (used to detect a stale source — see below). The full
 prose brief is deliberately excluded: `profile` + `user_summary` already
 carry the grounded facts, and re-sending the entire brief on every call
 (including every revision) would duplicate information, inflate latency and
-token cost, and risk later stages reading stale Discovery prose instead of
-this agent's own finalized output. Optional user `preferences` (goal,
+token cost, and risk this workflow reading stale Discovery prose instead of
+its own finalized output. Optional user `preferences` (goal,
 audience, tone, density) may be supplied at start.
 
 ## The adaptive bounded workflow
@@ -106,16 +101,15 @@ enforced structurally in `validators.py` (a hard reject, not just a prompt
 instruction), because a real model was observed to leak an unresolved
 project into public output as a confidently-titled route despite prompt
 instructions saying not to. `pending` material is review-only: it can remain
-in the Content Architect review output, but it is excluded from the approved
-public scope handed to Visual Design Director and Build Preparation.
+in the Content Architect review output, but it is excluded from the
+public content projection.
 
 Approval is an admission gate, not only a top-level hash stamp. At least one
 route must be `approved`; every approved route must have a safe unique path,
 title and purpose, exactly one non-empty content pack whose section sequence
-matches the route plan, and only approved claim references. The public
-manifest and Visual Design Director handoff must also be present. A failure
-returns an actionable 409 so the operator can request a revision before a
-later-stage pack fails.
+matches the route plan, and only approved claim references. The public manifest
+must also be present. A failure returns an actionable 409 so the operator can
+request a revision before approving incomplete content.
 
 ## Sections, not loose blocks
 
@@ -124,9 +118,9 @@ Each `sections[]` entry is machine-addressable: `section_id`, `purpose`,
 `content` (the actual visitor-facing copy — free-form per section type),
 `claim_ids` (every claim the section's copy relies on — validated against
 `claim_grounding`, and a section can never cite a `blocked` claim),
-`priority`, `optional`, `mobile_condensation`, and `link_targets`. This
-gives the Visual Design Director, revisions, and the Code Generation Engine
-an unambiguous page structure instead of loosely related, unlabeled blocks.
+`priority`, `optional`, `mobile_condensation`, and `link_targets`. This gives
+revisions and user review an unambiguous page structure instead of loosely
+related, unlabeled blocks.
 
 `internal_notes` is the *only* place review/QA reasoning may live ("needs
 confirmation before publishing", generalization rationale). It must never
@@ -141,8 +135,8 @@ observed leaking through despite prompt instructions.
 mode, primary audience, primary CTA, tone, density) was made: `user_confirmed`
 (a stated preference set it), `source_derived` (the snapshot's facts imply
 it), or `safe_default` (nothing was supplied, so a reasonable default was
-chosen). Downstream stages use this to know what they may preserve
-automatically versus what remains open to revision.
+chosen). This helps the user distinguish confirmed preferences from choices
+that remain open to revision.
 
 ## Staleness
 
@@ -172,8 +166,7 @@ non-empty `claim_id`, and a `verified` claim must carry a `source_reference`;
 exactly when the operation is supposed to produce them; every
 `page_content_packs` section has a pack-unique `section_id` and only cites
 `claim_ids` that exist and are not `blocked`; no `blocked` route/claim is
-referenced from public output; `visual_director_handoff` is required
-non-empty only for `integrate_content`. The configured route ceiling is an
+referenced from public output. The configured route ceiling is an
 admission boundary: an over-ceiling route plan or content-pack set is
 rejected rather than silently truncated, because truncation would make the
 approved public scope incomplete.

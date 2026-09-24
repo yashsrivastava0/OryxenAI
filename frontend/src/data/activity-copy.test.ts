@@ -30,56 +30,21 @@ describe("formatActivityStatus", () => {
     expect(done.text).toBe("Approved your content plan across every page");
   });
 
-  it("covers visual_design_director working and complete", () => {
-    const working = formatActivityStatus("visual_design_director", "build_running");
-    expect(working.working).toBe(true);
-    expect(working.text).toBe("Developing the visual direction from your approved content plan…");
-
-    const done = formatActivityStatus("visual_design_director", "approved");
-    expect(done.complete).toBe(true);
-    expect(done.text).toBe("Approved your visual direction for the whole site");
-  });
-
-  it("covers build_preparation working and complete", () => {
-    const working = formatActivityStatus("build_preparation", "running");
-    expect(working.working).toBe(true);
-    expect(working.text.endsWith("…")).toBe(true);
-    expect(working.text).toBe("Compiling the build handoff from your approved content and design…");
-
-    const done = formatActivityStatus("build_preparation", "ready");
-    expect(done.complete).toBe(true);
-    expect(done.text).toBe("Prepared the build handoff for generation");
-  });
-
-  it("covers code_generator across several working statuses and completion", () => {
-    const generating = formatActivityStatus("code_generator", "generating");
-    expect(generating.working).toBe(true);
-    expect(generating.text).toBe("Generating your portfolio source across every page…");
-
-    const verifying = formatActivityStatus("code_generator", "verifying");
-    expect(verifying.working).toBe(true);
-    expect(verifying.text).toBe("Verifying the built site across desktop and mobile viewports…");
-
-    const done = formatActivityStatus("code_generator", "ready");
-    expect(done.complete).toBe(true);
-    expect(done.text).toBe("Generated and verified your portfolio");
-  });
-
   it("reports a stale completion as needing a refresh, not as done", () => {
-    const copy = formatActivityStatus("code_generator", "ready", { stale: true });
+    const copy = formatActivityStatus("content_architect", "approved", { stale: true });
     expect(copy.complete).toBe(false);
     expect(copy.working).toBe(false);
-    expect(copy.text).toBe("Your portfolio is out of date and needs to be prepared again");
+    expect(copy.text).toBe("Your content plan is out of date and needs an update");
   });
 
-  it("refines working copy with a milestone and retry, keeping one ellipsis", () => {
-    const copy = formatActivityStatus("code_generator", "generating", {
-      milestone: "generate_pages",
+  it("refines active work copy with a milestone and retry, keeping one ellipsis", () => {
+    const copy = formatActivityStatus("content_architect", "build_running", {
+      milestone: "write_pages",
       attempt: 2,
     });
     expect(copy.working).toBe(true);
     expect(copy.text).toBe(
-      "Generating your portfolio source across every page (generate pages) — retry 2…",
+      "Structuring the site plan and page content from your approved brief (write pages) — retry 2…",
     );
     // Exactly one trailing ellipsis character.
     expect(copy.text.match(/…/g)?.length).toBe(1);
@@ -91,8 +56,8 @@ describe("formatActivityStatus", () => {
     expect(review.complete).toBe(false);
     expect(review.text).toBe("Waiting for you to review your content plan");
 
-    const idle = formatActivityStatus("build_preparation", "not_started");
-    expect(idle.text).toBe("Ready to start on your build handoff");
+    const idle = formatActivityStatus("content_architect", "not_started");
+    expect(idle.text).toBe("Ready to start on your content plan");
     expect(idle.text).not.toMatch(/working/i);
   });
 

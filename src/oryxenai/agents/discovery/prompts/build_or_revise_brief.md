@@ -63,15 +63,13 @@ padded with generic filler.
 10. Audience and visitor journey — who views the portfolio; what they should understand first; what
     credibility they need; what order of information makes sense; what action they should take.
 
-11. Design-direction signals — desired mood; professional character; light/dark/no preference;
-    visual density; motion tolerance; imagery availability; whether the portfolio should be
-    typography-led, project-led, systems-led, editorial, cinematic, clean, bold, restrained, or
-    another direction; references liked/disliked; anti-generic directions. Do NOT prescribe exact
-    component IDs or CSS.
+11. Content-presentation preferences - writing tone, content density, project order, section
+   emphasis, and whether visitors should scan a concise overview or read deeper case studies. Include
+   only preferences the user supplied or explicitly accepted; do not invent new
+   presentation preferences.
 
-12. Interaction, motion, and responsive priorities — restrained/balanced/expressive motion;
-    accessibility/reduced-motion; whether work should be scanned or explored; whether stories need
-    diagrams, timelines, or media; mobile-priority; long technical content concerns.
+12. Readability and content organization - the order in which visitors should understand the
+   person's work, how to keep dense material understandable, and any mobile reading priorities.
 
 13. Contact, CTA, and explicit source-use restrictions — desired primary action; supplied public
     contact methods; links to show; facts the source explicitly says to omit or generalize; whether
@@ -79,18 +77,11 @@ padded with generic filler.
 
 14. Constraints, conflicts, and open items — conflicting dates/titles; unclear contribution;
     unknown metrics; missing project proof; unsupported claims requested by the user; placeholders/
-    template residue; decisions the user skipped; anything later agents must not assume.
+    template residue; decisions the user skipped; anything Content Architect must not assume.
 
-15. Downstream handoff — three short sub-blocks:
-    - Content/story stage: central professional story, strongest evidence, projects to develop,
-      claims to avoid, desired tone, content-density recommendation.
-    - Visual-design stage: intended audience, desired visual character, content hierarchy, likely
-      visual assets/diagrams, motion preference, design references and anti-preferences,
-      mobile/readability priorities.
-    - Code-generation stage eventually preserves: approved public facts only, approved contact
-      links, required sections/stories, explicit source-use restrictions, accessibility/motion
-      preferences, NO invented metrics or fake visuals.
-    Discovery does NOT write the code.
+15. Content planning notes - central professional story, strongest evidence, projects to develop,
+    claims to avoid, confirmed writing tone and content density, and any source-use restrictions.
+    Keep the guidance grounded in approved facts and useful to a person reviewing the brief.
 
 16. Approval summary — confirmed decisions; open items safely omitted; whether the brief is ready
     for approval; what NEXT means (approve this exact brief and stop Discovery).
@@ -123,7 +114,7 @@ Write user_summary as a short, friendly, standalone summary for the person revie
 interface — roughly 150–350 words, plain paragraphs only, NO Markdown headings (it renders directly
 under a heading already on the page). Restate the portfolio direction in one or two sentences,
 mention the one or two strongest highlights, note anything still open in plain language, and
-confirm that the full detailed brief has been prepared and is ready for the next stage. Do not
+confirm that the full detailed brief has been prepared and is ready for user review. Do not
 repeat the entire brief_markdown content — this is a highlights view, not a duplicate.
 </user_summary>
 
@@ -136,8 +127,8 @@ never pad with generic filler.
 - Very sparse profile: roughly 700–1,200 useful words.
 - Typical resume with several roles/projects: roughly 1,500–3,000 useful words.
 - Rich senior / freelance / creative profile: roughly 2,500–4,500 useful words.
-A sparse profile may be shorter but must explicitly say what is missing and how later stages should
-compensate without fabrication.
+A sparse profile may be shorter but must explicitly say what is missing and how the content plan can
+stay useful without fabrication.
 </depth_and_length>
 
 <avoid_filler>
@@ -148,9 +139,9 @@ Do NOT satisfy length by repeating resume bullets or writing empty praise.
 </avoid_filler>
 
 <grounding>
-Distinguish confirmed facts from user preferences, suggestions, and open uncertainty. A design
+Distinguish confirmed facts from user preferences, suggestions, and open uncertainty. A content
 suggestion is not a fact. A fact in the source is not necessarily approved for publication. Never
-turn "I prefer dark" into "the user has shipped award-winning dark-mode products".
+turn "I prefer concise copy" into "the user has won a writing award".
 </grounding>
 
 <source_use_and_restrictions>
@@ -171,7 +162,7 @@ When an existing brief is supplied with a revision_request:
   rewrite.
 - Preserve unaffected factual content.
 - Apply the latest user instruction.
-- Update affected overview, priorities, design signals, CTA, open items, and downstream handoff.
+- Update affected overview, priorities, content preferences, CTA, and open items.
 - Preserve prior explicit source-use restrictions.
 - Remove superseded active instructions.
 - Regenerate the FULL coherent brief_markdown. Do NOT return a disconnected patch.

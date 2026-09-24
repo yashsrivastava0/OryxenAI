@@ -161,15 +161,9 @@ class WorkerRetryConfig(BaseModel):
     """Retry scheduling settings from [worker.retry]."""
 
     max_attempts: int = 3
-    # New first-four pipeline jobs are intentionally limited to one initial
-    # worker execution plus one redelivery.  Legacy jobs continue to use
-    # ``max_attempts`` until their own policy is migrated.
-    first_four_max_attempts: int = 2
-    # Code Generator jobs are long-running and expensive; give them their
-    # own named ceiling (one initial execution plus one redelivery) instead
-    # of sharing the more permissive general ``max_attempts`` default with
-    # other, unrelated job kinds.
-    code_generator_max_attempts: int = 2
+    # Retained model-backed operations are limited to one initial worker
+    # execution plus one redelivery.
+    agent_job_max_attempts: int = 2
     base_delay: float = 1.0
     max_delay: float = 60.0
     jitter: bool = True
@@ -213,7 +207,6 @@ class AuthConfig(BaseModel):
     # only relaxes the explicitly anonymous local pipeline/fixture boundary;
     # attached and deployment-like surfaces remain protected.
     pipeline_mode: str = "attached"
-    # Build Preparation and Code Generator keep isolated development harnesses.
     # This switch never relaxes the authenticated product/session boundary.
     development_harness_mode: str = "attached"
     # ``allowlist`` keeps local/restricted environments closed.  ``open``
@@ -478,400 +471,6 @@ class ContentArchitectConfig(BaseModel):
     max_routes: int = 12
 
 
-class VisualDesignDirectorConfig(BaseModel):
-    """Visual Design Director agent output limits from [visual_design_director]
-    in config/app.toml."""
-
-    max_pages: int = 12
-    max_catalogue_candidates: int = 6
-
-
-class ImageRetrievalConfig(BaseModel):
-    """Shared provider, cache, and image-processing policy."""
-
-    provider_order: list[str] = Field(default_factory=lambda: ["pexels", "pixabay"])
-    cache_root: str = ".workspace/image-search-cache"
-    cache_ttl_seconds: int = 86400
-    max_queries: int = 3
-    max_candidates_per_query: int = 6
-    max_candidates_total: int = 12
-    max_dimension: int = 2400
-    raw_download_max_bytes: int = 24 * 1024 * 1024
-    optimized_max_bytes: int = 8 * 1024 * 1024
-    minimum_width: int = 1200
-    minimum_height: int = 700
-    responsive_widths: list[int] = Field(default_factory=lambda: [480, 768, 1280, 1920])
-    responsive_formats: list[str] = Field(default_factory=lambda: ["webp", "jpeg"])
-    responsive_quality: int = Field(default=84, ge=40, le=95)
-    timeout_seconds: float = 15.0
-    retry_count: int = 2
-    max_retry_wait_seconds: float = 8.0
-    unsplash_enabled: bool = False
-    unsplash_local_vendoring_authorized: bool = False
-
-    @field_validator("unsplash_enabled", "unsplash_local_vendoring_authorized", mode="before")
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
-class BuildPreparationConfig(BaseModel):
-    """Build Preparation limits and policy.
-
-    Output is two Markdown briefs stored directly on session state -- no
-    ZIP, no object storage, no pack version/TTL to manage.
-    """
-
-    max_routes: int = 12
-    network_timeout_seconds: float = 15.0
-    network_retry_count: int = 2
-    target_contract: str = "react-vite-v1"
-    fixture_enabled: bool = False
-    fixture_input_path: str = "src/oryxenai/output/visual_design_director_Output.md"
-    # Matching Content Architect snapshot for the fixture input above; used to
-    # reunite the (CA, VDD) pair the fixture compiles from.
-    fixture_content_input_path: str = "src/oryxenai/output/content-architect"
-    fixture_output_dir: str = "output"
-    # Ephemeral per-run debug-mirror root for the real session/worker path —
-    # deliberately separate from fixture_output_dir, which is host-mounted
-    # (./output) only for the detached developer fixture/CLI and is NOT
-    # volume-mounted into the worker container. Follows the same
-    # .workspace/<agent-purpose> convention already used by every other
-    # agent's ephemeral Docker-writable paths so it works unmodified under
-    # the non-root container user without any Dockerfile/volume change.
-    session_staging_root: str = ".workspace/build-preparation-staging"
-    # Local debug mirror: a courtesy copy of both briefs written to disk for
-    # developer inspection. Never the source of truth.
-    debug_mirror_enabled: bool = True
-    model_profile: str = "build_preparation"
-    reasoning_enabled: bool = True
-    # Advisory targets for how many image/component roles a portfolio
-    # typically needs. The approved VDD projection may explicitly lower them
-    # for text-led or privacy-limited work; a role short of the target is
-    # never manufactured to meet it.
-    editorial_image_budget: int = 5
-    editorial_image_maximum: int = 6
-    visual_component_budget: int = 4
-    visual_component_maximum: int = 6
-    provider_max_concurrency: int = 2
-    auto_derive_visual_resources: bool = True
-
-    @field_validator(
-        "fixture_enabled",
-        "debug_mirror_enabled",
-        "reasoning_enabled",
-        "auto_derive_visual_resources",
-        mode="before",
-    )
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
-class CodeGeneratorDevelopmentConfig(BaseModel):
-    """Development-only admission and planning limits for Code Generator Phase 1."""
-
-    enabled: bool = True
-    input_root: str = ".workspace/code-generator-development"
-    fixture_map: dict[str, str] = Field(default_factory=dict)
-    pack_version: str = "build-preparation-pack-v3"
-    schema_version: str = "build-preparation-contract-v3"
-    accepted_pack_versions: list[str] = Field(
-        default_factory=lambda: ["build-preparation-pack-v3", "build-preparation-pack-v4"]
-    )
-    accepted_schema_versions: list[str] = Field(
-        default_factory=lambda: [
-            "build-preparation-contract-v3",
-            "build-preparation-contract-v4",
-        ]
-    )
-    target_contract: str = "react-vite-v1"
-    director_profile: str = "code_generator_director"
-    planner_profile: str = "code_generator_planner"
-    max_upload_bytes: int = 16 * 1024 * 1024
-    max_uncompressed_bytes: int = 64 * 1024 * 1024
-    max_entries: int = 256
-    max_compression_ratio: float = 100.0
-    max_routes: int = 12
-    max_work_units: int = 64
-    max_events_page_size: int = 100
-    # Local Build Preparation debug-mirror root: directories produced by the
-    # Build Preparation stage, each holding the two Markdown brief files.
-    build_preparation_mirror_root: str = "output/build-preparation"
-    pipeline_contract_version: str = "code-generator-v5"
-    worker_release_id: str = "oryxenai-code-generator-v5-quality-v4-capability-proof-v1"
-    quality_gate_version: str = "quality-gate-v3"
-    planner_max_attempts: int = Field(default=2, ge=1, le=4)
-    # Host-owned visual coverage policy. Live-discovered 2026-09-10 (D-092):
-    # a soft "preferred" signal alone (the prior 0/2/False defaults) let the
-    # planner legitimately place zero images across every observed live run
-    # even when Build Preparation had already researched and vetted real
-    # candidates for every section. When an approved pack supplies suitable
-    # material, require at least the preferred count and anchor one on the
-    # primary route; a text/abstract-led portfolio remains valid only when a
-    # pack genuinely has no approved image slots (the text_only_exemption
-    # path below always yields 0/False regardless of these defaults).
-    minimum_visible_images: int = Field(default=2, ge=0, le=12)
-    preferred_visible_images: int = Field(default=2, ge=0, le=24)
-    require_primary_route_image: bool = True
-    design_similarity_threshold: float = Field(default=0.82, ge=0, le=1)
-    design_similarity_history: int = Field(default=3, ge=1, le=10)
-
-    @field_validator("enabled", mode="before")
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
-class CodeGeneratorGenerationConfig(BaseModel):
-    """Standalone Phase 3 source-generation limits and trusted commands."""
-
-    scaffold_profile: str = "react-vite-v1"
-    scaffold_root: str = "src/oryxenai/agents/code_generator/scaffolds"
-    workspace_root: str = ".workspace/code-generator-generation"
-    checkpoint_root: str = ".workspace/code-generator-checkpoints"
-    route_profile: str = "code_generator_route_builder"
-    compose_profile: str = "code_generator_route_composer"
-    integration_profile: str = "code_generator_integrator"
-    repair_profile: str = "code_generator_repairer"
-    max_file_bytes: int = 256 * 1024
-    max_response_bytes: int = 2 * 1024 * 1024
-    # See config/app.toml for why this covers real responsive-image output.
-    max_source_bytes: int = 32 * 1024 * 1024
-    max_request_rounds: int = 4
-    max_repair_rounds_per_unit: int = 2
-    max_repair_rounds_total: int = 4
-    # These Pydantic defaults must match config/app.toml's effective values
-    # (the file that actually governs every live run) so the two never
-    # silently disagree again. An earlier default of 5 polish rounds was
-    # argued for from a genuine but now-superseded incident (pre-44304ff,
-    # before the honest-decline escape hatch and shared-cause width-ratio
-    # correlation fixes). The 2026-09-10 five-slot campaign, run entirely
-    # under these tighter values, showed every terminal failure was one
-    # distinct, root-causable defect (validator disagreement, ownership
-    # misattribution, hidden content) rather than a repair genuinely still
-    # converging when the budget ran out -- see docs/code-generator-live-
-    # campaign.md's "Final reliability campaign" table. Raising round counts
-    # does not fix a whack-a-mole pattern; root-causing each new defect does.
-    # See "code generator issues.md" for both incidents.
-    max_integration_polish_rounds: int = Field(default=3, ge=1, le=6)
-    max_route_batch_sections: int = 8
-    max_concurrency: int = 1
-    typecheck_timeout_seconds: float = 120.0
-    typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
-    source_audit_command: list[str] = Field(default_factory=lambda: ["npm", "run", "source:audit"])
-    format_command: list[str] = Field(default_factory=list)
-    use_real_typecheck: bool = True
-    # Structured route calls are serialized by default to avoid turning
-    # provider rate limits into repeated generation failures. Deployments can
-    # raise this explicitly after confirming their provider capacity.
-    # Source-generation route batches are deliberately serial in this
-    # release. The generation projection and filesystem checkpoint form one
-    # authoritative sequence; parallel siblings remain unavailable until
-    # centralized reservation and cancellation accounting is proven.
-    route_concurrency: int = Field(default=1, ge=1, le=1)
-    artifact_store_provider: str = "local_fs"
-    artifact_root: str = ".workspace/code-generator-artifacts"
-    max_context_chars: int = 120000
-    quality_review_max_context_chars: int = 600000
-    stable_prompt_prefix_version: str = "code-generator-prompts-v4"
-
-    @field_validator("use_real_typecheck", mode="before")
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
-class CodeGeneratorAcquisitionConfig(BaseModel):
-    """Trusted Code Generator resource-acquisition policy."""
-
-    allowlist_image_providers: list[str] = Field(default_factory=lambda: ["pexels", "pixabay"])
-    allowlist_font_formats: list[str] = Field(default_factory=lambda: ["woff2", "woff"])
-    allowlist_icon_package: str = "lucide"
-    allowlist_component_registries: list[str] = Field(
-        default_factory=lambda: ["shadcn", "magicui", "smoothui", "cultui"]
-    )
-    allowlist_style_kinds: list[str] = Field(
-        default_factory=lambda: ["pattern", "token_preset", "helper"]
-    )
-    forbidden_subject_terms: list[str] = Field(default_factory=list)
-    user_media_substitution_allowed: bool = False
-    max_request_rounds: int = 4
-    image_max_bytes: int = 4 * 1024 * 1024
-    font_max_bytes: int = 2 * 1024 * 1024
-    icon_svg_max_bytes: int = 384 * 1024
-    component_max_bytes: int = 512 * 1024
-    style_max_bytes: int = 256 * 1024
-    materials_root: str = ".workspace/code-generator-materials"
-    offline_resource_root: str = ""
-    prefer_resource_scout_model: bool = False
-    resource_scout_profile: str = "code_generator_resource_scout"
-    supported_packages: dict[str, dict[str, Any]] = Field(default_factory=dict)
-
-    @field_validator(
-        "user_media_substitution_allowed", "prefer_resource_scout_model", mode="before"
-    )
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
-class CodeGeneratorDependenciesConfig(BaseModel):
-    """Trusted package and disposable workspace policy for Code Generator."""
-
-    workspaces_root: str = ".workspace/code-generator-workspaces"
-    npm_executable: str = ""
-    npm_cache_root: str = ""
-    allow_network_install: bool = False
-    allow_install_scripts: bool = False
-    supported_packages: dict[str, dict[str, Any]] = Field(default_factory=dict)
-
-    @field_validator("allow_network_install", "allow_install_scripts", mode="before")
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
-class CodeGeneratorVerificationConfig(BaseModel):
-    """Final build, browser, artifact, and repair policy."""
-
-    enabled: bool = True
-    capability_proof_ttl_seconds: int = Field(default=900, ge=30, le=86400)
-    # When enabled, generated-output quality/source/runtime findings remain
-    # visible as advisories while build and preview-service viability alone
-    # determine whether a candidate can be promoted.
-    preview_first_acceptance: bool = False
-    profile_id: str = "code-generator-verification-v1"
-    browser_name: str = "chromium"
-    browser_executable: str = ""
-    browser_headless: bool = True
-    browser_timeout_ms: int = 15000
-    install_timeout_seconds: float = 180.0
-    typecheck_timeout_seconds: float = 180.0
-    format_timeout_seconds: float = 60.0
-    build_timeout_seconds: float = 180.0
-    runtime_timeout_ms: int = 15000
-    max_output_bytes: int = 65536
-    max_artifact_bytes: int = 32 * 1024 * 1024
-    reject_source_maps: bool = True
-    install_command: list[str] = Field(
-        default_factory=lambda: [
-            "npm",
-            "ci",
-            "--ignore-scripts",
-            "--offline",
-            "--no-audit",
-            "--no-fund",
-        ]
-    )
-    typecheck_command: list[str] = Field(default_factory=lambda: ["npm", "run", "typecheck"])
-    format_command: list[str] = Field(default_factory=list)
-    build_command: list[str] = Field(default_factory=lambda: ["npm", "run", "build"])
-    source_check_ids: list[str] = Field(
-        default_factory=lambda: ["source.paths", "source.coverage", "source.policy"]
-    )
-    build_check_ids: list[str] = Field(
-        default_factory=lambda: [
-            "build.install",
-            "build.typecheck",
-            "build.production",
-            "build.closure",
-        ]
-    )
-    runtime_check_ids: list[str] = Field(
-        default_factory=lambda: [
-            "runtime.routes",
-            "runtime.navigation",
-            "runtime.assets",
-            "runtime.accessibility",
-            "runtime.geometry",
-            "runtime.reduced_motion",
-            "runtime.interactions",
-        ]
-    )
-    viewport_profiles: dict[str, dict[str, int]] = Field(
-        default_factory=lambda: {
-            "desktop": {"width": 1440, "height": 900},
-            "laptop": {"width": 1280, "height": 800},
-        }
-    )
-    # The preview UI may expose additional device presets, but release
-    # verification is deliberately bounded to desktop web viewports.
-    release_viewport_profiles: list[str] = Field(default_factory=lambda: ["desktop", "laptop"])
-    geometry_thresholds: dict[str, float] = Field(
-        default_factory=lambda: {
-            "min_text_px": 12.0,
-            "min_touch_target_px": 36.0,
-            "max_section_gap_vh": 0.9,
-            "max_section_overlap_ratio": 0.2,
-        }
-    )
-    preview_root: str = ".workspace/code-generator-preview"
-    # The browser-facing URL is deliberately separate from the worker's
-    # service-to-service read-back URL.  In Docker, ``localhost`` inside the
-    # worker is not the host browser and the preview-gateway service name is
-    # not a URL a user's browser can resolve.
-    preview_base_url: str = "http://127.0.0.1:4174/preview"
-    preview_browser_base_url: str = ""
-    preview_verifier_base_url: str = ""
-    # Internal service-to-service liveness target.  Empty derives a dialable
-    # native URL from preview_host/preview_port; Docker overlays must use the
-    # preview-gateway service name because localhost is container-local and
-    # 0.0.0.0 is only a bind address.
-    preview_health_url: str = ""
-    preview_host: str = "127.0.0.1"
-    preview_port: int = 4174
-    preview_parent_origin: str = "http://127.0.0.1:8000"
-    preview_embed_origins: list[str] = Field(
-        default_factory=lambda: ["http://127.0.0.1:8000", "http://localhost:8000"]
-    )
-    # Development-only bridge to the Vite browser fixture. It is rendered
-    # into the standalone control room as a convenience link and is never
-    # used by authenticated production preview routing.
-    frontend_fixture_origin: str = "http://127.0.0.1:4178"
-    preview_retention_days: int = 3
-    preview_route_prefix: str = "/preview"
-    # Production promotion must prove the public gateway URL. Offline tests
-    # can disable only that external hop while retaining immutable storage
-    # read-back and all source/build/runtime gates.
-    preview_public_readback_required: bool = True
-    # Local development uses the filesystem. Hosted API/worker/gateway
-    # deployments switch this to ``artifact_storage`` so previews survive
-    # container restarts without creating a container per portfolio.
-    preview_storage_provider: str = "local_fs"
-    preview_storage_prefix: str = "preview"
-    # Where the complete generated portfolio (source project + built dist +
-    # metadata) is exported after a successful promotion. Advisory: export
-    # failures never fail a promoted run.
-    export_root: str = "output/code-gen-output"
-    export_timezone: str = "Asia/Kolkata"
-
-    @field_validator(
-        "enabled",
-        "browser_headless",
-        "reject_source_maps",
-        "preview_first_acceptance",
-        mode="before",
-    )
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
-
-
 class ArtifactStorageConfig(BaseModel):
     """Non-secret S3-compatible artifact storage settings."""
 
@@ -892,81 +491,24 @@ class ArtifactStorageConfig(BaseModel):
         return value
 
 
-class ResourceProviderConfig(BaseModel):
-    """Non-secret registry provider endpoints and feature flags."""
+class ArchiveStorageConfig(BaseModel):
+    """Coordinates used only to clean stored output created by older releases."""
 
-    registries_enabled: bool = True
-    shadcn_catalog_url: str = "https://ui.shadcn.com/r/styles/new-york-v4/registry.json"
-    shadcn_item_url_template: str = "https://ui.shadcn.com/r/styles/new-york-v4/{name}.json"
-    magicui_catalog_url: str = "https://magicui.design/r/registry.json"
-    magicui_item_url_template: str = "https://magicui.design/r/{name}.json"
-    magicui_enabled: bool = True
-    smoothui_api_base_url: str = "https://smoothui.dev/api/v1"
-    smoothui_item_url_template: str = "https://smoothui.dev/r/{name}.json"
-    smoothui_enabled: bool = True
-    cultui_catalog_url: str = "https://cult-ui.com/r/registry.json"
-    cultui_item_url_template: str = "https://cult-ui.com/r/{name}.json"
-    cultui_enabled: bool = True
-    aceternity_catalog_url: str = "https://ui.aceternity.com/registry/registry.json"
-    aceternity_item_url_template: str = "https://ui.aceternity.com/registry/{name}.json"
-    aceternity_enabled: bool = False
-    registry_order: list[str] = Field(
-        default_factory=lambda: ["shadcn", "magicui", "smoothui", "cultui", "aceternity"]
-    )
-    execution_provider_order: list[str] = Field(
-        default_factory=lambda: [
-            "fontsource",
-            "shadcn",
-            "magicui",
-            "smoothui",
-            "cultui",
-            "motion_primitives",
-            "lucide",
-            "pexels",
-        ]
-    )
-    licence_policy: str = "permissive-local-vendoring-only"
-    fontsource_enabled: bool = True
-    fontsource_api_base_url: str = "https://api.fontsource.org/v1"
-    fontsource_format: str = "woff2"
-    fontsource_latin_only: bool = True
-    font_profiles: dict[str, dict[str, str]] = Field(default_factory=dict)
-    shadcn_release_pin: str = ""
-    magicui_release_pin: str = ""
-    smoothui_release_pin: str = ""
-    cultui_release_pin: str = ""
-    shadcn_allowed_components: list[str] = Field(default_factory=list)
-    magicui_allowed_components: list[str] = Field(default_factory=list)
-    smoothui_allowed_components: list[str] = Field(default_factory=list)
-    cultui_allowed_components: list[str] = Field(default_factory=list)
-    motion_primitives_enabled: bool = True
-    motion_primitives_commit: str = ""
-    motion_primitives_allowed_components: list[str] = Field(default_factory=list)
-    animate_ui_enabled: bool = False
-    pexels_api_key_env: str = "PEXELS_API_KEY"
-    pixabay_api_key_env: str = "PIXABAY_API_KEY"
-    unsplash_access_key_env: str = "UNSPLASH_ACCESS_KEY"
-    lucide_icon_url_template: str = (
-        "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/{name}.svg"
-    )
-
-    @field_validator(
-        "registries_enabled",
-        "magicui_enabled",
-        "smoothui_enabled",
-        "cultui_enabled",
-        "aceternity_enabled",
-        "fontsource_enabled",
-        "fontsource_latin_only",
-        "motion_primitives_enabled",
-        "animate_ui_enabled",
-        mode="before",
-    )
-    @classmethod
-    def _coerce_bool(cls, value: Any) -> Any:
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "on"}
-        return value
+    provider: str = "local_fs"
+    root: str = ".workspace/archive-preview"
+    prefix: str = "preview"
+    endpoint_url: str = ""
+    bucket: str = ""
+    region: str = "auto"
+    access_key_env: str = "R2_ACCESS_KEY_ID"
+    secret_key_env: str = "R2_SECRET_ACCESS_KEY"  # noqa: S105 - env-var name only
+    artifact_root: str = ".workspace/archive-artifacts"
+    generation_root: str = ".workspace/archive-generation"
+    checkpoint_root: str = ".workspace/archive-checkpoints"
+    workspace_root: str = ".workspace/archive-workspaces"
+    export_root: str = "output/archive-exports"
+    handoff_root: str = ".workspace/archive-handoffs"
+    handoff_mirror_root: str = "output/archive-handoff-mirrors"
 
 
 class ModelCacheConfig(BaseModel):
@@ -1183,28 +725,8 @@ class Settings(BaseSettings):
     model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     content_architect: ContentArchitectConfig = Field(default_factory=ContentArchitectConfig)
-    visual_design_director: VisualDesignDirectorConfig = Field(
-        default_factory=VisualDesignDirectorConfig
-    )
-    image_retrieval: ImageRetrievalConfig = Field(default_factory=ImageRetrievalConfig)
-    build_preparation: BuildPreparationConfig = Field(default_factory=BuildPreparationConfig)
-    code_generator_development: CodeGeneratorDevelopmentConfig = Field(
-        default_factory=CodeGeneratorDevelopmentConfig
-    )
-    code_generator_generation: CodeGeneratorGenerationConfig = Field(
-        default_factory=CodeGeneratorGenerationConfig
-    )
-    code_generator_acquisition: CodeGeneratorAcquisitionConfig = Field(
-        default_factory=CodeGeneratorAcquisitionConfig
-    )
-    code_generator_dependencies: CodeGeneratorDependenciesConfig = Field(
-        default_factory=CodeGeneratorDependenciesConfig
-    )
-    code_generator_verification: CodeGeneratorVerificationConfig = Field(
-        default_factory=CodeGeneratorVerificationConfig
-    )
+    archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
     artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
-    resource_providers: ResourceProviderConfig = Field(default_factory=ResourceProviderConfig)
 
     @model_validator(mode="after")
     def _load_toml_files(self) -> Settings:
@@ -1248,38 +770,10 @@ class Settings(BaseSettings):
             self.discovery = DiscoveryConfig(**app_data["discovery"])
         if "content_architect" in app_data:
             self.content_architect = ContentArchitectConfig(**app_data["content_architect"])
-        if "visual_design_director" in app_data:
-            self.visual_design_director = VisualDesignDirectorConfig(
-                **app_data["visual_design_director"]
-            )
-        if "image_retrieval" in app_data:
-            self.image_retrieval = ImageRetrievalConfig(**app_data["image_retrieval"])
-        if "build_preparation" in app_data:
-            self.build_preparation = BuildPreparationConfig(**app_data["build_preparation"])
-        if "code_generator_development" in app_data:
-            self.code_generator_development = CodeGeneratorDevelopmentConfig(
-                **app_data["code_generator_development"]
-            )
-        if "code_generator_generation" in app_data:
-            self.code_generator_generation = CodeGeneratorGenerationConfig(
-                **app_data["code_generator_generation"]
-            )
-        if "code_generator_acquisition" in app_data:
-            self.code_generator_acquisition = CodeGeneratorAcquisitionConfig(
-                **app_data["code_generator_acquisition"]
-            )
-        if "code_generator_dependencies" in app_data:
-            self.code_generator_dependencies = CodeGeneratorDependenciesConfig(
-                **app_data["code_generator_dependencies"]
-            )
-        if "code_generator_verification" in app_data:
-            self.code_generator_verification = CodeGeneratorVerificationConfig(
-                **app_data["code_generator_verification"]
-            )
+        if "archive_storage" in app_data:
+            self.archive_storage = ArchiveStorageConfig(**app_data["archive_storage"])
         if "artifact_storage" in app_data:
             self.artifact_storage = ArtifactStorageConfig(**app_data["artifact_storage"])
-        if "resource_providers" in app_data:
-            self.resource_providers = ResourceProviderConfig(**app_data["resource_providers"])
 
         # Model profiles.
         models_data = _load_toml("models.toml")

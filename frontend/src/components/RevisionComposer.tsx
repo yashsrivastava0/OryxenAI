@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "preact/hooks";
 import { safeSessionStorage } from "../data/safe-storage";
 
 export interface RevisionComposerProps {
-  artifactName: string; // e.g. "brief", "content plan", "visual direction"
+  artifactName: string; // e.g. "portfolio brief" or "content plan"
   onSubmit: (revisionRequest: string) => Promise<void>;
   onCancel: () => void;
   disabled?: boolean;

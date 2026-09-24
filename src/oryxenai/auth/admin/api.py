@@ -7,10 +7,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 
-from oryxenai.agents.code_generator.service import CodeGeneratorService
 from oryxenai.api.dependencies import (
     get_admin_service,
-    get_code_generator_service,
     require_admin,
 )
 from oryxenai.auth.admin.schemas import (
@@ -371,59 +369,5 @@ async def resume_operation(
             operation_id=operation_id,
             idempotency_key=_key(request),
             request_id=_request_id(request),
-        )
-    )
-
-
-@router.post(
-    "/projects/{session_id}/code-generator/retry",
-    response_model=AdminOperationResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def retry_code_generator(
-    session_id: UUID,
-    body: AdminActionRequest,
-    request: Request,
-    current: CurrentUser = Depends(require_admin),
-    service: AdminService = Depends(get_admin_service),
-    code_generator: CodeGeneratorService = Depends(get_code_generator_service),
-) -> AdminOperationResponse:
-    return _operation_response(
-        await service.code_generator_command(
-            actor_id=current.id,
-            session_id=session_id,
-            confirmation=body.confirmation,
-            reason=body.reason,
-            idempotency_key=_key(request),
-            request_id=_request_id(request),
-            action="code_generator_retry",
-            callback=lambda: code_generator.retry(session_id, idempotency_key=_key(request)),
-        )
-    )
-
-
-@router.post(
-    "/projects/{session_id}/code-generator/regenerate",
-    response_model=AdminOperationResponse,
-    status_code=status.HTTP_202_ACCEPTED,
-)
-async def regenerate_code_generator(
-    session_id: UUID,
-    body: AdminActionRequest,
-    request: Request,
-    current: CurrentUser = Depends(require_admin),
-    service: AdminService = Depends(get_admin_service),
-    code_generator: CodeGeneratorService = Depends(get_code_generator_service),
-) -> AdminOperationResponse:
-    return _operation_response(
-        await service.code_generator_command(
-            actor_id=current.id,
-            session_id=session_id,
-            confirmation=body.confirmation,
-            reason=body.reason,
-            idempotency_key=_key(request),
-            request_id=_request_id(request),
-            action="code_generator_regenerate",
-            callback=lambda: code_generator.regenerate(session_id, idempotency_key=_key(request)),
         )
     )

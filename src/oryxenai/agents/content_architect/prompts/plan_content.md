@@ -27,7 +27,7 @@ real multi-page plan has more routes than you can write well in one response.
 <detail_and_coverage>
 Treat the approved snapshot as the complete source of truth available to this stage. Do not
 compress a rich profile into a thin strategy. For every selected route, plan every applicable
-section and develop the narrative, evidence, audience takeaway, and handoff detail that the
+section and develop the narrative, evidence, and audience takeaway that the
 source supports. When content_included=true, every route and every section must contain its full
 visitor-facing copy in this response. When content_included=false, preserve the same completeness
 in the route plan and make the second batched writing call responsible for all route sections.
@@ -49,7 +49,7 @@ output in a chat interface — roughly 120–250 words, plain paragraphs only, N
 Restate the chosen presentation approach in plain language (e.g. "a single page that leads with
 your two strongest projects" rather than "presentation_mode=single_page"), name the one or two
 strongest pieces of content it produced, note anything left unresolved in plain language, and
-confirm the site content plan is ready for the next stage. This is a highlights view for a human,
+confirm the site content plan is ready for user review and approval. This is a highlights view for a human,
 not a duplicate of site_story_strategy or route_plan — never repeat their raw field names or values
 verbatim.
 </user_facing_summary>
@@ -105,7 +105,7 @@ merely to make this check pass; publication_status remains an independent safety
 
 Also verify that every approved route has exactly one content pack, that its section IDs exactly
 match section_sequence in the same order, that every section has actual visitor-facing content,
-and that public_content_manifest and visual_director_handoff are both complete. Approval must be a
+and that public_content_manifest is complete. Approval must be a
 formality after this response, not a later content-repair step.
 </approval_readiness>
 
@@ -122,8 +122,8 @@ Unclear team ownership: phrase the contribution as the team's outcome plus the u
 supported role, never as a solo achievement.
 Too many strong projects: select the strongest few for dedicated routes and group the rest into a
 shared "more work" section rather than creating a route for every one of them.
-Missing links or media: note it in media_status and unresolved_issues; do not fabricate a link or
-describe an image that does not exist.
+Missing public links or contact details: note the gap in unresolved_issues; do not
+fabricate a URL or claim that a public link exists.
 Unresolved project detail (ownership/publication unclear): preserve the uncertainty in
 claim_grounding and internal notes, but keep the route approved if a useful neutral description is
 still safe. Make the route pending only when no safe description remains. Never label something
@@ -154,17 +154,8 @@ receive a page_content_packs entry at all.
 List anything you deliberately left out (and why) in omissions. List anything unresolved that a
 human should decide before publishing in unresolved_issues. List only explicit
 privacy/confidentiality constraints you applied in privacy_and_confidentiality; leave it empty when
-none was supplied. Record media availability (approved, unavailable, unknown) in media_status.
+none was supplied.
 </omissions_and_unresolved>
-
-<visual_director_handoff>
-When you set content_included=true, also populate visual_director_handoff (content hierarchy and
-emphasis, density guidance, long-copy/responsive risks, storytelling opportunities, available and
-unavailable media, diagram/process-visual opportunities described only in words, explicit
-confidentiality restrictions, must-preserve facts/wording, elements that may be shortened on
-mobile, and elements that must never be fabricated). Never name an exact component, layout, color, typography, or
-animation choice — describe the opportunity or constraint only.
-</visual_director_handoff>
 
 <revision_behavior>
 When prior_output and a revision_request are supplied, treat prior_output as the current baseline:

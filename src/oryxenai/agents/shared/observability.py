@@ -49,9 +49,8 @@ def durable_model_metadata(
     if not isinstance(stages, list) and (
         isinstance(result.get("telemetry"), dict) or isinstance(result.get("cache"), dict)
     ):
-        # Discovery and the single-call Build Preparation operation expose a
-        # flat receipt; normalize them to the same aggregate shape as the
-        # adaptive multi-call agents.
+        # Single-call operations expose a flat receipt; normalize them to the
+        # same aggregate shape as adaptive multi-call operations.
         stages = [result]
     if not isinstance(stages, list):
         return result

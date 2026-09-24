@@ -6,10 +6,8 @@
 // re-maps that into product-facing ApiError copy (errors.ts) rather than
 // re-implementing the fetch boundary.
 //
-// The authenticated product's fifth and final stage is Generate & Preview,
-// which starts Code Generator explicitly and embeds its promoted preview.
-// The separate developer harness (/dev/code-generator-development) remains
-// a distinct diagnostic surface with its own richer contract.
+// The authenticated product uses the supported Discovery and Content
+// Architect endpoints only.
 
 import { ApiError } from "./errors";
 import { recordClientEvent } from "./client-diagnostics";
@@ -67,7 +65,7 @@ function summarizeApiPayload(path: string, payload: unknown): Record<string, unk
   if (typeof payload.session_id === "string") summary.session_id = payload.session_id;
   if (typeof payload.session_revision === "number") summary.session_revision = payload.session_revision;
 
-  for (const stage of ["discovery", "content_architect", "visual_design_director", "build_preparation", "code_generator"]) {
+  for (const stage of ["discovery", "content_architect"]) {
     const value = payload[stage];
     if (!isRecord(value)) continue;
     if (typeof value.status === "string") summary[`${stage}_status`] = value.status;
@@ -188,7 +186,6 @@ export interface MeProjection {
   status: string;
   onboarding_required: boolean;
   admin_available: boolean;
-  read_only?: boolean;
   can_create_portfolio?: boolean;
   portfolio_session_id?: string | null;
   [key: string]: unknown;
@@ -304,98 +301,7 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         jsonInit("POST", {}),
       ),
 
-    getVisualDesignDirector: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director`,
-      ),
 
-    startVisualDesignDirector: (
-      sessionId: string,
-      body: { preferences?: Record<string, unknown>; model_profile?: string } = {},
-      idempotencyKey?: string,
-    ) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/start`,
-        jsonInit("POST", body, idempotencyKey),
-      ),
-
-    reviseVisualDesignDirector: (sessionId: string, revisionRequest: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/revise`,
-        jsonInit("POST", { revision_request: revisionRequest }),
-      ),
-
-    approveVisualDesignDirector: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/approve`,
-        jsonInit("POST", {}),
-      ),
-
-    stopVisualDesignDirector: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/visual-design-director/stop`,
-        jsonInit("POST", {}),
-      ),
-
-    getBuildPreparation: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation`,
-      ),
-
-    startBuildPreparation: (
-      sessionId: string,
-      body: { model_profile?: string } = {},
-      idempotencyKey?: string,
-    ) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/start`,
-        jsonInit("POST", body, idempotencyKey),
-      ),
-
-    regenerateBuildPreparation: (
-      sessionId: string,
-      body: { model_profile?: string } = {},
-      idempotencyKey?: string,
-    ) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/build-preparation/regenerate`,
-        jsonInit("POST", body, idempotencyKey),
-      ),
-
-    getCodeGenerator: (sessionId: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator`,
-      ),
-
-    startCodeGenerator: (sessionId: string, idempotencyKey?: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/start`,
-        jsonInit("POST", {}, idempotencyKey),
-      ),
-
-    regenerateCodeGenerator: (sessionId: string, idempotencyKey?: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/regenerate`,
-        jsonInit("POST", {}, idempotencyKey),
-      ),
-
-    retryCodeGenerator: (sessionId: string, idempotencyKey?: string) =>
-      requestJson<StageEnvelope>(
-        authorizedFetch,
-        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/retry`,
-        jsonInit("POST", {}, idempotencyKey),
-      ),
 
   };
 }

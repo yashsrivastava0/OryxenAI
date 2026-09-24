@@ -18,13 +18,10 @@
 // unrecognised (newer) backend status still yields non-generic copy rather
 // than "Working…".
 
-/** The canonical stage keys used across the pipeline. */
+/** The active stage keys used by the product workspace. */
 export type ActivityStage =
   | "discovery"
-  | "content_architect"
-  | "visual_design_director"
-  | "build_preparation"
-  | "code_generator";
+  | "content_architect";
 
 /**
  * Optional job/progress fields the caller may already hold (from the shared
@@ -34,9 +31,7 @@ export type ActivityStage =
  * the present-vs-past tense decision, which is driven purely by status.
  */
 export interface ActivityContext {
-  /** A backend-reported sub-stage / milestone label, if any
-   * (e.g. build_preparation `current_stage`, code_generator
-   * `progress.coordinator_stage`). Used only to sharpen the Specific-Item. */
+  /** A backend-reported sub-stage / milestone label, if any. */
   milestone?: string | null;
   /** Retry attempt number for the active job (1-based). When > 1 while
    * working, the copy notes the retry so a stalled-looking line still reads
@@ -99,48 +94,15 @@ const CONTENT_ARCHITECT: Record<string, StatusEntry> = {
   needs_attention: {},
 };
 
-const VISUAL_DESIGN_DIRECTOR: Record<string, StatusEntry> = {
-  not_started: {},
-  build_running: { working: "Developing the visual direction from your approved content plan", isWorking: true },
-  design_review: {},
-  approved: { done: "Approved your visual direction for the whole site", isComplete: true },
-  needs_attention: {},
-};
-
-const BUILD_PREPARATION: Record<string, StatusEntry> = {
-  not_started: {},
-  running: { working: "Compiling the build handoff from your approved content and design", isWorking: true },
-  ready: { done: "Prepared the build handoff for generation", isComplete: true },
-  needs_attention: {},
-};
-
-const CODE_GENERATOR: Record<string, StatusEntry> = {
-  not_started: {},
-  queued: { working: "Queuing the portfolio generation from your build handoff", isWorking: true },
-  planning: { working: "Planning the site structure from your build handoff", isWorking: true },
-  acquiring: { working: "Acquiring the pinned images and fonts for your portfolio", isWorking: true },
-  generating: { working: "Generating your portfolio source across every page", isWorking: true },
-  verifying: { working: "Verifying the built site across desktop and mobile viewports", isWorking: true },
-  preview_pending: { working: "Finishing the verified preview of your portfolio", isWorking: true },
-  ready: { done: "Generated and verified your portfolio", isComplete: true },
-  needs_attention: {},
-};
-
 const STAGE_MAPS: Record<ActivityStage, Record<string, StatusEntry>> = {
   discovery: DISCOVERY,
   content_architect: CONTENT_ARCHITECT,
-  visual_design_director: VISUAL_DESIGN_DIRECTOR,
-  build_preparation: BUILD_PREPARATION,
-  code_generator: CODE_GENERATOR,
 };
 
 /** Human-readable per-stage subject used in deterministic fallback copy. */
 const STAGE_SUBJECT: Record<ActivityStage, string> = {
   discovery: "your portfolio brief",
   content_architect: "your content plan",
-  visual_design_director: "your visual direction",
-  build_preparation: "your build handoff",
-  code_generator: "your portfolio",
 };
 
 /** Statuses that always mean "working" even if not explicitly listed. */
@@ -149,24 +111,19 @@ function looksLikeWorkingStatus(status: string): boolean {
     status.endsWith("_running") ||
     status.endsWith("_queued") ||
     status === "running" ||
-    status === "queued" ||
-    status === "planning" ||
-    status === "acquiring" ||
-    status === "generating" ||
-    status === "verifying" ||
-    status === "preview_pending"
+    status === "queued"
   );
 }
 
 /** Statuses that always mean "complete" even if not explicitly listed. */
 function looksLikeCompleteStatus(status: string): boolean {
-  return status === "approved" || status === "ready" || status === "complete";
+  return status === "approved" || status === "complete";
 }
 
 function withMilestone(base: string, milestone?: string | null): string {
   const trimmed = typeof milestone === "string" ? milestone.trim() : "";
   if (!trimmed) return base;
-  // Keep it human: turn "generate_pages" / "generate-pages" into "generate pages".
+  // Keep it human: turn "write_pages" / "write-pages" into "write pages".
   const readable = trimmed.replace(/[-_]+/g, " ").trim();
   return `${base} (${readable})`;
 }
@@ -208,7 +165,7 @@ export function formatActivityStatus(
   // A stale completion is not a clean "done": surface it as needing a refresh.
   if (isComplete && context.stale === true) {
     return {
-      text: `${capitalize(subject)} is out of date and needs to be prepared again`,
+      text: `${capitalize(subject)} is out of date and needs an update`,
       working: false,
       complete: false,
     };
@@ -248,7 +205,6 @@ function idleCopy(stage: ActivityStage, status: string, subject: string): string
       return "Waiting for you to finish your answers";
     case "brief_review":
     case "content_review":
-    case "design_review":
       return `Waiting for you to review ${subject}`;
     case "needs_attention":
       return `${capitalize(stage.replace(/_/g, " "))} needs your attention`;

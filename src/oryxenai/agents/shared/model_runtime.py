@@ -34,10 +34,8 @@ _PREFLIGHT_TTL_SECONDS = 300.0
 _PREFLIGHT_OPERATIONS = {
     "discovery": "understand_and_question",
     "content_architect": "plan_content",
-    "visual_design_director": "establish_visual_language",
-    "build_preparation": "compose_visual_brief",
 }
-_FIRST_FOUR = frozenset(_PREFLIGHT_OPERATIONS)
+_ACTIVE_ENGINES = frozenset(_PREFLIGHT_OPERATIONS)
 
 
 class _PipelinePreflightEnvelope(BaseModel):
@@ -342,7 +340,7 @@ class ModelRuntime:
                 engine,
                 operation,
                 input_classification="personal",
-                override=override if engine not in _FIRST_FOUR else "",
+                override=override if engine not in _ACTIVE_ENGINES else "",
             )
         return self.resolve_profile_name(engine, override)
 
@@ -483,8 +481,6 @@ def validate_pipeline_job_timeouts(settings: Any) -> None:
         "discovery.prepare_questions": ("discovery", 1, 60.0),
         "discovery.build_brief": ("discovery", 1, 60.0),
         "content_architect.build": ("content_architect", 3, 120.0),
-        "visual_design_director.build": ("visual_design_director", 3, 120.0),
-        "build_preparation.prepare": ("build_preparation", 1, 300.0),
     }
     runtime = get_model_runtime(settings.models)
     for job_kind, (engine, call_count, margin) in budgets.items():

@@ -4,7 +4,7 @@ Transport-level validation: the response must be parseable, required
 envelope keys must exist, mode must be known and consistent with the
 operation, route/claim entries must carry usable stable IDs. Free-text
 content (site_story_strategy prose, section content blocks, public_content_manifest
-copy, visual_director_handoff notes) is NOT business-validated — the model
+copy) is NOT business-validated — the model
 decides how to phrase things; structural completeness is checked separately,
 while the prose remains free-form and unscored, just as Discovery never
 business-validates brief_markdown. Active routes and their
@@ -177,11 +177,6 @@ def validate_stage_output(
     )
     if content_required:
         errors.extend(_validate_content_coverage(page_content_packs or [], effective_route_plan))
-
-    if operation == "integrate_content" and not _is_nonempty_dict(
-        data.get("visual_director_handoff")
-    ):
-        errors.append("'visual_director_handoff' must not be empty for integrate_content")
 
     for list_field in ("omissions", "unresolved_issues", "privacy_and_confidentiality", "warnings"):
         value = data.get(list_field)

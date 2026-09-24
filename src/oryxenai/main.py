@@ -13,7 +13,6 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
-from oryxenai.agents.build_preparation.fixture_runs import FixtureRunManager
 from oryxenai.agents.shared.model_runtime import close_model_runtime, get_model_runtime
 from oryxenai.api.errors import (
     AppError,
@@ -30,7 +29,7 @@ from oryxenai.core.lifecycle import dispose_engine
 from oryxenai.core.logging import configure_logging, get_logger, new_request_id
 from oryxenai.core.settings import Settings, get_settings
 from oryxenai.db.session import get_engine, get_sessionmaker
-from oryxenai.storage.preview import create_preview_storage
+from oryxenai.storage.archive import create_archive_storage
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -190,7 +189,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.auth_verifier.aclose()
         await app.state.auth_provider.aclose()
         await app.state.auth_admin_provider.aclose()
-        await app.state.fixture_run_manager.close()
         await close_model_runtime(settings.models)
         await dispose_engine(app.state.engine)
         logger.info("shutdown complete")
@@ -213,7 +211,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = s
     app.state.engine = get_engine(s)
     app.state.sessionmaker = get_sessionmaker(s)
-    app.state.fixture_run_manager = FixtureRunManager(s)
     app.state.model_runtime = get_model_runtime(s.models, app.state.sessionmaker)
     app.state.auth_verifier = SupabaseJwtVerifier(
         supabase_url=s.supabase_url,
@@ -229,11 +226,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         secret_key=s.supabase_secret_key.get_secret_value(),
         timeout_seconds=s.auth.http_timeout_seconds,
     )
-    # The admin cleanup service uses the same reviewed preview-store boundary
-    # as the production verifier.  Artifact storage remains lazily owned by
-    # the Code Generator service because cloud credentials must not be needed
-    # to boot a local auth console.
-    app.state.preview_storage = create_preview_storage(s)
+    # Account cleanup can remove older stored outputs without exposing an
+    # output-serving or output-writing runtime.
+    app.state.archive_storage = create_archive_storage(s)
 
     # Middleware (order: outer to inner; last added runs first).
     app.add_middleware(SecurityHeadersMiddleware)

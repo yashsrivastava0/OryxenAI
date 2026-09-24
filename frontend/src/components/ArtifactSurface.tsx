@@ -23,7 +23,7 @@ export interface ArtifactSurfaceProps {
   structuredSections?: ArtifactSectionItem[];
   metadata?: Array<{ label: string; value: string }>;
   warnings?: string[];
-  artifactTypeName: string; // e.g. "brief", "content plan", "visual direction"
+  artifactTypeName: string; // e.g. "portfolio brief" or "content plan"
   finalJsonOutput?: unknown;
   /** The next agent this artifact hands off to. The approved state exposes a
    * separate destination-specific start action for this stage. */

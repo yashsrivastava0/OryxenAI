@@ -9,9 +9,7 @@
 
 type FinalOutputStage =
   | "discovery"
-  | "content_architect"
-  | "visual_design_director"
-  | "build_preparation";
+  | "content_architect";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
