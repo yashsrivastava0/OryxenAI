@@ -106,17 +106,10 @@ class EntitlementProjection:
 
     policy: str
     portfolio_session_id: UUID | None
-    generation_run_id: UUID | None
-    successful_run_id: UUID | None
-    consumed_at: datetime | None
+    deleted_portfolio_session_id: UUID | None
+    project_deleted_at: datetime | None
     can_create_portfolio: bool
-    can_start_generation: bool
-    can_retry_generation: bool
-    can_regenerate: bool
-    read_only: bool
     revision: int
-    deleted_portfolio_session_id: UUID | None = None
-    project_deleted_at: datetime | None = None
 
 
 @dataclass(frozen=True, slots=True)

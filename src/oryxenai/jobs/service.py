@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from oryxenai.auth.authorization import DurableAuthorizationContext, durable_snapshot
 from oryxenai.auth.errors import EntitlementBindingConflictError
-from oryxenai.db.models.code_generator_development import CodeGeneratorDevelopmentRun
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.jobs.policy import MODEL_GENERATION_LANE, policy_for
 from oryxenai.jobs.repository import JobRepository
@@ -112,19 +111,6 @@ class JobService:
                 or getattr(session, "session_mode", "legacy") not in {"detached", "legacy"}
                 or session.status != "active"
             ):
-                raise EntitlementBindingConflictError()
-        run_value = payload.get("code_generator_run_id") or payload.get("development_run_id")
-        if run_value:
-            recognized = True
-            try:
-                run_id = UUID(str(run_value))
-            except ValueError as exc:
-                raise EntitlementBindingConflictError() from exc
-            result = await self._session.execute(
-                select(CodeGeneratorDevelopmentRun).where(CodeGeneratorDevelopmentRun.id == run_id)
-            )
-            run = result.scalar_one_or_none()
-            if run is None or getattr(run, "run_mode", None) != "development":
                 raise EntitlementBindingConflictError()
         if not recognized:
             raise EntitlementBindingConflictError()

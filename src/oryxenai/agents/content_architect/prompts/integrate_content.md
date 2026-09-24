@@ -32,16 +32,8 @@ detail and remove its claim_id instead of promoting the claim. Do not introduce 
 language into any section's content — keep that, if any exists, in each pack's internal_notes.
 </reconciliation>
 
-<visual_director_handoff>
-Finalize visual_director_handoff (content hierarchy and emphasis, density guidance, long-copy or
-responsive risks, storytelling opportunities, available/unavailable media, diagram/process-visual
-opportunities described in words only, confidentiality restrictions, must-preserve facts/wording,
-mobile-shortenable elements, and elements that must never be fabricated) now that the full content
-set is final. Never name an exact component, layout, color, typography, or animation choice.
-</visual_director_handoff>
-
 <complete_output_rule>
-Return the full reconciled content packs, manifest, and handoff with all existing visitor-facing
+Return the full reconciled content packs and manifest with all existing visitor-facing
 detail preserved. Reconciliation must not turn a complete route into a short summary or a partial
 patch. If no wording needs correction, copy the complete content forward and only change the
 consistency fields that require it.

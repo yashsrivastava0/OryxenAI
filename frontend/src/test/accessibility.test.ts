@@ -22,27 +22,25 @@ describe("Phase 5 Accessibility Pass (docs/Frontend/05 §13, §18)", () => {
     expect(vnode.props.role).toBe("status");
   });
 
-  it("ProgressSurface sets aria-busy and marks milestones cleanly", () => {
+  it("ProgressSurface marks active content milestones cleanly", () => {
     const milestones = [
-      { id: "1", label: "Resolving assets", state: "complete" as const },
-      { id: "2", label: "Compiling work graph", state: "current" as const },
-      { id: "3", label: "Generating pages", state: "quiet" as const },
+      { id: "1", label: "Planning pages", state: "complete" as const },
+      { id: "2", label: "Writing page content", state: "current" as const },
     ];
     const vnode = ProgressSurface({
-      stageLabel: "Stage 05 / Code Generator",
-      title: "Building portfolio source",
-      currentMilestone: "Compiling work graph",
+      stageLabel: "Stage 02 / Content Architect",
+      title: "Preparing your page content",
+      currentMilestone: "Writing page content",
       milestones,
     });
     expect(vnode).toBeDefined();
-    expect(vnode.props["aria-label"]).toBe("Stage 05 / Code Generator progress");
+    expect(vnode.props["aria-label"]).toBe("Stage 02 / Content Architect progress");
   });
 
   it("JourneyRail marks active stage with aria-current='step'", () => {
     const stages: JourneyStageVM[] = [
       { id: "discover", ordinal: 1, label: "Discovery", state: "complete", isSelectable: true },
       { id: "content", ordinal: 2, label: "Content Architect", state: "review", isSelectable: true },
-      { id: "design", ordinal: 3, label: "Visual Design", state: "locked", isSelectable: false },
     ];
     const vnode = JourneyRail({
       journey: stages,

@@ -7,9 +7,6 @@ import { useContext } from "preact/hooks";
 import type { MeProjection } from "../data/api-client";
 import type { DiscoveryViewModel } from "../data/adapters/discovery";
 import type { ContentViewModel } from "../data/adapters/content";
-import type { DesignViewModel } from "../data/adapters/design";
-import type { BuildPreparationViewModel } from "../data/adapters/preparation";
-import type { GenerationViewModel } from "../data/adapters/generation";
 import type { JourneyStageId } from "./url-state";
 
 export type ConnectionState = "confirmed" | "checking" | "stale" | "offline";
@@ -18,13 +15,9 @@ export interface AppState {
   me: MeProjection | null;
   sessionId: string | null;
   sessionRevision: number | null;
-  readOnly: boolean;
   activeStage: JourneyStageId;
   discovery: DiscoveryViewModel | null;
   content: ContentViewModel | null;
-  design: DesignViewModel | null;
-  preparation: BuildPreparationViewModel | null;
-  generation: GenerationViewModel | null;
   connection: ConnectionState;
   announcement: string | null;
 }
@@ -35,9 +28,6 @@ export type AppAction =
   | { type: "stage/select"; stage: JourneyStageId }
   | { type: "discovery/set"; view: DiscoveryViewModel }
   | { type: "content/set"; view: ContentViewModel }
-  | { type: "design/set"; view: DesignViewModel }
-  | { type: "preparation/set"; view: BuildPreparationViewModel }
-  | { type: "generation/set"; view: GenerationViewModel }
   | { type: "pipeline/reset"; sessionId: string; revision: number }
   | { type: "connection/set"; state: ConnectionState }
   | { type: "announce"; message: string };
@@ -46,13 +36,9 @@ export const initialAppState: AppState = {
   me: null,
   sessionId: null,
   sessionRevision: null,
-  readOnly: false,
   activeStage: "discover",
   discovery: null,
   content: null,
-  design: null,
-  preparation: null,
-  generation: null,
   connection: "checking",
   announcement: null,
 };
@@ -60,7 +46,7 @@ export const initialAppState: AppState = {
 export function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "me/set":
-      return { ...state, me: action.me, readOnly: Boolean(action.me.read_only) };
+      return { ...state, me: action.me };
     case "session/set":
       return { ...state, sessionId: action.sessionId, sessionRevision: action.revision };
     case "pipeline/reset":
@@ -71,9 +57,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         activeStage: "discover",
         discovery: null,
         content: null,
-        design: null,
-        preparation: null,
-        generation: null,
       };
     case "stage/select":
       return { ...state, activeStage: action.stage };
@@ -81,12 +64,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, discovery: action.view };
     case "content/set":
       return { ...state, content: action.view };
-    case "design/set":
-      return { ...state, design: action.view };
-    case "preparation/set":
-      return { ...state, preparation: action.view };
-    case "generation/set":
-      return { ...state, generation: action.view };
     case "connection/set":
       return { ...state, connection: action.state };
     case "announce":

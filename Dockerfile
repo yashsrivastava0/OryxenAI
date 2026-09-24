@@ -50,14 +50,6 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# The standalone Code Generator verifier is feature-disabled in the normal
-# Docker overlay, but the image still carries the configured local toolchain so
-# an explicitly enabled development profile does not silently fall back to a
-# fake source check.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends bash chromium \
-    && rm -rf /var/lib/apt/lists/*
-
 # Create a non-root user.
 RUN groupadd --system --gid 1001 oryxen \
     && useradd --system --uid 1001 --gid oryxen --home-dir /app oryxen
@@ -66,18 +58,6 @@ WORKDIR /app
 
 # Copy the fully-populated virtual environment from the builder.
 COPY --from=builder --chown=oryxen:oryxen /app/.venv /app/.venv
-# Use the exact Node 22/npm toolchain that built the product frontend. The
-# verifier must not silently switch to a different distribution Node version.
-# npm and npx are symlinks in the official Node image; copy the npm package
-# and recreate those links instead of copying the launcher files as regular
-# files (which breaks npm's relative CLI module resolution).
-COPY --from=frontend-builder /usr/local/bin/node /usr/local/bin/node
-COPY --from=frontend-builder /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
-RUN ln -sf ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && ln -sf ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
-    && npm --version \
-    && npx --version
-
 # Copy runtime assets: source, config, migrations, entrypoint.
 COPY --chown=oryxen:oryxen src/ ./src/
 # The Vite output is generated in the image rather than relying on an ignored
@@ -87,21 +67,17 @@ COPY --chown=oryxen:oryxen config/ ./config/
 COPY --chown=oryxen:oryxen migrations/ ./migrations/
 COPY --chown=oryxen:oryxen alembic.ini ./
 COPY --chown=oryxen:oryxen scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
-COPY --chown=oryxen:oryxen scripts/warm-npm-cache.sh ./scripts/warm-npm-cache.sh
 
-# VM-local bind mounts are mounted over these paths at runtime. Keep the image
-# paths initialized for local runs and make every application-owned path
-# writable by the non-root worker before the bind mounts are attached.
+# Keep application-owned paths writable by the non-root service account.
 RUN sed -i 's/\r$//' ./scripts/docker-entrypoint.sh \
-    && mkdir -p /app/.workspace/code-generator-preview /app/.workspace/image-search-cache \
-        /app/.workspace/code-generator-development /app/.workspace/code-generator-materials \
-        /app/.workspace/code-generator-generation /app/.workspace/code-generator-checkpoints \
-        /app/.workspace/code-generator-workspaces /app/.workspace/code-generator-artifacts \
-        /app/.workspace/build-preparation-staging /app/.workspace/npm-cache \
-        /app/output/code-gen-output \
+    && mkdir -p /app/.workspace/archive-storage \
+        /app/.workspace/archive-artifacts /app/.workspace/archive-generation \
+        /app/.workspace/archive-checkpoints /app/.workspace/archive-workspaces \
+        /app/.workspace/archive-handoffs /app/output/archive-exports \
+        /app/output/archive-handoff-mirrors \
     && chown -R oryxen:oryxen /app/.workspace \
         /app/output \
-    && chmod +x ./scripts/docker-entrypoint.sh ./scripts/warm-npm-cache.sh
+    && chmod +x ./scripts/docker-entrypoint.sh
 
 USER oryxen
 

@@ -55,12 +55,11 @@ class MockModelClient:
 def _mock_structured_result(output_model: type[BaseModel]) -> Any:
     """Build a deterministic StructuredModelResult for the given output model.
 
-    Discovery, Content Architect, Visual Design Director, and Code Generator
-    (SitePlan) output models each get a valid minimal envelope so the
-    mock-runs dev harness can execute those agents without network access.
+    Discovery and Content Architect output models each get a valid minimal
+    envelope so the mock-runs development harness can execute those agents
+    without network access.
     Any other model falls back to an empty instance.
     """
-    from oryxenai.agents.code_generator.core.development_schemas import SitePlan, WorkGraph
     from oryxenai.agents.content_architect.schemas import (
         ClaimGrounding,
         ContentArchitectOutput,
@@ -86,21 +85,9 @@ def _mock_structured_result(output_model: type[BaseModel]) -> Any:
         StructuredModelResult,
         StructuredProfile,
     )
-    from oryxenai.agents.visual_design_director.schemas import (
-        PageVisualDirection,
-        SceneDirection,
-        VisualDesignDirectorOutput,
-        VisualPlanMode,
-    )
 
     parsed: BaseModel | None
-    if output_model is SitePlan:
-        parsed = SitePlan(
-            plan_id="plan-mock",
-            routes=[],
-            work_graph=WorkGraph(units=[]),
-        )
-    elif output_model is QuestionSetOutput:
+    if output_model is QuestionSetOutput:
         parsed = QuestionSetOutput(
             mode=OperationMode.ASK_QUESTIONS,
             assistant_message="I have enough to ask a few focused questions.",
@@ -235,62 +222,6 @@ def _mock_structured_result(output_model: type[BaseModel]) -> Any:
                 "contact_cta": "Get in touch",
             },
             unresolved_issues=["no metrics supplied"],
-            visual_director_handoff={
-                "content_hierarchy": ["hero", "project", "contact"],
-                "never_fabricate": ["performance metrics"],
-            },
-            memory_update={},
-        )
-    elif output_model is VisualDesignDirectorOutput:
-        parsed = VisualDesignDirectorOutput(
-            mode=VisualPlanMode.VISUAL_LANGUAGE_AND_PAGES,
-            pages_included=True,
-            integration_needed=False,
-            user_summary="A restrained, evidence-first visual direction for a single-page portfolio.",
-            visual_language={
-                "creative_thesis": "Reliability engineering as its own aesthetic: restrained, high-contrast, evidence-first.",
-                "color_behavior": "A single confident accent reserved for evidence and action.",
-                "typography": "A calm, confident display/body hierarchy with generous vertical rhythm.",
-                "motion_character": "Minimal — used only to draw attention to the one signature evidence moment.",
-                "anti_patterns": "No gradients, no glassmorphism, no decorative motion.",
-            },
-            shared_visual_systems={
-                "card_treatment": "Flat, bordered panels with no drop shadow.",
-                "section_dividers": "Generous whitespace instead of visible rule lines.",
-            },
-            navigation_direction={
-                "form": "single anchor nav",
-                "mobile_strategy": "collapse to a menu button",
-            },
-            motion_system={"global_character": "minimal", "signature_moments": []},
-            interaction_system={"hover": "subtle lift on interactive cards"},
-            pages=[
-                PageVisualDirection(
-                    route_id="home",
-                    path="/",
-                    purpose="Single-page portfolio home",
-                    storyboard="Hero establishes positioning, then the project evidence, then contact.",
-                    responsive_summary="Single column on mobile; hero and project sections stack.",
-                    scenes=[
-                        SceneDirection(
-                            scene_id="hero_scene",
-                            route_id="home",
-                            narrative_goal="Establish positioning immediately.",
-                            content_refs=["hero"],
-                            layout_intent="Text-dominant asymmetric hero.",
-                            responsive_behavior=(
-                                "Single column, centered, on mobile; asymmetric two-column on desktop."
-                            ),
-                        )
-                    ],
-                )
-            ],
-            accessibility_and_performance={
-                "contrast": "WCAG AA minimum for all text.",
-                "reduced_motion": "No motion is load-bearing.",
-            },
-            must_preserve=["QueueGuard adoption figure"],
-            must_not_fabricate=["performance metrics"],
             memory_update={},
         )
     else:

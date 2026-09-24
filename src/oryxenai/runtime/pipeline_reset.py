@@ -3,26 +3,22 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oryxenai.agents.code_generator.core import fs_safe
-from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.auth.admin.provider import AdminIdentityProvider
 from oryxenai.auth.admin.service import AdminService
 from oryxenai.db.models.agent_run import AgentRun
-from oryxenai.db.models.background_job import BackgroundJob
-from oryxenai.db.models.code_generator_development import (
-    CodeGeneratorDevelopmentEvent,
-    CodeGeneratorDevelopmentRun,
-    CodeGeneratorStageAttempt,
+from oryxenai.db.models.archived_output import (
+    ArchivedOutputAttempt,
+    ArchivedOutputEvent,
+    ArchivedOutputRun,
 )
+from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 
@@ -43,13 +39,13 @@ class PipelineResetService:
         *,
         settings: Any,
         artifact_store: Any | None = None,
-        preview_storage: Any | None = None,
+        archive_storage: Any | None = None,
         auth_admin_provider: Any | None = None,
     ) -> None:
         self.db = db
         self.settings = settings
         self.artifact_store = artifact_store
-        self.preview_storage = preview_storage
+        self.archive_storage = archive_storage
         self.auth_admin_provider = auth_admin_provider
 
     async def restart(self, session_id: UUID, replacement_id: UUID) -> PortfolioSession:
@@ -72,7 +68,6 @@ class PipelineResetService:
                 return existing_replacement
             raise ValueError("replacement session ID is already in use")
 
-        state_snapshot = dict(session.current_state or {})
         session.status = "deletion_pending"
         session.revision += 1
         await self.db.execute(
@@ -100,12 +95,11 @@ class PipelineResetService:
             cleanup = AdminService(
                 db=self.db,
                 provider=cast(AdminIdentityProvider, self.auth_admin_provider),
-                preview_storage=self.preview_storage,
+                archive_storage=self.archive_storage,
                 artifact_store=self.artifact_store,
                 settings=self.settings,
             )
             await cleanup._cleanup_external(session_id)
-            self._cleanup_build_preparation_paths(state_snapshot)
         except Exception as exc:
             await self.db.rollback()
             raise PipelineResetError() from exc
@@ -117,25 +111,21 @@ class PipelineResetService:
                 return existing
             raise LookupError("session not found")
 
-        run_ids = select(CodeGeneratorDevelopmentRun.id).where(
-            CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
+        run_ids = select(ArchivedOutputRun.id).where(
+            ArchivedOutputRun.portfolio_session_id == session_id
         )
         await self.db.execute(
             delete(BackgroundJob).where(BackgroundJob.portfolio_session_id == session_id)
         )
         await self.db.execute(delete(AgentRun).where(AgentRun.portfolio_session_id == session_id))
         await self.db.execute(
-            delete(CodeGeneratorStageAttempt).where(CodeGeneratorStageAttempt.run_id.in_(run_ids))
+            delete(ArchivedOutputAttempt).where(ArchivedOutputAttempt.run_id.in_(run_ids))
         )
         await self.db.execute(
-            delete(CodeGeneratorDevelopmentEvent).where(
-                CodeGeneratorDevelopmentEvent.run_id.in_(run_ids)
-            )
+            delete(ArchivedOutputEvent).where(ArchivedOutputEvent.run_id.in_(run_ids))
         )
         await self.db.execute(
-            delete(CodeGeneratorDevelopmentRun).where(
-                CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
-            )
+            delete(ArchivedOutputRun).where(ArchivedOutputRun.portfolio_session_id == session_id)
         )
         await self.db.execute(delete(PortfolioSession).where(PortfolioSession.id == session_id))
 
@@ -165,7 +155,6 @@ class PipelineResetService:
         if session is None:
             raise LookupError("session not found")
 
-        state_snapshot = dict(session.current_state or {})
         session.status = "deletion_pending"
         session.revision += 1
         session.updated_at = datetime.now(UTC)
@@ -192,12 +181,11 @@ class PipelineResetService:
             cleanup = AdminService(
                 db=self.db,
                 provider=cast(AdminIdentityProvider, self.auth_admin_provider),
-                preview_storage=self.preview_storage,
+                archive_storage=self.archive_storage,
                 artifact_store=self.artifact_store,
                 settings=self.settings,
             )
             await cleanup._cleanup_external(session_id)
-            self._cleanup_build_preparation_paths(state_snapshot)
         except Exception as exc:
             await self.db.rollback()
             raise PipelineResetError() from exc
@@ -206,25 +194,21 @@ class PipelineResetService:
         if session is None:
             raise LookupError("session not found")
 
-        run_ids = select(CodeGeneratorDevelopmentRun.id).where(
-            CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
+        run_ids = select(ArchivedOutputRun.id).where(
+            ArchivedOutputRun.portfolio_session_id == session_id
         )
         await self.db.execute(
             delete(BackgroundJob).where(BackgroundJob.portfolio_session_id == session_id)
         )
         await self.db.execute(delete(AgentRun).where(AgentRun.portfolio_session_id == session_id))
         await self.db.execute(
-            delete(CodeGeneratorStageAttempt).where(CodeGeneratorStageAttempt.run_id.in_(run_ids))
+            delete(ArchivedOutputAttempt).where(ArchivedOutputAttempt.run_id.in_(run_ids))
         )
         await self.db.execute(
-            delete(CodeGeneratorDevelopmentEvent).where(
-                CodeGeneratorDevelopmentEvent.run_id.in_(run_ids)
-            )
+            delete(ArchivedOutputEvent).where(ArchivedOutputEvent.run_id.in_(run_ids))
         )
         await self.db.execute(
-            delete(CodeGeneratorDevelopmentRun).where(
-                CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
-            )
+            delete(ArchivedOutputRun).where(ArchivedOutputRun.portfolio_session_id == session_id)
         )
 
         session.current_state = {}
@@ -265,45 +249,3 @@ class PipelineResetService:
             and session.revision == 0
             and not session.current_state
         )
-
-    def _cleanup_build_preparation_paths(self, state: Mapping[str, object]) -> None:
-        roots: list[Path] = []
-        root_config = getattr(self.settings.build_preparation, "session_staging_root", "")
-        mirror_config = getattr(
-            self.settings.code_generator_development, "build_preparation_mirror_root", ""
-        )
-        for raw in (root_config, mirror_config):
-            value = str(raw or "")
-            if not value:
-                continue
-            path = Path(value)
-            roots.append((path if path.is_absolute() else repository_root() / path).resolve())
-
-        paths: list[Path] = []
-
-        def visit(value: object, key: str = "") -> None:
-            if isinstance(value, Mapping):
-                for child_key, child in value.items():
-                    visit(child, str(child_key))
-            elif isinstance(value, list):
-                for child in value:
-                    visit(child, key)
-            elif key in {"mirror_root", "local_archive_path"} and isinstance(value, str):
-                paths.append(Path(value))
-
-        visit(state)
-        for raw_path in paths:
-            path = raw_path if raw_path.is_absolute() else (repository_root() / raw_path)
-            target = path.resolve()
-            allowed_root = next((root for root in roots if target.is_relative_to(root)), None)
-            if allowed_root is None or target == allowed_root:
-                raise OSError("build preparation path is outside configured cleanup roots")
-            if target.name == "build-context":
-                target = target.parent
-                if target == allowed_root:
-                    raise OSError("build preparation mirror resolved to its configured root")
-            if target.is_dir():
-                if not fs_safe.remove_tree(target, required=False):
-                    raise OSError("build preparation mirror remains locked")
-            elif target.exists():
-                target.unlink()

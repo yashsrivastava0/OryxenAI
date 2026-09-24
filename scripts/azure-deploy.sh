@@ -121,16 +121,12 @@ storage_paths() {
   printf '%s\n' \
     "$root/postgres" \
     "$root/preview" \
-    "$root/image-search-cache" \
-    "$root/npm-cache" \
-    "$root/code-generator-development" \
-    "$root/code-generator-materials" \
+    "$root/code-generator-artifacts" \
     "$root/code-generator-generation" \
     "$root/code-generator-checkpoints" \
     "$root/code-generator-workspaces" \
-    "$root/code-generator-artifacts" \
-    "$root/build-preparation-staging" \
     "$root/code-gen-output" \
+    "$root/build-preparation-staging" \
     "$root/caddy/data" \
     "$root/caddy/config"
 }
@@ -420,17 +416,14 @@ render_production_config() {
   [[ -f "$PRODUCTION_TEMPLATE" ]] || die "Missing $PRODUCTION_TEMPLATE"
   [[ -f "$ENV_FILE" ]] || die "Missing $ENV_FILE; run setup first."
 
-  local app_host preview_host temporary
+  local app_host temporary
   app_host="$(env_value APP_HOST 2>/dev/null || true)"
-  preview_host="$(env_value PREVIEW_HOST 2>/dev/null || true)"
 
   [[ -n "$app_host" ]] || die "APP_HOST is missing from .env"
-  [[ -n "$preview_host" ]] || die "PREVIEW_HOST is missing from .env"
 
   temporary="$(mktemp "$REPO_ROOT/config/app.production.local.toml.XXXXXX")"
   sed \
     -e "s|<APP_HOST>|$(sed_escape "$app_host")|g" \
-    -e "s|<PREVIEW_HOST>|$(sed_escape "$preview_host")|g" \
     "$PRODUCTION_TEMPLATE" >"$temporary"
   mv "$temporary" "$PRODUCTION_LOCAL"
   chmod 644 "$PRODUCTION_LOCAL"
@@ -485,8 +478,6 @@ write_initial_env() {
 
   ask_required "Application hostname, for example app.example.com"
   set_env_value APP_HOST "$REPLY"
-  ask_required "Preview hostname, for example preview.example.com"
-  set_env_value PREVIEW_HOST "$REPLY"
   ask_visible "Persistent VM data root" "$DEFAULT_DATA_ROOT"
   set_env_value ORYXENAI_DATA_ROOT "$REPLY"
   ask_visible "Backup directory (outside the live data root)" "$DEFAULT_BACKUP_DIR"
@@ -569,7 +560,6 @@ doctor() {
     for key in \
       POSTGRES_PASSWORD \
       APP_HOST \
-      PREVIEW_HOST \
       ORYXENAI_DATA_ROOT \
       ORYXENAI_BACKUP_DIR \
       SUPABASE_URL \
@@ -579,7 +569,7 @@ doctor() {
       ORYXENAI_ALLOWED_USER_EMAILS; do
       value="$(env_value "$key" 2>/dev/null || true)"
       if [[ -z "$value" || "$value" == *"<"* || "$value" == *">"* \
-        || "$value" == "app.example.com" || "$value" == "preview.example.com" ]]; then
+        || "$value" == "app.example.com" ]]; then
         warn "$key is missing or still contains a placeholder."
         failures=$((failures + 1))
       fi
@@ -606,7 +596,7 @@ doctor() {
       [[ "$mode" == "600" ]] || warn ".env permissions are $mode; expected 600."
     fi
 
-    for host in "$(env_value APP_HOST 2>/dev/null || true)" "$(env_value PREVIEW_HOST 2>/dev/null || true)"; do
+    for host in "$(env_value APP_HOST 2>/dev/null || true)"; do
       [[ -n "$host" ]] || continue
       if command -v getent >/dev/null 2>&1 && ! getent hosts "$host" >/dev/null 2>&1; then
         warn "$host does not resolve yet; DNS must resolve before HTTPS verification."
@@ -614,7 +604,7 @@ doctor() {
     done
   fi
 
-  if [[ -f "$PRODUCTION_LOCAL" ]] && grep -Eq '<(APP_HOST|PREVIEW_HOST)>' "$PRODUCTION_LOCAL"; then
+  if [[ -f "$PRODUCTION_LOCAL" ]] && grep -Eq '<APP_HOST>' "$PRODUCTION_LOCAL"; then
     warn "Production configuration still contains placeholders."
     failures=$((failures + 1))
   fi
@@ -769,9 +759,6 @@ start_release() {
   info "Building application image $sha."
   compose build
 
-  info "Warming and proving the offline npm cache."
-  compose run --rm --no-deps worker bash /app/scripts/warm-npm-cache.sh
-
   info "Running database migrations."
   compose up -d --force-recreate postgres migrate
   wait_for_migration
@@ -780,24 +767,6 @@ start_release() {
   [[ ${#services[@]} -gt 0 ]] || die "No runtime services were found in Compose."
   info "Starting runtime services: ${services[*]}"
   compose up -d --wait --wait-timeout 1800 "${services[@]}"
-}
-
-storage_smoke() {
-  local stamp key artifact_kind
-  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  key="ops-smoke/$stamp.txt"
-  artifact_kind="ops-smoke-$stamp"
-  info "Testing worker artifact write/read-back and shared preview write/read-back."
-
-  compose exec -T worker python -c \
-    "import asyncio; from oryxenai.storage.code_generator_artifacts import LocalFsCodeGeneratorArtifactRepository; r=LocalFsCodeGeneratorArtifactRepository('/app/.workspace/code-generator-artifacts'); ref=asyncio.run(r.put(artifact_kind='$artifact_kind', data=b'oryxenai-storage-smoke', expires_at='2099-01-01T00:00:00+00:00')); assert asyncio.run(r.get(ref)) == b'oryxenai-storage-smoke'"
-  compose exec -T worker python -c \
-    "import asyncio; from oryxenai.storage.preview import LocalPreviewStorage; from pathlib import Path; s=LocalPreviewStorage(Path('/app/.workspace/code-generator-preview')); asyncio.run(s.put_immutable(key='$key', data=b'oryxenai-preview-smoke', content_type='text/plain')); item=asyncio.run(s.get('$key')); assert item is not None and item[1] == b'oryxenai-preview-smoke'"
-  compose exec -T preview-gateway python -c \
-    "import asyncio; from oryxenai.storage.preview import LocalPreviewStorage; from pathlib import Path; item=asyncio.run(LocalPreviewStorage(Path('/app/.workspace/code-generator-preview')).get('$key')); assert item is not None and item[1] == b'oryxenai-preview-smoke'"
-  compose exec -T worker python -c \
-    "import asyncio; import shutil; from pathlib import Path; from oryxenai.storage.preview import LocalPreviewStorage; shutil.rmtree(Path('/app/.workspace/code-generator-artifacts') / '$artifact_kind', ignore_errors=True); asyncio.run(LocalPreviewStorage(Path('/app/.workspace/code-generator-preview')).delete('$key'))"
-  info "VM-local artifact and shared preview read-back passed."
 }
 
 credential_free_logs() {
@@ -852,23 +821,18 @@ verify_internal() {
   info "Checking internal HTTP endpoints and Caddy configuration."
   compose exec -T app python -c \
     "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live').read(); urllib.request.urlopen('http://127.0.0.1:8000/health/ready').read()"
-  compose exec -T preview-gateway python -c \
-    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/live').read(); urllib.request.urlopen('http://127.0.0.1:4174/health/ready').read()"
   compose exec -T caddy caddy validate \
     --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
-  storage_smoke
   credential_free_logs
   info "Internal health checks passed."
 }
 
 verify_external() {
-  local app_host preview_host
+  local app_host
   app_host="$(env_value APP_HOST)"
-  preview_host="$(env_value PREVIEW_HOST)"
   info "Checking public HTTPS endpoints."
   curl -fsS --max-time 30 "https://$app_host/health/live" >/dev/null
   curl -fsS --max-time 30 "https://$app_host/health/ready" >/dev/null
-  curl -fsS --max-time 30 "https://$preview_host/health/live" >/dev/null
   info "Public HTTPS checks passed."
 }
 
@@ -980,7 +944,6 @@ Usage:
   ./scripts/azure-deploy.sh backup
   ./scripts/azure-deploy.sh storage-init
   ./scripts/azure-deploy.sh disk-check
-  ./scripts/azure-deploy.sh storage-smoke
   ./scripts/azure-deploy.sh restore-dry-run <backup-file>
   ./scripts/azure-deploy.sh rollback
 EOF
@@ -1023,9 +986,6 @@ case "$command" in
     ;;
   disk-check)
     storage_disk_check "$(data_root)"
-    ;;
-  storage-smoke)
-    storage_smoke
     ;;
   restore-dry-run)
     restore_dry_run "${1:-}"

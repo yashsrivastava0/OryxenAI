@@ -144,27 +144,15 @@ An internship recruiter should understand, in order:
 4. What they prefer: backend and data work.
 5. How to reach them: a clear contact action.
 
-## Design-direction signals
+## Content presentation preferences
 
-**Desired character:** Clean, simple, and honest — a student portfolio that does not pretend to be a studio site.
+No writing-tone preference was supplied. Keep the copy concise, honest, and free of generic praise. The available evidence supports a low-density content plan with short sections.
 
-**Theme:** Light or dark both fine; no preference supplied. Default to a clean, readable light-first design with good typography.
+## Content readability and organization
 
-**Avoid:** Neon hacker styling, fake terminals, dense dashboards, or anything that overstates experience.
-
-**Content density:** Low. This profile has little material; a single-page layout with short sections fits best.
-
-**Imagery:** No required imagery; typography-led is appropriate for a student portfolio.
-
-## Interaction, motion, and responsive priorities
-
-**Motion:** Minimal or none — nothing to showcase yet; keep the site calm.
-
-**Reduced motion:** Respect reduced-motion preferences.
-
-**Mobile:** Must read cleanly on phones since recruiters often open links on mobile.
-
-**Interaction:** A single clear contact action; no interactive gimmicks.
+- State the student's identity and internship goal plainly.
+- Keep the project descriptions short until more detail is available.
+- Make the public contact action clear once the user supplies a contact method.
 
 ## Contact, CTA, and privacy
 
@@ -184,21 +172,11 @@ An internship recruiter should understand, in order:
 - No metrics, awards, or extracurriculars supplied.
 - A GitHub link should be added before publishing.
 
-These items do not block approval. Later stages should keep the portfolio short and honest rather than padding it.
+These items do not block approval. The content plan should stay short and honest rather than padding it.
 
-## Downstream handoff
+## Content planning notes
 
-### Content/story stage
-
-Write short, honest copy: a student who has fundamentals, is actively building, prefers backend, and wants an internship. Develop the SQLite project into a brief problem/what-I-built/what-I-learned entry without inventing scope.
-
-### Visual-design stage
-
-Clean single-page student portfolio, strong typography, light-first, minimal motion, mobile-friendly, no over-engineered visuals.
-
-### Code-generation stage
-
-Preserve only approved facts: third-year CS student at State University, the two projects as described, coursework list. No invented employers, metrics, or contact details. Include the contact CTA once the user supplies an email.
+Content Architect should write short, honest copy: a student with solid fundamentals, two real learning projects, a backend interest, and an internship goal. Develop the SQLite project into a brief problem, contribution, and learning summary without inventing scope.
 
 ## Approval summary
 
@@ -207,7 +185,7 @@ Confirmed:
 - Student positioning with backend lean.
 - Coursework as the lead content.
 - SQLite project as the strongest backend signal.
-- Honest, low-density single-page layout.
+- Honest, low-density content plan.
 
 Safe omissions:
 
@@ -215,4 +193,4 @@ Safe omissions:
 - Metrics and awards.
 - Contact details (to be supplied before publishing).
 
-**Ready for user review:** Yes. The brief is intentionally shorter because the source is sparse — it explicitly lists what is missing and how later stages should compensate without fabrication. NEXT should approve this exact brief revision and stop Discovery.
+**Ready for user review:** Yes. The brief is intentionally shorter because the source is sparse — it explicitly lists what is missing and how the content plan can remain useful without fabrication. NEXT should approve this exact brief revision and stop Discovery. Content Architect can be started only as a separate explicit action.

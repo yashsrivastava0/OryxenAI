@@ -71,6 +71,6 @@ export const contentFixtureApproved = {
 export const contentFixtureNeedsAttention = {
   status: "needs_attention",
   latest_error: {
-    message: "Generation model timed out while synthesizing page copy.",
+    message: "Content model timed out while synthesizing page copy.",
   },
 };

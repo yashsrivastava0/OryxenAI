@@ -4,10 +4,7 @@ from fastapi import APIRouter
 
 from oryxenai.api.routes import (
     agents,
-    build_preparation,
     client_diagnostics,
-    code_generator,
-    code_generator_development,
     content_architect,
     discovery,
     health,
@@ -16,7 +13,6 @@ from oryxenai.api.routes import (
     runs,
     sessions,
     system,
-    visual_design_director,
 )
 from oryxenai.auth import api as auth_api
 from oryxenai.auth.admin import api as admin_api
@@ -26,13 +22,6 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     """Build the /api/v1 router with explicit environment route policy."""
     router = APIRouter(prefix="/api/v1")
     dev_ui_enabled = bool(getattr(settings, "is_dev_ui_enabled", False))
-    fixture_enabled = bool(
-        getattr(getattr(settings, "build_preparation", None), "fixture_enabled", False)
-    )
-    code_generator_dev_enabled = bool(
-        getattr(getattr(settings, "code_generator_development", None), "enabled", False)
-    )
-
     router.include_router(auth_api.router)
     router.include_router(admin_api.router)
     router.include_router(agents.router)
@@ -47,39 +36,12 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     router.include_router(model_usage.router)
     router.include_router(discovery.router)
     router.include_router(content_architect.router)
-    router.include_router(visual_design_director.router)
-    router.include_router(build_preparation.router)
     # Client diagnostics are a separate local-only switch. Keep the route
     # available when the developer UI is not mounted so API-backed local
     # product shells can still export a trace; deployment overlays disable it
     # explicitly through [client_diagnostics].
     if bool(getattr(getattr(settings, "client_diagnostics", None), "enabled", False)):
         router.include_router(client_diagnostics.router)
-    if dev_ui_enabled and fixture_enabled:
-        fixture_router = (
-            build_preparation.detached_fixture_router
-            if getattr(
-                getattr(settings, "auth", None),
-                "development_harness_mode",
-                "attached",
-            )
-            == "detached"
-            else build_preparation.fixture_router
-        )
-        router.include_router(fixture_router)
-    router.include_router(code_generator.router)
-    if dev_ui_enabled and code_generator_dev_enabled:
-        code_gen_dev_router = (
-            code_generator_development.detached_router
-            if getattr(
-                getattr(settings, "auth", None),
-                "development_harness_mode",
-                "attached",
-            )
-            == "detached"
-            else code_generator_development.router
-        )
-        router.include_router(code_gen_dev_router)
     return router
 
 

@@ -45,10 +45,9 @@ class NoPublishableRoutesError(ValueError):
     `publication_status` is a first-class, cross-agent gating invariant: a
     Content Architect run may plan `pending`/`blocked` content (it still gets
     written, just gated), but APPROVED state must always carry at least one
-    route the model cleared for publication. Build Preparation's v2 pack
-    contract relies on this precondition downstream, so the state machine is
-    the authoritative place to refuse approval when it would otherwise produce
-    a state with zero publishable routes.
+    route the model cleared for publication. The state machine is the
+    authoritative place to refuse approval when it would otherwise produce a
+    state with zero publishable routes.
     """
 
     def __init__(
@@ -70,10 +69,9 @@ class NoPublishableRoutesError(ValueError):
 class PublicScopeIncompleteError(ValueError):
     """Approval attempted with a route that cannot form a complete public pack.
 
-    Content Architect owns the public route/content boundary.  This check is
-    intentionally performed before the top-level approval hash is stamped, so
-    Visual Design Director and Build Preparation never receive an approved
-    route whose content, section plan, or claim references are incomplete.
+    Content Architect owns the public route/content boundary. This check runs
+    before the approval hash is stamped, so an approved route never has
+    incomplete content, section plans, or claim references.
     """
 
     def __init__(self, *, route_ids: list[str], errors: list[str]) -> None:
@@ -176,8 +174,6 @@ def apply_build_result(
     omissions: list[str],
     unresolved_issues: list[str],
     privacy_and_confidentiality: list[str],
-    media_status: dict[str, Any],
-    visual_director_handoff: dict[str, Any],
     warnings: list[str],
     stages_run: list[str],
     memory_update: dict[str, Any],
@@ -198,8 +194,6 @@ def apply_build_result(
     new_state.omissions = omissions
     new_state.unresolved_issues = unresolved_issues
     new_state.privacy_and_confidentiality = privacy_and_confidentiality
-    new_state.media_status = media_status
-    new_state.visual_director_handoff = visual_director_handoff
     new_state.warnings = warnings
     new_state.stages_run = stages_run
     new_state.memory = _merge_memory(state.memory, memory_update)
@@ -261,11 +255,11 @@ def _merge_memory(current: dict[str, Any], update: dict[str, Any]) -> dict[str, 
 def public_scope_errors(
     state: ContentArchitectState, public_routes: list[RoutePlanEntry]
 ) -> list[str]:
-    """Return deterministic Build-Preparation-facing admission errors.
+    """Return deterministic public-scope completeness errors.
 
     Free-form copy remains deliberately unjudged; this verifies only the
     stable IDs, route topology, completeness, and publication gates required
-    to compile it safely.
+    to approve it safely.
     """
     errors: list[str] = []
     route_ids: set[str] = set()
@@ -277,9 +271,6 @@ def public_scope_errors(
 
     if not state.public_content_manifest:
         errors.append("public_content_manifest is required for the approved public scope")
-    if not state.visual_director_handoff:
-        errors.append("visual_director_handoff is required for the approved public scope")
-
     for route in public_routes:
         route_id = route.route_id.strip()
         path = route.path.strip()

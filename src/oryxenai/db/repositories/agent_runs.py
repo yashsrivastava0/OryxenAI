@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.db.models.agent_run import AgentRun
 
 
@@ -47,7 +48,10 @@ class AgentRunRepository:
         limit = max(1, min(limit, 100))
         stmt = (
             select(AgentRun)
-            .where(AgentRun.portfolio_session_id == session_id)
+            .where(
+                AgentRun.portfolio_session_id == session_id,
+                AgentRun.agent_key.in_([key.value for key in AgentKey]),
+            )
             .order_by(AgentRun.created_at.desc())
             .limit(limit)
         )

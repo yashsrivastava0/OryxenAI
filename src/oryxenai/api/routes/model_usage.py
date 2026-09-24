@@ -8,7 +8,9 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
+from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.api.dependencies import get_db_session, require_admin
 from oryxenai.auth.domain import CurrentUser
 from oryxenai.db.models.model_usage import ModelCallAttempt, ModelCapacityWindow
@@ -38,7 +40,9 @@ async def list_attempts(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     del _admin
-    filters = []
+    filters: list[ColumnElement[bool]] = [
+        ModelCallAttempt.agent.in_([key.value for key in AgentKey])
+    ]
     for column, value in (
         (ModelCallAttempt.provider, provider),
         (ModelCallAttempt.model, model),

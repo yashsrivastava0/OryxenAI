@@ -10,17 +10,17 @@ user explicitly approves the brief.
 - Understand what the user wants and what the portfolio should target.
 - Ask only high-value questions (at most 8, asked one at a time in the chat).
 - Produce a detailed, readable, editable Portfolio Discovery Brief (free
-  Markdown) that hands off context to later content, visual-design, and
-  code-generation work.
+  Markdown) that gives the user a grounded, reviewable account of their goals,
+  evidence, priorities, and restrictions.
 - Stop after explicit approval.
 
 ## Non-responsibilities
 
 Discovery must NOT:
 
-- Write final hero/about/project copy, exact components, layouts, or code.
-- Invoke, enqueue, or simulate the Content Architect, Visual Design Director,
-  or Code Generator.
+- Write final hero/about/project copy or decide content on the user's behalf.
+- Do not start Content Architect automatically; it is a separate explicit call after
+  Discovery approval.
 - Fetch URLs, scrape the web, OCR, or analyze images.
 - Fabricate employment, education, dates, clients, awards, metrics, or
   personal contributions.
@@ -41,7 +41,7 @@ Discovery must NOT:
    `revision_request` and the current brief (allowed only while under review).
 5. The worker runs Operation B: one model call produces three complementary
    outputs — the full detailed brief as free Markdown (`brief_markdown`,
-   persisted and eventually handed to later stages), a short user-facing
+   persisted for review), a short user-facing
    summary (`user_summary`, what the chat UI shows by default), and a
    compact structured profile of categorized facts (`profile`: name,
    experience, education, projects, skills, links). All three are saved to
@@ -127,7 +127,7 @@ network calls.
   "Try again" action.
 - The worker renews a claimed job's lease while its handler is still running
   (`Worker._renew_lease_loop`, `jobs/worker.py`) so a legitimately slow
-  generation is never mistaken for an abandoned job and re-dispatched a
+  model call is never mistaken for an abandoned job and re-dispatched a
   second, concurrent time.
 
 ## HTTP surface

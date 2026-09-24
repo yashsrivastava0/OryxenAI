@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("align-db", "migrate", "api", "worker", "preview", "dev", "doctor")]
+    [ValidateSet("align-db", "migrate", "api", "worker", "dev", "doctor")]
     [string]$Service
 )
 
@@ -29,19 +29,13 @@ switch ($Service) {
         if ($LASTEXITCODE -ne 0 -or $values.Count -lt 2) {
             throw "Could not read the native app host and port from settings."
         }
-        # Keep the Windows ProactorEventLoop. Uvicorn's reload supervisor can
-        # select SelectorEventLoop, which cannot spawn Node/Playwright
-        # subprocesses used by Code Generator verification.
         uv run uvicorn oryxenai.main:app --host $values[0] --port $values[1]
     }
     "worker" {
         uv run python -m oryxenai.jobs.worker
     }
-    "preview" {
-        uv run python -m oryxenai.preview.gateway
-    }
     "dev" {
-        foreach ($childService in @("api", "worker", "preview")) {
+        foreach ($childService in @("api", "worker")) {
             Start-Process powershell.exe `
                 -WindowStyle Hidden `
                 -WorkingDirectory $REPO_ROOT `

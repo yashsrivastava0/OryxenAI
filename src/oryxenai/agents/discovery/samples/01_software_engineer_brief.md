@@ -12,7 +12,7 @@
 
 **Recommended leading emphasis:** Reliable backend systems and production-oriented ownership. QueueGuard should be the central story because it combines architecture, data modeling, concurrency/claiming behavior, retries, stale recovery, tests, and Dockerized delivery. Frontend work should appear as useful product breadth rather than the primary identity.
 
-**Current confidence:** The direction, audience, public contact choices, theme preference, and strongest project are clear. No reliable numerical performance metrics are available, so the portfolio must use concrete responsibilities, system behavior, test coverage, and technical decisions as evidence instead of invented numbers.
+**Current confidence:** The audience, public contact choices, and strongest project are clear. No reliable numerical performance metrics are available, so the portfolio must use concrete responsibilities, system behavior, test coverage, and technical decisions as evidence instead of invented numbers.
 
 ## User intent and definition of success
 
@@ -117,7 +117,7 @@ The final generated portfolio should not expose private contact details merely b
 
 **Portfolio value:** Supports Aarav's backend identity and gives the future content stage material for discussing API boundaries, data ownership, validation, state transitions, and operational endpoints.
 
-**Missing evidence:** Specific endpoint examples, schema diagrams, or trade-off notes are not supplied. A later content stage may frame the story around the known responsibilities without inventing architecture details.
+**Missing evidence:** Specific endpoint examples, schema design choices, or trade-off notes are not supplied. Content Architect may frame the story around known responsibilities without inventing architecture details.
 
 ### Monitoring interface
 
@@ -139,7 +139,7 @@ The final generated portfolio should not expose private contact details merely b
 
 **Recommended content angle:** Explain the problem of work that must survive request boundaries and process failures; show the lifecycle of a job; describe how retries and stale recovery prevent stuck work; discuss why PostgreSQL-backed durability was useful. The later content stage must avoid inventing exact locking algorithms or performance results unless Aarav supplies them.
 
-**Possible visual evidence:** A simple lifecycle or architecture diagram is appropriate because no product screenshot is required. The diagram should be based only on confirmed concepts: API, PostgreSQL job table, worker, retry/failure state, stale recovery, and monitoring UI.
+
 
 **Confidentiality:** Public description is allowed, but the employer's internal product name and business-specific details must be omitted.
 
@@ -276,47 +276,17 @@ A startup CTO or engineering manager should understand the portfolio in this ord
 
 The page should provide a fast overview first, then let technical visitors inspect the QueueGuard story in more depth.
 
-## Design-direction signals
+## Content presentation preferences
 
-**Desired character:** Technical, dependable, focused, and modern without becoming a generic "hacker" portfolio.
+**Writing tone:** Technical, direct, and credible. Explain engineering work in language that also works for technically informed recruiters.
 
-**Theme:** Dark technical direction is preferred.
+**Content density:** Balanced. The opening should scan quickly; the QueueGuard story can carry deeper technical detail.
 
-**Avoid:**
+## Content readability and organization
 
-- Fake terminal as the dominant visual.
-- Random glowing orbs.
-- Excessive glassmorphism.
-- Technology-logo carousel as the main proof.
-- Fake analytics or invented dashboards.
-- Animation on every element.
-
-**Potential visual language:**
-
-- Editorial typography combined with restrained system diagrams.
-- Job-lifecycle/state-flow visual for QueueGuard.
-- Clear section rhythm and strong spacing.
-- Subtle grid, data-flow, or topology motifs when they reinforce the backend story.
-- Code or schema fragments only when based on real public material and still readable.
-
-**Content density:** Balanced. The top of the page should scan quickly; the main case study can contain deeper technical material.
-
-**Imagery:** No portrait or project screenshots are required. A typography-led and diagram-led portfolio is appropriate.
-
-## Interaction, motion, and responsive priorities
-
-**Motion:** Moderate. Use motion to guide attention between sections or reveal a system diagram, not to delay reading.
-
-**Reduced motion:** The later implementation should respect reduced-motion preferences.
-
-**Mobile:**
-
-- The primary role and CTA must remain immediately understandable.
-- QueueGuard's architecture should simplify into a readable vertical flow.
-- Long technical explanations should use short subsections or expandable detail rather than tiny text.
-- Avoid horizontal diagrams that require side-scrolling.
-
-**Interaction:** GitHub and email actions should be clear. The main case study may use a progressive narrative, but core facts must remain accessible without interaction.
+- Keep Aarav's role and primary contact action easy to find in the copy.
+- Break longer technical explanations into clear subsections.
+- Make each case study understandable from its written explanation alone.
 
 ## Contact, CTA, and privacy
 
@@ -340,21 +310,11 @@ The page should provide a fast overview first, then let technical visitors inspe
 - Redis is listed but lacks a supporting story.
 - Education and certifications were not supplied.
 
-These items do not block approval. Later stages should omit them or use modest language rather than filling the gaps.
+These items do not block approval. The content plan should omit them or use modest language rather than filling the gaps.
 
-## Downstream handoff
+## Content planning notes
 
-### Content/story stage
-
-Build the central narrative around reliable backend workflow ownership. Develop QueueGuard as the principal case study using confirmed responsibilities. Use DevShelf and the commerce dashboard as shorter supporting evidence. Avoid unsupported scale, performance, and seniority claims. Keep the tone technical, direct, and credible.
-
-### Visual-design stage
-
-Create a dark, technical-editorial one-page experience with strong hierarchy and restrained system-oriented visuals. Prioritize a clear job-lifecycle diagram or state-flow motif for QueueGuard. Keep motion moderate, avoid fake-terminal clichés, and ensure the case study remains readable on mobile.
-
-### Code-generation stage
-
-Eventually preserve only approved public facts and links. Include email and GitHub, omit phone/address, avoid remote/private assets, respect reduced motion, and do not create fake metrics, product screenshots, dashboards, or employer details.
+Content Architect should build the central narrative around reliable backend workflow ownership. Develop QueueGuard as the principal case study using confirmed responsibilities. Use DevShelf and the commerce dashboard as shorter supporting evidence. Avoid unsupported scale, performance, and seniority claims. Keep the writing technical, direct, and credible.
 
 ## Approval summary
 
@@ -364,8 +324,7 @@ Confirmed:
 - Startup CTO and engineering-manager audience.
 - QueueGuard as the lead story.
 - Supporting role for DevShelf and commerce dashboard.
-- Dark technical direction without a fake terminal.
-- Moderate motion.
+- Technical, direct, and credible writing tone.
 - Email and GitHub public; phone/address private.
 - No invented metrics.
 
@@ -376,4 +335,4 @@ Safe omissions:
 - PixelRoute details.
 - Unsupported Redis claims.
 
-**Ready for user review:** Yes. NEXT should approve this exact brief revision and stop Discovery. It must not start another agent in this phase.
+**Ready for user review:** Yes. NEXT should approve this exact brief revision and stop Discovery. Content Architect can be started only as a separate explicit action.

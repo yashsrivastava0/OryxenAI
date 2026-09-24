@@ -51,8 +51,6 @@ _SAFE_FAILURE_MESSAGES = {
     "MODEL_ROUTING_POLICY_CHANGED": "The saved routing policy changed before this operation ran; restart the stage safely.",
     "MODEL_USAGE_PERSISTENCE_UNAVAILABLE": "Model usage accounting is temporarily unavailable; no provider request was sent.",
     "NETWORK_RETRY_EXHAUSTED": "The model provider network retry budget was exhausted.",
-    "CODE_GENERATOR_PROVIDER_CREDENTIAL_MISSING": "The configured model provider credentials are missing.",
-    "CODE_GENERATOR_PROVIDER_UNAVAILABLE": "The configured model provider is unavailable.",
 }
 
 

@@ -182,7 +182,7 @@ class DiscoveryService:
         queued.operation_a.run_id = str(run.id)
         queued.operation_a.job_id = str(job.id)
         queued.attempt = 0
-        queued.max_attempts = self._settings.worker_retry.first_four_max_attempts
+        queued.max_attempts = self._settings.worker_retry.agent_job_max_attempts
         updated = await self._repository.save_discovery_state(session_id, queued, session.revision)
         if updated is None:
             self._revision_conflict(session.revision, session.revision + 1)

@@ -10,24 +10,24 @@
 
 **Desired visitor action:** Contact Lena by email about a project or campaign.
 
-**Recommended leading emphasis:** The documentary series as the flagship story, supported by the showreel, with brand films as credibility breadth. The cinematic editorial identity should be visible in the first seconds of the site.
+**Recommended leading emphasis:** The documentary series as the flagship story, supported by the showreel, with brand films as credibility breadth. Her confirmed editing and production work should be introduced clearly.
 
-**Current confidence:** Direction, audience, tooling, and visual character are clear. The showreel link and the brand-name disclosure are still open items; the brief proceeds without them and marks them as publish-time additions.
+**Current confidence:** Audience, tooling, and content priorities are clear. The showreel link and the brand-name disclosure are still open items; the brief proceeds without them and marks them as publish-time additions.
 
 ## User intent and definition of success
 
-Lena wants agencies and brands to hire her for documentary-style work. Success means a creative decision-maker can see, within the first moments: a strong editing/producing reel, at least one deep documentary story, and a clear cinematic editorial point of view — then reach her by email. The portfolio must feel like the work itself: dark, editorial, restrained.
+Lena wants agencies and brands to hire her for documentary-style work. Success means a creative decision-maker can see, within the first moments: a strong editing/producing reel, at least one deep documentary story, and a clear account of her editing and production contribution — then reach her by email. The copy should remain concise and editorial, as requested.
 
 ## Professional identity and positioning inputs
 
-**Recommended positioning direction:** Documentary editor-producer with a distinctive cinematic, editorial style — someone who can take a project from rough material to a finished, mixed, graded cut. Position the production side (co-producing, commissioning relationships) as a strength without diluting the editor identity.
+**Recommended positioning direction:** Documentary editor-producer who can take a project from rough material to a finished, mixed, graded cut. Position the production side (co-producing, commissioning relationships) as a strength without diluting the editor identity.
 
 **Primary strengths:**
 
 - Documentary editing and co-production (flagship: the 6-part broadcaster series).
 - Full post-production ownership: editing, sound mixing, and color grading.
 - Brand and music-campaign storytelling at a professional level.
-- A defined, recognizable visual character (cinematic, dark, editorial).
+- Concise, editorial project descriptions, as requested.
 
 **Secondary strengths:**
 
@@ -94,7 +94,7 @@ Documentary series, brand films, and short-form campaign edits for a regional br
 ### 2. Showreel — first-impression asset
 
 - **Type:** Reel of selected work.
-- **Role:** Should sit near the top so agencies can judge the style immediately.
+- **Role:** Strong evidence of editing work once the user supplies an approved public link.
 - **Public proof:** Vimeo link (available on request; publish before launch).
 - **Missing:** The link itself.
 
@@ -161,7 +161,7 @@ Claims that must not appear:
 
 1. The documentary series case study.
 2. The showreel (once linked).
-3. The cinematic editorial identity — visible immediately.
+3. The strongest confirmed editing contribution, described clearly.
 
 **Support with:**
 
@@ -179,32 +179,22 @@ Claims that must not appear:
 
 A creative director or brand manager should understand, in order:
 
-1. This is a documentary-style editor-producer with a distinctive look.
+1. This is a documentary-style editor-producer with experience across long-form and campaign work.
 2. She delivers long-form and short-form work at a professional level.
 3. She owns the whole post pipeline — edit, sound, color.
 4. She is easy to hire: email contact, clear availability signal.
 
-## Design-direction signals
+## Content presentation preferences
 
-**Desired character:** Cinematic, editorial, dark, minimal text — the site should feel like a film title sequence, not a corporate template.
+**Writing tone:** Concise and editorial, as requested. Avoid corporate-sounding biography language.
 
-**Theme:** Dark tones, as preferred. Minimal chrome; media should carry the page.
+**Content density:** Keep introductions and captions short; give the flagship documentary work enough space for a grounded case story.
 
-**Avoid:** Bright corporate templates, heavy text walls, cluttered grids, generic "creative agency" animations.
+## Content readability and organization
 
-**Content density:** Low. Short captions, strong imagery/typography, one deep case study.
-
-**Imagery:** Video clips/thumbnails and film stills — the work itself is the imagery.
-
-## Interaction, motion, and responsive priorities
-
-**Motion:** Restrained and cinematic — smooth fades, slow reveals; nothing flashy or bouncy.
-
-**Reduced motion:** Respect reduced-motion preferences; case-study text must remain readable without animation.
-
-**Mobile:** Showreel and case study must play well on mobile; agency buyers often preview on phones.
-
-**Interaction:** Play the showreel in-place; case studies as scroll or simple expandable sections.
+- Lead with the strongest confirmed editing work and the user's contribution.
+- Keep the project descriptions readable on a phone.
+- Do not present the showreel as publicly available until the user supplies an approved link.
 
 ## Contact, CTA, and privacy
 
@@ -224,21 +214,11 @@ A creative director or brand manager should understand, in order:
 - No broadcast metrics, awards, or festival credits supplied.
 - Rough cuts exist but need explicit permission before public display.
 
-These items do not block approval; the brief marks each so later stages do not invent them.
+These items do not block approval; the brief records them so the content plan does not invent details.
 
-## Downstream handoff
+## Content planning notes
 
-### Content/story stage
-
-Build the central story around documentary editorial craft: one flagship case study (the 6-part series), a short showreel introduction, and supporting commercial work. Keep captions minimal and cinematic; avoid agency filler phrases. Write copy only for confirmed facts.
-
-### Visual-design stage
-
-Dark, editorial, cinematic direction with minimal text and strong media. Consider a title-sequence-style hero, restrained motion, film-still imagery, and a mobile-first video experience. Avoid corporate templates.
-
-### Code-generation stage
-
-Preserve only approved public facts: role, education, tool list, project descriptions as confirmed, and the email contact once provided. Omit the phone number, unconfirmed metrics, and undisclosed client names. Respect reduced motion.
+Content Architect should build the central story around documentary editing and production: the six-part series as the lead case study, then supporting commercial work. Keep project descriptions concise and editorial. Use only confirmed facts and do not add awards, audience figures, or client names that have not been supplied or approved.
 
 ## Approval summary
 
@@ -246,7 +226,7 @@ Confirmed:
 
 - Documentary editor-producer positioning.
 - Flagship: the 6-part broadcaster series.
-- Cinematic, dark, editorial visual direction.
+- Concise, editorial writing tone.
 - Full post-production ownership as a differentiator.
 - Email-first contact; phone private.
 
@@ -256,4 +236,4 @@ Safe omissions:
 - Client names pending disclosure.
 - The showreel link (to be added before launch).
 
-**Ready for user review:** Yes. NEXT should approve this exact brief revision and stop Discovery. It must not start another agent in this phase.
+**Ready for user review:** Yes. NEXT should approve this exact brief revision and stop Discovery. Content Architect can be started only as a separate explicit action.

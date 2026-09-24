@@ -1,11 +1,11 @@
 # Single-VM production Compose stack.
 #
 # Topology:
-#   PostgreSQL -> migrate -> app + worker + preview-gateway -> Caddy
+#   PostgreSQL -> migrate -> app + worker -> Caddy
 #
 # This file is intentionally self-contained. The development-only
-# compose.yaml keeps its host loopback ports and optional fixture profiles;
-# production publishes only Caddy on ports 80 and 443.
+# compose.yaml keeps host loopback ports; production publishes only Caddy on
+# ports 80 and 443.
 #
 # Every durable path is a bind mount below ORYXENAI_DATA_ROOT. The VM setup
 # command creates these directories with the UID/GID expected by each image;
@@ -75,6 +75,29 @@ services:
     # limiting) would see Caddy's container IP for every request instead of
     # the real client.
     command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*"]
+    volumes:
+      # Reuse existing storage only for account/project deletion cleanup.
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/preview"
+        target: /app/.workspace/archive-storage
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-artifacts"
+        target: /app/.workspace/archive-artifacts
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-generation"
+        target: /app/.workspace/archive-generation
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-checkpoints"
+        target: /app/.workspace/archive-checkpoints
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-workspaces"
+        target: /app/.workspace/archive-workspaces
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-gen-output"
+        target: /app/output/archive-exports
+      - type: bind
+        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/build-preparation-staging"
+        target: /app/.workspace/archive-handoffs
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -91,63 +114,10 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    volumes:
-      # This is the only worker path shared with preview-gateway.
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/preview"
-        target: /app/.workspace/code-generator-preview
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/image-search-cache"
-        target: /app/.workspace/image-search-cache
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/npm-cache"
-        target: /app/.workspace/npm-cache
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-development"
-        target: /app/.workspace/code-generator-development
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-materials"
-        target: /app/.workspace/code-generator-materials
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-generation"
-        target: /app/.workspace/code-generator-generation
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-checkpoints"
-        target: /app/.workspace/code-generator-checkpoints
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-workspaces"
-        target: /app/.workspace/code-generator-workspaces
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-generator-artifacts"
-        target: /app/.workspace/code-generator-artifacts
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/build-preparation-staging"
-        target: /app/.workspace/build-preparation-staging
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/code-gen-output"
-        target: /app/output/code-gen-output
     healthcheck:
       test: ["CMD-SHELL", "python -c \"from sqlalchemy import text; from oryxenai.core.settings import get_settings; from oryxenai.db.session import get_engine; import asyncio; e = get_engine(get_settings()); asyncio.run(e.connect().__aenter__()); asyncio.run(e.dispose())\""]
       interval: 15s
       timeout: 10s
-      start_period: 10s
-      retries: 3
-
-  preview-gateway:
-    <<: *application
-    command: ["python", "-m", "oryxenai.preview.gateway"]
-    depends_on:
-      worker:
-        condition: service_healthy
-    volumes:
-      # Deliberately share only immutable preview objects and their metadata.
-      - type: bind
-        source: "${ORYXENAI_DATA_ROOT:-/srv/oryxenai}/preview"
-        target: /app/.workspace/code-generator-preview
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4174/health/ready')\""]
-      interval: 10s
-      timeout: 5s
       start_period: 10s
       retries: 3
 
@@ -165,7 +135,6 @@ services:
       - ${ORYXENAI_ENV_FILE:-.env}
     environment:
       APP_HOST: ${APP_HOST:?APP_HOST must be set in .env}
-      PREVIEW_HOST: ${PREVIEW_HOST:?PREVIEW_HOST must be set in .env}
     ports:
       - "80:80"
       - "443:443"
@@ -183,8 +152,6 @@ services:
     depends_on:
       app:
         condition: service_healthy
-      preview-gateway:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
       interval: 30s
@@ -194,10 +161,9 @@ services:
 
 networks:
   # backend is a normal (non-internal) bridge network: it needs outbound
-  # internet routing so `app`/`worker`/`migrate`/`preview-gateway` can reach
-  # Supabase, model providers, and the npm registry. It is still not
-  # reachable from outside the Docker host, because none of those services
-  # publish a host `ports:` mapping -- only `caddy` does, on `edge`. An
+  # internet routing so `app`/`worker`/`migrate` can reach Supabase and model
+  # providers. It is not reachable from outside the Docker host because none
+  # of those services publish a host `ports:` mapping -- only `caddy` does. An
   # earlier revision marked this network `internal: true`, which also
   # blocked all outbound egress and broke exactly those live calls; see
   # DECISIONS.md D-109.

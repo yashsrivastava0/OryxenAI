@@ -49,7 +49,7 @@ describe("adaptContentArchitect", () => {
   it("maps needs_attention to attention and extracts error", () => {
     const view = adaptContentArchitect(contentFixtureNeedsAttention, true);
     expect(view.state).toBe("attention");
-    expect(view.safeError?.summary).toBe("Generation model timed out while synthesizing page copy.");
+    expect(view.safeError?.summary).toBe("Content model timed out while synthesizing page copy.");
   });
 
   it("fails closed into unsupported for unknown or malformed status", () => {

@@ -10,7 +10,6 @@ export interface ContentStageProps {
   canMutate: boolean;
   onStart: () => Promise<void>;
   onApproveAndContinue: () => Promise<void>;
-  onStartNextStage?: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
   onStop?: () => Promise<void>;
   inFlight?: boolean;
@@ -21,7 +20,6 @@ export function ContentStage({
   canMutate,
   onStart,
   onApproveAndContinue,
-  onStartNextStage,
   onRevise,
   onStop,
   inFlight = false,
@@ -101,10 +99,8 @@ export function ContentStage({
         view={view}
         canMutate={canMutate}
         onApproveAndContinue={onApproveAndContinue}
-        onStartNextStage={onStartNextStage}
         onRevise={onRevise}
         inFlight={inFlight}
-        nextStageName="Visual Design Director"
       />
     </div>
   );
@@ -114,18 +110,14 @@ function ContentReviewPanel({
   view,
   canMutate,
   onApproveAndContinue,
-  onStartNextStage,
   onRevise,
   inFlight = false,
-  nextStageName = "Visual Design Director",
 }: {
   view: ContentViewModel;
   canMutate: boolean;
   onApproveAndContinue: () => Promise<void>;
-  onStartNextStage?: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
   inFlight?: boolean;
-  nextStageName?: string;
 }) {
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [showRevisionComposer, setShowRevisionComposer] = useState(false);
@@ -366,7 +358,7 @@ function ContentReviewPanel({
 
       {isApproved && (
         <p className="approval-committed-note" role="status">
-          Approval is saved. Start the next stage when you are ready.
+          Your content plan is approved and ready.
         </p>
       )}
 
@@ -381,15 +373,11 @@ function ContentReviewPanel({
         }
         secondaryLabel={!isApproved ? "Revise" : undefined}
         onSecondary={!isApproved ? () => setShowRevisionComposer(true) : undefined}
-        primaryLabel={
-          isApproved
-            ? `Start ${nextStageName}`
-            : "Approve & continue →"
-        }
-        onPrimary={isApproved ? onStartNextStage : onApproveAndContinue}
+        primaryLabel={!isApproved ? "Approve content" : undefined}
+        onPrimary={!isApproved ? onApproveAndContinue : undefined}
         disabled={!canMutate || inFlight}
         busy={inFlight}
-        busyLabel={isApproved ? "Starting Visual Design…" : "Approving content…"}
+        busyLabel="Approving content…"
       />
     </div>
   );

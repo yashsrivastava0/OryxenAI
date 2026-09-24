@@ -167,27 +167,15 @@ A technical founder evaluating a consultant should understand, in order:
 3. She has nameable client work with real APIs.
 4. She is reachable for engagements.
 
-## Design-direction signals
+## Content presentation preferences
 
-**Desired character:** Professional, technical, calm, and credible — closer to a consulting practice than a personal developer blog.
+No writing-tone preference was supplied. Use concise, factual language appropriate for prospective consulting clients. Content density should stay medium: lead with scope and short project summaries rather than long essays.
 
-**Theme:** No preference supplied; a restrained light or dark system-friendly design with strong hierarchy works. Default: clean professional with clear section rhythm.
+## Content readability and organization
 
-**Avoid:** Neon effects, fake dashboards, exaggerated "impact" numbers, or anything that suggests hype.
-
-**Content density:** Medium. Scope and case study summaries lead; avoid long essays.
-
-**Imagery:** No required imagery. Diagrams of a generic migration flow could help but are optional.
-
-## Interaction, motion, and responsive priorities
-
-**Motion:** Restrained. Nothing that delays reading or feels flashy.
-
-**Reduced motion:** Respect reduced-motion preferences.
-
-**Mobile:** The scope summary and CTA must be clear on mobile — consultants are often vetted on a phone.
-
-**Interaction:** Clear contact CTA; short case summaries with optional expandable detail.
+- State the consulting scope and primary contact action plainly.
+- Keep case summaries short and distinguish confirmed contribution from team outcomes.
+- Preserve the NDA and private-contact restrictions wherever relevant.
 
 ## Contact, CTA, and privacy
 
@@ -206,19 +194,9 @@ A technical founder evaluating a consultant should understand, in order:
 - No public links or approved contact method supplied yet.
 - No education/certifications supplied.
 
-## Downstream handoff
+## Content planning notes
 
-### Content/story stage
-
-Write concise, high-trust consulting copy: scope of engagements, NDA experience generalized, nameable client work, platform skills. Never include the unconfirmed metrics, the private contact details, or the client name behind the NDA.
-
-### Visual-design stage
-
-Clean professional consulting layout, restrained motion, clear hierarchy of scope over buzzwords, mobile-friendly. Optional generic migration-flow diagram.
-
-### Code-generation stage
-
-Preserve only approved public facts: consulting identity, generalized fintech engagement, logistics API description, skills as evidenced. Omit the phone, the home address, the unconfirmed revenue/user figures, and the NDA client name. Respect reduced motion.
+Content Architect should write concise, high-trust consulting copy: describe engagement scope, generalize the NDA experience, and include the nameable logistics API work. Never include unconfirmed metrics, private contact details, or the client name covered by the NDA.
 
 ## Approval summary
 
@@ -235,4 +213,4 @@ Safe omissions:
 - Kafka depth and Go depth.
 - Education/certifications.
 
-**Ready for user review:** Yes, with the two open items clearly marked. NEXT should approve this exact brief revision and stop Discovery. It must not start another agent in this phase.
+**Ready for user review:** Yes, with the two open items clearly marked. NEXT should approve this exact brief revision and stop Discovery. Content Architect can be started only as a separate explicit action.

@@ -112,12 +112,10 @@ class ContentArchitectAgent(Agent):
         omissions = list(parsed_plan.get("omissions") or [])
         unresolved_issues = list(parsed_plan.get("unresolved_issues") or [])
         privacy_and_confidentiality = list(parsed_plan.get("privacy_and_confidentiality") or [])
-        media_status = dict(parsed_plan.get("media_status") or {})
         warnings = list(parsed_plan.get("warnings") or [])
         memory_update = dict(parsed_plan.get("memory_update") or {})
         page_content_packs = list(parsed_plan.get("page_content_packs") or [])
         public_content_manifest = dict(parsed_plan.get("public_content_manifest") or {})
-        visual_director_handoff = dict(parsed_plan.get("visual_director_handoff") or {})
 
         content_included = bool(parsed_plan.get("content_included", False))
         integration_needed = bool(parsed_plan.get("integration_needed", False))
@@ -142,8 +140,6 @@ class ContentArchitectAgent(Agent):
 
             page_content_packs = list(parsed_pages.get("page_content_packs") or [])
             public_content_manifest = dict(parsed_pages.get("public_content_manifest") or {})
-            if parsed_pages.get("visual_director_handoff"):
-                visual_director_handoff = dict(parsed_pages.get("visual_director_handoff") or {})
             warnings.extend(parsed_pages.get("warnings") or [])
             decision_basis.extend(parsed_pages.get("decision_basis") or [])
             memory_update.update(parsed_pages.get("memory_update") or {})
@@ -178,9 +174,6 @@ class ContentArchitectAgent(Agent):
             public_content_manifest = dict(
                 parsed_integrate.get("public_content_manifest") or public_content_manifest
             )
-            visual_director_handoff = dict(
-                parsed_integrate.get("visual_director_handoff") or visual_director_handoff
-            )
             warnings.extend(parsed_integrate.get("warnings") or [])
             decision_basis.extend(parsed_integrate.get("decision_basis") or [])
             memory_update.update(parsed_integrate.get("memory_update") or {})
@@ -213,7 +206,6 @@ class ContentArchitectAgent(Agent):
             claim_grounding=claim_grounding,
             page_content_packs=page_content_packs,
             public_content_manifest=public_content_manifest,
-            visual_director_handoff=visual_director_handoff,
         )
         if readiness_errors and len(stages_run) < 3:
             repair_packet = {
@@ -221,7 +213,6 @@ class ContentArchitectAgent(Agent):
                 "claim_grounding": claim_grounding,
                 "page_content_packs": page_content_packs,
                 "public_content_manifest": public_content_manifest,
-                "visual_director_handoff": visual_director_handoff,
                 "approval_readiness_errors": readiness_errors,
             }
             parsed_repair, version, meta_repair = await self._call_stage(
@@ -237,9 +228,6 @@ class ContentArchitectAgent(Agent):
             public_content_manifest = dict(
                 parsed_repair.get("public_content_manifest") or public_content_manifest
             )
-            visual_director_handoff = dict(
-                parsed_repair.get("visual_director_handoff") or visual_director_handoff
-            )
             warnings.extend(parsed_repair.get("warnings") or [])
             decision_basis.extend(parsed_repair.get("decision_basis") or [])
             memory_update.update(parsed_repair.get("memory_update") or {})
@@ -248,7 +236,6 @@ class ContentArchitectAgent(Agent):
                 claim_grounding=claim_grounding,
                 page_content_packs=page_content_packs,
                 public_content_manifest=public_content_manifest,
-                visual_director_handoff=visual_director_handoff,
             )
         if readiness_errors:
             raise ContentArchitectModelOutputError("approval_readiness", readiness_errors)
@@ -272,8 +259,6 @@ class ContentArchitectAgent(Agent):
                 "omissions": omissions,
                 "unresolved_issues": unresolved_issues,
                 "privacy_and_confidentiality": privacy_and_confidentiality,
-                "media_status": media_status,
-                "visual_director_handoff": visual_director_handoff,
                 "warnings": warnings,
                 "stages_run": stages_run,
                 "memory_update": memory_update,
@@ -344,7 +329,6 @@ def _approval_readiness_errors(
     claim_grounding: list[dict[str, Any]],
     page_content_packs: list[dict[str, Any]],
     public_content_manifest: dict[str, Any],
-    visual_director_handoff: dict[str, Any],
 ) -> list[str]:
     state = ContentArchitectState.model_validate(
         {
@@ -352,7 +336,6 @@ def _approval_readiness_errors(
             "claim_grounding": claim_grounding,
             "page_content_packs": page_content_packs,
             "public_content_manifest": public_content_manifest,
-            "visual_director_handoff": visual_director_handoff,
         }
     )
     public_routes = [

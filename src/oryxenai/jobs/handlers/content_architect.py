@@ -64,8 +64,8 @@ class ContentArchitectBuildHandler:
         own try/except (which calls _persist_failure) never runs — this is
         the only chance to reflect a terminal timeout into the
         content_architect session state instead of leaving it stuck at
-        "build_running" forever. See visual_design_director.py's identical
-        hook for the same live-reproduced issue one stage up the pipeline.
+        "build_running" forever. Every durable agent handler uses the same
+        timeout reconciliation contract.
         """
         from oryxenai.core.settings import get_settings
 
@@ -75,7 +75,7 @@ class ContentArchitectBuildHandler:
         sessionmaker = get_sessionmaker(settings)
         attempt = int(payload.get("attempt", 1))
         max_attempts = int(
-            payload.get("max_attempts", settings.worker_retry.first_four_max_attempts)
+            payload.get("max_attempts", settings.worker_retry.agent_job_max_attempts)
         )
         await _persist_failure(
             sessionmaker, session_id, run_id, payload, error, attempt, max_attempts
@@ -123,7 +123,7 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     settings = get_settings()
     sessionmaker = get_sessionmaker(settings)
     attempt = int(payload.get("attempt", 1))
-    max_attempts = int(payload.get("max_attempts", settings.worker_retry.first_four_max_attempts))
+    max_attempts = int(payload.get("max_attempts", settings.worker_retry.agent_job_max_attempts))
     raw_job_id = payload.get("job_id")
     job_id = UUID(str(raw_job_id)) if raw_job_id else None
 
@@ -318,8 +318,6 @@ async def _apply_result(
             omissions=output.get("omissions", []) or [],
             unresolved_issues=output.get("unresolved_issues", []) or [],
             privacy_and_confidentiality=output.get("privacy_and_confidentiality", []) or [],
-            media_status=output.get("media_status", {}) or {},
-            visual_director_handoff=output.get("visual_director_handoff", {}) or {},
             warnings=output.get("warnings", []) or [],
             stages_run=output.get("stages_run", []) or [],
             memory_update=output.get("memory_update", {}) or {},

@@ -15,9 +15,6 @@ from pydantic import ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from oryxenai.agents.code_generator.core import fs_safe
-from oryxenai.agents.code_generator.core.development_schemas import ActivePreview
-from oryxenai.agents.code_generator.core.workspace import repository_root
 from oryxenai.api.errors import AppError, NotFoundError
 from oryxenai.auth.admin.masking import bounded_limit, decode_cursor, encode_cursor, mask_email
 from oryxenai.auth.admin.provider import AdminIdentityProvider, AdminProviderError
@@ -35,7 +32,6 @@ from oryxenai.auth.errors import (
     DeletedIdentityNotReadmittableError,
     EntitlementResetNotApplicableError,
     LastActiveAdminRequiredError,
-    ProjectDeletionPendingError,
     ProjectMustBeDeletedBeforeEntitlementResetError,
     ProjectRunningWorkPendingError,
     StorageCleanupFailedError,
@@ -46,12 +42,13 @@ from oryxenai.auth.models import (
     DeletedIdentityTombstone,
     PortfolioEntitlement,
 )
-from oryxenai.db.models.code_generator_development import (
-    CodeGeneratorDevelopmentRun,
-    CodeGeneratorStageAttempt,
+from oryxenai.db.models.archived_output import (
+    ArchivedOutputAttempt,
+    ArchivedOutputRun,
 )
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.storage.artifacts import ArtifactReference, create_artifact_store
+from oryxenai.storage.filesystem import remove_tree, repository_root
 
 
 def _fingerprint(action: str, target_id: UUID | None, body: Mapping[str, object]) -> str:
@@ -63,9 +60,10 @@ def _fingerprint(action: str, target_id: UUID | None, body: Mapping[str, object]
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def _preview_host(session_id: UUID) -> str:
+def _legacy_object_namespace(session_id: UUID) -> str:
+    """Return the namespace older releases used for isolated stored objects."""
     encoded = base64.b32encode(hashlib.sha256(str(session_id).encode()).digest()).decode().lower()
-    return f"session-{encoded[:24].rstrip('=')}"
+    return encoded[:24].rstrip("=")
 
 
 class AdminService:
@@ -76,13 +74,13 @@ class AdminService:
         *,
         db: AsyncSession,
         provider: AdminIdentityProvider,
-        preview_storage: Any | None = None,
+        archive_storage: Any | None = None,
         artifact_store: Any | None = None,
         settings: Any | None = None,
     ) -> None:
         self.repo = AdminRepository(db)
         self.provider = provider
-        self.preview_storage = preview_storage
+        self.archive_storage = archive_storage
         self.artifact_store = artifact_store
         self.settings = settings
 
@@ -625,7 +623,6 @@ class AdminService:
             return operation
         entitlement.deleted_portfolio_session_id = None
         entitlement.project_deleted_at = None
-        entitlement.consumed_at = None
         entitlement.reset_count += 1
         entitlement.last_reset_at = datetime.now(UTC)
         entitlement.revision += 1
@@ -768,43 +765,7 @@ class AdminService:
             entitlement = PortfolioEntitlement(user_id=target_id)
             self.repo.session.add(entitlement)
         if sessions:
-            session = sessions[0]
-            runs = list(
-                (
-                    await self.repo.session.execute(
-                        select(CodeGeneratorDevelopmentRun)
-                        .where(
-                            CodeGeneratorDevelopmentRun.portfolio_session_id == session.id,
-                            CodeGeneratorDevelopmentRun.run_mode == "session",
-                        )
-                        .order_by(CodeGeneratorDevelopmentRun.created_at.desc())
-                        .limit(2)
-                    )
-                )
-                .scalars()
-                .all()
-            )
-            if len(runs) > 1:
-                raise AdminDemotionRequiresProjectCleanupError()
-            run = runs[0] if runs else None
-            entitlement.portfolio_session_id = session.id
-            if run is not None:
-                entitlement.generation_run_id = run.id
-                verified_preview = None
-                if isinstance(run.active_preview, dict):
-                    try:
-                        verified_preview = ActivePreview.model_validate(run.active_preview)
-                    except ValidationError:
-                        verified_preview = None
-                if (
-                    run.status == "ready"
-                    and verified_preview is not None
-                    and verified_preview.run_id == str(run.id)
-                    and verified_preview.receipt_key
-                    and verified_preview.receipt_hash
-                ):
-                    entitlement.successful_run_id = run.id
-                    entitlement.consumed_at = datetime.now(UTC)
+            entitlement.portfolio_session_id = sessions[0].id
         target.role = "user"
         target.updated_at = datetime.now(UTC)
         await self.repo.finish_operation(
@@ -928,8 +889,8 @@ class AdminService:
         runs = list(
             (
                 await self.repo.session.execute(
-                    select(CodeGeneratorDevelopmentRun).where(
-                        CodeGeneratorDevelopmentRun.portfolio_session_id == session_id
+                    select(ArchivedOutputRun).where(
+                        ArchivedOutputRun.portfolio_session_id == session_id
                     )
                 )
             )
@@ -939,8 +900,8 @@ class AdminService:
         stage_attempts = list(
             (
                 await self.repo.session.execute(
-                    select(CodeGeneratorStageAttempt).where(
-                        CodeGeneratorStageAttempt.run_id.in_([run.id for run in runs])
+                    select(ArchivedOutputAttempt).where(
+                        ArchivedOutputAttempt.run_id.in_([run.id for run in runs])
                     )
                 )
             )
@@ -963,37 +924,40 @@ class AdminService:
         )
         for run in runs:
             await self._cleanup_local_run_paths(run.id)
-            active = run.active_preview if isinstance(run.active_preview, dict) else None
+            stored_output_pointer = getattr(run, "stored_output_pointer", None)
+            if stored_output_pointer is None:
+                stored_output_pointer = getattr(run, "active_preview", None)
+            active = stored_output_pointer if isinstance(stored_output_pointer, dict) else None
             if not active:
                 continue
-            if self.preview_storage is None:
-                raise RuntimeError("preview storage is not configured")
+            if self.archive_storage is None:
+                raise RuntimeError("archive storage is not configured")
             if str(active.get("run_id", "")) != str(run.id):
-                raise ValueError("active preview belongs to another run")
+                raise ValueError("stored output belongs to another run")
             host = str(active.get("host", ""))
-            expected_host = _preview_host(session_id)
+            expected_host = f"session-{_legacy_object_namespace(session_id)}"
             if host != expected_host:
-                raise ValueError("unsafe preview host")
+                raise ValueError("unsafe stored-output namespace")
             pointer_key = f"preview/hosts/{host}/active.json"
-            current = await self.preview_storage.get(pointer_key)
+            current = await self.archive_storage.get(pointer_key)
             if current is not None:
                 try:
                     pointer = json.loads(current[1].decode("utf-8"))
                 except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                    raise ValueError("invalid preview pointer") from exc
+                    raise ValueError("invalid stored-output pointer") from exc
                 if str(pointer.get("run_id", "")) != str(run.id):
-                    raise ValueError("preview pointer belongs to another run")
-                await self.preview_storage.delete(pointer_key)
-                if await self.preview_storage.head(pointer_key) is not None:
-                    raise ValueError("preview pointer remained active")
+                    raise ValueError("stored-output pointer belongs to another run")
+                await self.archive_storage.delete(pointer_key)
+                if await self.archive_storage.head(pointer_key) is not None:
+                    raise ValueError("stored-output pointer remained")
             receipt_key = str(active.get("receipt_key", ""))
             if (
                 not receipt_key.startswith("preview/receipts/")
                 or len(receipt_key.split("/")) != 3
                 or not receipt_key.endswith(".json")
             ):
-                raise ValueError("unsafe preview receipt key")
-            await self.preview_storage.delete(receipt_key)
+                raise ValueError("unsafe stored-output receipt key")
+            await self.archive_storage.delete(receipt_key)
             candidate_prefix = str(active.get("candidate_prefix", ""))
             candidate_parts = candidate_prefix.split("/")
             if (
@@ -1002,16 +966,59 @@ class AdminService:
                 or candidate_parts[2] != str(active.get("candidate_id", ""))
                 or candidate_parts[3] != str(active.get("build_hash", ""))
             ):
-                raise ValueError("unsafe preview candidate prefix")
+                raise ValueError("unsafe stored-output candidate prefix")
             continuation = None
             while True:
-                keys, continuation = await self.preview_storage.list_prefix(
+                keys, continuation = await self.archive_storage.list_prefix(
                     candidate_prefix, limit=100, continuation=continuation
                 )
                 for key in keys:
-                    await self.preview_storage.delete(key)
+                    await self.archive_storage.delete(key)
                 if continuation is None or not keys:
                     break
+        self._cleanup_archived_handoff_paths(session.current_state if session is not None else {})
+
+    def _cleanup_archived_handoff_paths(self, state: object) -> None:
+        if self.settings is None:
+            return
+        archive = getattr(self.settings, "archive_storage", None)
+        root = repository_root()
+        roots: list[Path] = []
+        for attribute in ("handoff_root", "handoff_mirror_root"):
+            value = str(getattr(archive, attribute, "") or "")
+            if value:
+                path = Path(value)
+                roots.append((path if path.is_absolute() else root / path).resolve())
+
+        paths: list[Path] = []
+
+        def visit(value: object, key: str = "") -> None:
+            if isinstance(value, Mapping):
+                for child_key, child in value.items():
+                    visit(child, str(child_key))
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child, key)
+            elif key in {"mirror_root", "local_archive_path"} and isinstance(value, str):
+                paths.append(Path(value))
+
+        visit(state)
+        for raw_path in paths:
+            target = (raw_path if raw_path.is_absolute() else root / raw_path).resolve()
+            allowed_root = next(
+                (configured for configured in roots if target.is_relative_to(configured)), None
+            )
+            if allowed_root is None or target == allowed_root:
+                raise OSError("archived handoff path is outside configured cleanup roots")
+            if target.name == "build-context":
+                target = target.parent
+                if target == allowed_root:
+                    raise OSError("archived handoff resolves to its configured root")
+            if target.is_dir():
+                if not remove_tree(target, required=False):
+                    raise OSError("archived handoff path remains locked")
+            elif target.exists():
+                target.unlink()
 
     async def _cleanup_artifacts(self, session_id: UUID, candidates: list[object]) -> None:
         """Delete only typed artifact references scoped to this session."""
@@ -1055,14 +1062,10 @@ class AdminService:
         if self.settings is None:
             return
         root = repository_root()
-        generation = getattr(self.settings, "code_generator_generation", None)
-        verification = getattr(self.settings, "code_generator_verification", None)
+        archive = getattr(self.settings, "archive_storage", None)
         configured_roots: list[Path] = []
-        for config, attribute in (
-            (generation, "workspace_root"),
-            (generation, "checkpoint_root"),
-        ):
-            value = str(getattr(config, attribute, "") or "")
+        for attribute in ("artifact_root", "generation_root", "checkpoint_root", "workspace_root"):
+            value = str(getattr(archive, attribute, "") or "")
             if value:
                 path = Path(value)
                 configured_roots.append((path if path.is_absolute() else root / path).resolve())
@@ -1071,10 +1074,10 @@ class AdminService:
             if (
                 target.is_relative_to(configured)
                 and target != configured
-                and not fs_safe.remove_tree(target, required=False)
+                and not remove_tree(target, required=False)
             ):
-                raise OSError("configured generated run path remains locked")
-        export_value = str(getattr(verification, "export_root", "") or "")
+                raise OSError("configured archived run path remains locked")
+        export_value = str(getattr(archive, "export_root", "") or "")
         if not export_value:
             return
         export_path = Path(export_value)
@@ -1088,10 +1091,10 @@ class AdminService:
                 payload = json.loads((child / "portfolio.json").read_text(encoding="utf-8"))
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 continue
-            if str(payload.get("run_id", "")) == str(run_id) and not fs_safe.remove_tree(
+            if str(payload.get("run_id", "")) == str(run_id) and not remove_tree(
                 child.resolve(), required=False
             ):
-                raise OSError("configured export path remains locked")
+                raise OSError("configured archive path remains locked")
 
     async def summary(self) -> dict[str, Any]:
         return await self.repo.summary()
@@ -1225,65 +1228,6 @@ class AdminService:
             raise NotFoundError("The administrator operation was not found.")
         return operation
 
-    async def code_generator_command(
-        self,
-        *,
-        actor_id: UUID,
-        session_id: UUID,
-        confirmation: UUID,
-        reason: str | None,
-        idempotency_key: str,
-        request_id: str,
-        action: str,
-        callback: Any,
-    ) -> AdminOperation:
-        self._require_confirmation(session_id, confirmation)
-        self._validate_admin_actor(await self.repo.get_user(actor_id))
-        session = await self.repo.get_session(session_id)
-        if session is None:
-            raise NotFoundError("The portfolio was not found.")
-        if session.status != "active":
-            raise ProjectDeletionPendingError()
-        operation, created = await self._operation(
-            actor_id=actor_id,
-            action=action,
-            target_type="project",
-            target_id=session_id,
-            key=idempotency_key,
-            body={"confirmation": str(confirmation), "reason": reason},
-            request_id=request_id,
-        )
-        if not created and operation.status == "completed":
-            return operation
-        operation.step = "local_committed"
-        await self._commit()
-        try:
-            result = await callback()
-        except Exception as exc:
-            await self.repo.finish_operation(
-                operation.id,
-                actor_id=actor_id,
-                outcome="retryable",
-                request_id=request_id,
-                error_code=getattr(exc, "code", "ADMIN_OPERATION_RETRYABLE"),
-            )
-            await self._commit()
-            if isinstance(exc, AppError):
-                raise
-            raise AdminOperationRetryableError() from exc
-        safe_result = {}
-        if isinstance(result, dict):
-            safe_result = {"accepted": True, "session_id": str(session_id)}
-        await self.repo.finish_operation(
-            operation.id,
-            actor_id=actor_id,
-            outcome="completed",
-            request_id=request_id,
-            safe_state=safe_result,
-        )
-        await self._commit()
-        return await self._get_operation(operation.id)
-
     @staticmethod
     def _user_projection(user: AppUser, entitlement: PortfolioEntitlement | None) -> dict[str, Any]:
         return {
@@ -1301,7 +1245,6 @@ class AdminService:
                 and entitlement.portfolio_session_id is not None,
                 "has_deleted_project": entitlement is not None
                 and entitlement.deleted_portfolio_session_id is not None,
-                "consumed": entitlement is not None and entitlement.consumed_at is not None,
                 "revision": entitlement.revision if entitlement is not None else 0,
                 "reset_count": entitlement.reset_count if entitlement is not None else 0,
             },
@@ -1323,12 +1266,6 @@ class AdminService:
             .group_by(BackgroundJob.status)
         )
         counts = {str(status): int(count) for status, count in job_counts.all()}
-        run_statuses = await self.repo.session.execute(
-            select(CodeGeneratorDevelopmentRun.status).where(
-                CodeGeneratorDevelopmentRun.portfolio_session_id == session.id
-            )
-        )
-        stage_statuses = [str(value[0]) for value in run_statuses.all()]
         return {
             "id": session.id,
             "owner_user_id": session.owner_user_id,
@@ -1338,18 +1275,7 @@ class AdminService:
             "status": session.status,
             "created_at": session.created_at,
             "updated_at": session.updated_at,
-            "stage_statuses": stage_statuses[:20],
             "job_counts": counts,
-            "preview_exists": any(
-                isinstance(run.active_preview, dict)
-                for run in (
-                    await self.repo.session.scalars(
-                        select(CodeGeneratorDevelopmentRun).where(
-                            CodeGeneratorDevelopmentRun.portfolio_session_id == session.id
-                        )
-                    )
-                ).all()
-            ),
         }
 
     @staticmethod

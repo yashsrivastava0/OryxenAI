@@ -19,6 +19,7 @@ from oryxenai.api.dependencies import (
     require_pipeline_session,
 )
 from oryxenai.api.errors import PipelineRestartCleanupError, SessionNotFoundError, ValidationError
+from oryxenai.api.projections import project_session_state
 from oryxenai.auth.authorization import PortfolioAccess
 from oryxenai.auth.domain import AuthRole, CurrentUser
 from oryxenai.auth.entitlements import PortfolioEntitlementRepository
@@ -55,12 +56,13 @@ class SessionResponse(BaseModel):
 
 
 def _to_response(session: PortfolioSession) -> SessionResponse:
+    raw_state = session.current_state if isinstance(session.current_state, dict) else {}
     return SessionResponse(
         id=str(session.id),
         name=session.name,
         status=session.status,
         session_mode=getattr(session, "session_mode", "legacy"),
-        current_state=session.current_state,
+        current_state=project_session_state(raw_state),
         revision=session.revision,
         created_at=session.created_at.isoformat(),
         updated_at=session.updated_at.isoformat(),
@@ -138,7 +140,7 @@ async def restart_session(
         db,
         settings=request.app.state.settings,
         artifact_store=getattr(request.app.state, "artifact_store", None),
-        preview_storage=getattr(request.app.state, "preview_storage", None),
+        archive_storage=getattr(request.app.state, "archive_storage", None),
         auth_admin_provider=getattr(request.app.state, "auth_admin_provider", None),
     )
     try:
@@ -166,7 +168,7 @@ async def reset_session(
         db,
         settings=request.app.state.settings,
         artifact_store=getattr(request.app.state, "artifact_store", None),
-        preview_storage=getattr(request.app.state, "preview_storage", None),
+        archive_storage=getattr(request.app.state, "archive_storage", None),
         auth_admin_provider=getattr(request.app.state, "auth_admin_provider", None),
     )
     try:
