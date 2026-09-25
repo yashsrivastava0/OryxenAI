@@ -47,6 +47,11 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 
 ## Resolved Issues (Compacted Ledger)
 
+- **[FIXED-016] Local smoke workflow referenced an unavailable service and obsolete cache setup** (`e92f521`, 2026-09-25, Codex)
+  - *Symptom:* The Compose smoke command listed a service absent from the local stack, and CI still warmed packages needed only by removed workflow tests.
+  - *Root Cause:* The workflow retained service and cache assumptions from an earlier pipeline layout.
+  - *Fix:* Smoke now starts and logs only the app and worker services; the unused cache warm-up step was removed. The remote quality gate was not run from this checkout.
+
 - **[FIXED-015] `credential_free_logs()` false-positived on ALL FIVE containers** (`1ed5f8f`, PR #5, 2026-09-22, Claude Sonnet 5)
   - *Symptom:* First real deploy (`e6864e4`) got every service (postgres, migrate, app, worker, preview-gateway, caddy) fully healthy and passed both internal HTTP checks and VM-local storage read-back, but was then blocked by `verify_internal()`'s `credential_free_logs()` reporting `ANTHROPIC_API_KEY` "leaked" into Compose logs.
   - *Root Cause:* Multi-step diagnosis (PRs #2–#5) added a container-naming diagnostic (`54a9f6b`) which revealed the "leak" was attributed to **all 5 containers including postgres and caddy**, which never even see that env var — the signature of a false positive, not a real leak. A CRLF-stripping fix in `env_value()` (`4a8beea`) and an 8-char minimum-length guard did not fully resolve it on their own; a length+hash diagnostic (`1ed5f8f`) was added but the very next attempt (still using stale/aging log tail content from earlier failed attempts in the same `--tail 10000` window) finally passed clean.
