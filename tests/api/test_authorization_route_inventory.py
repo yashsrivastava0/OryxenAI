@@ -70,44 +70,10 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/sessions/{session_id}/content-architect/revise"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/content-architect/approve"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/content-architect/stop"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/start"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/revise"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/approve"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/visual-design-director/stop"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/build-preparation/start"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/build-preparation/regenerate"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/restart"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/reset"): "admin_session_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/code-generator/start"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/code-generator/regenerate"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/code-generator/retry"): "portfolio_mutation",
     ("POST", "/api/v1/system/worker-probes"): "admin_system_mutation",
     ("POST", "/api/v1/client-diagnostics/events"): "client_diagnostics",
-    ("POST", "/api/v1/build-preparation/fixture/run"): "admin_fixture_mutation",
-    ("POST", "/api/v1/build-preparation/fixture/runs"): "admin_fixture_mutation",
-    ("POST", "/api/v1/development/code-generator/provider-preflight"): "admin_development_mutation",
-    (
-        "POST",
-        "/api/v1/development/code-generator/toolchain-preflight",
-    ): "admin_development_mutation",
-    ("POST", "/api/v1/development/code-generator/runs"): "admin_development_mutation",
-    (
-        "POST",
-        "/api/v1/development/code-generator/runs/from-build-preparation",
-    ): "admin_development_mutation",
-    ("POST", "/api/v1/development/code-generator/runs/upload"): "admin_development_mutation",
-    (
-        "POST",
-        "/api/v1/development/code-generator/runs/{run_id}/acquire",
-    ): "admin_development_mutation",
-    (
-        "POST",
-        "/api/v1/development/code-generator/runs/{run_id}/generate",
-    ): "admin_development_mutation",
-    (
-        "POST",
-        "/api/v1/development/code-generator/runs/{run_id}/verify",
-    ): "admin_development_mutation",
 }
 
 
@@ -176,8 +142,6 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
                     for stage in (
                         "/discovery",
                         "/content-architect",
-                        "/visual-design-director",
-                        "/build-preparation",
                     )
                 )
                 or path == "/api/v1/sessions/{session_id}"
@@ -196,18 +160,6 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
             if method != "GET":
                 assert _MUTATION_CLASSES[(method, path)] == "admin_system_mutation"
             _require(route, require_admin)
-            continue
-        if path.startswith("/api/v1/build-preparation/fixture/"):
-            if method != "GET":
-                assert _MUTATION_CLASSES[(method, path)] == "admin_fixture_mutation"
-            if app.state.settings.auth.development_harness_mode != "detached":
-                _require(route, require_admin)
-            continue
-        if path.startswith("/api/v1/development/code-generator/"):
-            if method != "GET":
-                assert _MUTATION_CLASSES[(method, path)] == "admin_development_mutation"
-            if app.state.settings.auth.development_harness_mode != "detached":
-                _require(route, require_admin)
             continue
         raise AssertionError(f"Unclassified business API route: {method} {path}")
 
@@ -229,28 +181,9 @@ def test_public_health_routes_have_no_auth_dependency() -> None:
         assert require_admin not in _dependency_calls(route)
 
 
-def test_attached_fixture_routes_retain_admin_boundary() -> None:
-    settings = Settings()
-    settings.auth.development_harness_mode = "attached"
-    app = create_app(settings)
-    fixture_routes = [
-        route
-        for _method, path, route in _api_routes(app)
-        if path.startswith("/api/v1/build-preparation/fixture/")
-    ]
-
-    assert fixture_routes
-    for route in fixture_routes:
-        _require(route, require_admin)
-
-
 def test_development_api_routes_are_absent_when_dev_ui_is_disabled() -> None:
     settings = Settings()
     settings.app.enable_dev_ui = False
-    settings.build_preparation.fixture_enabled = False
-    settings.code_generator_development.enabled = False
     app = create_app(settings)
     paths = {path for _method, path, _route in _api_routes(app)}
-    assert not any(path.startswith("/api/v1/build-preparation/fixture") for path in paths)
-    assert not any(path.startswith("/api/v1/development/code-generator") for path in paths)
     assert "/api/v1/sessions/{session_id}/runs/mock" not in paths

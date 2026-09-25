@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f3f0e8">
-  <meta name="description" content="Sign in to shape and approve your portfolio brief, content architecture, and visual direction.">
+  <meta name="description" content="Sign in to shape your portfolio brief and develop its content architecture.">
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -291,7 +291,7 @@
               <div><dt>Status</dt><dd data-user="status">—</dd></div>
             </dl>
 
-            <p class="sign-in-lede">Your authenticated workspace is ready for the three-stage editorial process.</p>
+            <p class="sign-in-lede">Your authenticated workspace guides you through discovery and content planning.</p>
 
             <div class="button-row">
               <a class="primary-button google-auth-cta" href="/app" style="justify-content:center; text-align:center;">
@@ -314,8 +314,8 @@
         </div>
       </div>
 
-      <!-- RIGHT COLUMN: INTERACTIVE SIX-STAGE PRODUCT SHOWCASE -->
-      <div class="sign-in-right-col" aria-label="Portfolio Transformation Stages">
+      <!-- RIGHT COLUMN: ACTIVE WORKFLOW SHOWCASE -->
+      <div class="sign-in-right-col" aria-label="Portfolio workflow">
         <div class="drafting-mark mark-tl" aria-hidden="true">+</div>
         <div class="drafting-mark mark-tr" aria-hidden="true">+</div>
         <div class="drafting-mark mark-bl" aria-hidden="true">+</div>
@@ -323,12 +323,12 @@
         <div class="drafting-sweep-line" aria-hidden="true"></div>
 
         <div class="rail-header">
-          <span class="rail-title">SIX-STAGE PORTFOLIO STUDIO</span>
+          <span class="rail-title">TWO-STAGE PORTFOLIO WORKFLOW</span>
           <span class="rail-motto">IDEAS IN, OPPORTUNITIES OUT.</span>
         </div>
 
-        <!-- STAGE RAIL -->
-        <div class="stage-rail-wrap" aria-label="Studio workflow rail">
+        <!-- ACTIVE WORKFLOW RAIL -->
+        <div class="stage-rail-wrap" aria-label="Two-stage workflow">
           <div class="rail-track" aria-hidden="true">
             <div id="rail-active-segment" class="rail-active-segment"></div>
             <div id="rail-traveling-highlight" class="rail-traveling-highlight"></div>
@@ -346,34 +346,6 @@
               <div class="node-meta">
                 <span class="node-name">Content</span>
                 <span class="node-sub">SHAPE NARRATIVE</span>
-              </div>
-            </li>
-            <li class="stage-rail-node" data-stage="design">
-              <span class="node-badge">3</span>
-              <div class="node-meta">
-                <span class="node-name">Design</span>
-                <span class="node-sub">CRAFT PRESENTATION</span>
-              </div>
-            </li>
-            <li class="stage-rail-node" data-stage="prepare">
-              <span class="node-badge">4</span>
-              <div class="node-meta">
-                <span class="node-name">Prepare</span>
-                <span class="node-sub">FINALIZE DETAILS</span>
-              </div>
-            </li>
-            <li class="stage-rail-node" data-stage="generate">
-              <span class="node-badge">5</span>
-              <div class="node-meta">
-                <span class="node-name">Generate</span>
-                <span class="node-sub">BUILD PORTFOLIO</span>
-              </div>
-            </li>
-            <li class="stage-rail-node" data-stage="preview">
-              <span class="node-badge">6</span>
-              <div class="node-meta">
-                <span class="node-name">Preview</span>
-                <span class="node-sub">REVIEW AND APPROVE</span>
               </div>
             </li>
           </ol>
@@ -519,58 +491,6 @@
               </div>
             </article>
 
-            <!-- CARD 3: VISUAL DIRECTION -->
-            <article class="showcase-card card-design" data-card-index="3" aria-label="Stage 3: Visual direction sample">
-              <div class="card-header-line">
-                <span class="card-step-tag">03 Design</span>
-              </div>
-              <h2 class="card-headline">Tailored editorial identity.</h2>
-              <p class="card-subhead">Custom palette, bespoke typography scale, and restrained motion tokens.</p>
-              <div class="design-tokens-sample">
-                <div class="swatch-cluster" aria-label="Color palette">
-                  <span class="swatch sw-paper" title="Paper ivory"></span>
-                  <span class="swatch sw-ink" title="Carbon ink"></span>
-                  <span class="swatch sw-cobalt" title="Electric cobalt"></span>
-                  <span class="swatch sw-graphite" title="Warm graphite"></span>
-                </div>
-                <div class="typography-token">
-                  <span class="token-title">Newsreader Display 600</span>
-                  <span class="token-meta">Optical sizing active · 1.02 line-height</span>
-                </div>
-              </div>
-              <div class="card-footer-note">
-                <span class="script-annotation">Crafted specifically for your practice.</span>
-              </div>
-            </article>
-
-            <!-- CARD 4: PREVIEW -->
-            <article class="showcase-card card-preview" data-card-index="4" aria-label="Stage 6: Preview sample">
-              <div class="card-header-line">
-                <span class="card-step-tag">06 Preview</span>
-              </div>
-              <h2 class="card-headline">Your portfolio. Your call.</h2>
-              <p class="card-subhead">Review everything before anything goes live. Nothing is published without your approval.</p>
-
-              <div class="preview-mini-canvas" aria-hidden="true">
-                <svg viewBox="0 0 180 80" width="100%" height="100%" fill="none">
-                  <rect width="180" height="80" fill="#eae6dc"/>
-                  <polygon points="10,80 50,30 90,80" fill="#7e817b"/>
-                  <polygon points="60,80 110,18 160,80" fill="#353936"/>
-                  <polygon points="120,80 150,42 180,80" fill="#626660"/>
-                  <line x1="0" y1="80" x2="180" y2="80" stroke="#171a19" stroke-width="1"/>
-                </svg>
-              </div>
-
-              <div class="preview-btn-row">
-                <span class="preview-cta-ghost">
-                  <span>Preview portfolio</span>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="3" y1="8" x2="13" y2="8"/>
-                    <polyline points="9 4 13 8 9 12"/>
-                  </svg>
-                </span>
-              </div>
-            </article>
           </div>
 
           <!-- SHOWCASE CONTROLS -->
@@ -585,8 +505,6 @@
               <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Discovery card" data-index="0" type="button"></button>
               <button class="showcase-dot active" role="tab" aria-selected="true" aria-label="Portfolio Brief card" data-index="1" type="button"></button>
               <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Content structure card" data-index="2" type="button"></button>
-              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Visual design card" data-index="3" type="button"></button>
-              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Live preview card" data-index="4" type="button"></button>
             </div>
 
             <button class="showcase-nav-btn showcase-nav-next" type="button" aria-label="Next showcase card" title="Next">

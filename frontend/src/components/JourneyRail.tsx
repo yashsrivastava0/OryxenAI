@@ -43,8 +43,6 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
             <span>DISCOVER</span>
             <span className="breadcrumb-arrow">›</span>
             <span className="breadcrumb-active">CONTENT</span>
-            <span className="breadcrumb-arrow">›</span>
-            <span>APPROVE</span>
           </div>
         </div>
 

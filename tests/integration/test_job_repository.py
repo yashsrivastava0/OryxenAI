@@ -46,11 +46,11 @@ async def test_claim_batch_atomic(db_session):
     assert len(queued) == 1
 
 
-async def test_claim_foregrounds_visible_agents_over_old_generator_backlog(db_session):
-    """A fresh first-four request must not wait behind abandoned codegen rows."""
+async def test_claim_foregrounds_active_agents_over_legacy_backlog(db_session):
+    """A fresh model request must not wait behind a legacy queue row."""
     repo = JobRepository(db_session)
-    old_generator = await repo.enqueue(
-        "code_generator.v5.plan",
+    old_job = await repo.enqueue(
+        "legacy.model_generation",
         {"source": "old"},
         execution_lane=MODEL_GENERATION_LANE,
     )
@@ -69,7 +69,7 @@ async def test_claim_foregrounds_visible_agents_over_old_generator_backlog(db_se
     )
 
     assert [job.id for job in claimed] == [discovery.id]
-    remaining = await repo.get_by_id(old_generator.id)
+    remaining = await repo.get_by_id(old_job.id)
     assert remaining is not None
     assert remaining.status == JobStatus.QUEUED.value
 
@@ -77,8 +77,8 @@ async def test_claim_foregrounds_visible_agents_over_old_generator_backlog(db_se
 async def test_requeue_stale_releases_lane_for_foreground_claim(db_session):
     """An abandoned lane occupant cannot block a fresh visible-agent job."""
     now = datetime.now(UTC)
-    stale_generator = BackgroundJob(
-        job_kind="code_generator.v5.generate",
+    stale_job = BackgroundJob(
+        job_kind="legacy.model_generation",
         status=JobStatus.RUNNING.value,
         payload={"source": "abandoned"},
         execution_lane=MODEL_GENERATION_LANE,
@@ -86,7 +86,7 @@ async def test_requeue_stale_releases_lane_for_foreground_claim(db_session):
         heartbeat_at=now - timedelta(seconds=300),
         started_at=now - timedelta(seconds=300),
     )
-    db_session.add(stale_generator)
+    db_session.add(stale_job)
     await db_session.flush()
 
     repo = JobRepository(db_session)
@@ -111,15 +111,15 @@ async def test_requeue_stale_releases_lane_for_foreground_claim(db_session):
         foreground_job_kinds=foreground_job_kinds(),
     )
     assert [job.id for job in claimed] == [discovery.id]
-    await db_session.refresh(stale_generator)
-    assert stale_generator.status == JobStatus.QUEUED.value
+    await db_session.refresh(stale_job)
+    assert stale_job.status == JobStatus.QUEUED.value
 
 
 async def test_restricted_worker_requeues_disallowed_stale_lane_blocker(db_session):
     """Handler allowlists must not let an expired foreign kind retain a shared lane."""
     now = datetime.now(UTC)
-    stale_generator = BackgroundJob(
-        job_kind="code_generator.v5.generate",
+    stale_job = BackgroundJob(
+        job_kind="legacy.model_generation",
         status=JobStatus.RUNNING.value,
         payload={"source": "abandoned"},
         execution_lane=MODEL_GENERATION_LANE,
@@ -127,7 +127,7 @@ async def test_restricted_worker_requeues_disallowed_stale_lane_blocker(db_sessi
         heartbeat_at=now - timedelta(seconds=300),
         started_at=now - timedelta(seconds=300),
     )
-    db_session.add(stale_generator)
+    db_session.add(stale_job)
     await db_session.flush()
 
     repo = JobRepository(db_session)
@@ -155,10 +155,10 @@ async def test_restricted_worker_requeues_disallowed_stale_lane_blocker(db_sessi
         foreground_job_kinds=foreground_job_kinds(),
     )
     assert [job.id for job in claimed] == [discovery.id]
-    await db_session.refresh(stale_generator)
-    assert stale_generator.status == JobStatus.QUEUED.value
-    assert stale_generator.locked_by is None
-    assert stale_generator.lease_token is None
+    await db_session.refresh(stale_job)
+    assert stale_job.status == JobStatus.QUEUED.value
+    assert stale_job.locked_by is None
+    assert stale_job.lease_token is None
 
 
 async def test_claim_skip_locked(db_session, test_engine):

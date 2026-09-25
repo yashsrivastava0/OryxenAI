@@ -71,7 +71,6 @@ def _public_review_state(*, include_pending: bool = False) -> ContentArchitectSt
             )
         ],
         public_content_manifest={"nav": [{"label": "Home", "target": "home"}]},
-        visual_director_handoff={"content_hierarchy": ["hero"]},
     )
 
 
@@ -207,8 +206,6 @@ class TestFlowTransitions:
             omissions=[],
             unresolved_issues=["no metrics"],
             privacy_and_confidentiality=[],
-            media_status={},
-            visual_director_handoff={},
             warnings=[],
             stages_run=["plan_content"],
             memory_update={"new": "value"},
@@ -331,8 +328,6 @@ class TestInvalidTransitionErrors:
                 omissions=[],
                 unresolved_issues=[],
                 privacy_and_confidentiality=[],
-                media_status={},
-                visual_director_handoff={},
                 warnings=[],
                 stages_run=[],
                 memory_update={},

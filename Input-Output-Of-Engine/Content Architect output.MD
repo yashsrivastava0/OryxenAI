@@ -47,16 +47,7 @@
   "stages_run": [
     "plan_content"
   ],
-  "media_status": {
-    "unknown": [
-      "Whether verified repository screenshots or process diagrams may be supplied later."
-    ],
-    "approved": [],
-    "unavailable": [
-      "No approved imagery, screenshots, diagrams, testimonials, or project media are currently available."
-    ]
-  },
-  "user_summary": "This plan keeps Maya Bennett’s portfolio as one focused page rather than splitting the work into thin project pages. It leads with her senior EUC positioning, then connects endpoint management, automation, security, service delivery, selected work, and career experience into one clear story.\n\nThe strongest content is the opening value proposition around secure, manageable, dependable employee technology and the three concise work themes covering endpoint management, endpoint security, and Microsoft 365 migration support. Unverified metrics, employer names, project names, repository details, credentials, location, and contact links have been left out of public copy until they are confirmed. The page remains useful and publishable without them, and the approved route is ready for the visual design stage.",
+  "user_summary": "This plan keeps Maya Bennett’s portfolio as one focused page rather than splitting the work into thin project pages. It leads with her senior EUC positioning, then connects endpoint management, automation, security, service delivery, selected work, and career experience into one clear story.\n\nThe strongest content is the opening value proposition around secure, manageable, dependable employee technology and the three concise work themes covering endpoint management, endpoint security, and Microsoft 365 migration support. Unverified metrics, employer names, project names, repository details, credentials, location, and contact links have been left out of public copy until they are confirmed. The page remains useful and publishable without them, and the approved route is ready for final review.",
   "memory_update": {
     "strategy": "single_page",
     "pending_items": [
@@ -639,59 +630,6 @@
       "claim:m365-migration-work",
       "claim:technical-breadth",
       "claim:experience-progression"
-    ]
-  },
-  "visual_director_handoff": {
-    "must_preserve": [
-      "Maya Bennett",
-      "Senior End User Computing Specialist",
-      "The focus on secure, manageable, dependable employee technology",
-      "The distinction between endpoint management, automation, security, and service delivery",
-      "Neutral wording for the three selected work themes"
-    ],
-    "available_media": [],
-    "density_guidance": "Use moderate information density with concise paragraphs, grouped capabilities, and short project summaries. Avoid reproducing a full resume or exhaustive technology inventory.",
-    "content_hierarchy": [
-      "Lead with Maya’s name, senior title, and endpoint engineering value proposition.",
-      "Give selected work the strongest supporting emphasis after the opening positioning.",
-      "Use capabilities and experience to establish technical breadth and operating scope.",
-      "Keep credentials and the connection prompt secondary."
-    ],
-    "unavailable_media": [
-      "No approved imagery or project media is currently available."
-    ],
-    "must_never_be_fabricated": [
-      "Metrics or percentage improvements",
-      "Employer, client, or project names not verified for publication",
-      "Public contact details or location permissions",
-      "Repository contents, screenshots, testimonials, awards, or links",
-      "Exact visual design choices inferred from the absent light/dark preference"
-    ],
-    "may_be_shortened_on_mobile": [
-      "The second positioning paragraph",
-      "Technology lists within selected work",
-      "Earlier-career experience descriptions",
-      "The optional credentials and connection sections"
-    ],
-    "storytelling_opportunities": [
-      "Frame the work as an endpoint lifecycle: provision, secure, manage, remediate, and support.",
-      "Connect technical automation to dependable employee technology without claiming unsupported outcomes.",
-      "Describe the relationship between endpoint engineering, compliance, and service operations in words rather than unsupported metrics."
-    ],
-    "confidentiality_restrictions": [
-      "Do not reveal private contact details, citizenship, or unapproved location data.",
-      "Do not expose unverified employer or project identities, metrics, repository details, or external URLs.",
-      "Do not imply that team or organizational outcomes were solely Maya’s achievements."
-    ],
-    "diagram_process_opportunities": [
-      "A conceptual endpoint lifecycle may connect enrollment, configuration, application delivery, compliance, remediation, and support.",
-      "A conceptual capability relationship may show how Intune, Entra ID, PowerShell, Microsoft 365, and service operations work together.",
-      "Use diagrams only as conceptual representations unless verified source material is supplied."
-    ],
-    "long_copy_and_responsive_risks": [
-      "The capabilities list can become dense on narrow screens.",
-      "Experience entries contain multiple systems and responsibilities and should be shortened responsively.",
-      "Technology lists should not compete with project summaries."
     ]
   },
   "privacy_and_confidentiality": [

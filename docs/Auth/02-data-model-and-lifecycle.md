@@ -17,7 +17,6 @@ Authentication and authorization are deployed across four linear Alembic migrati
    - Quarantines all pre-existing unowned sessions as legacy/admin-only data.
 3. **`0016_auth_entitlements_worker_fencing`**:
    - Creates `portfolio_entitlements` table for one-portfolio/variant/success tracking.
-   - Adds owner and actor snapshot columns to `agent_runs`, `code_generator_runs`, and `background_jobs`.
    - Adds `execution_lane` column to `background_jobs` with a partial unique index for the singleton `model-generation` lane.
 4. **`0017_auth_admin_lifecycle`**:
    - Creates `admin_audit_events` table for immutable operational audit logging.
@@ -159,7 +158,6 @@ CREATE INDEX ix_admin_operations_target ON admin_operations(target_type, target_
 | Create portfolio session | Permitted: exactly 1 owned session | Permitted: multiple owned sessions |
 | List recent sessions | Own non-quarantined sessions only | All sessions, including quarantined legacy |
 | Run Discovery / CA / VDD stages | Own sessions only | Any session |
-| Run Code Generator (`/start`) | First run binds `generation_run_id` | Any session, binds run |
 | Retry failed generation (`/retry`) | Permitted: same run and variant | Permitted |
 | Regenerate variant (`/regenerate`) | **Forbidden**: returns 409 locked | Permitted |
 | View active preview URL | Own project preview | Any project preview |
@@ -177,30 +175,7 @@ CREATE INDEX ix_admin_operations_target ON admin_operations(target_type, target_
 
 The platform enforces four explicit invariants for every normal user:
 
-```text
-[ New User ] -> Claim 1 Session Slot (portfolio_session_id)
-                     |
-                     v
-[ Stage Pipeline ] -> Code Generator /start -> Atomically binds generation_run_id
-                     |
-         +-----------+-----------+
-         |                       |
-     [Failure]               [Success]
-         |                       |
-    /retry allowed           Promote to active_preview
-  (keeps same variant)           |
-  /regenerate denied             v
-                         Atomically binds successful_run_id + consumed_at
-                                 |
-                                 v
-                         [PORTFOLIO_READ_ONLY]
-                         - GET / preview remain open
-                         - Stage revisions frozen
-                         - New sessions denied
-```
-
 1. **One Session Slot**: On `POST /api/v1/sessions`, the user's `portfolio_entitlements` row is locked (`SELECT ... FOR UPDATE`). If `portfolio_session_id` is set, that existing session is returned. Attempting to create an independent second session is rejected.
-2. **One Design Variant**: On first Code Generator start, the run UUID is bound to `generation_run_id`. Later `/retry` requests re-run the same design variant. Any attempt to call `/regenerate` returns `409 GENERATION_VARIANT_LOCKED`.
 3. **Exactly-Once Success Consumption**: `successful_run_id` and `consumed_at` are stamped only after source, build, DOM runtime, and visual quality gates pass, preview files are written to S3/R2 storage, and the preview capability pointer is promoted. Failure during generation never consumes the success slot.
 4. **Post-Success Mutation Freeze**: Once `successful_run_id` is populated, the project aggregate transitions to read-only. All subsequent mutation requests return `409 PORTFOLIO_READ_ONLY`. Reads and preview serving remain active.
 
@@ -218,7 +193,6 @@ All administrative mutations are executed via `src/oryxenai/auth/admin/service.p
 User deletion is orchestrated through `admin_operations` to ensure safety across database and external storage boundaries:
 1. **Local Fence**: Mark `app_users.status = 'deletion_pending'`.
 2. **Fence Projects**: Cancel all queued background jobs for owned sessions.
-3. **Storage Cleanup**: Revoke preview capability pointers and clean up temporary Build Preparation packs and preview files in S3/R2.
 4. **Database Cleanup**: Cascade-delete owned sessions and entitlement records.
 5. **Provider Deletion**: Delete the identity in Supabase Auth via the service-role key.
 6. **Tombstone Recording**: Insert a `deleted_app_users` row and mark the operation succeeded.

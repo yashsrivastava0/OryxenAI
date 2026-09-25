@@ -40,8 +40,8 @@ separate product decision and backend contract add them.
 
 ## Admin product boundary
 
-`/admin` is a separate administrator control plane. It is not a creator stage,
-not a portfolio preview, and not a persistent developer console. A normal
+`/admin` is a separate administrator control plane. It is not part of the
+creator workflow or a persistent developer console. A normal
 creator must never see administrator destructive controls in the `/app`
 topbar. The only normal creator entry is a role-gated account-menu link when
 the current identity is an administrator.
@@ -100,7 +100,6 @@ administrator service currently projects the following safe fields.
 | View | Read endpoint | Display fields | Actions |
 | --- | --- | --- | --- |
 | Users | `GET /api/v1/admin/users` | `id`, `username`, `masked_email`, `role`, `status`, onboarding state, safe timestamps, entitlement summary | `suspend` or `restore`; normal-user `reset_entitlement` and `promote`; admin `demote`; `delete` where server-authorized; never for self or deleted rows |
-| Projects | `GET /api/v1/admin/projects` | `id`, owner username/masked email, `status`, `legacy_quarantined`, safe timestamps, stage statuses, job counts, preview existence | `delete`, `code-generator-retry`, and `code-generator-regenerate` only when the current row is active and the server allows it |
 | Legacy | `GET /api/v1/admin/legacy-projects` | project/session identity, owner information, `status`, legacy marker, safe timestamps | `delete` only where server-authorized |
 | Deleted | `GET /api/v1/admin/deleted-identities` | tombstone `id`, former role, masked email, deletion date, `readmission_approved` | `readmit` only when `readmission_approved` is false |
 | Operations | `GET /api/v1/admin/operations` | operation `id`, `action`, `target_type`, target id when safe, `status`, `step`, attempt count, `last_error_code`, updated time, `resumable` | `Resume safely` only when `resumable` is true |
@@ -167,17 +166,12 @@ server response, refreshes the view, and reports the safe result.
 
 Reference: [19-admin-projects-ledger.png](visuals/19-admin-projects-ledger.png).
 
-Purpose: inspect active creator projects and authorized Code Generator
-recovery controls.
-
 Each row should show:
 
 - project/session display identity;
 - current project status;
 - owner username and masked email where available;
 - only safe activity or generation facts already projected by the service;
-- `Delete`, `Code Generator retry`, or `Code Generator regenerate` only when
-  the active-row/server rules permit them.
 
 Keep retry and regenerate visually distinct from delete. They still use the
 same typed confirmation and idempotency behavior. Do not create a new
@@ -383,10 +377,6 @@ Create one polished horizontal 1600x1000 (16:10) OryxenAI administrator Users le
 ```
 
 ### 19 — Projects ledger
-
-```text
-Create one polished horizontal 1600x1000 (16:10) OryxenAI administrator Projects ledger. Show the full compact admin shell, Projects selected, four safe summary metrics, and a dense but readable project/session ledger. Rows show project identity, status, owner username, safe activity facts, and actions only for active/server-authorized projects: Delete, Code Generator retry, Code Generator regenerate. Keep retry/regenerate distinct from delete. Do not invent New project, billing, settings, raw JSON, secrets, UUIDs, external images, charts, gradients, neon, or glass. Warm cream, deep ink, cobalt accents, fine rules, editorial serif headings, clean grotesk controls, generous whitespace, viewport-safe.
-```
 
 ### 20 — Legacy projects
 

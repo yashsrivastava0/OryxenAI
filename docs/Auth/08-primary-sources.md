@@ -85,8 +85,6 @@ Reinspect at implementation time:
 - `src/oryxenai/web/routes.py`, templates, and static JavaScript;
 - `src/oryxenai/preview/gateway.py`;
 - `migrations/versions/` and `tests/`;
-- `docs/code-generator-architecture/free-host-deployment.md`; and
-- `docs/code-generator-architecture/live-preview-and-deployment.md`.
 
 ## Verified development evidence
 

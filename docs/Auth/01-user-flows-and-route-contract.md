@@ -7,7 +7,6 @@ Status: **Implemented**. This document specifies the user experience, browser li
 ## Roles and Account States
 
 ### Roles
-- `user`: Admitted normal user. Bound to exactly one portfolio session, one Code Generator design variant, and at most one verified promoted success.
 - `admin`: Platform administrator. Exempt from normal-user portfolio quotas; authorized across all user accounts, active sessions, and quarantined legacy sessions.
 
 ### Account States
@@ -104,16 +103,13 @@ OryxenAI supports two pipeline operational modes via `auth.pipeline_mode` in `co
 - Protected by `PortfolioAccess` and `WorkerAuthorizationFence`.
 
 ### Detached Mode (`auth.pipeline_mode = "detached"`)
-- Designed for local development and rapid iteration of the upstream agent pipeline (Discovery → Content Architect → Visual Design Director → Build Preparation).
 - Browser does not load Supabase or request Google credentials.
 - Discovery preflights and locks the selected model profile.
 - Creates detached sessions (`session_mode = "detached"`, `owner_user_id = NULL`, `legacy_quarantined = false`).
 - **Restart Pipeline**: Exposes a prominent **Restart Pipeline** button in the UI:
   1. Aborts in-flight polling requests.
   2. Issues `POST /api/v1/sessions/{session_id}/restart` with a new replacement UUID.
-  3. The server locks the old session, cancels running jobs, clears associated Build Preparation artifacts and S3/R2 storage, and deletes the session row.
   4. Returns a fresh, empty detached session at Discovery stage.
-- Admin APIs and Code Generator production runs remain protected even in detached mode.
 
 ---
 
@@ -142,9 +138,6 @@ All business endpoints live under `/api/v1` and use standard JSON envelopes.
 All child endpoints verify session ownership via the shared `PortfolioAccess` dependency:
 - **Discovery**: `GET/POST /api/v1/sessions/{id}/stages/discovery/*`
 - **Content Architect**: `GET/POST /api/v1/sessions/{id}/stages/content-architect/*`
-- **Visual Design Director**: `GET/POST /api/v1/sessions/{id}/stages/visual-design-director/*`
-- **Build Preparation**: `GET/POST /api/v1/sessions/{id}/stages/build-preparation/*`
-- **Code Generator**: `GET/POST /api/v1/sessions/{id}/stages/code-generator/*`
 - **Runs & History**: `GET /api/v1/sessions/{id}/runs`
 
 Foreign or nonexistent session IDs return an identical `404 Not Found`.
@@ -175,8 +168,6 @@ Protected by `require_admin` dependency; requires an active onboarded user with 
 | `POST /api/v1/admin/projects/{session_id}/delete` | Fences project, revokes preview capability pointer, deletes storage objects, and removes session row. |
 | `POST /api/v1/admin/legacy-projects/{session_id}/delete` | Purges quarantined legacy project. |
 | `POST /api/v1/admin/operations/{operation_id}/resume` | Retries an interrupted or failed administrative operation from its last safe step. |
-| `POST /api/v1/admin/projects/{session_id}/code-generator/retry` | Triggers admin-authorized Code Generator retry. |
-| `POST /api/v1/admin/projects/{session_id}/code-generator/regenerate` | Triggers admin-authorized Code Generator variant regeneration. |
 
 ---
 

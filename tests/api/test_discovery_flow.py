@@ -284,8 +284,6 @@ class TestFullHttpFlow:
             )
             keys = {row[0] for row in result.all()}
         assert "content_architect" not in keys
-        assert "visual_design_director" not in keys
-        assert "code_generator" not in keys
 
     async def test_duplicate_approve_is_idempotent(self, client):
         sid = await _create_session(client)

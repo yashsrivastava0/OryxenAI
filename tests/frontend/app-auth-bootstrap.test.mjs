@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { bootProductShell } from "../../src/oryxenai/web/static/app-auth-bootstrap.mjs";
-import { bootDevelopmentShell } from "../../src/oryxenai/web/static/dev-auth-bootstrap.mjs";
 
 function response(status, body = {}) {
   return {
@@ -227,64 +226,4 @@ test("a stalled session restore reveals a recoverable error instead of hanging",
     documentRef.main.children[0].textContent,
     "Authentication is taking longer than expected. Check your connection and refresh to try again.",
   );
-});
-
-test("admin developer boot resolves /me before loading the protected page", async () => {
-  const page = location("/code-generator-development");
-  const auth = sessionAuth();
-  const calls = [];
-  let loadedTarget = null;
-  let loadedRequest = null;
-  const result = await bootDevelopmentShell({
-    auth,
-    config,
-    location: page,
-    storage: { removeItem() {} },
-    fetchImpl: async (url, init) => {
-      calls.push({ url, authorization: init.headers.get("Authorization") });
-      return response(200, {
-        id: "admin-user",
-        username: "admin-name",
-        role: "admin",
-        status: "active",
-        onboarding_required: false,
-        admin_available: true,
-      });
-    },
-    loadProtected: async (target, request) => {
-      loadedTarget = target;
-      loadedRequest = request;
-    },
-  });
-
-  assert.equal(result.kind, "development");
-  assert.deepEqual(calls, [{ url: "/api/v1/me", authorization: "Bearer access-token" }]);
-  assert.equal(loadedTarget, "code-generator");
-  assert.equal(typeof loadedRequest, "function");
-});
-
-test("detached Build Preparation boot skips auth and uses the anonymous request boundary", async () => {
-  const page = location("/build-preparation-fixture");
-  let authCalls = 0;
-  let loadedTarget = null;
-  let loadedRequest = null;
-  const result = await bootDevelopmentShell({
-    config: { ...config, pipelineMode: "detached" },
-    location: page,
-    fetchImpl: async (url, init) => {
-      authCalls += 1;
-      return response(200, { url, cache: init.cache, authorization: init.headers.get("Authorization") });
-    },
-    loadProtected: async (target, request) => {
-      loadedTarget = target;
-      loadedRequest = request;
-    },
-  });
-
-  assert.equal(result.kind, "detached");
-  assert.equal(result.target, "fixture");
-  assert.equal(authCalls, 0);
-  assert.equal(loadedTarget, "fixture");
-  const responseValue = await loadedRequest("/api/v1/build-preparation/fixture/preflight");
-  assert.equal(responseValue.status, 200);
 });

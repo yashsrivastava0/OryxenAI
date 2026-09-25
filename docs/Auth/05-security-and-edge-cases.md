@@ -60,8 +60,6 @@ Apply owner-or-admin checks to:
 
 - sessions and all agent-stage reads/writes;
 - runs, attempts, events, jobs, plans, sources, errors, and quality receipts;
-- Build Preparation objects and metadata;
-- Code Generator start, retry, regenerate, promotion, and preview controls;
 - downloads/exports; and
 - every admin mutation.
 
@@ -69,17 +67,6 @@ Foreign and nonexistent identifiers return the same 404. Hiding a UI action is
 not authorization.
 
 Phase 2 implements this boundary for the existing session aggregate and all
-session-nested Discovery, Content Architect, Visual Design Director, Build
-Preparation, Code Generator, and run-history routes. Phase 3 adds server-side
-entitlement mutation guards, trusted owner/actor snapshots on durable work,
-worker reauthorization, the global model-generation lane, and verified
-promotion finalization. Normal queries require `owner_user_id =
-current_user.id` and `legacy_quarantined = false`; active, onboarded admins may
-inspect owned and legacy sessions. System, model-profile, mock, fixture, and
-standalone development APIs are admin-only, and development families are not
-mounted when their configured feature surface is disabled. Administrator
-lifecycle mutations are implemented through the audited, resumable Phase 4
-service and remain database-authoritative.
 
 ## Origin, CORS, redirects, and CSRF
 

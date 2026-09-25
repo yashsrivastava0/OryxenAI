@@ -230,7 +230,7 @@ async def test_primary_structural_failure_uses_gemini_fallback_before_returning_
 
     client = RoutedModelClient(
         runtime,
-        "visual_design_director",
+        "content_architect",
         input_classification="personal",
         usage_ledger=ledger,
     )
@@ -240,7 +240,7 @@ async def test_primary_structural_failure_uses_gemini_fallback_before_returning_
             raise ValueError("required structure is missing")
 
     result = await client.generate_structured(
-        operation="establish_visual_language",
+        operation="plan_content",
         instructions="Return an object.",
         input_payload={"input_classification": "personal"},
         output_model=_Output,
@@ -273,7 +273,7 @@ async def test_both_provider_structural_failures_return_model_output_error() -> 
 
     client = RoutedModelClient(
         runtime,
-        "visual_design_director",
+        "content_architect",
         input_classification="personal",
         usage_ledger=ledger,
     )
@@ -284,7 +284,7 @@ async def test_both_provider_structural_failures_return_model_output_error() -> 
 
     with pytest.raises(ModelOutputInvalidError):
         await client.generate_structured(
-            operation="establish_visual_language",
+            operation="plan_content",
             instructions="Return an object.",
             input_payload={"input_classification": "personal"},
             output_model=_Output,

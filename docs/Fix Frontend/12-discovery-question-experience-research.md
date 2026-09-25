@@ -149,7 +149,7 @@ The target representation is:
 - `Next question` when another server-returned question is available, otherwise `Submit answer`;
 - `Skip question` as a separate secondary action when allowed.
 
-The CTA label describes the answer operation. It must not claim to start the next agent or advance a production stage.
+The CTA label describes the answer operation and must not imply progress beyond Discovery.
 
 ## 5. State matrix for implementation
 
@@ -165,8 +165,6 @@ The CTA label describes the answer operation. It must not claim to start the nex
 | unsupported | safe explanation and refresh path | fail closed; never guess that a question is complete |
 
 ## 6. Visual references
-
-Because assets `13`, `14`, and `15` already exist in the dirty workspace as another contributor’s Code Generator references, the new Discovery images use the next unused indices:
 
 - [16-discovery-mcq-question.png](visuals/16-discovery-mcq-question.png)
 - [17-discovery-text-question.png](visuals/17-discovery-text-question.png)

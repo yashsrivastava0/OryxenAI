@@ -93,13 +93,11 @@ graph TD
 | **Database (Relational)**| **Azure PostgreSQL / Heroku** | Included in credits | Application state, `background_jobs`, `portfolio_sessions` |
 | **Database (Document)**  | **MongoDB Atlas** | $50 credits + Compass GUI | Optional document storage for flexible agent outputs |
 | **Database GUI** | **JetBrains DataGrip** | Included in JetBrains Pack | Visual database inspection & migrations tuning |
-| **Storage Emulation** | **LocalStack Pro** | Free Pro license | Offline S3 emulation for Build Preparation artifact ZIPs |
 | **Static Showcase** | **GitHub Pages** | Free unlimited hosting + SSL | Deploy AI-generated client portfolio showcases |
 | **Error Tracking** | **Sentry** | 50k errors/mo, 100k txns/mo | Instant stack traces for unhandled FastAPI & worker errors |
 | **APM & Tracing** | **Datadog** | Pro Account (10 hosts, 2 years) | Distributed tracing across FastAPI, worker queue & LLM calls |
 | **Heartbeat & Uptime** | **Honeybadger** | Free 1 year Small account | Worker heartbeat check-in & uptime alerting |
 | **Secrets Management** | **Doppler** | Free Team plan | Eliminates plaintext `.env` files across team/servers |
-| **Multi-Viewport QA** | **Polypane** | 1-yr free browser license | Visual QA of Code Generator output across all viewports |
 | **Device Cloud QA** | **BrowserStack** | 1-yr Automate Mobile plan | Real iOS Safari and Android Chrome layout validation |
 | **Cross-Browser QA** | **LambdaTest** | 1-yr Live Plan | Interactive manual testing on 2000+ browsers/OS |
 | **AI Pair Programming**| **GitHub Copilot** | Free student plan | Faster development across Python, React, and prompts |
@@ -119,11 +117,9 @@ Here is the exact operational footprint for 5 concurrent users:
 - **Concurrency Load**: In real-world usage, 5 users generate portfolios intermittently. Peak concurrent agent runs will be **1 to 2 jobs simultaneously** at most.
 - **Database Storage Footprint**:
   - `app_users`: 5 rows (~2 KB).
-  - `portfolio_sessions`: 5 rows, each containing Discovery, Content Architect, and Visual Design Director state (~50 KB JSONB per session = ~250 KB total).
   - `background_jobs`: Transient job rows that complete and archive (~10-50 rows per generation cycle = < 1 MB).
   - `agent_runs`: Audit snapshots of model inputs and outputs (~5-10 MB total across all 5 users).
   - **Total DB Footprint**: **< 20 MB total storage**, which is under 2% of even the smallest free managed database tier.
-- **Object Storage Footprint (Build Preparation ZIP Packs)**:
   - Each compiled portfolio ZIP pack is between 5 MB and 15 MB.
   - 5 users generating 2-3 revisions each = 10-15 ZIP archives (~150 MB total).
   - Disposable staging storage footprint is negligible (< 0.2 GB).
@@ -225,7 +221,6 @@ flowchart TB
 - Set up wildcard or subdomain routing (e.g., `user1.oryxen.dev`, `user2.oryxen.dev`) or configure **GitHub Pages** to host static exports of client portfolios.
 
 #### Step 4: Storage & Offline Emulation
-- For production: Configure **Azure Blob Storage** (using the Azure student account) or Cloudflare R2 for storing temporary Build Preparation ZIP packs.
 - For local testing: Use **LocalStack Pro** (free student license) in `compose.yaml` to emulate AWS S3 on your laptop, executing test suites completely offline without incurring network egress or spending credits.
 
 #### Step 5: Observability & Heartbeat
@@ -238,7 +233,6 @@ flowchart TB
 - Install the Datadog agent on your Dynos or configure Honeybadger to monitor the worker heartbeat in `src/oryxenai/jobs/worker.py`. If a worker stops claiming jobs, Honeybadger alerts you via email/Slack immediately.
 
 #### Step 6: Multi-Viewport Quality Verification
-- When the Code Generator agent generates a portfolio, open the preview URL in **Polypane**.
 - Polypane instantly renders the site in 4 viewports side by side (375px mobile, 768px tablet, 1280px desktop, and 1920px widescreen) and verifies WCAG contrast compliance, broken CSS tags, and mobile layout overflows before finalizing the build.
 - For physical device verification, trigger **BrowserStack Automate Mobile** to render the portfolio on a real iPhone 15 and Samsung Galaxy device.
 
@@ -258,7 +252,6 @@ OryxenAI requires two distinct runtime compute components: the synchronous HTTP 
 
 - **Microsoft Azure ($100 credits + 25+ free services)**:
   - **Deployment Model**: Deploy containerized FastAPI using Azure Container Apps (serverless containers with automatic scaling) or Azure App Service.
-  - **Object Storage**: Use Azure Blob Storage as the temporary or permanent artifact store for the Build Preparation agent's ZIP packages.
   - **PostgreSQL**: Provision an Azure Database for PostgreSQL Flexible Server within the same private virtual network.
 - **Heroku ($13/month for 24 months = $312 value)**:
   - **Deployment Model**: Deploy via `Procfile`:
@@ -270,7 +263,6 @@ OryxenAI requires two distinct runtime compute components: the synchronous HTTP 
 - **GitHub Pages (Free forever)**:
   - Hosts static builds of generated portfolios, marketing landing pages, and documentation.
 - **LocalStack (Free Pro license)**:
-  - Enables developers to run AWS S3 emulations locally in Docker (`compose.yaml`) so Build Preparation tests run completely offline without spending cloud credits or configuring remote S3/R2 buckets.
 
 ### Pillar 2: Custom Domains, SSL & DNS Management
 OryxenAI needs both a primary product domain and the ability to test custom domain routing for generated user portfolios.
@@ -298,7 +290,6 @@ OryxenAI uses PostgreSQL as its primary transactional store (`portfolio_sessions
   - The ultimate database IDE. Provides code completion for SQL, visual ERD diagrams of OryxenAI models, and migration execution inspection.
 
 ### Pillar 4: Testing, Multi-Viewport Verification & CI/CD
-The OryxenAI Code Generator agent is architected around strict multi-viewport geometry verification (ensuring generated sites look stunning on mobile, tablet, and desktop without horizontal scrollbars or clipping).
 
 - **Polypane (1 year free license)**:
   - **The most critical design-testing tool in the pack for OryxenAI.**
@@ -355,7 +346,6 @@ In a distributed agent architecture with long-running LLM tasks and background w
 ### Pillar 8: Visual Assets & Template Design System
 - **Icons8 (Free 3-month subscription)** & **IconScout (60 premium icons/mo for 1 year)**:
   - Access to millions of curated SVG icons, 3D illustrations, and photos.
-  - These can be pre-indexed into the Visual Design Director's deterministic resource catalogue (`catalogue.json`) to provide rich, royalty-free assets for portfolio templates.
 - **Bootstrap Studio (Free desktop app license)**:
   - Visual drag-and-drop tool for quickly mocking up responsive layouts and components before coding them.
 - **Imgbot (Free GitHub app)**:
@@ -471,7 +461,6 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 - **About**: Access to Microsoft Azure cloud services and learning resources – no credit card required
 - **Official Student Offers**:
   - Free access to 25+ Microsoft Azure cloud services plus $100 in Azure credit. For students aged 18+. *(Tags: Cloud, Virtual Events)*
-- **OryxenAI Technical Application**: Host the FastAPI backend, run background worker processes in Azure Container Apps, or provision an Azure Database for PostgreSQL Flexible Server. Azure Blob Storage can also store Build Preparation zip artifacts. The $100 credit + 25+ free services eliminates hosting costs during development and initial deployment.
 
 #### 3. Name.com
 - **Verdict**: **Brand & Developer Domain Names**
@@ -520,7 +509,7 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 - **About**: A general purpose, document-based, distributed database built for modern application developers and for the cloud era.
 - **Official Student Offers**:
   - $50 in MongoDB Atlas Credits, plus access to MongoDB Compass and MongoDB University including free certification valued at $150. *(Tags: Infrastructure & APIs)*
-- **OryxenAI Technical Application**: $50 in MongoDB Atlas credits, access to MongoDB Compass, and a free certification voucher. Ideal if you choose to experiment with or store unstructured discovery interview transcripts, visual design moods, or JSON-heavy pipeline outputs without rigid relational schemas.
+- **OryxenAI Technical Application**: $50 in MongoDB Atlas credits, access to MongoDB Compass, and a free certification voucher. Ideal if you choose to experiment with or store unstructured discovery interview transcripts, structured discovery data or JSON-heavy application outputs without rigid relational schemas.
 
 #### 10. Termius
 - **Verdict**: **Remote Server Management & SSH Terminal**
@@ -534,7 +523,6 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 - **About**: Cloud-based infrastructure monitoring.
 - **Official Student Offers**:
   - Pro Account, including 10 servers. Free for 2 years. *(Tags: Security & analytics)*
-- **OryxenAI Technical Application**: Free Datadog Pro account covering up to 10 servers for 2 full years. Set up APM distributed tracing on the FastAPI request-to-worker lifecycle, track queue latency on PostgreSQL `background_jobs`, and monitor CPU/RAM utilization during heavy Code Generator model tasks.
 
 #### 12. GitHub Pages
 - **Verdict**: **Zero-Cost Static Portfolio Hosting**
@@ -551,18 +539,15 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 - **OryxenAI Technical Application**: Generous student plan: 50K errors, 100K transactions/month, 1GB attachments, and 500 session replays. Integrate `sentry-sdk` into `src/oryxenai/main.py` and `jobs.worker` to immediately catch unhandled model exceptions, failed job claims, or frontend React crashes with full stack traces.
 
 #### 14. LocalStack
-- **Verdict**: **Offline AWS S3 Emulation for Build Preparation**
 - **About**: LocalStack emulates AWS services right on your laptop, so you can build and test cloud applications without connecting to the AWS cloud.
 - **Official Student Offers**:
   - Free license to LocalStack’s most powerful AWS emulator in a ready-to-use cloud environment *(Tags: Cloud, Developer tools, Infrastructure & APIs)*
-- **OryxenAI Technical Application**: Free license for LocalStack Pro AWS emulator. Emulates S3 object storage locally, allowing thorough offline testing of the Build Preparation agent's temporary ZIP generation, hash checking, and object retrieval without requiring real AWS or Cloudflare R2 credentials in unit/integration tests.
 
 #### 15. Icons8
 - **Verdict**: **Design & Visual Asset Bank**
 - **About**: Icons8 provides design resources: icons, UI illustrations, photos and software to class up your projects.
 - **Official Student Offers**:
   - Free 3-month subscription that includes: icons, photos, illustrations, and music. *(Tags: Design)*
-- **OryxenAI Technical Application**: Free 3-month subscription with icons, photos, illustrations, and music. Provides curated, professional graphics for the Visual Design Director agent and enhances portfolio template diversity.
 
 #### 16. BrowserStack
 - **Verdict**: **Real Device & Browser Testing Cloud**
@@ -576,14 +561,11 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 - **About**: IconScout is a design resources marketplace with over 4.9 million icons, illustrations, 3D assets, and Lottie animations.
 - **Official Student Offers**:
   - Free access to 60 premium icons from selected contributors every month for 1 year. *(Tags: Design)*
-- **OryxenAI Technical Application**: Free access to 60 premium icons/month for 1 year. Feed these SVG icons directly into the Code Generator's asset catalogue for embedding in client portfolios.
 
 #### 18. Polypane
-- **Verdict**: **Multi-Viewport Visual QA for Code Generator**
 - **About**: A powerful browser and developer tool that lets developers and designers make better websites and web apps in less time.
 - **Official Student Offers**:
   - You'll get free use of Polypane's individual plan for 1 year. *(Tags: Design, Developer tools)*
-- **OryxenAI Technical Application**: Free 1-year individual license. Polypane renders websites across multiple device viewports simultaneously (mobile, tablet, desktop, ultra-wide) while synchronizing scroll and interactions. Directly verifies the Code Generator agent's generated HTML/CSS layouts, ensuring zero horizontal overflows and proper responsive behavior.
 
 #### 19. LambdaTest
 - **Verdict**: **Live Interactive Cross-Browser Testing**
@@ -687,7 +669,6 @@ Every single partner benefit included in the GitHub Student Developer Pack is ca
 - **About**: Bootstrap Studio is a powerful desktop app for creating responsive websites using the Bootstrap framework.
 - **Official Student Offers**:
   - A free license for Bootstrap Studio while you are a student. *(Tags: Design, Developer tools)*
-- **OryxenAI Technical Application**: Free desktop license. Quickly assemble and export responsive layout ideas, CSS grid systems, and component structures to inspire the Visual Design Director agent.
 
 #### 10. Zyte
 - **Verdict**: Cloud Web Scraping & Data Extraction
@@ -1043,7 +1024,6 @@ These offers remain active for your entire tenure as a verified student and do n
 1. **Namecheap & Name.com**: Only redeem when you are ready to register your actual domains (`oryxenai.me`, `oryxen.dev`). Domains expire after 365 days.
 2. **Microsoft Azure ($100 credits)**: Credits must generally be consumed within 12 months from activation.
 3. **Heroku ($13/mo for 24 months)**: 24-month clock begins once the coupon code is applied to your Heroku billing dashboard.
-4. **Polypane**: 1-year free timer starts upon account creation. Activate when starting intensive UI/layout verification on the Code Generator.
 5. **BrowserStack & LambdaTest**: 1-year timers. Activate when building automated multi-device CI test suites.
 6. **Datadog & Sentry**: Activate when deploying your first public staging or production server to capture real telemetry.
 7. **Stripe**: Keep transaction fee waiver until you are ready to launch paid generation tiers.

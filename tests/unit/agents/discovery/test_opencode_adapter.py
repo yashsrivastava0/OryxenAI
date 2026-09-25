@@ -924,10 +924,8 @@ class TestOpenCodeGoAdapterCapabilityHandling:
 class TestOpenCodeGoAdapterRequestContext:
     """request_context is an existing, previously-unused ModelClient hook.
 
-    Code Generator uses it to pass an optional key_order (stable-first wire
-    ordering, for provider-side prefix caching) and prompt_cache_key. Every
-    other caller never sets it, so default behavior (alphabetical sort_keys)
-    must stay exactly as before.
+    Callers may pass optional key ordering and a prompt cache key. The default
+    behavior remains alphabetical key ordering.
     """
 
     def test_default_payload_order_is_alphabetical_sort_keys(self, monkeypatch):
@@ -1042,11 +1040,11 @@ class TestOpenCodeGoAdapterRequestContext:
                     instructions="test",
                     input_payload={},
                     output_model=QuestionSetOutput,
-                    request_context={"prompt_cache_key": "codegen:run-1:role-1"},
+                    request_context={"prompt_cache_key": "run:run-1:role-1"},
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
-        assert call_kwargs["prompt_cache_key"] == "codegen:run-1:role-1"
+        assert call_kwargs["prompt_cache_key"] == "run:run-1:role-1"
 
     def test_prompt_cache_key_omitted_when_capability_unsupported(self, monkeypatch):
         monkeypatch.setenv("TEST_API_KEY", "sk-test-key")
@@ -1066,7 +1064,7 @@ class TestOpenCodeGoAdapterRequestContext:
                     instructions="test",
                     input_payload={},
                     output_model=QuestionSetOutput,
-                    request_context={"prompt_cache_key": "codegen:run-1:role-1"},
+                    request_context={"prompt_cache_key": "run:run-1:role-1"},
                 )
             )
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs

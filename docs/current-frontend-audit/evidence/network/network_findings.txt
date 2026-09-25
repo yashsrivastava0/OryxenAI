@@ -11,20 +11,12 @@ Active Test Session: 5822e80f-83d8-4606-b25d-05e09e92d8b8
 2. Content Architect Stage:
 - POST /api/v1/content-architect/start -> 202 Accepted (job: content_architect.build)
 - GET /api/v1/sessions/5822e80f... -> Polled every ~2s until state="review"
-- POST /api/v1/content-architect/approve -> 200 OK (transitioned to Visual Design Director)
 
-3. Visual Design Director Stage:
-- POST /api/v1/visual-design-director/start -> 202 Accepted (job: visual_design_director.build)
 - GET /api/v1/sessions/5822e80f... -> Polled until status="review"
-- POST /api/v1/visual-design-director/approve -> 200 OK
 
-4. Build Preparation Stage:
-- POST /api/v1/build-preparation/start -> 202 Accepted (job: build_preparation.prepare)
 - GET /api/v1/sessions/5822e80f... -> Polled until status="ready"
 - Discovered photography asset images: GET requests to external image URLs failed or returned 404/broken assets.
 
-5. Code Generation Stage:
-- POST /api/v1/sessions/5822e80f.../code-generator/start -> 202 Accepted (job: code_generator.v5.plan)
 - Background Job failed: status='failed', error_payload={'code': 'HANDLER_ERROR'}
 - GET /api/v1/sessions/5822e80f... -> Continued returning 200 OK with session_status='active', current_stage='generate'
 - Client entered infinite polling loop with 0 backoff, 0 error recognition, and no termination condition.

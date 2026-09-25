@@ -8,16 +8,13 @@ from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.agents.shared.registry import AgentNotFoundError, default_registry
 
 
-def test_default_registry_has_five_agents():
-    """The default registry registers all five deterministic/mock agents."""
+def test_default_registry_has_two_agents():
+    """The default registry contains the supported portfolio stages."""
     reg = default_registry()
     keys = set(reg.list_keys())
     assert keys == {
         AgentKey.DISCOVERY,
         AgentKey.CONTENT_ARCHITECT,
-        AgentKey.VISUAL_DESIGN_DIRECTOR,
-        AgentKey.BUILD_PREPARATION,
-        AgentKey.CODE_GENERATOR,
     }
 
 

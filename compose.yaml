@@ -73,8 +73,6 @@ services:
       - oryxen_archive_generation:/app/.workspace/archive-generation
       - oryxen_archive_checkpoints:/app/.workspace/archive-checkpoints
       - oryxen_archive_workspaces:/app/.workspace/archive-workspaces
-      - ./output/code-gen-output:/app/output/archive-exports
-      - ./output/build-preparation:/app/output/archive-handoff-mirrors
     command: ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')\""]

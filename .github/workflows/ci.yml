@@ -99,21 +99,6 @@ jobs:
         run: npm run build
         working-directory: frontend
 
-      - name: Warm Code Generator offline npm cache
-        # tests/integration/test_code_generator_verification_worker.py
-        # ::test_verification_builds_and_promotes_a_clean_candidate runs a
-        # real (unmocked) `npm ci --offline` against the react-vite-v1
-        # scaffold. That command reads config's npm_cache_root
-        # (.workspace/npm-cache), which starts empty on a fresh runner --
-        # npm's ERESOLVE peer-dependency warnings for the optional
-        # @tailwindcss/oxide-wasm32-wasi variant are cosmetic and did not
-        # cause CI failures; the real, previously-truncated failure was
-        # ENOTCACHED on an unrelated package because nothing had ever
-        # warmed this cache here. scripts/warm-npm-cache.sh already exists
-        # (used by compose.yaml's codegen-cache-warm profile) but was never
-        # wired into CI; run it here instead of duplicating its logic.
-        run: bash scripts/warm-npm-cache.sh
-
       - name: Create test database
         run: |
           PGPASSWORD=oryxen_test psql -h localhost -U oryxen -d oryxenai -c "CREATE DATABASE oryxenai_test;" || true
@@ -146,7 +131,7 @@ jobs:
           args: detect --source . --no-git --verbose --redact
 
       - name: Prepare throwaway .env for dev Compose smoke test
-        # compose.yaml's app/worker/migrate/preview-gateway services each
+        # compose.yaml's app/worker/migrate services each
         # declare `env_file: .env`, which Compose requires to physically
         # exist even though every value it reads (POSTGRES_PASSWORD) is
         # only used by this stack's own disposable containers, never a real
@@ -192,7 +177,7 @@ jobs:
 
       - name: Docker smoke test
         run: |
-          docker compose up -d --wait --wait-timeout 1800 app worker preview-gateway
+          docker compose up -d --wait --wait-timeout 1800 app worker
           curl -fsS http://localhost:8000/health/live
           curl -fsS http://localhost:8000/health/ready
           # /api/v1/system/status is admin-gated (require_admin on the whole
@@ -209,7 +194,7 @@ jobs:
 
       - name: Dump Compose logs on smoke test failure
         if: failure()
-        run: docker compose logs --no-color migrate app worker preview-gateway postgres || true
+        run: docker compose logs --no-color migrate app worker postgres || true
 
       - name: Remove throwaway .env
         if: always()

@@ -7,8 +7,6 @@
 
 ## 1. System Overview & Build Boundary
 
-OryxenAI's product frontend is an authenticated single-page workspace served at `/app`. It allows users to guide their personal portfolio through five transformation stages (Discovery, Content Architecture, Visual Design Direction, Build Preparation, and Code Generation & Preview).
-
 ### 1.1 Technology Stack & Constraints
 
 - **Framework:** Preact `10.29.8` with JSX runtime via `@preact/preset-vite`.
@@ -31,7 +29,7 @@ frontend/
     ├── app/               # AppShell, store, url-state
     ├── components/        # Reusable presentation surfaces & panels
     ├── data/              # API client, adapters, polling, errors, storage
-    ├── stages/            # 5 stage controller components
+    ├── stages/            # Discovery and Content Architect controllers
     ├── styles/            # shell.css design rules
     └── test/              # Vitest test suites
 ```
@@ -128,7 +126,6 @@ export interface MeProjection {
 
 #### Entitlement & Mutation Invariants:
 1. **Single Portfolio Invariant:** Normal users (`role === "user"`) receive exactly **one** portfolio lifecycle (`me.can_create_portfolio === false` once created).
-2. **Post-Success Read-Only Lock:** Once a portfolio passes Code Generator verification and promotes a live preview, `me.read_only` becomes `true`. All mutation endpoints (`POST`, `PUT`) will reject requests with `403 PORTFOLIO_READ_ONLY`. The UI disables all editing controls and switches to display/preview mode.
 3. **Admin Privileges:** Users with `role === "admin"` can create multiple sessions, access `/admin`, and work with arbitrary sessions via explicit developer tools.
 
 ### 2.3 The Boot Contract Seam (`frontend/src/main.tsx`)
@@ -162,7 +159,7 @@ The studio uses search parameter-based routing instead of client-side path hashi
 ### 3.1 Route Parameter Model (`frontend/src/app/url-state.ts`)
 
 ```typescript
-export type JourneyStageId = "discover" | "content" | "design" | "prepare" | "generate";
+export type JourneyStageId = "discover" | "content";
 export type ViewId = "start" | "work" | "artifact" | "progress";
 
 export interface AppUrlState {
@@ -172,30 +169,16 @@ export interface AppUrlState {
 ```
 
 - Query parameter format: `/app?stage=<stage_id>&view=<view_id>`
-- Valid stages:
-  1. `discover` (Discovery Agent)
-  2. `content` (Content Architect Agent)
-  3. `design` (Visual Design Director Agent)
-  4. `prepare` (Build Preparation Agent)
-  5. `generate` (Code Generator & Live Preview Sandbox)
+- Valid stages: `discover` (Discovery Agent) and `content` (Content Architect Agent).
 - Default fallback: `/app?stage=discover&view=work`
 
 ### 3.2 Upstream Gating & Safe Navigation Rules
 
-The application prevents forward navigation into locked stages. If a user enters `?stage=generate` when Content or Design is not approved, `AppShell.tsx` evaluates completion and falls back to the earliest incomplete stage:
+The application prevents navigation to Content Architect until Discovery is approved. If a user enters `?stage=content` before approval, `AppShell.tsx` falls back to Discovery:
 
 ```typescript
 let fallback: JourneyStageId | null = null;
 if (requested === "content" && !discoveryApproved) fallback = "discover";
-if (requested === "design" && !contentApproved) {
-  fallback = discoveryApproved ? "content" : "discover";
-}
-if (requested === "prepare" && !designApproved) {
-  fallback = contentApproved ? "design" : discoveryApproved ? "content" : "discover";
-}
-if (requested === "generate" && !preparationApproved) {
-  fallback = designApproved ? "prepare" : contentApproved ? "design" : discoveryApproved ? "content" : "discover";
-}
 if (fallback) {
   selectStage(fallback, true); // replaceState
 }
@@ -220,9 +203,6 @@ export interface AppState {
   activeStage: JourneyStageId;
   discovery: DiscoveryViewModel | null;
   content: ContentViewModel | null;
-  design: DesignViewModel | null;
-  preparation: BuildPreparationViewModel | null;
-  generation: GenerationViewModel | null;
   connection: ConnectionState;
   announcement: string | null;
 }
@@ -237,9 +217,6 @@ export type AppAction =
   | { type: "stage/select"; stage: JourneyStageId }
   | { type: "discovery/set"; view: DiscoveryViewModel }
   | { type: "content/set"; view: ContentViewModel }
-  | { type: "design/set"; view: DesignViewModel }
-  | { type: "preparation/set"; view: BuildPreparationViewModel }
-  | { type: "generation/set"; view: GenerationViewModel }
   | { type: "connection/set"; state: ConnectionState }
   | { type: "announce"; message: string };
 ```

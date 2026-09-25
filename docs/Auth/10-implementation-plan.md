@@ -19,9 +19,6 @@ production cloud resources were created.
   generation admission, durable owner/actor bindings, global model-generation
   lane, provider-credit fencing, and verified preview finalization.
 - **Phase 4 (implemented locally):** administrator lifecycle/audit,
-  resumable cleanup/reset, safe admin UI, and Code Generator admin commands.
-  Owner-completed browser acceptance and production deployment handoff remain
-  separate gates.
 
 ## Current phase boundary
 
@@ -83,15 +80,10 @@ These do not require another planning choice:
 - `PortfolioSession` and migration `0015` provide owner and legacy state.
 - `PortfolioSessionRepository` exposes explicit owned/admin methods; trusted
   internal lookups are now supplemented by Phase 3 worker fencing.
-- durable agent/code-generator/job rows bind local owner/actor/context snapshots
-  for new portfolio work; Phase 4 admin lifecycle is implemented in
-  `src/oryxenai/auth/admin/`.
 - `web/routes.py` exposes product `/app` always and developer pages only under
   configured development flags.
 - The Preact `/app` bundle receives the shared authorized request boundary only
   after Supabase session plus `/api/v1/me` resolution.
-- development-only fixture and Code Generator surfaces are conditionally
-  mounted and must stay absent/admin-only in production.
 - migrations are linear through the current checked-in head and are applied by
   the existing one-shot Alembic service.
 - tests use deterministic overlays and a dedicated PostgreSQL database.
@@ -241,7 +233,6 @@ session/run. Do not make HTTP calls while holding database locks.
 
 - one row per normal user;
 - unique nullable session binding;
-- unique nullable Code Generator run/variant binding;
 - unique nullable successful run binding;
 - consumed timestamp and revision;
 - indexed foreign keys and explicit deletion/reset semantics.
@@ -272,9 +263,6 @@ read legacy rows; normal paths never can.
 
 After exact model audit, add nullable structured session/owner/actor bindings
 where generic/system jobs require nullability, especially `background_jobs`,
-`agent_runs`, and production session-bound Code Generator runs/attempts. Index
-FKs. System probes remain explicitly unowned; product jobs require a bound
-session owner.
 
 ### Supabase Data API hardening
 
@@ -400,8 +388,6 @@ route/access inventory test so newly added routes cannot silently omit policy.
 ### Absent in production
 
 - mock-run routes;
-- Build Preparation fixture surfaces; and
-- Code Generator development harness.
 
 Repository and service methods must carry owner/actor semantics so a future
 route cannot bypass policy by calling a generic ID lookup.
@@ -421,14 +407,6 @@ the completed phase; Phase 4 owns administrator lifecycle and deployment.
 
 For normal user: lock entitlement, return existing session or create exactly
 one owned session and bind it. Admins create unlimited owned sessions.
-
-### Code Generator start/retry/regenerate
-
-- first normal start binds the production run/variant transactionally;
-- duplicate start returns/resumes the same run;
-- retry preserves existing immutable variant receipt;
-- normal regenerate returns `GENERATION_VARIANT_LOCKED`;
-- admin regenerate follows current safety/quality gates.
 
 ### Success
 

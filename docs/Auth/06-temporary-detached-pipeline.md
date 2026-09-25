@@ -7,16 +7,9 @@ for the authenticated product boundary.
 ## Scope
 
 When `auth.pipeline_mode = "detached"`, only the explicit pipeline from
-Discovery through Build Preparation is detached:
-
-```text
-Discovery -> Content Architect -> Visual Design Director -> Build Preparation
-```
 
 The following remain authenticated or admin-gated: `/api/v1/me`, normal
 owner-scoped product APIs, administrator APIs, fixture/dev-run APIs, legacy
-run APIs, and Code Generator production/development surfaces. Docker and test
-configuration remain attached by default; production rejects detached mode.
 
 ## Browser/session rules
 
@@ -48,8 +41,6 @@ requires confirmation and then:
    `POST /api/v1/sessions/{old_session_id}/restart`.
 3. The server locks and fences the old session, marks queued work failed with a
    restart reason, and commits that fence before cleanup.
-4. Exact session-scoped database children, Build Preparation object metadata,
-   temporary object-store keys, and configured local mirrors are cleaned up.
 5. The old session is deleted and a new detached session is created with empty
    state, revision 0, and no inherited stage outputs.
 6. The browser selects the replacement and starts again at Discovery.

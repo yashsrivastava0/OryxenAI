@@ -254,7 +254,6 @@ but is not release-approved until the complete release gate passes.
 5. Deploy the exact verified SHA, then configure/verify Supabase and Google
    OAuth production URLs and complete HTTPS/browser acceptance.
 
-
 ## Included source documents
 
 - [Current Azure deployment status](#source-04-current-azure-deployment-status)
@@ -364,7 +363,6 @@ Tags, and the final validation have been reviewed.
   selected Trusted Launch/Linux combination in this configuration.
 - Keep `Standard_B2as_v2` for now. It is the preferred 8 GiB size for the
   combined PostgreSQL, API, worker, preview gateway, Caddy, Node/npm,
-  Chromium, and Code Generator workload.
 - `Standard_B2als_v2` is only a fallback if capacity or credit pressure later
   makes it necessary. It is not the current selection.
 
@@ -527,25 +525,6 @@ the creation operation and shows the VM resource with a public IPv4.
 
 After the VM exists, the intended application-side architecture is:
 
-```text
-Azure Linux VM
-└── Ubuntu 24.04 LTS x64
-    └── Docker Compose
-        ├── PostgreSQL
-        ├── database migration service
-        ├── FastAPI application
-        ├── durable worker
-        ├── shared preview gateway
-        ├── Code Generator
-        │   ├── Node.js
-        │   ├── npm
-        │   ├── Chromium
-        │   └── build tooling
-        └── Caddy
-            ├── HTTP :80
-            └── HTTPS :443
-```
-
 External services remain:
 
 ```text
@@ -651,7 +630,6 @@ Before copying or cloning application code onto the VM:
 3. Choose one exact Git commit SHA.
 4. Record that SHA.
 5. Deploy exactly that version.
-6. Do not accidentally include unrelated Code Generator worktree changes.
 
 ## 14. Production configuration — pending
 
@@ -676,9 +654,6 @@ acceptance requires all of these to work:
 - worker job processing;
 - Discovery;
 - Content Architect;
-- Visual Design Director;
-- Build Preparation;
-- Code Generator;
 - generated portfolio upload;
 - preview inside the application;
 - direct preview URL.
@@ -1068,12 +1043,8 @@ recorded the following implementation work:
   overlays, release-SHA deployment, preflight/doctor checks, health checks,
   backup, status, logs, and rollback commands;
 - the authenticated studio flow through explicit Generate/Preview;
-- the Code Generator control room with real milestone progress, preview
-  theater, attention/retry state, and traceability diagnostics;
 - the administrator control plane;
 - public fictional portfolio examples and art-directed preview motion; and
-- Code Generator brief-ingestion, preview-first verification, retry/receipt,
-  and Windows Vite-spawn diagnostics fixes.
 
 These are repository capabilities, not evidence that the live Azure VM has
 run them. The current shared worktree also contains uncommitted and untracked
@@ -1204,10 +1175,6 @@ unconfirmed or pending.
 The repository already contains substantial future-facing implementation and
 deployment work: the explicit multi-agent pipeline, durable PostgreSQL jobs,
 Supabase-based authentication and ownership foundations, the authenticated
-product shell, the Generate/Preview experience, the Code Generator workflow,
-production Compose/Caddy configuration, and the guided Azure deployment
-script. Those repository capabilities must not be confused with a successful
-live Azure application deployment.
 
 ## Chronological session record
 
@@ -1591,13 +1558,6 @@ of live Azure acceptance.
 - Discovery with adaptive intake, questions, brief revision, explicit approval,
   envelope validation, and durable persistence.
 - Content Architect consuming only the approved Discovery snapshot.
-- Visual Design Director consuming only approved Content Architect output and
-  consulting the deterministic checked-in resource catalogue.
-- Build Preparation compiling approved content and visual direction into the
-  hash-checked Markdown brief pair.
-- Code Generator admitting the immutable brief pair, planning, acquiring
-  pinned resources, generating source, performing bounded review and repair,
-  building, verifying, and promoting a stable preview.
 - Explicit stage handoffs rather than automatic chaining.
 
 ### Authentication, ownership, and administration
@@ -1614,7 +1574,6 @@ of live Azure acceptance.
 
 - Authenticated Preact/TypeScript/Vite product shell.
 - Explicit Discovery, Content, Design, Preparation, and Generate/Preview flow.
-- Real backend milestone progress for the Code Generator.
 - Preview theater, attention/retry state, traceability diagnostics, and
   generated-preview iframe behavior.
 - Public fictional sample portfolio previews on the sign-in surface.
@@ -1644,19 +1603,10 @@ are present:
 
 ### Compilation and verification context
 
-The repository has undergone frontend, backend, agent, Code Generator, and
-deployment-tooling implementation and verification work. The current change
-history records local tests, type checks, frontend builds, browser fixtures,
-Code Generator campaign runs, and follow-up fixes. Those records are useful
-engineering evidence, but they are not a replacement for a fresh build and
-acceptance run on the Azure VM from one selected clean release SHA.
-
 The repository's current status specifically records that:
 
 - production Compose/Caddy/TOML deployment tooling was implemented;
 - the authenticated Generate/Preview stage was implemented;
-- the Code Generator control room, preview theater, traceability, and
-  preview-first acceptance work was implemented;
 - Windows Vite process-spawn diagnostics and recovery were addressed; and
 - a clean release SHA still has to be selected from the current dirty shared
   worktree before Azure deployment.
