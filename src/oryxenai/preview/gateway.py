@@ -588,19 +588,19 @@ def main() -> None:
 
     settings = get_settings()
     storage = create_preview_storage(settings)
-    parent_origin = str(settings.code_generator_verification.preview_parent_origin)
-    configured_origins = list(
-        getattr(settings.code_generator_verification, "preview_embed_origins", []) or []
-    )
+    auth_config = settings.auth
+    gateway_config = settings.preview_gateway
+    parent_origin = str(auth_config.primary_origin)
+    configured_origins = list(getattr(auth_config, "allowed_origins", []) or [])
     uvicorn.run(
         create_preview_app(
             storage,
             parent_origin=parent_origin,
             embed_origins=[*configured_origins, parent_origin],
-            route_prefix=str(settings.code_generator_verification.preview_route_prefix),
+            route_prefix=str(gateway_config.route_prefix),
         ),
-        host=str(settings.code_generator_verification.preview_host),
-        port=int(settings.code_generator_verification.preview_port),
+        host=str(gateway_config.host),
+        port=int(gateway_config.port),
         log_level="info",
     )
 

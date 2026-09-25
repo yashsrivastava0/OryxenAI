@@ -141,8 +141,6 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
 ):
     settings = _settings()
     settings.app.enable_dev_ui = False
-    settings.build_preparation.fixture_enabled = False
-    settings.code_generator_development.enabled = False
     app = create_app(settings)
     paths = (
         "/",
@@ -159,11 +157,7 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     ) as client:
         responses = [await client.get(path) for path in paths]
         auth_client = await client.get("/auth-static/auth-client.js")
-        dev_pages = [
-            await client.get("/dev"),
-            await client.get("/build-preparation-fixture"),
-            await client.get("/code-generator-development"),
-        ]
+        dev_pages = [await client.get("/dev")]
 
     assert all(response.status_code == 200 for response in responses)
     assert auth_client.status_code == 200

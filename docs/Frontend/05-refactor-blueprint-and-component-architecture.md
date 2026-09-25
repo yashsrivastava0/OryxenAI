@@ -18,7 +18,7 @@ The revamp transforms the existing developer-heavy interface into an **executive
    - **Strict Anti-AI Clichés:** No neon purple gradients, no floating glassmorphism blobs, no magic wand emojis, and no fake circular percentage dials.
 2. **Curated Decision-Grade Visibility:**
    - Eliminate raw terminal dumps and unformatted JSON blocks from user view.
-   - Present structured data (routes, visual scenes, color palettes, researched photos) using rich visual components (cards, swatches, sitemaps, galleries).
+   - Present structured Content Architect data (routes, sections, and claim grounding) with clear, readable components.
    - Retain full raw JSON inspection in an elegant, collapsible utility drawer (`AgentOutputDrawer`).
 3. **Decomposed & Maintainable Reactivity:**
    - Decompose the monolithic 1,022-line `AppShell.tsx` into modular custom hooks (`useSessionState`, `useStagePolling`, `useStageMutations`, `useUrlNavigation`).
@@ -60,9 +60,6 @@ AppShell
 - Wraps all stage actions:
   - Discovery: `startDiscovery`, `submitAnswer`, `generateBriefNow`, `approveBrief`, `reviseBrief`, `stopDiscovery`.
   - Content: `startContent`, `approveContent`, `reviseContent`, `stopContent`.
-  - Design: `startDesign`, `approveDesign`, `reviseDesign`, `stopDesign`.
-  - Preparation: `startPreparation`, `regeneratePreparation`.
-  - Generation: `startGeneration`, `regenerateGeneration`, `retryGeneration`.
 - Automatically generates and caches `Idempotency-Key`.
 - Manages `mutatingStage` lock to prevent duplicate submissions.
 - Broadcasts invalidation events to other tabs via `BroadcastChannel`.
@@ -83,9 +80,6 @@ AppShell
 ├── MainWorkspaceStage (#workspace-stage)
 │   ├── DiscoveryStudio        (Stage 1)
 │   ├── ContentStudio          (Stage 2)
-│   ├── DesignStudio           (Stage 3)
-│   ├── BuildPreparationHub    (Stage 4 - Curated Command Center)
-│   └── PortfolioTheater       (Stage 5 - Sandbox & Viewports)
 ├── AgentOutputDrawer (Collapsible right rail with formatted JSON)
 └── StudioFooter (Tagline, security guarantee, keyboard hints)
 ```
@@ -147,7 +141,6 @@ Replaces flattened markdown bullets with an **interactive content and route arch
 
 ---
 
-### 4.3 Stage 3: `DesignStudio`
 
 Transforms the text-only design direction into an **aesthetic moodboard and design system viewer**:
 
@@ -178,7 +171,6 @@ Transforms the text-only design direction into an **aesthetic moodboard and desi
 
 ---
 
-### 4.4 Stage 4: `BuildPreparationHub` (Fixing the Core Problem)
 
 Completely replaces the raw markdown text dump with a **curated build command center**:
 
@@ -210,12 +202,10 @@ Completely replaces the raw markdown text dump with a **curated build command ce
 #### Brief Modal Specification:
 When the user clicks "Inspect Content Brief" or "Inspect Visual Brief":
 - Opens an elegant reader modal with syntax highlighting.
-- The machine-readable fenced JSON block (````json build-preparation-content-index ... ````) is **parsed and rendered as an interactive property inspector**, not a giant block of raw text.
 - The remaining Markdown prose is formatted cleanly with typography tokens and a table of contents.
 
 ---
 
-### 4.5 Stage 5: `PortfolioTheater` (Sandbox & Live Preview)
 
 Upgrades the basic preview iframe into an **interactive device theater**:
 
@@ -274,9 +264,6 @@ frontend/src/styles/
 └── stages/
     ├── discovery.css      # Q&A composer, profile cards
     ├── content.css        # Sitemap tree, section wireframe cards
-    ├── design.css         # Palette swatches, type specimens, scene cards
-    ├── preparation.css    # Asset gallery, command center metrics
-    └── preview.css        # Device theater frames, viewport transitions
 ```
 
 ### 5.2 Token Usage Standards

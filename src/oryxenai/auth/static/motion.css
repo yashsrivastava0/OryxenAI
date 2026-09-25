@@ -82,7 +82,7 @@
 
 /* A thin traveling highlight indicating a real, currently-active step.
    Never attached to a step that isn't genuinely in flight — see
-   ProgressSurface/BuildPreparationStage usage. */
+   Shared progress and action surfaces. */
 .oxa-activity-line {
   position: relative;
   overflow: hidden;

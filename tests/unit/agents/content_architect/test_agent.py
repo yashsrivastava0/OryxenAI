@@ -79,7 +79,6 @@ def _plan_payload(
     if content_included:
         payload["page_content_packs"] = [_pack(r["route_id"]) for r in routes]
         payload["public_content_manifest"] = {"nav": []}
-        payload["visual_director_handoff"] = {"content_hierarchy": ["hero"]}
     return payload
 
 
@@ -90,7 +89,6 @@ def _pages_payload(route_count: int, *, integration_needed: bool = False) -> dic
         "integration_needed": integration_needed,
         "page_content_packs": [_pack(f"r{i}") for i in range(route_count)],
         "public_content_manifest": {"nav": []},
-        "visual_director_handoff": {"content_hierarchy": ["hero"]},
     }
 
 
@@ -100,7 +98,6 @@ def _integrate_payload(route_count: int) -> dict[str, Any]:
         "content_included": False,
         "page_content_packs": [_pack(f"r{i}") for i in range(route_count)],
         "public_content_manifest": {"nav": []},
-        "visual_director_handoff": {"content_hierarchy": ["hero"]},
     }
 
 
@@ -160,7 +157,8 @@ async def test_integration_pass_runs_when_route_count_exceeds_threshold():
 
     assert client.calls == ["plan_content", "write_pages", "integrate_content"]
     assert result.output["stages_run"] == ["plan_content", "write_pages", "integrate_content"]
-    assert result.output["visual_director_handoff"]["content_hierarchy"] == ["hero"]
+    assert len(result.output["route_plan"]) == 3
+    assert len(result.output["page_content_packs"]) == 3
 
 
 async def test_integration_pass_runs_when_explicitly_flagged_even_for_small_route_count():

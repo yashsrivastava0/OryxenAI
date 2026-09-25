@@ -433,12 +433,6 @@ and `app`, `worker`, `migrate`, and `preview-gateway` (via the shared
 `internal: true` blocks *all* outbound routing for every container on that
 network, not just inbound exposure — so this wasn't only an npm-cache-warmup
 problem. As configured, `worker` (model provider calls, Supabase, npm
-registry during live Code Generator runs) and `app` (Supabase JWKS
-verification) would have had **zero outbound internet access once actually
-running in production** — a production-blocking bug. Only `caddy` was also
-attached to the non-internal `edge` network. The dev-only `compose.yaml` has
-no such restriction (plain default bridge network, full egress), which is
-why this never surfaced in local development.
 
 The `internal: true` comment's stated intent — "No service other than Caddy
 is attached to the public-facing network" — was about preventing *inbound*

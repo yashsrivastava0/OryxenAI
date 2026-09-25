@@ -282,7 +282,7 @@ async def test_public_candidate_gateway_requires_capability_and_supports_nested_
     )
     javascript = b"console.log('candidate')"
     manifest = {
-        "schema_version": "code-generator-build-manifest-v1",
+        "schema_version": "preview-build-manifest-v1",
         "candidate_identity_hash": "identity-test",
         "entry_paths": ["index.html", "assets/app.js"],
         "entries": [
@@ -311,7 +311,7 @@ async def test_public_candidate_gateway_requires_capability_and_supports_nested_
     manifest_bytes = (
         json.dumps(
             {
-                "schema_version": "code-generator-candidate-manifest-v1",
+                "schema_version": "preview-candidate-manifest-v1",
                 "candidate_id": candidate_id,
                 "candidate_identity_hash": "identity-test",
                 "build_hash": build_hash,

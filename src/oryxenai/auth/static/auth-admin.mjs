@@ -82,8 +82,6 @@ export function adminEndpoint(action, tab, id) {
     return "/api/v1/admin/users/" + id + "/" + action;
   }
   if (action === "delete" && tab === "users") return "/api/v1/admin/users/" + id + "/delete";
-  if (action === "code-generator-retry") return "/api/v1/admin/projects/" + id + "/code-generator/retry";
-  if (action === "code-generator-regenerate") return "/api/v1/admin/projects/" + id + "/code-generator/regenerate";
   if (action === "delete" && ["projects", "legacy"].includes(tab)) {
     return "/api/v1/admin/" + (tab === "legacy" ? "legacy-projects" : "projects") + "/" + id + "/delete";
   }
@@ -343,8 +341,6 @@ function renderRows(documentRef, target, items, tab, onAction, { append = false,
       const actions = node(documentRef, "div", undefined, "button-row admin-row-actions");
       if (item.status === "active") {
         actions.append(createActionButton(documentRef, "Delete", () => onAction("delete", item), { isDestructive: true, iconSvg: ICONS.trash }));
-        actions.append(createActionButton(documentRef, "Code Generator retry", () => onAction("code-generator-retry", item), { iconSvg: ICONS.retry }));
-        actions.append(createActionButton(documentRef, "Code Generator regenerate", () => onAction("code-generator-regenerate", item), { iconSvg: ICONS.regenerate }));
       }
       tdActions.append(actions);
 
@@ -565,8 +561,6 @@ export async function bootstrapAdminConsole({
       : action === "demote" ? "Demote administrator"
       : action === "readmit" ? "Readmit identity"
       : action === "resume" ? "Resume operation"
-      : action === "code-generator-retry" ? "Code Generator retry"
-      : action === "code-generator-regenerate" ? "Code Generator regenerate"
       : action.replaceAll("_", " ");
 
     if (actionNameEl) actionNameEl.textContent = readableAction;

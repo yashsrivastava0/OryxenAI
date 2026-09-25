@@ -5,12 +5,9 @@ Before changing code, read [11-implementation-file-map.md](11-implementation-fil
 ## Phase 1: establish the safe state contract
 
 1. Inspect the current dirty worktree and preserve unrelated contributor changes.
-2. Add Code Generator active-job and retry-eligibility projection.
-3. Reconcile terminal handler/timeout failures into a safe run attention state when no retry remains.
-4. Correct the frontend adapter to select the active job by job ID.
-5. Add adapter and worker/API regression tests for failed planning, timeout exhaustion, cancellation, and retry eligibility.
-
-Exit condition: the audit's failed Code Generator job stops polling, displays attention, preserves prior preview data, and exposes only a server-valid recovery action.
+2. Reconcile terminal handler/timeout failures into a safe run attention state when no retry remains.
+3. Correct the frontend adapter to select the active job by job ID.
+4. Add adapter and worker/API regression tests for failed work, timeout exhaustion, cancellation, and retry eligibility.
 
 ## Phase 2: replace the shell geometry
 
@@ -22,33 +19,16 @@ Exit condition: the audit's failed Code Generator job stops polling, displays at
 
 Exit condition: no title collisions, no permanent empty-screen scrollbar, no narrow body column, and no action four-line wrap in all target viewports.
 
-## Phase 3: rebuild stage representations
+## Phase 3: rebuild retained stage representations
 
 1. Discovery: summary-first review, profile facts, brief reader, and action dock.
 2. Content: route map, route tabs, selected-route section cards, deduplicated copy, and secondary details.
-3. Design: thesis, intent cards, route selector, visible storyboard, and asset treatments without fabricated tokens.
-4. Preparation: readiness summary, metadata evidence cards, brief readers, and CSP-safe fallback tiles.
-5. Generation: available start state, semantic progress, attention recovery, and preview theater.
 
-Exit condition: every stage presents its native artifact before secondary prose or developer data.
-
-### Generation ready/preview execution detail
-
-Before changing the ready screen, read [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) and inspect `frontend/src/stages/generation/GenerationStage.tsx`, `frontend/src/data/adapters/generation.ts`, and the Code Generator fixtures. Then:
-
-1. Preserve the server-authoritative `preview`, `candidatePreview`, `active_job_id`, `active_job_kind`, `safe_error`, and `retry_available` projection.
-2. Keep verified and candidate preview URLs visibly distinct; never infer verification from an arbitrary URL.
-3. Make the preview theater the dominant ready-state artifact and keep diagnostics closed by default.
-4. Replace misleading `Publish when ready`/`Deploy your project` copy with the truthful preview/review action supported by the current callback and backend contract.
-5. Render route controls only when route paths are present and keep them inside a contained strip.
-6. At 768–1199px reflow to a preview-first single flow; do not create a dedicated tablet mockup or a new preview-device API.
-7. Ensure the responsive iframe wrapper has `min-width: 0`, a bounded aspect ratio, and no tablet/mobile minimum height that obscures the action area.
-8. Add browser assertions for ready, candidate-only, stale-ready, attention-with-preview, and partial approval/start failure.
-9. Use [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png) as hierarchy reference only; Markdown and server state remain authoritative.
+Exit condition: both retained stages present their native artifact before secondary prose or developer data, and Content Architect approval is terminal.
 
 ### Discovery question execution detail
 
-Before moving to the later stage representations:
+Before refining the Content Architect representation:
 
 1. Preserve `DiscoveryQuestionVM` and the existing answer endpoint.
 2. Refactor `ConversationSurface` so single-select selection is local and explicit `Next question` performs submission.
@@ -92,7 +72,6 @@ Exit condition: all responsive and accessibility checks in `08-acceptance-matrix
 These are intentionally deferred and must not expand the current remediation without a new scope decision:
 
 - add product analytics only after the state and privacy contract is stable;
-- add richer preview comparison and shareable review links only as separately scoped work;
 - add server-backed filtering and search to Users, Projects, and Audit without changing authorization boundaries;
 - add operation detail drawers that expose safe state history rather than raw worker payloads;
 - add bulk actions only after a separate idempotency and confirmation review;

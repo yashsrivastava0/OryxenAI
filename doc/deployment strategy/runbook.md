@@ -7,10 +7,6 @@ start; use its stated checks.
 
 ## 0. Release gate on the development machine
 
-The current worktree is dirty. Treat its existing tracked Code Generator and
-frontend changes, migrations, tests, and untracked tool directories as another
-contributor's work. Do not stage them while preparing deployment.
-
 First reconcile those changes with their contributor and select one release
 commit. Then run the project checks appropriate to the release:
 
@@ -161,10 +157,7 @@ Use a clean browser session and verify:
 
 - Google sign-in, provider admission, username onboarding, and admin access.
 - A normal user can use the intended portfolio flow.
-- Discovery approval explicitly hands off to Content Architect, Visual Design
-  Director, Build Preparation, and Code Generator.
-- Code Generator creates a verified preview and VM-local artifact/preview
-  readback succeeds after restart.
+- Discovery approval unlocks Content Architect; its approval ends the active product workflow.
 - The preview works embedded and at its direct URL after refresh.
 - A second account cannot see or mutate the first account's portfolio.
 - Post-success read-only behavior, worker retries, and diagnostics are honest.

@@ -211,7 +211,7 @@ truth when this table drifts.
 ## How agent outputs and state are stored
 
 - **Current aggregate state:** `portfolio_sessions.current_state` (JSONB) — the merged
-  state needed by the next agent.
+  session state; Content Architect consumes only the approved Discovery snapshot.
 - **Immutable run history:** `agent_runs` (append-oriented) — each run records input,
   `state_before`, output, `state_after`, status, error, timing, agent identity, and
   idempotency key.

@@ -11,17 +11,6 @@ def test_unknown_programming_error_is_permanent() -> None:
     assert "private implementation detail" not in error.message
 
 
-def test_unexpected_code_generator_error_is_redeliverable() -> None:
-    error = _safe_handler_error(
-        RuntimeError("private handoff detail"),
-        job_kind="code_generator.v5.plan",
-    )
-
-    assert error.code == "HANDLER_ERROR"
-    assert error.retryable is True
-    assert "private handoff detail" not in error.message
-
-
 def test_model_output_contract_failure_remains_retryable_and_redacted() -> None:
     error = _safe_handler_error(ModelOutputInvalidError("private generated validation detail"))
 

@@ -27,7 +27,7 @@ async def test_liveness_ok(client):
 
 
 async def test_agent_listing(client):
-    """The agents endpoint returns all five registered agents."""
+    """The agents endpoint returns the two supported agents."""
     resp = await client.get("/api/v1/agents")
     assert resp.status_code == 200
     agents = resp.json()
@@ -35,9 +35,6 @@ async def test_agent_listing(client):
     assert keys == {
         "discovery",
         "content_architect",
-        "visual_design_director",
-        "build_preparation",
-        "code_generator",
     }
     for a in agents:
         assert a["mock"] is True

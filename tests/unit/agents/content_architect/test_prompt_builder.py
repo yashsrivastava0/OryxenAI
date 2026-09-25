@@ -85,7 +85,7 @@ class TestBuildInstructions:
             "plan_content", {"approved_brief_title": "x"}
         )
         assert "Use those facts fully in strategy and public copy" in system
-        assert "complete downstream handoff" in system
+        assert "complete, reviewable content plan" in system
         assert "There is no line or word minimum" in task
 
 

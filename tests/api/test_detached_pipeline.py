@@ -81,8 +81,6 @@ async def test_detached_model_profiles_are_safe_and_preflighted(detached_client)
             [
                 "discovery",
                 "content_architect",
-                "visual_design_director",
-                "build_preparation",
             ],
             "",
         )
@@ -126,8 +124,11 @@ async def test_restart_deletes_durable_rows_and_recreates_empty_session(detached
         session = await db.get(PortfolioSession, old_id)
         assert session is not None
         session.current_state = {
-            "discovery": {"status": "needs_attention", "latest_error": {"message": "old error"}},
-            "build_preparation": {"package": {"artifact": reference.model_dump(mode="json")}},
+            "discovery": {
+                "status": "needs_attention",
+                "latest_error": {"message": "old error"},
+                "artifact_reference": reference.model_dump(mode="json"),
+            },
         }
         db.add(
             AgentRun(

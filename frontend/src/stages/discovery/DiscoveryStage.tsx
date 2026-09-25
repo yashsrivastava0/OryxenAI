@@ -316,7 +316,7 @@ function DiscoveryReviewPanel({
         <ActionDock
           note={
             <div className="discovery-dock-step-note">
-              <span className="dock-step-tag">Step 1 of 5</span>
+              <span className="dock-step-tag">Step 1 of 2</span>
               <span className="dock-step-name">Brief</span>
             </div>
           }

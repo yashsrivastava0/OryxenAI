@@ -33,8 +33,6 @@ safe audit facts, and deletion tombstones.
   project. Demotion requires capacity, preserves at most one live project and
   its verified success binding, and rejects unsafe multi-project cleanup.
 - Worker authorization rejects deletion-pending and deleted portfolio work.
-  Existing Code Generator retry/regenerate commands are available through the
-  same admin operation/audit boundary.
 
 ## Delivered admin surface
 
@@ -70,14 +68,6 @@ Focused proof completed during implementation includes:
 The full repository test suite is green. The repository-wide Ruff check and
 format check still report only the pre-existing, explicitly preserved
 untracked `test_openai_check.py`; repository-wide mypy still reports only
-pre-existing typing errors in the untouched Build Preparation/Code Generator
-files `src/oryxenai/agents/build_preparation/visual_input.py`,
-`src/oryxenai/agents/shared/resource_context.py`,
-`src/oryxenai/agents/build_preparation/providers.py`,
-`src/oryxenai/agents/build_preparation/materializer.py`,
-`src/oryxenai/agents/build_preparation/quality.py`, and
-`src/oryxenai/agents/build_preparation/agent.py`. The Phase 4-owned source
-scope is clean under those checks.
 
 ## Final readiness audit
 
@@ -96,7 +86,6 @@ creating production resources:
   returns to the canonical callback origin.
 - The admin shell exposes pending/retryable operations, safe resume, append-only
   pagination, and guards against cancel-as-confirm, unsafe self-actions, and
-  Code Generator commands on legacy projects.
 - Provider deletion no longer waits while holding application row locks;
   deletion re-locks and validates local state before finalization. Artifact
   storage is created lazily only when cleanup finds a typed reference, and

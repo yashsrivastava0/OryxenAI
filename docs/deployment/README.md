@@ -81,7 +81,6 @@ deployment.
 
 - It uses the Compose topology already present in the repository.
 - The worker remains a real separate process, so durable jobs and long
-  Code Generator work are not hidden inside an HTTP service.
 - A VM provides persistent Docker volumes for PostgreSQL and worker state.
 - Supabase remains the existing authentication provider; no auth rewrite is
   needed.

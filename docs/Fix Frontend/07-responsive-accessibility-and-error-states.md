@@ -27,17 +27,7 @@
 - one-column artifact stream;
 - full-width actions, stacked in priority order;
 - inspect/debug output opens full-screen or as a slide-over;
-- preview theater fits the viewport and exposes device controls without overflow;
 - no decorative label or registration mark may create page overflow.
-
-### Generation preview reflow
-
-- At 768–1199px, place the Generation preview theater before the long milestone/composer details so the primary artifact is reachable first.
-- Keep the preview iframe inside a bounded responsive frame; remove or relax any desktop-only minimum height that would push the action dock below an obscuring layer.
-- The tablet requirement is responsive host-shell behavior, not a dedicated tablet image or a new preview-device contract.
-- Keep route controls in a contained local strip and keep the document itself one-dimensional.
-- Do not show `Publish` or `Deploy` copy in the ready state without a server-authoritative endpoint. Use truthful preview/review actions.
-- On a verified ready state, expose the verification label and open-preview action without requiring a long scroll. On candidate or attention states, preserve and label the existing preview.
 
 ## Keyboard and focus
 
@@ -53,13 +43,13 @@ Inputs and handoffs:
 
 - every intake, answer, and revision field has a programmatic label and an inline error target;
 - submit buttons are reachable immediately after their field and expose a stable accessible name while loading;
-- `Next question` and `Approve & continue to {destination}` are distinct in both visible copy and announcement text;
-- approval announces the completed approval separately from a successful next-stage start;
-- if start fails after approval, focus moves to the `Start next stage` recovery action.
+- `Next question` and `Approve Discovery brief` are distinct in both visible copy and announcement text;
+- Content Architect can be started only as a separate explicit action after Discovery approval;
+- Content Architect approval is announced as the end of the active workflow.
 
 ## Live regions
 
-- Use one small `role="status"` region for meaningful transitions such as “brief ready for review”, “generation failed”, or “preview promoted”.
+- Use one small `role="status"` region for meaningful transitions such as “brief ready for review”, “Content Architect started”, or “content plan approved”.
 - Do not put the entire changing stage, question card, progress list, or every polling update in an assertive live region.
 - Keep error summaries in `role="alert"` only when the user needs immediate attention.
 - Do not announce unchanged content repeatedly.
@@ -70,12 +60,8 @@ Inputs and handoffs:
 |---|---|---|
 | Offline/transient fetch error | stale connection | retain last state, show refresh/connection notice, continue bounded retry |
 | Agent/provider failure | attention | safe summary, preserved inputs/artifacts, valid retry if server allows |
-| Terminal Code Generator job failure | attention | stop polling, show active job error, retry/recovery action |
 | Authorization fence failure | attention/support | explain that the session must refresh or needs support; no blind retry loop |
-| Stale approved handoff | attention | identify stale source and require regenerate/new run |
-| Approval succeeds, next start fails | approved + next available | show the approved state and a separate start-next action |
 | Unknown backend status | unsupported | safe explanation and refresh, never guessed completion |
-| Broken/external resource preview | evidence fallback | metadata tile and source link, no broken image or raw query alt text |
 | Error boundary render failure | stage error boundary | preserve shell/navigation and offer reset/refetch |
 | Input save fails | input | retain typed value, announce the save failure, expose retry |
 | Administrator action fails | admin attention | retain the selected tab/row, show safe error text, keep the confirmation dialog usable |

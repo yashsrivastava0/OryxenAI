@@ -16,10 +16,7 @@ def test_every_registered_job_kind_has_a_closed_phase3_policy() -> None:
         "discovery.understand_and_question",
         "discovery.build_or_revise_brief",
         "content_architect.build",
-        "visual_design_director.build",
-        "build_preparation.prepare",
     } <= foreground
-    assert "code_generator.v5.plan" not in foreground
 
     for kind in registry.list_kinds():
         policy = policy_for(kind)

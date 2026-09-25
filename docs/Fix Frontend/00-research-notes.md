@@ -5,7 +5,7 @@
 OryxenAI is an agentic portfolio-production studio, not a conversational wrapper around a form and not a generic analytics dashboard. Its interface has to make two different activities legible:
 
 1. an agent is working autonomously through a bounded workflow; and
-2. a human is reviewing an artifact and deciding whether the pipeline may advance.
+2. a human is reviewing an artifact and deciding whether to explicitly start the next retained stage.
 
 The UI therefore needs a deliberate handoff rhythm:
 
@@ -16,10 +16,11 @@ User supplies intent
   → UI explains the current milestone
   → user reviews a decision-grade artifact
   → explicit approval or revision
-  → next stage becomes available
+  → after Discovery approval, the user may explicitly start Content Architect
+  → Content Architect approval ends the active workflow
 ```
 
-The current frontend obscures this rhythm by rendering internal outputs, repeating metadata, forcing all stages through the same nested grid, and treating a long document as the primary interaction model. The remediation should make the pipeline feel calm and operational: the agent can work for a while, but the user can always tell what is happening, what has been produced, and what requires judgment.
+The current frontend obscures this rhythm by rendering internal outputs, repeating metadata, forcing both active stages through the same nested grid, and treating a long document as the primary interaction model. The remediation should make the workflow feel calm and operational: the agent can work for a while, but the user can always tell what is happening, what has been produced, and what requires judgment.
 
 ## External research
 
@@ -47,7 +48,7 @@ Change the application posture:
 - body copy gets a stable readable measure;
 - decoration becomes background atmosphere, not navigation or content;
 - status is a text label with a clear semantic state, not a floating badge;
-- data is represented according to the agent's job: routes, scenes, evidence, readiness, or preview;
+- data is represented according to the active job: the brief, routes, and planned sections;
 - actions stay visible as decisions, not as the last paragraph of a long document.
 
 ## What the visual references are for
@@ -58,7 +59,6 @@ The references must not introduce:
 
 - purple AI gradients;
 - fake percentage dials;
-- literal Visual Design Director palette tokens;
 - external image URLs;
 - invented model names, provider names, or internal IDs;
 - raw JSON as the primary product surface.

@@ -14,7 +14,7 @@ This document evaluates the accessibility (a11y), keyboard operability, ARIA sem
 
 ### B. Logical Tab Order:
 - **Top Bar:** Focus moves logically: Skip link -> Logo -> Stepper items -> Reset Pipeline -> User profile dropdown.
-- **Review Stages (Stages 01–03):**
+- **Discovery and Content Architect review:**
   - Focus order: Top Bar -> Left Rail items -> Main Title -> Accordions -> Right Rail "Copy JSON" buttons -> Primary Action Button.
   - Users navigating by keyboard must press `Tab` over 30 times through collapsed disclosures and right rail buttons to reach the "Approve & continue" action.
 
@@ -31,11 +31,8 @@ This document evaluates the accessibility (a11y), keyboard operability, ARIA sem
 1. **Live Region Noise during Polling:**
    - `#product-root` is marked with `aria-live="polite"`.
    - While intended to announce stage updates, every 2-second polling fetch that updates minor DOM attributes triggers screen reader announcements, causing verbose chatter.
-2. **Missing Accessible Names on Broken Images (FE-008):**
-   - In Build Preparation, the broken photography images have raw comma-separated alt strings with 25+ keywords.
-   - Screen reader users hear: *"image, home office comma person comma work comma web design comma business comma workplace comma monitor comma computer comma keyboard..."* for 45 seconds per image.
 3. **Disclosure Elements:**
-   - Standard HTML `<details>` and `<summary>` are used for accordions (`Final JSON output`, `Page direction detail`), which have native keyboard accessibility (Enter/Space to toggle).
+   - Standard HTML `<details>` and `<summary>` are used for accordions (`Final JSON output`, ``), which have native keyboard accessibility (Enter/Space to toggle).
 
 ---
 

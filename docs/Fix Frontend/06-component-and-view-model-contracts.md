@@ -8,7 +8,7 @@ The implementation should use the existing Preact/TypeScript/Vite stack and keep
 
 Inputs: ordered stage IDs, labels, current stage, normalized stage state, and selection callback.
 
-Rules: render five production stages; show active state independently of color; prevent selection of locked/unsupported stages; collapse to a selector on tablet/mobile; do not render stage-local raw output.
+Rules: render Discovery and Content Architect; show active state independently of color; prevent selection of locked/unsupported stages; collapse to a selector on tablet/mobile; do not render stage-local raw output.
 
 ### StageContextStrip
 
@@ -30,12 +30,10 @@ Rules: sticky but reserved; never covers content; primary action has one clear v
 
 Action semantics:
 
-- accept an explicit `destinationStage` and `requiresApproval` flag;
-- render destination-specific copy, never a bare `Next` for a stage handoff;
-- expose `Approve & continue to {destination}` only when the current stage is reviewable;
-- expose `Continue to Generate` for the approved preparation handoff and keep Code Generator start explicit;
-- expose `Start next stage` when approval succeeded but the subsequent start request failed;
-- expose `Retry generation` only when `retry_available` is true in the server projection;
+- use destination-specific copy for the explicit Content Architect start after Discovery approval;
+- keep Discovery approval and Content Architect start as separate actions;
+- treat Content Architect approval as the terminal workflow state;
+- expose retry only when `retry_available` is true in the server projection;
 - keep a sibling status region for `Saving`, `Approved`, `Start failed`, or `Retrying`.
 
 ### InputComposer
@@ -43,12 +41,6 @@ Action semantics:
 Inputs: field label, purpose/help text, value, validation state, word/character limit, submit label, disabled/loading state, and submit callback.
 
 Rules: semantic `<label>` association; multiline field for intake, answers, and revisions; preserve typed value on failed requests; no raw prompts, JSON, provider names, or model reasoning; use full-width layout on mobile; submit through the existing API command and announce only the resulting transition.
-
-### NextStageHandoff
-
-Inputs: approved current stage, destination label, start status, approval callback, start callback, and partial-success message.
-
-Rules: one explicit user gesture may request approval and navigation, but the view model records approval and start independently. The destination cannot become `working` until its start response is confirmed. Partial success is rendered as `Approved` plus `Start next stage`.
 
 ### OutputInspector
 
@@ -66,35 +58,14 @@ Rules: no fake percentage or ETA; status text is human-readable; working state i
 
 Inputs: safe summary, preserved-work note, retry availability, retry callback, refresh/support guidance, and optional technical details.
 
-Rules: no “Oops!” copy; never show a retry button that the backend will reject; preserve previews and approved inputs.
+Rules: no “Oops!” copy; never show a retry button that the backend will reject; preserve approved inputs and completed work summaries.
 
-### PreviewTheater
-
-Inputs: verified/candidate preview, route list, viewport controls, focus mode, and external-open action.
-
-Rules: preserve cross-origin isolation; label candidate versus verified; keep existing preview when a later run fails; respect reduced motion. The ready state is a review theater, not a publishing console: do not render `Publish` or `Deploy` actions unless the server contract supplies them. Route controls are conditional on route data, and the iframe stays inside a bounded aspect-ratio wrapper with `min-width: 0`.
-
-Ready-state contract:
-
-- `preview.url` is the only source for a `Verified preview` label;
-- `candidatePreview.url` is explicitly labelled candidate/unverified;
-- `Open verified preview`/`Review preview` uses the existing server-supplied URL and does not construct a public URL;
-- a previous preview remains visible during `attention` when the adapter supplies it;
-- desktop may use the current two-column composition, while 768–1199px reflows to preview-first single flow; tablet is not a separate device mockup;
-- at tablet/mobile widths the preview height is responsive and must not be forced by the desktop `min-height: 480px` when that would obscure actions;
-- route selection, fit controls, and focus mode are rendered only when their data/callbacks exist; and
-- diagnostics remain in the closed developer-only inspector.
-
-See [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) for the code-grounded rationale and [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png) for hierarchy only.
 
 ## Stage-specific components
 
 - `RouteMap`: complete route inventory with route ID, path, purpose, and active selection.
 - `RouteTabs`: accessible tablist for selected route, with horizontal overflow contained inside the tab strip.
 - `SectionCard`: section role, title, copy, evidence, and optional unresolved state; suppress exact title/body duplicates.
-- `IntentCard`: prose visual intent with a stable label; no fabricated token values.
-- `SceneStoryboard`: ordered scene cards with narrative goal, viewport role, layout, motion, responsive behavior, accessibility, and performance intent.
-- `ResourceEvidenceCard`: title, purpose, provider/source, license, dimensions/aspect, source link, and neutral fallback tile; never direct external image preview.
 - `BriefReader`: collapsed Markdown reader with safe rendering and no duplicate summary content.
 
 ## Normalized state contract
@@ -126,7 +97,7 @@ Stage-specific models may add renderable fields but must retain the complete age
 - Normalize only recognized statuses.
 - Do not fabricate missing content.
 - Deduplicate exact repeated display values where the backend field has been mapped to two visual roles.
-- Preserve safe errors and previews.
+- Preserve safe errors and approved stage inputs.
 - Keep backend IDs out of user-facing copy unless they are approved support references.
 
 ## Discovery question surface
@@ -149,7 +120,7 @@ Rules: `single_select` uses native radios, `multi_select` uses native checkboxes
 
 Inputs: current question, local answer, draft state, validation error, submit label, skip availability, disabled/loading state, and callbacks.
 
-Rules: text questions use a visible `Your answer` label and the existing safe session draft behavior. The composer retains its value after failure. `Next question` submits the existing answer payload and never claims to start another agent stage.
+Rules: text questions use a visible `Your answer` label and the existing safe session draft behavior. The composer retains its value after failure. `Next question` submits the existing answer payload and does not imply that answering a question approves Discovery or starts Content Architect.
 
 ### QuestionActionBar
 

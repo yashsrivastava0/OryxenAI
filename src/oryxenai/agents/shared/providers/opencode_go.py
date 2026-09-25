@@ -287,7 +287,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
         except Exception as exc:
             # OpenAI's strict schema dialect rejects otherwise valid JSON
             # Schema objects that model a dictionary (``additionalProperties``
-            # with a value schema). Code Generator plans intentionally carry
+            # with a value schema). Portfolio requests can include
             # contextual maps such as design tokens and provenance, so a
             # strict request can fail before the model sees the portfolio.
             # Retry only this provider-side schema rejection as JSON mode; the
@@ -906,8 +906,7 @@ def _serialize_structured_input(
     and serializes in that fixed order instead of alphabetically — the exact
     same flat JSON shape either way, just reordered, so this never changes
     what the model reads. It exists so a caller whose payload repeats a large
-    invariant prefix across many calls in one run (Code Generator's route/
-    plan/foundation context) can keep that prefix byte-identical call to
+    invariant prefix across many calls in one run can keep that prefix byte-identical call to
     call, which alphabetical ``sort_keys`` ordering would otherwise break by
     interleaving it with each call's unique keys.
     """

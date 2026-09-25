@@ -5,13 +5,13 @@ import json
 
 import pytest
 
-from oryxenai.agents.code_generator.core.development_schemas import (
+from oryxenai.preview import promotion as promotion_module
+from oryxenai.preview.contracts import (
     BuildManifest,
     BuildManifestEntry,
     CandidateArtifact,
     PendingPromotion,
 )
-from oryxenai.preview import promotion as promotion_module
 from oryxenai.preview.promotion import PreviewPromoter, PromotionError, preview_urls
 from oryxenai.storage.preview import MemoryPreviewStorage
 
@@ -200,7 +200,7 @@ async def test_public_readback_failure_restores_previous_active_pointer() -> Non
     )
     host = "preview-abcdefghijklmnop"
     previous_pointer = {
-        "schema_version": "code-generator-active-preview-v1",
+        "schema_version": "preview-active-pointer-v1",
         "candidate_id": "candidate-old",
         "candidate_prefix": "preview/candidates/candidate-old/build-old",
     }

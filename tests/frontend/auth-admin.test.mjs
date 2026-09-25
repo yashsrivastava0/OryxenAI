@@ -17,10 +17,6 @@ test("administrator actions use reviewed server endpoints", () => {
     "/api/v1/admin/users/user-1/entitlement/reset",
   );
   assert.equal(
-    adminEndpoint("code-generator-regenerate", "projects", "project-1"),
-    "/api/v1/admin/projects/project-1/code-generator/regenerate",
-  );
-  assert.equal(
     adminEndpoint("delete", "legacy", "project-1"),
     "/api/v1/admin/legacy-projects/project-1/delete",
   );
@@ -51,10 +47,6 @@ test("administrator actions use reviewed server endpoints", () => {
   assert.equal(
     adminEndpoint("delete", "projects", "project-1"),
     "/api/v1/admin/projects/project-1/delete",
-  );
-  assert.equal(
-    adminEndpoint("code-generator-retry", "projects", "project-1"),
-    "/api/v1/admin/projects/project-1/code-generator/retry",
   );
   assert.throws(() => adminEndpoint("unknown", "projects", "project-1"));
 });

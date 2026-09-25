@@ -8,13 +8,13 @@ The creator experience uses one primary reading surface:
 ┌──────────────────────────────────────────────────────────────┐
 │ brand / portfolio status                         account      │
 ├──────────────────────────────────────────────────────────────┤
-│ compact stage navigator: Discover · Content · Design · ...   │
+│ compact stage navigator: Discover · Content   │
 ├──────────────────────────────────────────────────────────────┤
 │ stage context strip: stage label · state · 2–4 useful facts  │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │                  primary stage canvas                        │
-│          artifact, route map, scenes, preview, etc.           │
+│          brief, route map, section cards, etc.                │
 │                                                              │
 ├──────────────────────────────────────────────────────────────┤
 │ sticky reserved ActionDock: primary / secondary / status      │
@@ -31,13 +31,12 @@ The creator `/app` topbar must not render a red `ADMIN Reset Pipeline` button, e
 
 ## Stage navigator
 
-Use five stages in the current production order:
+Use the two active stages in order:
 
 1. Discover — understand the story;
-2. Content — shape the narrative;
-3. Design — craft the presentation;
-4. Prepare — finalize the handoff;
-5. Generate & Preview — build and inspect.
+2. Content Architect — shape and approve the content plan.
+
+Content Architect approval is the terminal state of the active workflow.
 
 Each item displays one semantic state: locked, available, working, review, attention, or complete. The selected stage is visually dominant. Locked items remain discoverable but are not clickable. Working and attention states must be visible without relying on color alone.
 
@@ -60,7 +59,7 @@ Desktop canvas rules:
 
 - max width approximately 72–80rem;
 - one main reading column with a 36–56rem text measure;
-- stage-specific grids only for routes, scenes, facts, or evidence that genuinely benefit from spatial comparison;
+- stage-specific grids only for routes, facts, or evidence that genuinely benefit from spatial comparison;
 - no nested fixed sidebars;
 - no title column narrower than the status/metadata column;
 - no absolute-positioned status badge over a heading.
@@ -73,13 +72,12 @@ The dock is visible for every actionable review state. It uses a reserved sticky
 
 | State | Primary action | Secondary action |
 |---|---|---|
-| Review with next stage | Approve & continue to {next agent} | Revise |
-| Review without next stage | Approve | Revise |
+| Discovery brief review | Approve brief | Revise |
+| Approved Discovery, Content Architect not started | Start Content Architect | none |
+| Content Architect review | Approve plan | Revise |
 | Working | none | Stop, when supported |
 | Attention with retry | Retry | View details / refresh |
 | Attention without retry | Refresh or supported recovery | View details |
-| Generation available | Generate portfolio | View handoff |
-| Generation ready | Open preview | Regenerate, when allowed |
 
 Button labels must remain readable on one line at desktop widths and become full-width stacked actions on mobile.
 
@@ -95,7 +93,7 @@ The inspector is visible only in developer mode and opens on explicit request. I
 
 It must not show raw worker payloads, prompts, credentials, response bodies, or hidden reasoning. Selection follows the active stage and never falls back to Discovery merely because another output exists.
 
-## Creator input and next-agent controls
+## Discovery input and explicit Content Architect start
 
 Discovery is the one stage with a conversational input surface. Its composer is part of the centered artifact canvas, not a rail or a separate developer panel:
 
@@ -105,17 +103,15 @@ Discovery is the one stage with a conversational input surface. Its composer is 
 - keep the submit action adjacent to the field on desktop and full width on mobile;
 - after a submitted answer, label the next action `Next question`, not a generic `Next`.
 
-Review stages use a destination-specific approval action so the user knows which agent will receive the approved snapshot:
+Discovery approval and Content Architect start are separate user actions. Approving the brief makes Content Architect available but does not start its job. Content Architect approval is terminal:
 
 | Current stage | Primary label | Operation |
 |---|---|---|
-| Discovery | `Approve & continue to Content Architect` | approve the brief; leave the stage ready for explicit Content Architect start |
-| Content | `Approve & continue to Visual Design Director` | approve the content scope; leave the stage ready for explicit Visual Design Director start |
-| Visual Design | `Approve & continue to Build Preparation` | approve the visual direction; leave the stage ready for explicit preparation start |
-| Build Preparation | `Continue to Generate` | approve/use the immutable brief pair, then expose the explicit Code Generator start action |
-| Generation | `Generate Portfolio` / `Retry generation` | start or retry only when the server projection permits it |
+| Discovery brief review | `Approve brief` | approve the brief and make Content Architect available |
+| Approved Discovery | `Start Content Architect` | enqueue the Content Architect job through its explicit API command |
+| Content Architect review | `Approve plan` | approve the plan and end the active workflow |
 
-The UI may combine the approval and navigation request into one explicit click, but it must never make the next agent appear started until the corresponding server response confirms it. A failed start after successful approval is represented as `Approved` plus a separate `Start next stage` action.
+If the Content Architect start request fails, keep the approved brief and offer a retryable start action. Never present approval as having started Content Architect unless the explicit start request succeeds.
 
 ## Visual system rules
 
