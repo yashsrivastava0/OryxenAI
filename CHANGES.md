@@ -85,3 +85,6 @@ Recovered Code Generator durable stage handoffs: coordinator now finalizes Plan 
 ### YYYY-MM-DD HH:MM TZ — <Agent/Tool> (<Model/Provider>) — [<commit-sha>] — <files/areas, comma-separated>
 <One or two concise sentences: what changed, root cause/rationale, and related ADR references (e.g. D-0XX). Never write verbose debugging narratives or reproduction essays here; put diagnostic logs in docs/deployment/deployment-issues.md.>
 ```
+
+### 2026-09-25 10:45 +05:30 — Codex (OpenAI) — [e92f521] — active workflow, API and worker registries, product shell, documentation
+Removed retired implementation packages and user-facing artifacts; aligned routes, workers, model routing, and product navigation with the two remaining active stages. Updated current guides and regression coverage while retaining generic preview/account cleanup and migration history.
