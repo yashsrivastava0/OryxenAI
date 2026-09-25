@@ -53,7 +53,6 @@ release blocker rather than silently claiming VM storage is complete.
 
 | Area | What is true | What is still required |
 | --- | --- | --- |
-| Product pipeline | Discovery, Content Architect, Visual Design Director, Build Preparation, and Code Generator are implemented locally. | Prove the complete flow against live providers on Azure. |
 | Azure | The VM, static public IP, VNet, subnet, and restricted SSH/HTTP/HTTPS rules are documented as provisioned. | Re-check power state, current IP, Docker, and repository state before operating it. |
 | Deployment tooling | `scripts/azure-deploy.sh`, production Compose, Caddy, migrations, health checks, backup, and rollback paths exist. | Run setup and deploy a clean release SHA. |
 | Production configuration | `config/app.production.toml` is a template; the ignored local production overlay is rendered from VM-local values. | Create a fresh VM `.env` and render the overlay. |
@@ -135,5 +134,3 @@ backup/restore, and reboot persistence checks.
 - [Model routing configuration](../../config/models.toml)
 
 Some older documents refer to historical Render, native-Caddy, or non-existent
-code-generator paths. Prefer the files above and the current source tree when
-they disagree.

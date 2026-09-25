@@ -84,8 +84,8 @@ async def test_anthropic_messages_adapter_sends_schema_and_parses_text(monkeypat
         headers={"x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01"},
     )
     result = await adapter.generate_structured(
-        operation="code_generator.planner",
-        instructions="Create the plan.",
+        operation="content_architect.plan_content",
+        instructions="Create the content plan.",
         input_payload={"untrusted": "portfolio data"},
         output_model=_Output,
         system_prompt="You are the planner.",
@@ -209,8 +209,8 @@ async def test_anthropic_adapter_falls_back_for_typed_mapping_schema(monkeypatch
         headers={"x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01"},
     )
     result = await adapter.generate_structured(
-        operation="code_generator.planner",
-        instructions="Create the plan.",
+        operation="content_architect.plan_content",
+        instructions="Create the content plan.",
         input_payload={"untrusted": "portfolio data"},
         output_model=_MapOutput,
         system_prompt="You are the planner.",
@@ -249,11 +249,11 @@ async def test_anthropic_adapter_falls_back_for_composed_schema(monkeypatch):
         headers={"x-api-key": "sk-ant-test", "anthropic-version": "2023-06-01"},
     )
     result = await adapter.generate_structured(
-        operation="code_generator.generation",
-        instructions="Generate the result.",
+        operation="content_architect.write_pages",
+        instructions="Write the content.",
         input_payload={"untrusted": "portfolio data"},
         output_model=_NullableOutput,
-        system_prompt="You are the generator.",
+        system_prompt="You are the content writer.",
         strict_schema=True,
     )
     await adapter.aclose()

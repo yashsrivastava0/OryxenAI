@@ -11,7 +11,7 @@ This audit evaluates the layout, information density, and interactive usability 
 | **Primary Desktop** | 1536 × 695 / 1440 × 900 | 3-Column (Left Rail + Canvas + Right Rail) | Column squishing (160px text strip), wasted horizontal space, 6-line wrapped H1 headings. |
 | **Short Laptop** | 1366 × 768 (Usable: ~650px) | 3-Column | Immediate vertical scrollbar on empty intake; primary CTAs pushed 4–11 viewports below fold. |
 | **Tablet** | 768 × 1024 | Stacked Column (`workspace-canvas` 1fr) | Left and right rails collapse above/below canvas; content reading width expands, but vertical height exceeds 10,000px. |
-| **Mobile** | 390 × 844 | Single Column Stack | Stepper switches to track bar; excessive vertical scroll; broken photography alt tags dominate screen. |
+| **Mobile** | 390 × 844 | Single Column Stack | Stepper switches to track bar; excessive vertical scroll; the long Content Architect review requires substantial vertical scrolling. |
 
 ---
 
@@ -39,7 +39,7 @@ At `max-width: 768px`, CSS rules trigger:
 
 ### Observed Behavior:
 1. **Header & Stepper:**
-   - The 5-stage stepper collapses into a compact strip.
+   - The two active workflow stages collapse into a compact strip.
    - Subtitles on the stepper ("UNDERSTAND YOUR STORY", "SHAPE NARRATIVE") hide cleanly.
 2. **Information Reprioritization:**
    - While the rail collapses above the canvas, secondary metadata (`Experience entries: 3`, `Skills: 112`) still consumes 120px of vertical space before the main content begins.
@@ -56,12 +56,10 @@ At `max-width: 640px`, mobile styles engage:
 - Buttons stretch to full width (`width: 100%`).
 
 ### Observed Behavior:
-1. **Broken Imagery on Mobile (Build Preparation):**
-   - In Build Preparation, the broken photography cards expand to 100% width on mobile.
-   - The 20+ comma-separated search keywords in the `alt` text wrap over 15 lines of text inside two gigantic grey rectangles, forcing users to scroll past two screenfuls of broken search terms before reaching generation details.
+   - The long Content Architect review remains vertically extensive on mobile.
 2. **Text Wrapping on Buttons:**
    - Because mobile buttons expand to `width: 100%`, the 4-line text wrapping bug seen on desktop (`Approve &\ncontinue to...`) resolves into 1 or 2 lines on mobile!
-   - This proves that the desktop button text wrapping is an artificial layout defect caused by fixed desktop width constraints rather than text length.
+   - This shows that desktop button wrapping is caused by fixed-width constraints rather than label length.
 3. **Stacking vs Reprioritization:**
    - Mobile simply stacks every card, callout, disclosure, and section vertically.
    - No content condensation (e.g. mobile summary cards or collapsible accordions for long text) is applied to the 8,000px Content Architect page.

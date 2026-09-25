@@ -113,8 +113,6 @@ developer browser boot integration.
 Inventory routes again at implementation time. Protect:
 
 - session create/list/get;
-- Discovery, Content Architect, Visual Design Director, Build Preparation, and
-  Code Generator routes;
 - run history, attempts, jobs, events, plan, acquisition, source, quality,
   verification, and preview metadata;
 - model/agent metadata and system diagnostics;
@@ -135,7 +133,6 @@ for the current attempt.
 
 - One normal user admission slot among 15; admins excluded.
 - One idempotent portfolio session per normal user.
-- Bind first Code Generator run/design variant transactionally.
 - Retry only that run/variant; deny normal regenerate.
 - Consume success only during verified active-preview promotion/reconciliation.
 - Freeze normal mutations after success.

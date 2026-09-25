@@ -12,11 +12,9 @@
 
     OryxenAI's recent API usage is materially higher than expected for a small prepaid balance. The primary cost pattern is not OpenAI Batch API usage and not expensive cache reads. It is a combination of:
 
-    - large Code Generator prompts and many Code Generator stages;
     - repeated source-repair, integration-review, planner, and route-generation attempts;
     - prompt-cache writes that are rarely reused;
     - a retry and stale-worker pattern that is bounded in some code paths but not consistently bounded across every layer;
-    - a large queue of Code Generator jobs that can create more spend if a worker is restarted;
     - insufficient provider-call telemetry to reconcile every Platform request with a durable application operation.
 
     The immediate priority is to prevent the queued work from draining without review. The next priority is to make every request attributable and to enforce one global retry budget per user operation. Cache improvements come after the request graph is controlled; otherwise caching can make repeated expensive work cheaper per token while still allowing too many total calls.
@@ -61,17 +59,10 @@
 
     The Platform dashboard uses UTC-oriented date reporting and separates usage from credit-grant and billing records. The $11.80 paid invoice should not be treated as the API credit balance; the credit-grants page is the source for the available prepaid credit. Use the [OpenAI Platform usage reference](https://platform.openai.com/docs/api-reference/usage/audio_transcriptions_object) and the [billing overview](https://platform.openai.com/settings/organization/billing/overview) when rechecking the account.
 
-    At the observed $4.68-per-day pace, the remaining balance could last approximately one day. This estimate is unsafe if the queued Code Generator work is resumed, because one active generation can issue many model calls.
-
     ## 3. Local OryxenAI evidence
-
-    ### 3.1 Code Generator activity is much larger than the pre-code estimate
 
     The earlier research document focuses mainly on the pre-code stages and describes a normal pre-code flow of roughly 5–9 model calls. That is not a complete description of the current live workload.
 
-    The local database contained the following Code Generator activity since Sep 4:
-
-    - 42 Code Generator runs were present.
     - 23 runs were created on Sep 5.
     - 15 of the Sep 5 runs were in `needs_attention` at the time of inspection.
     - Sep 5 error events included:
@@ -81,15 +72,10 @@
       - 1 `INTEGRATION_POLISH_INCOMPLETE` failure;
       - 1 `QUALITY_SOURCE_STALE` failure.
     - A later Sep 6 event included `QUALITY_REALIZATION_STALE`.
-    - The persisted final Code Generator receipts accounted for approximately 273 model-call receipts in the matching investigation period, before accounting for smaller pre-code traffic and calls that failed before a final receipt was persisted.
 
     The dashboard showed 407 requests. The difference between the dashboard count and the final receipts is a reconciliation warning. The most likely contributors are failed first attempts, planner/schema correction attempts, model calls from stale or replayed workers, and requests that are not represented in the final successful receipt. It also means that the application cannot currently prove which exact operation produced every billed request.
 
     ### 3.2 The queue contains an immediate spend risk
-
-    At the time of inspection, 55 Code Generator jobs were queued and due for execution. The most recent jobs included planning, acquisition, generation, and verification stages. The most recent worker heartbeat was stale, so the queue was not necessarily draining at that moment; restarting a worker could cause the backlog to execute.
-
-    One historical `code_generator.v5.generate` row showed `attempt = 5` while `max_attempts = 3`. This does not prove that the provider was called exactly five times, because the job attempt counter can also reflect stale-lease recovery. It does prove that the durable job lifecycle can re-claim a job beyond the configured normal retry budget. That is an unusual pattern and must be fixed or explicitly explained before more workers are started.
 
     ### 3.3 The retry budget exists at several independent layers
 
@@ -101,7 +87,6 @@
     4. Creative direction and generation validation have their own correction loops.
     5. The durable worker can retry a failed job up to the worker retry limit.
     6. A stale lease can cause a running job to be reclaimed.
-    7. The Code Generator has request rounds, source repair rounds, and integration-polish rounds.
     8. A caller can submit a new stage attempt after `needs_attention`.
 
     Each layer may look bounded by itself, while their product becomes large. For example, a planner call that has a schema correction, is inside a requeued job, and is later manually restarted can produce several billable requests even though no single loop is infinite.
@@ -112,11 +97,6 @@
 
     - Worker retry budget: `max_attempts = 3`, described as one initial attempt plus two retries.
     - Planner validation budget: three model attempts.
-    - Code Generator request rounds: up to four.
-    - Code Generator repair rounds per unit: up to three.
-    - Code Generator total repair rounds: up to six.
-    - Code Generator integration-polish rounds: up to five.
-    - Code Generator profiles: some have SDK `max_retries = 1`.
 
     The settings are visible in [`config/app.toml`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/config/app.toml>) and [`config/models.toml`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/config/models.toml>). These values are not necessarily wrong for a production-quality generation workflow, but they are unsafe as a default while the cost ledger and stale-worker behavior are unresolved.
 
@@ -244,7 +224,6 @@
     1. Add a database-level or repository-level guard so `claim_due` cannot claim a queued job whose `attempt >= max_attempts`.
     2. Add the same guard to stale-job recovery. A stale job at the retry ceiling should become terminal or `needs_attention`, not be re-claimed.
     3. Record a `lease_recovery` event with the old worker ID, old lease timestamp, new worker ID, attempt number, and reason.
-    4. Ensure the heartbeat interval is comfortably shorter than the lease duration for every long-running Code Generator stage.
     5. Ensure a worker cannot recover a job while another process still owns a valid lease.
     6. Make the job's lease token mandatory in completion and failure updates, which prevents an old worker from completing a job after a newer worker has reclaimed it.
     7. Add a startup safety gate: if the due queue contains more than the configured development threshold, require an explicit operator confirmation or run only a single diagnostic job.
@@ -257,7 +236,6 @@
     Until the queue and lease behavior are corrected:
 
     - do not restart the worker against the existing 55-job backlog;
-    - inspect each queued Code Generator job's portfolio/run ID, stage, age, and idempotency key;
     - cancel or quarantine only the jobs that are confirmed obsolete through the normal application workflow;
     - run one small privacy-safe generation after the queue is controlled;
     - verify the Platform request count and spend before enabling broader generation.
@@ -282,8 +260,6 @@
     - Use a short development TTL until the prompt/schema contract is stable.
     - Invalidate results when the prompt manifest, schema version, model profile, or policy version changes.
 
-    The local database showed only a small number of exact result-cache hits. That cache is working for identical operations, but it cannot explain the Platform-wide prompt-cache numbers and cannot by itself stop unique Code Generator runs from spending money.
-
     ### 7.2 Provider prompt cache
 
     Provider prompt caching reuses an eligible prefix of a later request. It is not a completed-answer cache. The model still runs for each request, and dynamic input and output tokens are still processed.
@@ -301,13 +277,7 @@
     - different agents use different prompt manifests and therefore cannot share a prefix;
     - a failed request creates a new write but the next request changes enough content that it cannot read it.
 
-    ### 7.3 Code Generator cache-key problem
-
-    The Code Generator currently passes a cache key shaped like:
-
     ```text
-    codegen:{generation_id}:{role_profile}
-    ```
 
     Because `generation_id` is specific to a generation, every new generation creates a new prompt-cache namespace. This is appropriate for isolating some run-specific context, but it is a poor key for a stable system prompt, schema, and role contract that should be reused across runs.
 
@@ -583,7 +553,6 @@
 
     ### Phase 0: contain spend
 
-    1. Keep the worker stopped until the queued Code Generator jobs are reviewed.
     2. Lower the development project spend limit and configure a low alert threshold.
     3. Use a separate development project/key from any production or shared environment.
     4. Confirm every running checkout, worker, test process, and harness that can read the model credential.
@@ -725,8 +694,6 @@
     - [`config/models.toml`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/config/models.toml>)
     - [`src/oryxenai/agents/shared/model_cache.py`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/shared/model_cache.py>)
     - [`src/oryxenai/agents/shared/providers/opencode_go.py`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/shared/providers/opencode_go.py>)
-    - [`src/oryxenai/agents/code_generator/core/generation_orchestrator.py`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/code_generator/core/generation_orchestrator.py>)
-    - [`src/oryxenai/agents/code_generator/core/planner_operation.py`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/code_generator/core/planner_operation.py>)
     - [`src/oryxenai/jobs/repository.py`](<C:/Users/Yash Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/jobs/repository.py>)
     - [OpenAI model guidance on prompt caching and request efficiency](https://developers.openai.com/api/docs/guides/latest-model)
     - [OpenAI Platform usage reference](https://platform.openai.com/docs/api-reference/usage/audio_transcriptions_object)

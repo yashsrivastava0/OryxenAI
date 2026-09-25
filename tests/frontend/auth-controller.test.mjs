@@ -296,7 +296,6 @@ test("authorized fetch consumes its bootstrap session once and then reads curren
   await request("/api/v1/me");
   sessionToken = "newer";
   await request("/api/v1/sessions");
-  await request("/api/v1/development/code-generator/runs/id/source-file?path=src%2FApp.tsx");
   assert.deepEqual(seen, ["Bearer bootstrap", "Bearer newer", "Bearer newer"]);
   assert.equal(sessionReads, 2);
 });

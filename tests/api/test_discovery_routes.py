@@ -29,7 +29,6 @@ def test_all_discovery_endpoints_are_registered() -> None:
 def test_model_profile_endpoint_is_config_driven_and_safe() -> None:
     paths = create_app().openapi()["paths"]
     assert "post" in paths["/api/v1/sessions/{session_id}/content-architect/stop"]
-    assert "post" in paths["/api/v1/sessions/{session_id}/visual-design-director/stop"]
     assert "/api/v1/model-profiles" in paths
     schema = paths["/api/v1/model-profiles"]["get"]["responses"]["200"]["content"][
         "application/json"

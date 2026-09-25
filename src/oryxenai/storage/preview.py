@@ -600,11 +600,11 @@ def _repository_root() -> Path:
 
 
 def create_preview_storage(settings: object) -> PreviewStorage:
-    config = getattr(settings, "code_generator_verification", None)
-    provider = str(getattr(config, "preview_storage_provider", "local_fs") or "local_fs")
+    config = getattr(settings, "archive_storage", None)
+    provider = str(getattr(config, "provider", "local_fs") or "local_fs")
     if provider == "memory":
         return MemoryPreviewStorage()
-    root_value = str(getattr(config, "preview_root", ".workspace/code-generator-preview"))
+    root_value = str(getattr(config, "root", ".workspace/archive-preview"))
     root = Path(root_value)
     if not root.is_absolute():
         root = _repository_root() / root
@@ -620,7 +620,7 @@ def create_preview_storage(settings: object) -> PreviewStorage:
             endpoint_url=str(getattr(source, "endpoint_url", "") or ""),
             bucket=str(getattr(source, "bucket", "") or ""),
             region=str(getattr(source, "region", "auto") or "auto"),
-            prefix=str(getattr(config, "preview_storage_prefix", "preview") or "preview"),
+            prefix=str(getattr(config, "prefix", "preview") or "preview"),
             access_key_env=str(
                 getattr(source, "access_key_env", "R2_ACCESS_KEY_ID") or "R2_ACCESS_KEY_ID"
             ),

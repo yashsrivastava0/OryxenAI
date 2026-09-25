@@ -55,7 +55,7 @@ class ArtifactStorageError(Exception):
 
 
 class ArtifactStore(Protocol):
-    """Minimal store contract used by the Build Preparation packager."""
+    """Minimal store contract used for archived output references."""
 
     async def put_verified(
         self,

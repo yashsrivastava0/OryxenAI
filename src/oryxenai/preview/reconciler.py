@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from oryxenai.agents.code_generator.core.development_schemas import BuildManifest, PendingPromotion
+from oryxenai.preview.contracts import BuildManifest, PendingPromotion
 from oryxenai.preview.promotion import PreviewPromoter
 from oryxenai.storage.preview import PreviewStorage
 

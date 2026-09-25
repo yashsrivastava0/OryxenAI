@@ -35,13 +35,13 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 | **Promotion to `deployment`** | Requires explicit, per-instance operator go-ahead | No standing/assumed permission — even for routine changes |
 | **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#7](https://github.com/yashsrivastava0/OryxenAI/pull/7) | All merged into `deployment` (regular merge commits) |
 | **VM power schedule** | ⏰ Auto-shutdown 01:00 IST, auto-start 07:00 IST | **The VM is expected to be unreachable ~01:00-07:00 IST daily** — intentional, see D-112 and `docs/deployment/vm-cost-automation.md` |
-| **Last Updated** | 2026-09-24 | Local runtime retirement documented; live deployment state remains unchanged |
+| **Last Updated** | 2026-09-25 | Local workflow cleanup documented; live deployment state remains unchanged |
 
 ---
 
 ## Active Blockers
 
-- Local cleanup is incomplete: legacy source modules and historical project reports remain in this checkout, although current API routing and worker registration exclude those stages. The broad deletion request was rejected because its target set also included archive and account-cleanup components. No narrower bulk deletion was attempted, and no deployment or GitHub operation was performed.
+- CI workflow edits are local; the remote quality gate has not been run for this checkout.
 
 ---
 

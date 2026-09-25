@@ -15,7 +15,7 @@ from urllib.parse import quote, urlsplit
 import httpx
 from pydantic import ValidationError
 
-from oryxenai.agents.code_generator.core.development_schemas import (
+from oryxenai.preview.contracts import (
     ActivePreview,
     BuildManifest,
     BuildManifestEntry,
@@ -158,7 +158,7 @@ class PreviewPromoter:
         # serves only files listed by the build manifest.
         manifest_data = _canonical(
             {
-                "schema_version": "code-generator-candidate-manifest-v1",
+                "schema_version": "preview-candidate-manifest-v1",
                 "candidate_id": candidate_id,
                 "candidate_identity_hash": identity.identity_hash,
                 "build_hash": build_hash,
@@ -347,7 +347,7 @@ class PreviewPromoter:
                 )
             manifest = BuildManifest.model_validate(candidate_pointer["manifest"])
             pointer = {
-                "schema_version": "code-generator-active-preview-v1",
+                "schema_version": "preview-active-pointer-v1",
                 "run_id": run_id,
                 "host": host,
                 "candidate_prefix": candidate_prefix,

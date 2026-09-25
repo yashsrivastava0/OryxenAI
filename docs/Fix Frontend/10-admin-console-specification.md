@@ -14,7 +14,6 @@ The admin page supports safe workspace lifecycle administration:
 - inspect users, projects, legacy projects, deleted identities, durable administrator operations, and audit events;
 - request server-authorized lifecycle actions;
 - recover resumable administrator operations;
-- issue the existing administrator-only Code Generator retry/regenerate commands where the server allows them.
 
 The creator shell may expose `Administration` from the account menu only when the current identity is an administrator. It must not display `Reset Pipeline` in the creator topbar. The existing reset command may remain in the admin-only account surface or be surfaced inside this console only if its current server-authorized handler is reused; do not invent a new backend mutation endpoint as part of this documentation/remediation handoff. The current source location to audit is `frontend/src/app/AppShell.tsx`.
 
@@ -38,7 +37,6 @@ Do not add charts, external images, raw JSON, UUIDs, secrets, or a second perman
 | Tab | API read route | Row identity | Safe row metadata | Permitted controls |
 |---|---|---|---|---|
 | Users | `GET /api/v1/admin/users` | username or safe fallback | role, status, masked email | suspend/restore, reset entitlement for normal users, promote/demote, delete, subject to server rules |
-| Projects | `GET /api/v1/admin/projects` | project/session display identity | status, owner username | delete, Code Generator retry, Code Generator regenerate where active and authorized |
 | Legacy | `GET /api/v1/admin/legacy-projects` | legacy project identity | status, owner/legacy marker | delete, subject to server rules |
 | Deleted | `GET /api/v1/admin/deleted-identities` | tombstone identity | former role, masked email, readmission state | readmit only when the row is awaiting approval |
 | Operations | `GET /api/v1/admin/operations` | operation identity | action, status, step, safe error code | `Resume safely` only when `resumable` is true |

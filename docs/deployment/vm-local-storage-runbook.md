@@ -15,17 +15,7 @@ Child directories use the service-specific owners and modes below:
 | Host path below the data root | Container path | Owner | Purpose |
 | --- | --- | --- | --- |
 | `postgres` | `/var/lib/postgresql/data` | `postgres` from the pinned image | PostgreSQL database and durable jobs |
-| `preview` | `/app/.workspace/code-generator-preview` | `oryxen:oryxen` (`1001:1001`) | Immutable preview objects and metadata |
 | `image-search-cache` | `/app/.workspace/image-search-cache` | `oryxen:oryxen` | Image retrieval cache |
-| `npm-cache` | `/app/.workspace/npm-cache` | `oryxen:oryxen` | Offline Code Generator package cache |
-| `code-generator-development` | `/app/.workspace/code-generator-development` | `oryxen:oryxen` | Development input boundary retained by the image contract |
-| `code-generator-materials` | `/app/.workspace/code-generator-materials` | `oryxen:oryxen` | Acquired, pinned resource bytes |
-| `code-generator-generation` | `/app/.workspace/code-generator-generation` | `oryxen:oryxen` | Generation workspaces |
-| `code-generator-checkpoints` | `/app/.workspace/code-generator-checkpoints` | `oryxen:oryxen` | Resumable stage checkpoints |
-| `code-generator-workspaces` | `/app/.workspace/code-generator-workspaces` | `oryxen:oryxen` | Dependency-install workspaces |
-| `code-generator-artifacts` | `/app/.workspace/code-generator-artifacts` | `oryxen:oryxen` | Local content-addressed generated artifacts |
-| `build-preparation-staging` | `/app/.workspace/build-preparation-staging` | `oryxen:oryxen` | Durable handoff/debug staging boundary |
-| `code-gen-output` | `/app/output/code-gen-output` | `oryxen:oryxen` | Complete generated portfolio exports |
 | `caddy/data` | `/data` | non-root `1001:1001` forced by Compose | Certificates and Caddy state |
 | `caddy/config` | `/config` | non-root `1001:1001` forced by Compose | Caddy runtime configuration state |
 
@@ -54,8 +44,6 @@ The initial operating policy is:
 - keep active previews and their metadata until the session is deleted or the
   application’s owner/admin cleanup has completed;
 - retain abandoned preview objects for 3 days;
-- retain completed Code Generator workspaces/checkpoints for 7 days unless a
-  run is still recoverable; and
 - retain rebuildable image/npm caches for 30 days before manual cleanup.
 
 The retention values are recorded in the VM `.env`; cleanup must be a reviewed
@@ -83,10 +71,6 @@ Caddy validation, the credential-free log scan, and:
 ```bash
 ./scripts/azure-deploy.sh storage-smoke
 ```
-
-The smoke check writes and verifies one local Code Generator artifact from the
-worker, writes a preview object from the worker, reads that same object from
-the preview gateway process, and removes only its uniquely named marker.
 
 For a restart check, run the smoke command, restart only the worker and
 preview gateway, then run it again:
@@ -150,25 +134,7 @@ persistent database and service volumes.
 
 ## Current storage blocker
 
-The active Build Preparation contract is the approved pair of Markdown briefs
-stored in session state; it does not create a ZIP or object-storage artifact.
-The current Code Generator artifact and preview paths use the existing local
-filesystem implementations. The legacy generic `artifact_storage` boundary
-still has only memory and S3-compatible implementations in
-`src/oryxenai/storage/artifacts.py`. The production overlay selects an
-explicit `local_fs` value for that legacy boundary so it cannot silently use a
-cloud credential or an in-memory substitute; if a legacy session containing a
-generic `ArtifactReference` must be restored or cleaned up, that is a release
-blocker until a reviewed local implementation exists.
-
 **Confirmed inert for the first Azure deployment (2026-09-21):** the only two
 call sites for `create_artifact_store()` are `AdminService._cleanup_artifacts`
 (`src/oryxenai/auth/admin/service.py`), which only constructs the store when
 it actually finds an `ArtifactReference`-shaped value while scanning a
-session's stored state, and `CodeGeneratorService._verify_artifact_head`
-(`src/oryxenai/agents/code_generator/service.py`), which is currently unused
-by any caller. Since production's database has no sessions predating this
-Markdown-brief handoff, no session can contain a legacy `ArtifactReference`,
-so neither call site can be reached on the first deployment. This remains a
-release blocker for any *future* deployment that carries forward session
-state created before this note.

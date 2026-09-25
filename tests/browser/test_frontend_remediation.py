@@ -88,7 +88,12 @@ def test_mobile_uses_compact_selector_and_locked_options(browser_page: object) -
     page.goto(f"{BASE_URL}/?fixture=content-review", wait_until="networkidle")
     selector = page.get_by_label("Current portfolio stage")
     assert selector.is_visible()
-    assert selector.locator("option", has_text="Design").is_disabled()
+    options = selector.locator("option")
+    assert options.count() == 2
+    assert options.nth(0).inner_text().startswith("1. Discover")
+    assert options.nth(1).inner_text().startswith("2. Content")
+    assert options.nth(0).is_enabled()
+    assert options.nth(1).is_enabled()
     assert page.locator(".journey-rail").is_hidden()
     assert_no_horizontal_overflow(page)
 
@@ -105,168 +110,6 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
     assert prompt_box and dock_box
     assert dock_box["y"] >= prompt_box["y"] + prompt_box["height"]
     assert_no_horizontal_overflow(page)
-
-
-def test_approved_artifact_exposes_a_separate_destination_start(browser_page: object) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": 1366, "height": 768})
-    page.goto(f"{BASE_URL}/?fixture=content-approved", wait_until="networkidle")
-    assert page.get_by_role("button", name="Start Visual Design Director").is_visible()
-    assert page.get_by_text(
-        "Approval is saved. Start the next stage when you are ready."
-    ).is_visible()
-    assert page.get_by_role("button", name="Approve content plan").count() == 0
-
-
-def test_preparation_is_metadata_only_and_inspector_is_closed(browser_page: object) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": 1366, "height": 768})
-    page.goto(f"{BASE_URL}/?fixture=preparation-ready", wait_until="networkidle")
-    assert page.get_by_role("heading", name="Build handoff prepared").is_visible()
-    assert page.locator(".evidence-card").count() == 1
-    assert page.locator(".preparation-stage-view img").count() == 0
-    assert page.locator("#output-inspector-drawer").count() == 0
-
-
-def test_generation_working_uses_human_milestones_and_attention_preserves_preview(
-    browser_page: object,
-) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": 1366, "height": 768})
-    page.goto(f"{BASE_URL}/?fixture=generation-working", wait_until="networkidle")
-    for label in ("Plan", "Acquire", "Build", "Verify", "Preview"):
-        assert page.locator(".step-label", has_text=label).is_visible()
-    assert page.get_by_text("62%", exact=True).count() == 0
-    assert page.get_by_text("Publish", exact=False).count() == 0
-    assert page.get_by_text("Deploy", exact=False).count() == 0
-    page.goto(f"{BASE_URL}/?fixture=generation-attention", wait_until="networkidle")
-    assert page.get_by_text("Your last verified preview is still available.").is_visible()
-    assert page.get_by_role("button", name="Retry generation").is_visible()
-    page.goto(f"{BASE_URL}/?fixture=generation-planning-failed", wait_until="networkidle")
-    assert page.get_by_role("heading", name="Generation needs attention").is_visible()
-    assert page.get_by_text("The background job handler failed.").is_visible()
-    assert page.get_by_role("button", name="Refresh state").count() == 0
-    assert page.get_by_role("button", name="Retry generation").is_visible()
-    assert_no_horizontal_overflow(page)
-
-
-@pytest.mark.parametrize("width,height", VIEWPORTS)
-def test_generation_preview_is_truthful_and_contained(
-    browser_page: object, width: int, height: int
-) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": width, "height": height})
-    page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
-    theater = page.locator(".codegen-preview-theater")
-    frame = page.locator(".browser-content-viewport")
-    assert theater.is_visible()
-    assert frame.is_visible()
-    assert page.get_by_role("link", name="Open verified preview").is_visible()
-    assert page.get_by_role("button", name="Regenerate portfolio").is_visible()
-    assert page.get_by_text("Publish", exact=False).count() == 0
-    assert page.get_by_text("Deploy", exact=False).count() == 0
-    theater_box = theater.bounding_box()
-    frame_box = frame.bounding_box()
-    assert theater_box and frame_box
-    assert frame_box["x"] >= theater_box["x"]
-    assert frame_box["x"] + frame_box["width"] <= theater_box["x"] + theater_box["width"] + 1
-    if width == 768:
-        left_panel = page.locator(".codegen-left-panel").bounding_box()
-        assert left_panel is not None
-        assert theater_box["y"] < left_panel["y"]
-    assert_no_horizontal_overflow(page)
-
-
-def test_generation_transition_respects_reduced_motion(browser_page: object) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": 1366, "height": 768})
-    page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
-    assert page.locator(".stage-transition-layer").count() == 1
-    page.emulate_media(reduced_motion="reduce")
-    duration = page.locator(".stage-transition-layer").evaluate(
-        "element => getComputedStyle(element).animationDuration"
-    )
-    assert duration in {"0.01s", "1e-05s"}
-
-
-def test_generation_candidate_is_never_presented_as_verified(browser_page: object) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": 1366, "height": 768})
-    page.goto(f"{BASE_URL}/?fixture=generation-candidate", wait_until="networkidle")
-    assert page.get_by_text("Candidate preview (unverified)").is_visible()
-    assert page.get_by_role("link", name="Open candidate preview").is_visible()
-    assert page.get_by_text("Open verified preview", exact=True).count() == 0
-
-
-def test_preview_reload_gets_a_fresh_timeout(browser_page: object) -> None:
-    page = browser_page
-    held_routes: list[object] = []
-    page.add_init_script(
-        """(() => {
-          const nativeSetTimeout = window.setTimeout.bind(window);
-          window.setTimeout = (callback, delay, ...args) =>
-            nativeSetTimeout(callback, delay === 8000 ? 25 : delay, ...args);
-        })();"""
-    )
-
-    def serve_preview(route: object, request: object) -> None:
-        url = str(request.url)
-        if "_preview_reload=" in url:
-            # Keep this navigation pending to exercise the fresh per-load
-            # deadline without making the test sleep for the production 8s.
-            held_routes.append(route)
-            return
-        route.fulfill(
-            status=200,
-            content_type="text/html",
-            body="""<!doctype html><title>Preview test</title><main>ready</main>
-              <script>
-                addEventListener('message', event => {
-                  if (event.source !== parent || event.data?.type !== 'preview:init') return;
-                  parent.postMessage({type: 'preview:ready', version: 'preview-bridge-v1'}, event.origin);
-                });
-              </script>""",
-        )
-
-    page.route("https://preview.example.test/**", serve_preview)
-    try:
-        page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
-        page.get_by_text("The preview navigation bridge is connected.", exact=False).wait_for()
-        page.get_by_title("Reload preview").click()
-        page.get_by_role("alert").filter(has_text="preview did not finish loading").wait_for()
-        assert len(held_routes) == 1
-    finally:
-        for route in held_routes:
-            route.abort()
-        page.unroute("https://preview.example.test/**", serve_preview)
-
-
-def test_preview_http_error_document_is_not_reported_as_connected(browser_page: object) -> None:
-    page = browser_page
-    page.route(
-        "https://preview.example.test/**",
-        lambda route: route.fulfill(
-            status=503,
-            content_type="text/html",
-            body="<!doctype html><title>Unavailable</title><h1>Gateway unavailable</h1>",
-        ),
-    )
-    page.goto(f"{BASE_URL}/?fixture=generation-ready", wait_until="networkidle")
-
-    status = page.locator(".preview-embed-status").filter(has_text="may be an error response")
-    status.wait_for()
-    assert page.get_by_text("The preview navigation bridge is connected.", exact=False).count() == 0
-    assert page.get_by_role("alert").count() == 0
-
-
-def test_generation_direct_fixture_requires_an_explicit_standalone_run(
-    browser_page: object,
-) -> None:
-    page = browser_page
-    page.set_viewport_size({"width": 1366, "height": 768})
-    page.goto(f"{BASE_URL}/?fixture=generation-direct", wait_until="networkidle")
-    assert page.get_by_role("heading", name="Run ID required").is_visible()
-    assert page.get_by_text("fixture=generation-direct&run_id=<RUN_ID>", exact=False).is_visible()
 
 
 def test_developer_inspector_is_opt_in_and_drawer_is_accessible(browser_page: object) -> None:

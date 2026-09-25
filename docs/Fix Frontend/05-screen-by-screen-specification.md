@@ -9,8 +9,6 @@ Inputs and actions are part of the specification, not decorative annotations. Ev
 - Discovery intake and answers use a labeled multiline input/composer. The input is for user-provided intent or an answer to the current question; it is not a raw model prompt editor.
 - The intake CTA is `Start Discovery`.
 - The question CTA is `Submit answer` or `Next question` depending on whether the next question has already been returned. It must not claim to advance an agent stage.
-- Review CTAs name the destination agent: `Approve & continue to Content Architect`, `Approve & continue to Visual Design Director`, and `Approve & continue to Build Preparation`.
-- Build Preparation uses `Continue to Generate`, which reveals the explicit Generation entry action; it does not silently auto-start Code Generator.
 - A `Revise` action reveals a short revision composer with a label such as `What should change?`, preserves the current artifact, and submits through the existing revision endpoint.
 - A disabled or loading button keeps its label and exposes progress through adjacent status text; it must never collapse to an unlabeled icon.
 
@@ -119,71 +117,11 @@ Primary order:
 
 Only the selected route is expanded. Other routes remain compact but selectable. Title and body fields must not duplicate identical text. The action dock remains visible for approval and revision.
 
-## Visual Design Director: review
-
-Primary order:
-
-1. creative thesis;
-2. design-intent summary for color behavior, typography behavior, grid, motion, and interaction;
-3. route selector;
-4. visible scene storyboard for the selected page;
-5. asset-brief treatment cards and adapted resource candidates.
-
-Scenes are not hidden behind a single collapsed disclosure. Page-level detail, candidate rationale, and final JSON are secondary. Never fabricate color swatches, hex values, font names, or literal CSS tokens.
-
-## Build Preparation: working
-
-Primary: a four-step semantic progress surface: validating, researching, assembling, verifying.
-
-Secondary: current milestone, elapsed/last-updated information, and stop/retry behavior when supported.
-
-Do not show raw API requests, storage paths, or incomplete resource payloads.
-
-## Build Preparation: ready
-
-Primary: readiness summary with one status and compact counts for routes, sections, resources, and components.
-
-Secondary: metadata-only evidence cards and two separate brief readers.
-
-Evidence cards show title, purpose, provider/source, license, dimensions/aspect, and source link. They do not render external preview URLs as images under the self-only CSP. A neutral intent tile is used when there is no same-origin image.
-
-The explicit Continue to Generate action is available in the action dock and/or the readiness summary without requiring a long scroll.
-
-## Generation: available
-
-When Build Preparation is approved, show a clear Generate Portfolio action. Do not show an unexplained Stage Locked dead end. If the user arrived early, show the exact prerequisite and a direct link back to Prepare.
-
-## Generation: working
-
-Primary: semantic milestones with the current milestone emphasized:
-
-```text
-Planning → Acquiring resources → Building pages → Testing viewports → Promoting preview
-```
-
-Use human-readable labels, not raw lowercase coordinator values. Show current activity, safe attempt information, last update, and Stop when supported. Do not invent percentages or ETAs.
-
-## Generation: attention
-
-Primary: concise failure summary and direct next action.
-
-Secondary: preserved verified/candidate preview, safe technical reference disclosure, and refresh/support guidance when retry is unavailable.
-
-The UI must stop polling, retain existing preview artifacts, and never display an endless working checklist after a terminal job failure.
-
-## Generation: ready/preview
-
-Primary: an isolated verified-preview theater with a truthful verification label, route selection only when route data exists, Fit to view, focus mode when supported, and an open-in-new-window action. The preview is the dominant artifact; the milestone history and instruction composer remain secondary.
-
-Secondary: non-blocking warnings and explicit regeneration only when server policy permits it. Clearly label verified versus candidate/unverified previews. Do not render `Publish` or `Deploy` copy without a server-authoritative publishing contract; the current generation callback opens the preview and does not publish it.
-
-The current implementation source is `frontend/src/stages/generation/GenerationStage.tsx`, and its data authority is `frontend/src/data/adapters/generation.ts`. Use [17-generation-ready-preview-research.md](17-generation-ready-preview-research.md) and [20-generation-ready-preview.png](visuals/20-generation-ready-preview.png) for the ready-state hierarchy.
-
-If the prior preparation approval succeeded but Generation start did not, show the approved preparation context and a separate `Start generation` action. Never replace this partial-success state with `Stage Locked`.
+Content Architect approval is the terminal state of the active workflow.
 
 ## Tablet and mobile
 
-Tablet uses one responsive column with a compact stage selector, in-flow context strip, preview theater before long activity/composer content, contained route controls, and reserved actions. This is a host-shell reflow requirement, not a dedicated tablet visual or a new preview-device API. Mobile uses a single readable stream, full-width controls, no permanent rails, and a full-screen/slide-over inspector. No content may require horizontal page scrolling.
+Tablet uses one responsive column with a compact stage selector, in-flow context strip, contained route controls, and reserved actions. Mobile uses a single readable stream, full-width controls, no permanent rails, and a full-screen/slide-over inspector. No content may require horizontal page scrolling.
 
 ## Administrator screen
 

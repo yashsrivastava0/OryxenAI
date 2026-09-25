@@ -21,7 +21,6 @@ export const PRIVATE_SESSION_PREFIXES = Object.freeze([
   "oryxenai.draft.",
   "oryxenai.revision_draft.",
   "oryxenai.pipeline.",
-  "oryxenai.codegen.",
   "oryxen:idempotency:",
 ]);
 
@@ -163,7 +162,7 @@ function errorMessage(code, serverMessage = "") {
     case "USERNAME_TAKEN":
       return "That username is already taken.";
     case "GENERATION_VARIANT_LOCKED":
-      return "Your one Code Generator variant is already bound. Retry that run if the server allows it.";
+      return "The portfolio variant for this account is already set. Retry the same operation later.";
     case "PORTFOLIO_READ_ONLY":
       return "This portfolio has a verified success and is now read-only.";
     case "MODEL_PROVIDER_CREDIT_EXHAUSTED":

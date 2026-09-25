@@ -511,6 +511,14 @@ class ArchiveStorageConfig(BaseModel):
     handoff_mirror_root: str = "output/archive-handoff-mirrors"
 
 
+class PreviewGatewayConfig(BaseModel):
+    """Network binding and URL prefix for the standalone preview gateway."""
+
+    host: str = "127.0.0.1"
+    port: int = 4174
+    route_prefix: str = "/preview"
+
+
 class ModelCacheConfig(BaseModel):
     """Durable structured-result cache and local run-export policy."""
 
@@ -726,6 +734,7 @@ class Settings(BaseSettings):
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     content_architect: ContentArchitectConfig = Field(default_factory=ContentArchitectConfig)
     archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
+    preview_gateway: PreviewGatewayConfig = Field(default_factory=PreviewGatewayConfig)
     artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
 
     @model_validator(mode="after")
@@ -772,6 +781,8 @@ class Settings(BaseSettings):
             self.content_architect = ContentArchitectConfig(**app_data["content_architect"])
         if "archive_storage" in app_data:
             self.archive_storage = ArchiveStorageConfig(**app_data["archive_storage"])
+        if "preview_gateway" in app_data:
+            self.preview_gateway = PreviewGatewayConfig(**app_data["preview_gateway"])
         if "artifact_storage" in app_data:
             self.artifact_storage = ArtifactStorageConfig(**app_data["artifact_storage"])
 

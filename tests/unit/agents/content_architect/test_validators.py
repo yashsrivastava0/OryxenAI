@@ -507,27 +507,24 @@ class TestValidateIntegrateContent:
                 "content_included": False,
                 "page_content_packs": [_pack()],
                 "public_content_manifest": {"nav": []},
-                "visual_director_handoff": {"content_hierarchy": ["hero"]},
             },
             "integrate_content",
             known_route_plan=[_route()],
         )
         assert outcome.is_valid
 
-    def test_missing_handoff_rejected(self):
+    def test_missing_public_manifest_rejected(self):
         outcome = validate_stage_output(
             {
                 "mode": "INTEGRATED",
                 "content_included": False,
                 "page_content_packs": [_pack()],
-                "public_content_manifest": {"nav": []},
-                "visual_director_handoff": {},
             },
             "integrate_content",
         )
         assert not outcome.is_valid
         assert any(
-            "'visual_director_handoff' must not be empty" in error for error in outcome.errors
+            "'public_content_manifest' must not be empty" in error for error in outcome.errors
         )
 
 

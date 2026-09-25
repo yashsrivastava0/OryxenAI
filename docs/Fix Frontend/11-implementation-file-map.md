@@ -8,7 +8,6 @@ This is the routing sheet for the implementing AI. It identifies where each scre
 |---|---|---|
 | App composition, stage selection, topbar, account menu | `frontend/src/app/AppShell.tsx` | remove creator-topbar destructive admin reset; keep quiet admin link; preserve auth/session and explicit stage commands; compose shared navigator, context, dock, inspector |
 | Session/request store | `frontend/src/app/store.ts` | preserve revision, ownership, read-only, and announcement behavior; add only view-model state needed by the documented UI |
-| API boundary | `frontend/src/data/api-client.ts` | keep endpoint/auth/idempotency behavior; model the three Code Generator projection fields without comparing `current_run_id` to job IDs |
 | Frontend adapters | `frontend/src/data/adapters/` | keep pure; normalize states and active job from server data; preserve raw agent-owned output separately; suppress duplicate display values |
 | Shared layout tokens/styles | `frontend/src/styles/shell.css`; shared product tokens/motion are served from `src/oryxenai/auth/static/tokens.css` and `src/oryxenai/auth/static/motion.css` | replace rail-heavy layout with bounded canvas, reserved dock, contained tabs, focus/reduced-motion rules; do not invent a new framework |
 | Existing output rail | `frontend/src/app/AppShell.tsx` and related output components | move to closed developer-only `OutputInspector`; active selection follows current stage and never falls back to stale Discovery output |
@@ -19,9 +18,6 @@ This is the routing sheet for the implementing AI. It identifies where each scre
 |---|---|---|
 | Discovery intake/questioning/review | `frontend/src/stages/discovery/DiscoveryStage.tsx` | labeled intake/answer composer, one question at a time, concise review summary, profile facts, brief reader, revision composer, visible destination-specific approval |
 | Content review | `frontend/src/stages/content/ContentStage.tsx` | narrative thesis, route map, contained route tabs, one expanded route, non-duplicated section cards, revision/approval dock |
-| Visual Design review | `frontend/src/stages/design/DesignStage.tsx` | intent-driven thesis/cards, route selector, visible scene storyboard, no invented hex colors/swatches/font names, revision/approval dock |
-| Build Preparation | `frontend/src/stages/preparation/BuildPreparationStage.tsx` | semantic working milestones, readiness summary, metadata-only evidence cards, two brief readers, explicit Continue to Generate |
-| Generation | `frontend/src/stages/generation/GenerationStage.tsx` | available/working/attention/ready states, semantic milestones, preview theater, preserved preview on failure, valid retry/recovery, truthful verified-preview actions, preview-first tablet reflow |
 
 ## Existing reusable components to audit
 
@@ -29,12 +25,11 @@ Before adding a new shared abstraction, inspect these existing components and te
 
 - `frontend/src/components/WorkspaceCanvas.tsx`;
 - `frontend/src/components/ContentPackExplorer.tsx`;
-- `frontend/src/components/SceneStoryboard.tsx`;
 - `frontend/src/data/activity-copy.ts`;
 - `frontend/src/stages/stages.test.ts`;
 - adapter-specific tests under `frontend/src/data/adapters/`.
 
-The target abstractions are documented in [06-component-and-view-model-contracts.md](06-component-and-view-model-contracts.md): `StageNavigator`, `StageContextStrip`, `ArtifactReview`, `ActionDock`, `OutputInspector`, `ProgressSurface`, `AttentionPanel`, `PreviewTheater`, `InputComposer`, and `NextStageHandoff`.
+The target abstractions are documented in [06-component-and-view-model-contracts.md](06-component-and-view-model-contracts.md): `StageNavigator`, `StageContextStrip`, `ArtifactReview`, `ActionDock`, `OutputInspector`, `ProgressSurface`, `AttentionPanel`, and `InputComposer`.
 
 ## Discovery question routing addendum
 
@@ -47,17 +42,6 @@ The target abstractions are documented in [06-component-and-view-model-contracts
 | Question tests | `frontend/src/data/adapters/discovery.test.ts`, `frontend/src/stages/stages.test.ts`, and fixture-backed browser tests under the existing frontend test location | cover selection timing, native semantics, retained values after failure, status announcements, and target viewport geometry |
 
 Read [12-discovery-question-experience-research.md](12-discovery-question-experience-research.md) before making visual or interaction decisions. The two new images are visual references only; backend state and the existing authenticated API boundary remain authoritative.
-
-## Generation ready/preview routing addendum
-
-| Concern | Current source | Required work |
-|---|---|---|
-| Ready-state composition | `frontend/src/stages/generation/GenerationStage.tsx` | make the verified preview dominant; keep milestone history and composer secondary; remove publish/deploy implication from the preview-only callback |
-| Preview normalization | `frontend/src/data/adapters/generation.ts` | preserve the pure `preview`/`candidatePreview` split, stale-to-attention mapping, active job identity, and server-controlled retry eligibility |
-| Generation fixtures | `frontend/src/data/adapters/generation.fixtures.ts`, `frontend/src/data/adapters/generation.test.ts` | add/retain verified-ready, candidate-only, stale-ready, preserved-preview-attention, and partial-start fixtures without inventing backend fields |
-| Preview geometry | `frontend/src/styles/shell.css` | keep iframe inside a bounded responsive wrapper; use `min-width: 0`; preview-first single flow at 768–1199px; avoid fixed desktop minimum height at tablet/mobile |
-| Preview isolation | `frontend/src/stages/generation/GenerationStage.tsx` plus preview gateway boundary | preserve the existing sandbox/isolation contract; do not add external media or construct public URLs in the browser |
-| Reference and acceptance | `docs/Fix Frontend/17-generation-ready-preview-research.md`, `docs/Fix Frontend/visuals/20-generation-ready-preview.png`, `docs/Fix Frontend/08-acceptance-matrix.md` | use the image for hierarchy only; validate real DOM geometry at all four target viewports, with no separate tablet image |
 
 ## Admin surface
 
@@ -85,8 +69,7 @@ The image set in `visuals/` is a visual direction aid. The screenshots in `docs/
 1. Establish the server projection and pure adapter behavior.
 2. Replace the `/app` shell and action placement.
 3. Wire the Discovery composer and destination-specific handoff labels.
-4. Wire Content, Design, and Preparation artifact representations.
-5. Move raw output into the inspector and repair media fallback.
-6. Complete Generation available/working/attention/preview states.
-7. Audit `/admin` separately; remove only the creator-topbar reset affordance and preserve the admin console's server contract.
-8. Add fixture browser coverage, then run the authenticated smoke journey and full evidence matrix.
+4. Keep Content Architect approval terminal and preserve its explicit start boundary from Discovery.
+5. Move raw output into the inspector and verify the active stage selection.
+6. Audit `/admin` separately; remove only the creator-topbar reset affordance and preserve the admin console's server contract.
+7. Add fixture browser coverage, then run the authenticated Discovery and Content Architect journey.

@@ -18,7 +18,7 @@ This canonical guide preserves the original deployment research, setup, runbook,
 Research basis: September 5, 2026, with the deployment decision and current
 status refreshed on September 14, 2026. This document is intentionally focused on
 a first deployment for a very small demo where the main success criterion is
-that the complete agent-to-preview flow works.
+that the active Discovery and Content Architect workflow works.
 
 ## Decision
 
@@ -28,9 +28,6 @@ Pack domain.
 
 This is the best fit because the current application is not one stateless web
 process. It is an API, a PostgreSQL-backed durable queue, a separate worker,
-and a separate preview gateway. The worker can run long Code Generator stages,
-and the preview gateway must read generated artifacts after a container or
-process restart.
 
 ## Current Student Pack facts
 
@@ -71,7 +68,6 @@ provides a limited credit offer without requiring a credit card for eligible
 students. The [Azure student page](https://azure.microsoft.com/en-us/free/students)
 also lists small free service allowances, but the smallest VM sizes are too
 memory-constrained for a Docker image that includes Python, Node/npm,
-Chromium, and Code Generator verification.
 
 Choose a currently available VM with 2 vCPUs and at least 4 GiB RAM; 8 GiB is
 the preferred target. A B-series size such as `B2as_v2` or `B2als_v2` may be
@@ -121,8 +117,6 @@ deployment, and the current Docker migration service is ready for that shape.
 Store generated source/build artifacts and promoted preview objects on the
 VM's persistent disk below `ORYXENAI_DATA_ROOT` (default `/srv/oryxenai`). The
 worker and shared preview gateway share only the durable preview root;
-PostgreSQL, Code Generator workspaces, checkpoints, caches, exports, and Caddy
-state use separate bind-mounted directories.
 
 This removes external object-storage credentials, endpoints, buckets, lifecycle
 policies, and readback from the first release. The production Compose/config
@@ -150,9 +144,9 @@ the active profiles.
 
 This path uses a few external accounts, but it minimizes moving parts inside
 the application. The VM is intentionally simple: one place to run, inspect,
-restart, and back up. The user experience remains the existing product flow,
-and the preview is served by the existing shared gateway rather than by a new
-publishing platform.
+restart, and back up. The user experience remains the existing
+portfolio-planning flow, where users review an approved Discovery brief and a
+Content Architect plan.
 
 <!-- END SOURCE: 01-deployment-options-research.md -->
 
@@ -196,7 +190,7 @@ Use the existing Ubuntu VM documented in
 [`06-live-azure-vm-status.md`](./06-live-azure-vm-status.md), or create a
 similar Ubuntu LTS VM with:
 
-- two vCPUs and at least 4 GiB RAM; 8 GiB is more comfortable for generation;
+- two vCPUs and at least 4 GiB RAM; 8 GiB is more comfortable for the application and worker;
 - an SSH public key;
 - a static public IP;
 - a persistent OS disk.
@@ -361,10 +355,10 @@ Open `https://app.<DOMAIN>` and complete the Google sign-in flow. Confirm:
 
 1. the app loads over HTTPS;
 2. the approved Google account can complete username onboarding;
-3. the Discovery flow can be started and approved;
-4. the next stage can be started explicitly;
-5. the worker processes a durable job; and
-6. a generated preview opens through both the app and its direct preview URL.
+3. Discovery can be started, reviewed, and explicitly approved;
+4. Content Architect can then be started through its separate explicit action;
+5. the worker processes the durable job and the plan is available for review;
+6. approving the Content Architect plan ends the active workflow.
 
 The detailed acceptance matrix is in
 [`03-acceptance-and-operations.md`](./03-acceptance-and-operations.md).
@@ -473,14 +467,15 @@ daemon, or a new deployment document for an ordinary engine addition.
 
 # Deployment acceptance and operations
 
-The deployment is successful only when a real user can sign in, move through
-the explicit agent stages, and open the generated portfolio preview. A green
+The deployment is successful only when a real user can sign in, approve a
+Discovery brief, explicitly start Content Architect, and review and approve its
+plan. Content Architect approval is the end of the active workflow. A green
 container list alone is not acceptance.
 
 **Current checkpoint (2026-09-14):** no Azure application acceptance item in
 this document has been completed yet. The VM and SSH path are ready, but the
 application, Docker Compose services, production configuration, DNS, HTTPS,
-and live agent-to-preview flow are still pending. Local tests and development
+and live active-workflow acceptance are still pending. Local tests and development
 harness campaigns are useful evidence, but they do not check off the Azure
 acceptance items below.
 
@@ -518,44 +513,20 @@ If the callback fails, check the exact Supabase Site URL, Redirect URL,
 `primary_origin`, and `allowed_origins`. All four must describe the same HTTPS
 application origin.
 
-## C. Full generation acceptance
+## C. Active workflow acceptance
 
 Perform this with a small, privacy-safe portfolio input first:
 
 1. Start Discovery and wait for the worker to process it.
 2. Answer the questions and approve the brief.
 3. Explicitly start Content Architect and wait for its result.
-4. Approve the content result.
-5. Explicitly start Visual Design Director and wait for its result.
-6. Approve the visual direction.
-7. Explicitly start Build Preparation and confirm both Markdown briefs exist.
-8. Explicitly start Code Generator.
-9. Confirm the worker claims the Code Generator jobs and continues renewing
-   heartbeats.
-10. Wait for source generation, dependency acquisition, build checks, browser
-    verification, and preview promotion to finish.
-11. Open the generated preview inside the application.
-12. Open the direct preview URL in a new browser tab.
-13. Refresh the preview and confirm it still serves the generated portfolio.
+4. Review the Content Architect plan.
+5. Approve the plan and confirm that the active workflow is complete.
 
-The product intentionally does not auto-chain these stages. A caller must
-start each later stage explicitly.
+Discovery approval does not start Content Architect. Its start action is
+separate and explicit; Content Architect approval is terminal.
 
-## D. Preview acceptance
-
-- [ ] The preview URL uses `https://preview.<DOMAIN>/preview`.
-- [ ] The preview HTML loads without an application login cookie.
-- [ ] CSS, JavaScript, images, and fonts load from the preview object.
-- [ ] The preview works in the application's iframe.
-- [ ] The direct preview URL works in a new tab.
-- [ ] A failed replacement generation does not remove the last promoted
-  preview.
-- [ ] The preview gateway remains healthy after the worker restarts.
-
-The preview is public/unlisted by design. Anyone who receives its opaque URL
-can open it. This deployment does not add a separate publishing product.
-
-## E. Two-user check
+## D. Two-user check
 
 - [ ] User A can create and view their own portfolio.
 - [ ] User B can create and view their own portfolio.
@@ -567,18 +538,16 @@ The current application has server-side ownership and entitlement rules even
 though this deployment is not being treated as a security-sensitive public
 service. Do not bypass those rules in the browser while testing.
 
-## F. Failure diagnosis
+## E. Failure diagnosis
 
 | Symptom | First check |
 | --- | --- |
 | App does not load | `./scripts/azure-deploy.sh status`, DNS, ports `80`/`443`, `app` and `caddy` logs |
 | Auth callback fails | Supabase callback URL and exact production origin |
 | App is ready but jobs do not move | `worker` logs, worker heartbeat, `/health/ready`, database connectivity |
-| Build Preparation fails | VM storage permissions/capacity, resource-provider keys, worker logs |
-| Code Generator stops before preview | Active model profile credential, provider quota, worker memory, Code Generator logs |
 | Preview promotion fails | VM storage permissions/capacity, preview public URL, preview gateway logs |
 | Preview opens but is blank | Preview gateway logs, generated `dist` contents, browser console, preview volume contents |
-| VM becomes slow or kills the worker | VM memory, Docker stats, worker concurrency, active generation count |
+| VM becomes slow or kills the worker | VM memory, Docker stats, worker concurrency, active job count |
 
 Useful commands:
 
@@ -589,9 +558,9 @@ Useful commands:
 docker stats
 ```
 
-## G. Restart and recovery checks
+## F. Restart and recovery checks
 
-Perform these after the first successful generation:
+Perform these after the first successful active workflow acceptance:
 
 - [ ] Restart the worker and confirm the application remains available.
 - [ ] Restart the preview gateway and reopen the existing preview URL.
@@ -605,7 +574,7 @@ Perform these after the first successful generation:
 For a normal restart or a code fix, use `./scripts/azure-deploy.sh deploy`.
 Never use `docker compose down -v` for ordinary maintenance.
 
-## H. Minimal backup routine
+## G. Minimal backup routine
 
 The demo can use a simple manual backup rather than a full backup platform.
 Run a PostgreSQL dump before repository or migration changes:
@@ -621,7 +590,7 @@ and Caddy state separately from the PostgreSQL dump. Do not delete the active
 preview directory while diagnosing an application issue. See the [VM-local
 storage runbook](./vm-local-storage-runbook.md) for restore steps.
 
-## I. Cost and lifecycle checks
+## H. Cost and lifecycle checks
 
 Once per week while using the demo:
 
@@ -685,104 +654,6 @@ The browser assistant must first verify the subscription and whether
 
 ## Browser-agent mission — copy/paste this section
 
-```text
-You are the interactive Azure Portal setup assistant for the OryxenAI demo.
-Use browser control to guide and fill the Azure Portal one screen at a time.
-
-Mission:
-Create exactly one Azure Linux VM for OryxenAI. The VM will later run the
-existing Docker Compose stack containing PostgreSQL, migrations, FastAPI, the
-durable worker, the shared preview gateway, Code Generator tooling, and Caddy.
-
-Interaction rules:
-1. Start at the Azure Portal home page. Do not assume an old wizard state.
-2. Before changing anything, verify the selected subscription is Azure for
-   Students and inspect whether resource group oryxenai-demo-rg already exists.
-3. If oryxenai-demo-rg exists, reuse it. Do not create another resource group.
-4. If a requested portal field is named differently, inspect the current UI
-   and report the exact label before choosing the closest equivalent.
-5. Do not silently change Central India, the VM size, x64 architecture, or the
-   subscription. Ask the human before using a fallback.
-6. Do not select Pay-As-You-Go, add a payment method, remove the spending
-   limit, or add paid Azure services.
-7. Do not create Azure Database for PostgreSQL, App Service, AKS, Load
-   Balancer, Application Gateway, Front Door, or a second VM.
-8. Do not ask the human to paste a password, private SSH key, model key,
-   Supabase secret, provider key, or other production secret into chat.
-9. If Azure generates an SSH private key, download it directly to the human's
-   computer. Never upload, display, copy, or paste the private key into chat.
-10. Pause at every pause point in this document and wait for the human to
-    confirm before proceeding.
-11. At the end, report the created resource names and the VM public IPv4, but
-    never report or request the private SSH key contents.
-
-Azure resource target:
-- Subscription: Azure for Students
-- Existing/reusable resource group: oryxenai-demo-rg
-- Resource group region: Central India
-- VM name: oryxenai-demo-vm
-- VNet: oryxenai-demo-vnet
-- VNet address space: 10.0.0.0/16
-- Subnet: oryxenai-demo-subnet
-- Subnet address range: 10.0.0.0/24
-- NIC: oryxenai-demo-nic, if the wizard exposes the name
-- Public IP resource: oryxenai-demo-ip
-- Public IP: IPv4, Standard SKU, Static allocation
-- NSG: oryxenai-demo-nsg
-
-VM target:
-- Region: (Asia Pacific) Central India
-- Availability: No infrastructure redundancy required
-- Security type: Trusted launch virtual machines
-- Image: Ubuntu Server 24.04 LTS, x64 Gen2
-- Architecture: x64; never Arm64
-- Azure Spot: Off
-- VM size: Standard_B2as_v2, 2 vCPUs, 8 GiB RAM
-- Fallback only with human approval: Standard_B2als_v2, approximately 4 GiB
-- Hibernation: Off
-- Authentication: SSH public key
-- Linux username: oryxenaiadmin
-- SSH key format: Ed25519
-- Generated key-pair name: oryxenai-demo-key
-- Basics public inbound ports: None
-
-Disk target:
-- OS disk size: 64 GiB (E6), if the portal offers this exact choice
-- OS disk type: Standard SSD (LRS)
-- Encryption: Platform-managed key
-- Encryption at host: Off if unavailable/not registered
-- Delete OS disk with VM: On
-- Ultra Disk compatibility: Off
-- Additional data disks: None
-
-Networking target:
-- Public inbound rules must be exactly:
-  - Priority 100, Allow-SSH-MyIP, TCP 22, source current public IPv4/32
-  - Priority 110, Allow-HTTP, TCP 80, source Any
-  - Priority 120, Allow-HTTPS, TCP 443, source Any
-- Do not create public rules for TCP 5432, 5544, 8000, or 4174.
-- Load balancing: None
-- Private IP: Dynamic/default
-- Delete public IP with VM: On where offered
-- Delete NIC with VM: On where offered
-
-When the VM is successfully created, stop and report:
-- VM provisioning state
-- VM name
-- resource group
-- region
-- VM size
-- public IPv4
-- public IP resource name
-- NIC resource name
-- VNet/subnet names
-- NSG name
-- whether the three intended NSG rules exist
-
-Do not proceed to SSH, Docker, DNS, Caddy, Supabase, or application deployment
-until the human explicitly starts the next phase.
-```
-
 ## Detailed browser sequence
 
 The following is the expected sequence if the browser assistant needs a
@@ -840,8 +711,8 @@ estimate was approximately `$35.92`, but the current portal estimate is the
 one that matters.
 
 Do not choose the free B1s size merely because it appears in the Student Hub.
-The OryxenAI generator needs more memory for Docker, Node/npm, Chromium, and
-build verification.
+The OryxenAI application needs enough memory for Docker, Node/npm, Chromium,
+and worker operations.
 
 **Pause:** confirm the size, RAM, region, subscription, and estimate before
 continuing.
@@ -1099,8 +970,8 @@ the existing runbook to:
    overlay.
 5. Run `./scripts/azure-deploy.sh deploy`; Compose starts Caddy, PostgreSQL,
    migrations, API, worker, and preview gateway together.
-6. Run `./scripts/azure-deploy.sh verify` and the complete agent-to-preview
-   acceptance flow.
+6. Run `./scripts/azure-deploy.sh verify` and the active workflow acceptance
+   steps above.
 
 Caddy is Compose-managed; do not install or configure a second native Caddy
 service on the VM.
@@ -1232,7 +1103,7 @@ Keep these actions with you:
 - entering values into the VM-local `.env` during `setup` or `configure`;
 - approving and pushing a commit to the deployment branch;
 - running `deploy` against the intended commit; and
-- the final Google sign-in and generated-preview acceptance.
+- the final Google sign-in and active workflow acceptance.
 
 Everything else should be expressible as repository code, Compose
 configuration, a test, or a redacted command output that an AI assistant can

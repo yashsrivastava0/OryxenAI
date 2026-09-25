@@ -101,7 +101,6 @@ The online check validates network reachability and provider configuration witho
 
 - **API & Background Worker**: Deployed as containerized services on Render (separate processes sharing the same codebase).
 - **Database & Identity**: Supabase Free/Pro tier provides managed PostgreSQL (Alembic-managed schema) and Google OAuth provider.
-- **Storage**: Cloudflare R2 provides S3-compatible, zero-egress storage for Build Preparation pack ZIPs and preview sites.
 - **Preview Gateway**: Independent service on a separate domain serving generated portfolios without user credentials or cookies.
 
 ---
@@ -128,7 +127,6 @@ Before production release, the repository owner must perform the live Google OAu
 - [ ] Verify redirect to `/onboarding` upon first login.
 - [ ] Enter a valid username (e.g. `testuser`) and submit.
 - [ ] Verify automatic redirect to `/app`.
-- [ ] Create a portfolio and proceed through stages to Code Generator.
 - [ ] Verify that attempting to call `/regenerate` returns `409 GENERATION_VARIANT_LOCKED`.
 - [ ] Promote portfolio preview to active state.
 - [ ] Verify that the project transitions to read-only (`409 PORTFOLIO_READ_ONLY` on modifications) while preview viewing remains active.

@@ -12,7 +12,7 @@ from oryxenai.agents.shared.providers.errors import (
 from oryxenai.core.settings import get_settings
 
 
-def test_first_four_routes_keep_experiential_primary_and_allow_gemini_recovery() -> None:
+def test_active_routes_keep_experiential_primary_and_allow_gemini_recovery() -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
 
@@ -42,13 +42,9 @@ def test_first_four_routes_keep_experiential_primary_and_allow_gemini_recovery()
         ("content_architect", "plan_content"),
         ("content_architect", "write_pages"),
         ("content_architect", "integrate_content"),
-        ("visual_design_director", "establish_visual_language"),
-        ("visual_design_director", "direct_page_experience"),
-        ("visual_design_director", "integrate_site_experience"),
-        ("build_preparation", "compose_visual_brief"),
     ],
 )
-def test_all_first_four_personal_operations_keep_experiential_as_primary(
+def test_all_active_personal_operations_keep_experiential_as_primary(
     engine: str, operation: str
 ) -> None:
     settings = get_settings()
@@ -61,13 +57,13 @@ def test_all_first_four_personal_operations_keep_experiential_as_primary(
     assert all(settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in names)
 
 
-def test_first_four_unknown_input_also_has_only_gemini_fallbacks() -> None:
+def test_unknown_input_also_has_only_gemini_fallbacks() -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
 
     names = router.operation_profile_names(
-        "visual_design_director",
-        "establish_visual_language",
+        "content_architect",
+        "plan_content",
         input_classification="unknown",
     )
 

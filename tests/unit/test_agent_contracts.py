@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.agents.code_generator.agent import CodeGeneratorAgent
-from oryxenai.agents.code_generator.schemas import CodeGeneratorResponse
 from oryxenai.agents.content_architect.agent import ContentArchitectAgent
 from oryxenai.agents.content_architect.schemas import (
     ContentArchitectIntake,
@@ -21,15 +19,9 @@ from oryxenai.agents.shared.contracts import (
     AgentResult,
     AgentRunStatus,
 )
-from oryxenai.agents.visual_design_director.agent import VisualDesignDirectorAgent
-from oryxenai.agents.visual_design_director.schemas import (
-    VisualDesignDirectorOutput,
-    VisualPlanMode,
-)
 from tests.conftest import (
     _ContentArchitectMockModelClient,
     _MockModelClient,
-    _VisualDesignDirectorMockModelClient,
 )
 
 
@@ -37,8 +29,6 @@ def test_agent_key_from_string_valid():
     """Valid agent keys parse correctly."""
     assert AgentKey.from_string("discovery") == AgentKey.DISCOVERY
     assert AgentKey.from_string("content_architect") == AgentKey.CONTENT_ARCHITECT
-    assert AgentKey.from_string("visual_design_director") == AgentKey.VISUAL_DESIGN_DIRECTOR
-    assert AgentKey.from_string("code_generator") == AgentKey.CODE_GENERATOR
 
 
 def test_agent_key_from_string_invalid():
@@ -136,35 +126,6 @@ async def test_content_architect_agent_deterministic_output():
     assert result.output["stages_run"] == ["plan_content"]
 
 
-async def test_visual_design_director_agent_deterministic_output():
-    agent = VisualDesignDirectorAgent(model_client=_VisualDesignDirectorMockModelClient())
-    ctx = _build_context(
-        AgentKey.VISUAL_DESIGN_DIRECTOR,
-        {
-            "operation": "build",
-            "intake": {"content_architect_content_hash": "h", "route_plan": [{"route_id": "home"}]},
-            "preferences": {},
-        },
-    )
-    result = await agent.run(ctx)
-    assert "visual_language" in result.output
-    assert "pages" in result.output
-    assert result.output["stages_run"] == ["establish_visual_language"]
-
-
-async def test_code_generator_agent_structured_planner_output():
-    agent = CodeGeneratorAgent(model_client=_MockModelClient())
-    ctx = _build_context(
-        AgentKey.CODE_GENERATOR,
-        {"planner_context": {"site": {"routes": []}}},
-    )
-    result = await agent.run(ctx)
-    assert result.output["plan_id"] == "plan-mock"
-    assert result.output["plan"]["plan_id"] == "plan-mock"
-    assert result.prompt_version.startswith("code_generator.planner.")
-    assert result.model_metadata["operation"] == "code_generator.plan"
-
-
 async def test_all_agents_return_same_output_for_different_inputs():
     """Deterministic mock: same operation produces the same output."""
     agent = DiscoveryAgent(model_client=_MockModelClient())
@@ -195,17 +156,3 @@ def test_content_architect_schema_validation():
         site_story_strategy={"positioning": "x"},
     )
     assert output.site_story_strategy["positioning"] == "x"
-
-
-def test_visual_design_schema_validation():
-    output = VisualDesignDirectorOutput(
-        mode=VisualPlanMode.VISUAL_LANGUAGE_ONLY,
-        visual_language={"creative_thesis": "restrained, evidence-first"},
-    )
-    assert output.visual_language["creative_thesis"] == "restrained, evidence-first"
-
-
-def test_code_generator_schema_validation():
-    resp = CodeGeneratorResponse(plan={"plan_id": "plan-1"}, plan_id="plan-1", route_ids=["home"])
-    assert resp.plan["plan_id"] == "plan-1"
-    assert resp.route_ids == ["home"]

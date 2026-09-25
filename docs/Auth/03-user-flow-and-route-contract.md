@@ -20,10 +20,6 @@ every protected request. Supabase `user_metadata`, Google profile data, browser
 state, and query parameters are not authorization sources.
 
 Phase 3 adds a database-authoritative entitlement projection to `/me`. Normal
-users receive one canonical portfolio session, one bound Code Generator run /
-variant, and at most one verified promoted success. The projection is a safe
-capability summary only; every mutation reloads the entitlement and current
-owner/actor state on the server.
 
 ## Minimal screens
 
@@ -173,13 +169,6 @@ HTML shells contain no private state. APIs remain protected if JavaScript is
 disabled or a shell is loaded directly.
 
 Phase 2 owns `/app` from the product web router and keeps fixture pages and the
-Code Generator development page conditional on development settings. The
-retired root `/dev` shell is not a route. The HTML remains public so direct
-refresh works, but product and development JavaScript must resolve the Supabase
-session and `/api/v1/me` before loading protected workspace code. The underlying
-diagnostic APIs independently require admin. Every product and development shell loads the pinned Supabase browser bundle
-before its auth bootstrap module. Auth-shell styles remain isolated from the
-product stylesheet so generic panel/body rules cannot alter workspace layers.
 
 ## One controller decision for every page load
 

@@ -224,9 +224,9 @@ class TestContentArchitectState:
         assert state.route_plan == []
         assert state.decision_basis == []
 
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            ContentArchitectState(status=ContentArchitectStatus.NOT_STARTED, unknown="bad")
+    def test_unknown_saved_fields_are_ignored(self):
+        state = ContentArchitectState(status=ContentArchitectStatus.NOT_STARTED, unknown="bad")
+        assert "unknown" not in state.model_dump()
 
     def test_round_trips_through_json(self):
         state = ContentArchitectState(

@@ -215,10 +215,6 @@ class _MockModelClient:
 
         if operation in ("understand_and_question", "prepare_questions"):
             parsed = self.questions_payload
-        elif str(operation).startswith("code_generator"):
-            from oryxenai.agents.shared.model_client import _mock_structured_result
-
-            return _mock_structured_result(output_model)
         else:
             revision_request = str((input_payload or {}).get("revision_request", "") or "")
             parsed = self.brief_revised_payload if revision_request else self.brief_payload
@@ -330,10 +326,6 @@ _CA_PLAN_PAYLOAD: dict[str, Any] = {
         "contact_cta": "Get in touch",
     },
     "unresolved_issues": ["no metrics supplied"],
-    "visual_director_handoff": {
-        "content_hierarchy": ["hero", "project", "contact"],
-        "never_fabricate": ["performance metrics"],
-    },
     "memory_update": {},
 }
 
@@ -402,143 +394,6 @@ def content_architect_mock_model_client() -> _ContentArchitectMockModelClient:
     """Deterministic test model client for Content Architect flow tests."""
     return _ContentArchitectMockModelClient()
 
-
-# ── Test-only deterministic Visual Design Director model client ────────────
-
-_VDD_LANGUAGE_PAYLOAD: dict[str, Any] = {
-    "mode": "VISUAL_LANGUAGE_AND_PAGES",
-    "pages_included": True,
-    "integration_needed": False,
-    "user_summary": "A restrained, evidence-first visual direction for a single-page portfolio.",
-    "visual_language": {
-        "creative_thesis": (
-            "Reliability engineering as its own aesthetic: restrained, high-contrast, "
-            "evidence-first."
-        ),
-        "color_behavior": "A single confident accent reserved for evidence and action.",
-        "typography": "A calm, confident display/body hierarchy with generous vertical rhythm.",
-        "motion_character": "Minimal — used only for the one signature evidence moment.",
-        "anti_patterns": "No gradients, no glassmorphism, no decorative motion.",
-    },
-    "shared_visual_systems": {
-        "card_treatment": "Flat, bordered panels with no drop shadow.",
-    },
-    "navigation_direction": {
-        "form": "single anchor nav",
-        "mobile_strategy": "collapse to a menu button",
-    },
-    "motion_system": {"global_character": "minimal", "signature_moments": []},
-    "interaction_system": {"hover": "subtle lift on interactive cards"},
-    "pages": [
-        {
-            "route_id": "home",
-            "path": "/",
-            "purpose": "Single-page portfolio home",
-            "storyboard": "Hero establishes positioning, then the project evidence, then contact.",
-            "responsive_summary": "Single column on mobile; hero and project sections stack.",
-            "scenes": [
-                {
-                    "scene_id": "hero_scene",
-                    "route_id": "home",
-                    "narrative_goal": "Establish positioning immediately.",
-                    "content_refs": ["hero"],
-                    "layout_intent": "Text-dominant asymmetric hero.",
-                    "responsive_behavior": (
-                        "Single column, centered, on mobile; asymmetric two-column on desktop."
-                    ),
-                },
-                {
-                    "scene_id": "project_scene",
-                    "route_id": "home",
-                    "narrative_goal": "Feature the strongest project as evidence.",
-                    "content_refs": ["project"],
-                    "layout_intent": "Framed evidence panel beside the project narrative.",
-                    "responsive_behavior": "Stacks vertically on mobile; side-by-side on desktop.",
-                },
-            ],
-        }
-    ],
-    "asset_briefs": [],
-    "resource_candidates": [],
-    "accessibility_and_performance": {
-        "contrast": "WCAG AA minimum for all text.",
-        "reduced_motion": "No motion is load-bearing.",
-    },
-    "must_preserve": ["QueueGuard adoption figure"],
-    "must_not_fabricate": ["performance metrics"],
-    "conflicts": [],
-    "warnings": [],
-    "compiler_handoff": {},
-    "memory_update": {},
-}
-
-_VDD_LANGUAGE_PAYLOAD_REVISED: dict[str, Any] = {
-    **_VDD_LANGUAGE_PAYLOAD,
-    "visual_language": {
-        **_VDD_LANGUAGE_PAYLOAD["visual_language"],
-        "color_behavior": "A lighter, single warm accent reserved for evidence and action.",
-    },
-}
-
-
-class _VisualDesignDirectorMockModelClient:
-    """Test-only deterministic ModelClient used by Visual Design Director flow tests.
-
-    Single-page by design (pages_included=True) so tests exercise exactly one
-    model call unless a test explicitly overrides the payload.
-    """
-
-    def __init__(
-        self,
-        language_payload: dict[str, Any] | None = None,
-        language_payload_revised: dict[str, Any] | None = None,
-    ) -> None:
-        self.language_payload = language_payload or _VDD_LANGUAGE_PAYLOAD
-        self.language_payload_revised = language_payload_revised or _VDD_LANGUAGE_PAYLOAD_REVISED
-        self.requests: list[dict[str, Any]] = []
-
-    async def complete(self, *args: Any, **kwargs: Any) -> str:
-        raise NotImplementedError
-
-    async def generate_structured(
-        self,
-        *,
-        operation: str,
-        instructions: str,
-        input_payload: dict[str, Any],
-        output_model: Any,
-        **_kwargs: Any,
-    ) -> Any:
-        self.requests.append({"operation": operation, "input_payload": input_payload})
-        from oryxenai.agents.discovery.schemas import StructuredModelResult
-
-        if operation != "establish_visual_language":
-            raise AssertionError(
-                f"unexpected operation for single-page Visual Design Director mock: {operation}"
-            )
-        revision_request = str((input_payload or {}).get("revision_request", "") or "")
-        parsed = self.language_payload_revised if revision_request else self.language_payload
-        parsed_output = output_model.model_validate(parsed).model_dump(mode="json")
-        return StructuredModelResult(
-            parsed_output=parsed_output,
-            response_id="mock-response-id",
-            model="mock-model",
-            usage={"prompt_tokens": 10, "completion_tokens": 20},
-            finish_reason="stop",
-            latency_ms=1.0,
-        )
-
-    def reset_requests(self) -> None:
-        self.requests = []
-
-
-@pytest.fixture
-def visual_design_director_mock_model_client() -> _VisualDesignDirectorMockModelClient:
-    """Deterministic test model client for Visual Design Director flow tests."""
-    return _VisualDesignDirectorMockModelClient()
-
-
-# ── Ensure the test overlay is loaded for integration / worker tests. ──────
 
 AUTO_CONFTEST_FLAG = "_ORYXENAI_CONFTEST_RAN"
 
