@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-114 — Target a theme-bound resume-to-portfolio pipeline
+
+- **Date & Time:** 2026-09-27 01:05 +05:30 — Codex (OpenAI)
+- **Status:** decided-not-yet-implemented
+- **Context:** The operator wants a detailed, implementable replacement for the present two-stage endpoint and the previously failure-prone free-form generator. The supplied HTML/CSS defines the visual starting point; first-release per-user output should be one HTML page with a prebuilt stylesheet, an exact preview, and repeatable edits.
+- **Decision:** Use deterministic resume extraction, a source-linked Discovery dossier, a complete single-page Content Architect package, and a Luna-backed Coding Engine that chooses supported variants while a host renderer writes `index.html`. Pin a versioned prebuilt `styles.css` and assets per site version. Promote only a browser-verified candidate; changes create immutable upstream and site versions. Use durable PostgreSQL jobs, shared object storage, and a continuously running worker; the initial target deployment is Render web/worker/PostgreSQL plus S3-compatible object storage. All model-backed operations use the operator-requested model through configuration.
+- **Rejected alternatives:** Editing old HTML as the sole source of truth loses factual corrections on regeneration; unconstrained per-user HTML/CSS/JS generation recreates the old repair loop; a Vercel-only request function is a poor fit for durable multi-stage work and Chromium verification; adding visual stages and a vector database to the first release adds handoffs without solving the core content/render problem.
+- **Consequence:** The target contracts, failure handling, and migration sequence live in `docs/architecture/10-proposed-resume-portfolio-system.md` through `12-generation-preview-revisions-and-operations.md`. D-113 remains the active implementation boundary until a later coordinated code/UI/deployment change. Existing Azure and storage decisions still describe today's deployment; this target document performs no migration or release.
+
 ## D-113 — Approved content plan is the terminal active workflow
 
 - **Date & Time:** 2026-09-24 16:17 +05:30 — Codex (OpenAI)
