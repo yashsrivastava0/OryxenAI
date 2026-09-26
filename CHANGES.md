@@ -12,6 +12,9 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-27 01:11 +05:30 — Codex (OpenAI) — [5e530d5] — docs/architecture/, DECISIONS.md, docs/architecture.md
+Defined the proposed resume-to-portfolio pipeline, stage/artifact contracts, browser-verified preview, revision flow, and non-Azure deployment target using the supplied HTML/CSS as the theme seed (D-114). The active two-stage product and deployment were not changed; documentation examples, links, and staged patch were checked.
+
 ### 2026-09-24 — Codex (OpenAI) — [e5c95bd] — active API, worker, configuration, product UI, and project context
 Removed downstream generation stages from the active API/worker/product workflow, leaving Discovery and Content Architect as the only registered and presented stages (D-113). Historical output cleanup and Git history remain preserved; old source modules remain in the checkout because the broad deletion was rejected by automatic review, and no deployment or GitHub operation was performed.
 
