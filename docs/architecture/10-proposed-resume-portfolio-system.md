@@ -2,7 +2,7 @@
 
 > **Status:** implementation proposal, 2026-09-27. This describes the target product, not the active repository or a deployed service. The current system is documented in `01-...` through `03-...` in this directory. No deployment or application change is implied by this document.
 >
-> **Read next:** [Agent and artifact contracts](11-agent-and-artifact-contracts.md) and [Generation, preview, revisions, and operations](12-generation-preview-revisions-and-operations.md).
+> **Start with:** [Architecture README](README.md). **Read next:** [Agent and artifact contracts](11-agent-and-artifact-contracts.md) and [Generation, preview, revisions, and operations](12-generation-preview-revisions-and-operations.md).
 
 ## 1. Decision in one paragraph
 
@@ -50,6 +50,8 @@ flowchart LR
 
 There are no mandatory intermediate approval screens. Saved dossier/content versions provide an audit and edit base; the user judges the generated portfolio in the preview. If a question is genuinely necessary to avoid a wrong central claim, the pipeline enters `waiting_for_answer` and resumes when answered or skipped.
 
+The frontend must distinguish **no current page**, **last verified page with a new revision running**, and **new revision failed while the last verified page remains**. It shows a short progress or action message for each state. When the user skips all questions, the system proceeds with source-supported content; a sparse resume produces a smaller truthful page. A user can choose a theme at intake or later. In the first release the default is deterministic because only the completed theme may be available; theme selection is fixed before Content Architect sees the component vocabulary.
+
 ## 4. Stage ownership
 
 | Owner | Receives | Produces | Decision boundary |
@@ -87,6 +89,12 @@ flowchart TB
 
 The full extracted resume is supplied to Discovery for its initial fact extraction when it fits the configured context allowance. A longer readable source is split by document sections into source-linked chunks and merged before the dossier is finalized; an unreadable source gets a visible correction path. Discovery follow-ups load the dossier plus only relevant source spans and prior answers. Content Architect loads the dossier, goal, explicit preferences, and component vocabulary. Coding Engine loads the content package, theme/component manifest, and assets; it does not need the full resume. Revisions load the selected old version and the requested change. Every model call records its input artifact IDs, schema version, prompt version, model profile, output ID, and result status. Conversation history is retained as events but is not replayed wholesale into every call.
 
+### Minimum execution path and ownership
+
+The happy path is intentionally short: extract → one Discovery understanding/question operation → one dossier finalization → one Content Architect write → one Coding Engine composition → deterministic render → browser check. If Discovery finds no material question, it can finalize from the first operation's structured result and avoid a second model call, provided the dossier passes the same validation. Rich content may need a bounded targeted continuation; this is an exception recorded with a reason, not a permanent extra stage. The application orchestrator decides when to enqueue each operation from persisted state. Agents do not call one another or own database transactions.
+
+The most important handoff gate is `PortfolioContent/v1`: it must contain the **finished public page**, including the sections that will actually be rendered. A beautiful theme cannot recover missing project context or fabricated claims. The most important render gate is theme compatibility: a valid content package may still be unrenderable if the theme has no template for its chosen block or its text exceeds every supported layout. Such a mismatch is returned to the owning theme/content stage with a precise section and field, rather than retried as generic HTML generation.
+
 ## 6. Design system and the supplied stylesheet
 
 The supplied stylesheet is the visual seed for theme `editorial-forest/v1` (working identifier). Source on this machine: `C:\Users\Yash Srivastava\Desktop\01_Projects\trash\test\NOT-TOUCH-AI\styles.css`; SHA-256 `3A643EEEE0D2A8254F811A44D98E241E8E82B521429E4B53B312C169584925CE`. The companion `index.html` shows the intended level of art direction. These source files were read only; they were not copied or modified by this proposal. At implementation, copy the reviewed CSS into a versioned theme package in this repository so the build is reproducible on another machine.
@@ -102,17 +110,13 @@ The supplied stylesheet is the visual seed for theme `editorial-forest/v1` (work
 5. Keep substantial project and experience copy visible in normal page flow. Reserve `<details>` for secondary inventories; the portfolio's main story must be visible without opening controls.
 6. Define the theme's supported component IDs, HTML structure/class names, optional slots, variants, and responsive constraints in one versioned manifest. Build every theme against this same semantic vocabulary, or declare a compatibility matrix and select theme before Content Architect runs.
 
+The example's decorative marquee repeats capability terms and the reading-progress bar uses CSS scroll-timeline support. Both are optional presentation pieces. They must be omitted or replaced when there is no suitable evidence or browser support; neither may carry essential resume content. The first release does not need page JavaScript for navigation, `<details>`, or the preview. The CSS has a `20rem` minimum body width, so the theme's responsive acceptance range begins at that supported width; narrower embedding containers must be handled by the product preview frame rather than by assuming the page can shrink indefinitely.
+
 A portfolio version pins the CSS/theme hash and ships a copy of that CSS in its downloadable bundle. Reusing a stylesheet does not mean serving a mutable “latest.css” path to old versions.
 
-## 7. Deployment recommendation
+## 7. Deployment boundary, deferred until the system works
 
-**Recommended first deployment:** one Render web service for the existing FastAPI/Preact product and preview endpoint; one Render background worker built from the same release image with Chromium/Playwright installed; managed Render PostgreSQL; Cloudflare R2 (or another S3-compatible object store) for shared durable files. Keep the existing sign-in system unless a separate product change requires otherwise. This is a target topology, not a claim that the current Azure deployment has been replaced.
-
-A Render background worker is a continuously running service suited to asynchronous model calls and media work ([Render background workers](https://render.com/docs/background-workers)). Render's default service filesystem is ephemeral ([Render deploys](https://render.com/docs/deploys)); sharing a worker's local files with the web service is not the design. R2 exposes an S3-compatible API and supports durable object access ([Cloudflare R2 architecture](https://developers.cloudflare.com/r2/how-r2-works/)). No Azure VM, Azure-specific storage, self-hosted deployment runner, or per-user app container is required by this target.
-
-**Why Vercel is not the sole runtime choice:** Vercel Functions can be configured for long requests, but they have duration, payload, and bundle limits and are not a continuously running queue consumer ([Vercel function limits](https://vercel.com/docs/functions/limitations)). Browser verification plus several sequential model calls should remain a durable job. The frontend could later move to Vercel while the API/worker remain elsewhere; that creates a second deployment and origin to operate, so it is not the initial recommendation.
-
-**Initial capacity planning, to be measured rather than treated as a guarantee:** web service around 1 vCPU / 2 GiB RAM; one generation worker around 2 vCPU / 4 GiB RAM with at most one Chromium verification at a time; managed PostgreSQL sized for the active queue and JSONB documents; object storage for artifact bytes. Scale the worker count only after measuring queue wait, browser peak memory, and model latency. Keep the web and database in one region. The worker and web service use the same release/schema contract; database migrations run once before the new release takes work.
+The code requires a responsive web/API process, a continuously running durable worker with Chromium, PostgreSQL, and durable artifact storage shared by web and worker. The earlier recommendation of Render web/worker/PostgreSQL plus S3-compatible object storage remains a viable target, but it is **not** a prerequisite for developing the contracts, theme, renderer, edit loop, and browser checks locally. A Vercel frontend can later call the same API; short-lived request functions are not the proposed worker for multi-stage generation ([Render workers](https://render.com/docs/background-workers), [Vercel function limits](https://vercel.com/docs/functions/limitations)). Capacity is measured from actual queue, model, and browser behavior rather than fixed here. The current Azure deployment remains separate from this proposal.
 
 ## 8. Proposed transition from today's repository
 
