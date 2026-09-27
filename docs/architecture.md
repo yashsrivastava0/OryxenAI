@@ -5,7 +5,8 @@ AGENTS.md for the canonical project context and the active stage READMEs for
 their detailed contracts.
 
 The proposed resume-to-portfolio replacement is documented separately in
-[the target system design](architecture/10-proposed-resume-portfolio-system.md),
+[the target implementation guide](architecture/README.md),
+[system design](architecture/10-proposed-resume-portfolio-system.md),
 [agent and artifact contracts](architecture/11-agent-and-artifact-contracts.md),
 and [generation, preview, revision, and operations design](architecture/12-generation-preview-revisions-and-operations.md).
 
