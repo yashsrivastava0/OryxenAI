@@ -12,6 +12,9 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-27 22:03 +05:30 — Codex (OpenAI) — [fb07691] — docs/architecture/, docs/architecture.md
+Refined D-114's proposed resume-to-portfolio system with an implementation README, source precedence and claim bindings, exact model packets and token admission, a fixed-CSS/variable-HTML build recipe, sealed preview receipts, and serialized user-edit replay. Identified the current `openai_responses` transport rejection and supplied-theme component/font gaps as implementation blockers; the running application and deployment were unchanged. Checked documentation JSON examples, fences, relative links, and the staged patch.
+
 ### 2026-09-27 01:11 +05:30 — Codex (OpenAI) — [5e530d5] — docs/architecture/, DECISIONS.md, docs/architecture.md
 Defined the proposed resume-to-portfolio pipeline, stage/artifact contracts, browser-verified preview, revision flow, and non-Azure deployment target using the supplied HTML/CSS as the theme seed (D-114). The active two-stage product and deployment were not changed; documentation examples, links, and staged patch were checked.
 
