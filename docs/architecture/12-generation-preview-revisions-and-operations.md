@@ -1,6 +1,6 @@
 # Proposed generation, preview, revision, and operations design
 
-> **Status:** target behavior for implementation. [Start here](README.md) · [System overview](10-proposed-resume-portfolio-system.md) · [Agent contracts](11-agent-and-artifact-contracts.md). The active repository still ends at Content Architect approval.
+> **Status:** research proposal awaiting review; no runtime, schema, or deployment changes are authorized by this document. [Start here](README.md) · [System overview](10-proposed-resume-portfolio-system.md) · [Agent contracts](11-agent-and-artifact-contracts.md) · [Agent playbook](13-agent-operation-playbook.md).
 
 ## 1. One complete generation run
 
@@ -11,10 +11,10 @@ sequenceDiagram
     participant API as Web/API
     participant DB as PostgreSQL
     participant Worker as Durable worker
-    participant Store as Object storage
-    participant AI as GPT-6 Luna
+    participant Store as Artifact storage
+    participant AI as Configured model
     User->>UI: Resume and goal
-    UI->>API: Create portfolio and upload source
+    UI->>API: Add source to owned session and start revision
     API->>Store: Save immutable source
     API->>DB: Create revision and extraction job
     Worker->>DB: Claim job
@@ -40,7 +40,7 @@ sequenceDiagram
     Worker->>Worker: Structural and browser checks
     Worker->>DB: Promote verified version if still current
     UI->>API: Poll progress / current version
-    API-->>UI: Preview URL and version details
+    API-->>UI: Version details and owner-scoped preview grant
 ```
 
 The initial request returns quickly with a portfolio/revision ID. Model calls and Chromium checks never run inside the user's upload HTTP request. The browser polls server state or uses a progress stream backed by that same persisted state; a reconnect does not restart generation.
@@ -49,38 +49,42 @@ The initial request returns quickly with a portfolio/revision ID. Model calls an
 
 `intake_received -> extracting -> discovery_running -> waiting_for_answer (optional) -> dossier_ready -> content_running -> content_ready -> composing -> verifying -> ready`.
 
-Any working state can enter `needs_attention` with a stage-specific, actionable error. `ready` refers to the currently promoted version, not the status of every attempted candidate. A failed regeneration preserves the last ready version and shows the failure beside it. `superseded` records a job whose inputs became stale. The user may retry only the failed stage when its upstream inputs still match.
+Store workflow/candidate state separately from the active verified version. UI states include `needs_input`, `configuration_error`, `repair_exhausted`, `cancelled`, and `superseded`, each with a safe stage-specific reason. `ready` describes an activated site version, never an unfinished artifact. Failed or cancelled regeneration preserves the active page. Retry only the failed operation when its parent hashes still match; otherwise construct a fresh revision with the accepted intent.
 
 ### Handoff and idempotency
 
 The orchestrator commits a completed artifact and the next `background_jobs` row in one database transaction. The payload contains only artifact IDs, hashes, revision number, and operation ID, not a large resume or HTML body. A worker claim has a lease/heartbeat. All writes use an idempotency key derived from `(portfolio ID, revision ID, operation, input hashes, schema/prompt/theme versions)`. A redelivered job may reuse an already validated result but cannot double-promote or append the same revision twice. Before promotion, compare the candidate's requested revision with the portfolio's current desired revision. Superseded work remains diagnostic history; it cannot become the active preview. Store an operation's terminal artifact ID before acknowledging the job; a retry first looks up that operation ID and checks its hash rather than calling the model again. If a provider call completed but its result was never persisted, retrying may cost another call, but it still cannot create a second active version.
 
-## 2. Persistence and object layout
+Every state mutation also checks the current worker claim/epoch, cancellation, account authorization, and revision fence. A recovered lease invalidates the old attempt even if its HTTP/model call later returns. Persist retry counters and accepted edit watermarks; process restarts cannot reset them. Stage completion and next-job insertion must occur in the same repository transaction. Agents receive serializable packets, never database sessions or request objects.
+
+## 2. Persistence and artifact layout
 
 ### PostgreSQL records
 
 | Record | Main fields and invariant |
 | --- | --- |
-| `portfolios` | Owner, title, `desired_revision_id`, `active_site_version_id`, chosen theme ID, created/updated times |
+| Existing `portfolio_sessions` plus workflow projection | Reuse owner/session identity; add pipeline version, desired revision, active site ID, and pinned theme; do not create a competing authorization root |
 | `portfolio_revisions` | Base revision, user request event, requested change type, status, current stage, input hashes, supersession pointer |
 | `edit_events` | Ordered accepted user instructions, selected structured target if any, visible base version, base desired revision, route and application status; replay is the authority for concurrent edits |
+| Publication restriction projection | Current explicit privacy restrictions/revocations derived from source/edit events; serving and restoration enforce them independently of an older bundle's receipt |
 | `source_documents` | Upload metadata, object key/hash, extraction status, extracted text key/hash, source spans/index |
 | `question_events` and `answer_events` | Question/answer IDs, linked gap, answer/skip, revision and order; append oriented |
 | `discovery_dossiers` | Immutable typed JSONB, hash, source IDs, contract version |
 | `content_packages` | Immutable typed JSONB, hash, dossier ID, contract version |
 | `render_plans` | Immutable typed JSONB, hash, content ID and theme manifest ID |
-| `site_versions` | Immutable manifest key/hash, content/theme/asset IDs, verification receipt, status (`candidate`, `verified`, `failed`, `superseded`) |
+| `site_versions` and build-status projection | Immutable manifest/parent references; mutable candidate lifecycle is separate from sealed artifact bytes |
+| `verification_receipts` | Immutable check outcomes, exact bundle hash, theme/renderer/browser/check-suite versions, evidence references; no preview secret |
 | `background_jobs` / `agent_runs` | Durable queue, attempts, operation/version metadata and diagnostics; reuse current primitives where suitable |
 | `theme_versions` | Component contract ID, stylesheet and asset hashes, supported block variants, status |
 | `media_assets` | Optional photo or uploaded media ID, original and derivative object keys/hashes, dimensions, crop preference |
 
-A simple first implementation can keep dossier/content bodies in JSONB and normalize only the frequently joined identifiers. The resume binary, HTML, CSS, screenshots, and images belong in object storage, not large database rows. Existing `portfolio_sessions.current_state` may remain as a compatibility projection, but immutable artifact records and explicit foreign keys must own the new chain. All writes are migrations; do not re-label old content as a new dossier without actual provenance.
+A proposed first implementation keeps structured bodies in JSONB and frequently joined IDs in relational columns. Binaries/site files use the storage abstraction. Names in this table describe logical records, not a prescribed migration. Immutable artifact lineage owns the new pipeline; existing session state may remain a UI projection. Record a pipeline version and retain old schema meanings. Never relabel an old approved summary as a source-linked dossier.
 
-### Object storage bundle
+### Immutable storage bundle
 
-Each candidate lives under an immutable version prefix such as `portfolios/<portfolio-id>/versions/<version-id>/`. Its manifest names `index.html`, `styles.css`, `assets/...`, the source theme hash, and the verification receipt. The current profile photo, when supplied, is a versioned local asset in that bundle or a content-addressed immutable asset URL. The HTML uses relative paths so the same bundle works in the preview and a downloaded ZIP. It cannot reference a mutable latest theme or a worker-local file. The manifest is written **last**, after every listed file has been stored and read back; a manifest is never a promise that unfinished files will appear later.
+Each candidate uses an immutable prefix such as `portfolios/<portfolio-id>/versions/<version-id>/`. Its bundle manifest lists `index.html`, exact shared `styles.css`, assets, file hashes, and theme/template versions. Sources, internal dossiers, and diagnostics are outside the served tree. HTML and CSS use relative asset paths. Seal the manifest **after** all files are written and read back. The later verification receipt references the manifest hash; the sealed manifest does not include the receipt, avoiding a circular hash dependency. The database links both to the site version.
 
-Write candidate objects first, read them back, verify hashes and MIME types, run browser checks against the assembled candidate, then atomically update the database active pointer. The candidate is addressable by exact version ID for the worker's browser check before it is offered as a ready preview. A failed DB promotion leaves harmless orphan candidate objects for later cleanup; it never changes the previous active version. Cloudflare notes that cache can continue serving overwritten objects, so immutable versioned keys are preferred over overwriting a path ([R2 consistency](https://developers.cloudflare.com/r2/reference/consistency/)).
+Write files, read back hashes/MIME/size, seal the manifest, verify through the actual serving path, persist the receipt, then atomically activate only when current revision, accepted-event watermark, worker attempt, authorization, and parent hashes still match. A failed database transaction leaves an inactive candidate for retry/cleanup. Garbage collection must honor references and in-flight work; it cannot delete a retained active/restorable version. Access policy remains enforceable even for immutable files; do not publicly cache private capability responses.
 
 ### Fetching rules
 
@@ -96,17 +100,17 @@ The Coding Engine's model output is `RenderPlan/v1`, a mapping from approved sec
 2. **Check compatibility before serialization.** Match each content section's `block_type` and present fields to the selected theme variant. A section with no compatible variant fails with its section ID. A new portfolio requires a validated composition plan; a simple later edit can reuse the previous plan. The theme's declared fallback variant may normalize a rejected variant choice only when it preserves all fields. Do not improvise markup or silently drop content.
 3. **Render the complete document from typed fields.** The host selects a theme template per section, fills text/attributes with context-appropriate HTML escaping, builds the nav from the actual ordered sections, generates stable unique DOM IDs from section IDs, and emits `lang`, title, description, viewport, one `<main>`, accessible headings, and a stylesheet link. It adds no free-form model HTML. An internal render map records `section_id + field_path -> expected DOM target(s)` for later binding checks.
 4. **Copy the theme bytes.** Put the exact pinned CSS bytes at `styles.css` in the new version directory. Copy every referenced local font, image, icon, and any selected user media under `assets/` with the paths expected by the CSS and HTML. HTML uses `./styles.css` and `./assets/...`; CSS `url("./assets/...")` resolves relative to the CSS file in that same root. Emit a preload only when the corresponding file exists. External contact links may remain external; a required image/font may not depend on a third-party URL.
-5. **Read back and seal.** Read every written object, verify hash/MIME/size, write the manifest last, and serve the candidate through its version-specific preview URL. Run structural and browser checks against that URL. Only then may a transaction promote the version pointer. Construct a ZIP from the sealed manifest's same bytes and relative tree, not a second regeneration.
+5. **Read back and seal.** Verify every file, write the manifest last, and serve the candidate through its version-specific preview path. Run required checks and create an immutable receipt. Only then may a fenced transaction promote the version. If export is added later, copy the sealed bytes without regeneration.
 
 The supplied `index.html` is a **fixture**, not a template to search-and-replace. Its four nav links, four pillars, large skills inventory, remote hero image, and hard-coded identity cannot simply be retained for another resume. The theme may keep its visual classes, but the component templates must support 0/1/many eligible sections and an image-free hero. Decorative marquee items must be derived from evidenced capabilities or omitted; essential project content remains in visible page flow. The reference's font URLs must be backed by packaged files. Its CSS-only scroll progress can be optional because browser support varies.
 
-**When files change:** each accepted content, composition, theme, or asset revision re-renders the entire `index.html` into a **new** version; it does not overwrite the old file. A content-only revision may reuse the same render plan and copies byte-identical CSS. A theme switch copies a different pinned CSS/template/asset set and creates a new HTML version. A photo swap changes the asset binding and HTML path; CSS remains byte-identical when the theme is unchanged. First-release user requests never mutate the shared CSS. Old versions keep their original CSS bytes.
+**When files change:** each accepted content/composition revision re-renders complete `index.html` into a new immutable version. A content edit may reuse the render plan and always uses byte-identical pinned CSS. Future theme switches or photo changes would create new theme/asset bindings and HTML while retaining historical versions. First-release user changes never modify shared CSS.
 
 **Allowed output now:** `index.html`, selected prebuilt `styles.css`, and assets. The release contract explicitly excludes model-authored CSS/JS, npm installs, network dependency resolution, and additional HTML routes. A theme revision can add more variants without changing the content schema. A future `site-capabilities/v2` may authorize generated CSS and JavaScript as separate owned artifacts with independent validation and browser behavior checks; Discovery and Content Architect continue to produce semantic content.
 
 ### Component fallback
 
-If a requested block lacks a themed component, the renderer tries one declared generic narrative/list variant that preserves all public copy. If no compatible variant exists, the candidate fails `THEME_COMPONENT_UNSUPPORTED` with the section ID and theme ID. It does not silently omit the section, make up a class name, or ask the model to improvise CSS. Theme switching is allowed only when the target theme supports every required block or an explicit rewrite is accepted.
+After one bounded composition correction, use the theme's tested default mapping for all supported blocks. A generic narrative/list fallback is valid only if it preserves every public field. If no compatible mapping exists, fail `THEME_COMPONENT_UNSUPPORTED` with section/theme IDs. Never omit content, invent classes, or improvise CSS. Theme switching is a future capability subject to full compatibility checks.
 
 ## 4. Verification and promotion
 
@@ -117,10 +121,10 @@ If a requested block lacks a themed component, the renderer tries one declared g
 3. **HTML structure:** a document-conformance check and DOM invariant check pass; one main landmark; logical heading order; unique IDs; internal links resolve; generated navigation matches present sections; external links use valid supported schemes; no `<script>` in the current output contract. Browsers repair malformed HTML, so “the parser opened it” alone is not a sufficient gate. Unique IDs are required by the [HTML Standard](https://html.spec.whatwg.org/dev/dom.html).
 4. **Theme contract:** all component IDs/variants/classes and expected child structures are supported by the pinned manifest. No user-specific stylesheet or unknown asset path is present.
 5. **Assets:** stylesheet and fonts load, images decode, image dimensions are plausible, fallback hero works without a photo, and any required displayed media actually appears in the rendered DOM.
-6. **Browser runtime:** render the exact candidate preview URL in pinned Chromium at representative narrow, medium, and desktop widths; assert response success and expected content type; record failed CSS/font/image requests, `document.fonts.ready`, image decode state, and page errors; check no horizontal page overflow, no text clipping in major blocks, visible primary CTA, and working navigation. Exercise any native `<details>` disclosure that remains. Use bounded waits for fonts/images and auto-retrying browser assertions rather than treating the iframe `load` event as proof ([Playwright assertions](https://playwright.dev/docs/test-assertions)).
-7. **Accessibility as functional quality:** keyboard reaches links/controls, focus is visible, image text alternatives fit their role, and reduced-motion mode leaves the page usable.
+6. **Browser runtime:** open the actual serving path in pinned Chromium at small mobile, larger mobile, tablet, and desktop widths (proposed fixtures: 320, 390, 768, and 1280 CSS pixels). Assert response/MIME, loaded expected stylesheet rules, required font faces, image decoding, and bounded resource completion. `document.fonts.ready` alone does not prove every intended font loaded. Check unexpected horizontal overflow/clipping, visible CTA, anchors, and native disclosures. Use bounded auto-retrying assertions ([Playwright assertions](https://playwright.dev/docs/test-assertions)).
+7. **Accessibility as functional quality:** keyboard reaches native controls, focus remains visible, heading/landmark structure is coherent, alt text fits the image role, text zoom remains readable, and reduced motion is respected. A configured 200% text-zoom fixture supplements responsive widths.
 
-Browser screenshots are stored as evidence. A Luna screenshot review can identify aesthetic concerns such as awkward balance or inconsistent hierarchy; its subjective report is advisory until a repeatable rule or human-reviewed design regression makes it a reliable blocker. Pixel-exact screenshot comparison across changing resumes would reject legitimate variation; use theme fixture baselines for component regressions and functional measurements for generated pages. Playwright supports screenshots and browser assertions, while warning that visual snapshots depend on a consistent environment ([screenshots](https://playwright.dev/docs/screenshots), [visual comparisons](https://playwright.dev/docs/test-snapshots), [assertions](https://playwright.dev/docs/test-assertions)).
+Store screenshots as evidence. Compare stable theme fixtures in a pinned environment; personalized content varies too much for one universal pixel baseline ([Playwright visual comparisons](https://playwright.dev/docs/test-snapshots)). Optional model aesthetic review is advisory. Human visual/accessibility acceptance of the theme remains necessary: automated checks cover only part of accessibility ([Playwright accessibility testing](https://playwright.dev/docs/accessibility-testing)). These checks detect defined defects, not every possible layout problem.
 
 The verifier stores a typed receipt with each gate's result, affected section/asset IDs, browser version, viewport widths, screenshot hashes/keys, and sealed bundle hash. A failure code identifies the owner (`EXTRACTION`, `DISCOVERY_FACT`, `CONTENT`, `THEME`, `RENDER`, `ASSET`, `PREVIEW_DELIVERY`, or `BROWSER`). The user sees a short actionable message; a developer can open the receipt and exact candidate. A stylesheet defect is fixed once in the theme and rerendered, not “repaired” by making the Coding Engine write arbitrary CSS for one user.
 
@@ -131,7 +135,7 @@ The verifier stores a typed receipt with each gate's result, affected section/as
   "contract_version": "VerificationReceipt/v1",
   "site_version_id": "site-7",
   "bundle_sha256": "<computed-manifest-hash>",
-  "candidate_url": "/p/portfolio-1/site-7/index.html",
+  "candidate_path": "/p/portfolio-1/site-7/index.html",
   "status": "passed",
   "gates": [
     {"name": "content_binding", "status": "passed", "affected_ids": []},
@@ -139,7 +143,7 @@ The verifier stores a typed receipt with each gate's result, affected section/as
     {"name": "browser_runtime", "status": "passed", "affected_ids": []}
   ],
   "browser": {"engine": "chromium", "version": "<pinned-build-version>"},
-  "viewports_checked": ["narrow", "medium", "desktop"],
+  "viewports_checked": ["small-mobile", "large-mobile", "tablet", "desktop"],
   "screenshots": ["<versioned-screenshot-key>"],
   "failure_code": null
 }
@@ -149,18 +153,66 @@ The host fills hashes, browser version, and evidence keys; the model does not au
 
 ### Repair policy
 
-- Correct mechanical mistakes in the host without another model call: duplicate slug suffix, missing optional image fallback, relative-path normalization, a declared fallback variant that preserves all content fields, and generated nav from the actual section array. Never change factual copy in a mechanical repair.
-- If a supported composition is poor or a component choice is incompatible, make one targeted Luna composition repair from specific diagnostics and the same immutable content package. Re-render and recheck. A different component/theme defect is returned to theme development, not repeated in a model loop.
-- If content is missing or unsupported, return to Content Architect with the exact section/content ID. If the underlying fact is uncertain, return to Discovery with the exact gap.
-- Stop after a configured finite attempt budget. Save the failing candidate and receipt for diagnosis. The last verified version stays active. Do not mark an unverified candidate `ready` because its HTML file happens to exist.
+Use scoped recovery owned by the failing stage; do not add a general repair agent. Proposed configuration defaults:
+
+| Budget | Default and accounting |
+| --- | --- |
+| Operation attempts | Three total, including the initial attempt; persisted across worker restarts |
+| Semantic repairs | At most two passes per revision across Discovery, Content, and composition; a composition correction consumes this budget |
+| Composition correction | At most one targeted correction, then a tested deterministic mapping when compatible |
+| Browser process retry | One retry after a process/infrastructure failure against unchanged bytes |
+| No-progress stop | Stop early when the same failure fingerprint recurs without relevant artifact change |
+| Overall revision | Configured deadline and resource budget; a changed operation fingerprint never resets the revision budget |
+
+Provider adapter and worker share an attempt ledger. Do not multiply SDK retries by job retries. Use capped exponential backoff with jitter for transient timeouts, rate limits, and outages; honor bounded provider retry hints ([AWS backoff guidance](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)). Invalid credentials or unsupported configuration stop immediately.
+
+Every repair input is a structured issue: `stage`, `failure_code`, artifact/version/hash, affected section/field, expected constraint, observed problem, evidence refs, allowed repair scope, prior failure fingerprint, and remaining operation/revision budgets. Never feed an unbounded log transcript to a model.
+
+| Defect | Permitted recovery | Recheck scope |
+| --- | --- | --- |
+| Missing source text | Ask for paste/replacement; preserve original | Extraction and affected downstream artifacts |
+| Wrong/conflicting fact | Discovery reconciles evidence or asks a focused question | Dossier, content, composition compatibility, rendering, verification |
+| Unsupported claim, missing copy, invalid coverage | Content Architect receives exact facts, fields, and failed constraints | Full content gate and all affected downstream gates |
+| Truncated structured output | Persist completed validated section batches; resume named missing sections within admission/budget | Completeness and integration before downstream use |
+| Unsupported variant or density | Scoped composition correction or declared fallback preserving content | Plan, rendering, browser checks |
+| Renderer/theme defect | Stop candidate promotion and report engineering defect; fix shared package under a new version | All affected theme fixtures and candidate checks after a separate fix |
+| Storage interruption | Retry the same immutable bytes and readback | Storage/manifest and serving-path verification |
+| Browser infrastructure crash | Reuse sealed candidate; retry verifier once | Browser receipt for unchanged bytes |
+| Expired access/delivery policy | Refresh owner grant or repair serving configuration | Delivery checks; no content regeneration |
+| Superseded/cancelled/unauthorized attempt | Stop writes/promotion | No semantic repair; current authorized intent owns the next work |
+
+Renderer normalization can derive unique anchors, resolve declared paths, and select optional image fallbacks before sealing. Any post-seal byte change creates a new candidate/hash and invalidates its old receipt. Do not delete facts, reduce required coverage, weaken checks, or modify per-user CSS to obtain a pass. Exhaustion returns `needs_input`, `configuration_error`, or `repair_exhausted` with accepted intent retained and the last verified version available.
 
 ### Preview delivery
 
-Serve `/p/<portfolio-id>/<version-id>/index.html` and its relative assets from one version manifest on a dedicated preview hostname or equivalent isolated origin. The verifier opens this exact candidate URL while the version is still unpromoted, so asset routing, headers, and relative paths are tested through the same delivery path the user will see. The product embeds the URL only after verification and provides “open preview” and downloadable ZIP actions. The browser UI never reconstructs HTML from a JSON package. The preview URL is version-specific; a refresh of an old version shows that old version. The active pointer selects the default version but does not rewrite version URLs. Future JavaScript is admitted only after the preview capability contract and browser tests support it.
+Serve a version manifest's exact files on a dedicated preview origin, never in the application's DOM or `srcdoc`. The verifier opens the candidate through the real file-serving handler before activation using a candidate-scoped internal grant. User grants authorize owned verified versions only. The iframe and standalone action reference the same version; an old version URL does not silently become the latest page.
 
-If the preview origin requires access credentials, both the verifier and owner browser must receive a version-scoped preview session that covers **the HTML and every relative CSS/font/image request**. Use the same file-serving handler and path for both; the verifier should not bypass the delivery route with a worker-local `file://` page. The product can establish the owner preview session before loading the iframe or opening a standalone tab. Configure the preview response's frame policy to permit embedding by the product origin, and verify that the iframe, its stylesheet, and its assets load after a fresh sign-in and after refresh. A 200 response for `index.html` with denied CSS or blocked framing is a preview failure, not a ready page.
+The owner-authorized API issues short-lived, version-scoped access covering **HTML and every CSS/font/image request**. A proposed cookie-independent delivery shape is `/access/<capability>/p/<session>/<version>/index.html`; relative assets retain the grant prefix. Validate expiry, version, owner authorization/revocation policy, and normalized manifest path on every request. Redact the capability at proxy/application/analytics layers, use `Referrer-Policy: no-referrer`, and keep private responses out of public caches. The canonical manifest/receipt stores the grant-free path; bearer URLs never enter agent packets. Return a safe access-expired response and refresh through the owner API. A different grant mechanism is acceptable only if it works embedded and standalone without relying on third-party cookies.
 
-The preview frame can resize its **container** for desktop/mobile modes without modifying the generated site. An isolated frame does not give the product access to its DOM for “click this paragraph to edit” in the first HTML/CSS-only release. The left-side editor instead offers a section list derived from `PortfolioContent` and accepts a free-text instruction; it sends a selected section/field ID when the user chooses one. Exact visual click targeting would require a separately designed bridge or mapping capability later. Native anchor navigation remains inside the preview document, and the standalone preview link shows the same site without the product frame. Configure iframe sandbox and link-opening behavior deliberately, then check both embedded and standalone views; [MDN documents iframe sandbox behavior](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe).
+**Desktop sizing:** set the iframe viewport to 1280 CSS pixels and scale the whole frame to fit the right pane; do not merely shrink the iframe to pane width. `Fit` computes scale from available width; `100%` permits workspace scrolling. Mobile uses a real configured viewport such as 390 CSS pixels. Keep the left chat resizable/collapsible; use chat/preview tabs on narrow screens. An isolated frame cannot support parent DOM inspection for click-to-edit in this release. The app's section selector supplies stable content targets instead.
+
+**No-JavaScript policy:** allow native anchors and disclosures. Disable scripts, forms, downloads, nested frames, and top navigation. A proposed iframe sandbox permits only `allow-same-origin allow-popups allow-popups-to-escape-sandbox` on the dedicated preview origin; this does not grant the application origin. External links use `target="_blank"` and `rel="noopener noreferrer"`. The preview response also carries a CSP sandbox with equivalent restrictions, `script-src 'none'`, `form-action 'none'`, `object-src 'none'`, `base-uri 'none'`, self-only required asset sources, and `frame-ancestors` restricted to the product origin. Allow no generated inline CSS, event handlers, or executable URL schemes. Test the policy embedded and standalone. A CSP sandbox is a response-header control; an iframe attribute alone does not constrain standalone pages ([MDN iframe](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe), [CSP sandbox](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy/sandbox)).
+
+Keep application authentication cookies host-scoped; do not share application credentials with preview subdomains. Configure the complete CSP from the closed resource manifest, including `frame-src 'none'` and no network connections from generated content. Only trusted templates may emit markup; uploaded HTML/SVG or active document content is never copied through as executable page content.
+
+Keep the previous frame visible during generation and errors; switch only after verified promotion. Provide reload, refreshed access, and standalone-open recovery for local delivery failures. Avoid promising flicker-free swaps across all browsers. Backend verification establishes the version's check result; it cannot guarantee every client network will deliver it successfully.
+
+An explicit new privacy restriction is an exception to retaining an older preview. If the active or historical bundle contains the now-private field, revoke its serving grants, clear it from the product frame, and show a waiting state until a compliant version is ready. Grant issuance and every file request check current publication restrictions; an old passing receipt is not permission to reveal newly restricted information. Already delivered bytes cannot be recalled from a browser. An ordinary editorial hide request takes effect with the new verified version unless the user also makes it a privacy restriction.
+
+```text
+┌────────────────────────┬─────────────────────────────────────────┐
+│ Chat / changes         │ Desktop  Mobile  Fit  100%  Open        │
+│                        ├─────────────────────────────────────────┤
+│ Compact stage summaries│                                         │
+│ Useful questions       │ Exact immutable portfolio iframe        │
+│ Section selector       │                                         │
+│ Version history        │ Native navigation and disclosures       │
+│                        │                                         │
+│ Change request         │ Last permitted verified version         │
+└────────────────────────┴─────────────────────────────────────────┘
+```
+
+The left panel is resizable/collapsible. On narrow screens, chat and preview are tabs. Expandable artifact details open in the product UI and never get appended to the public portfolio.
 
 The iframe's `load` event alone does not prove the site loaded successfully; browser checks and the server-side verification receipt are authoritative. MDN documents that iframe load can fire even on a failed resource, and explains sandbox behavior ([MDN iframe reference](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/iframe)).
 
@@ -168,19 +220,22 @@ The iframe's `load` event alone does not prove the site loaded successfully; bro
 
 | Operation | Input and response contract |
 | --- | --- |
-| Create intake | Resume upload or pasted text, goal, optional links/theme and an idempotency key; return portfolio ID, revision ID, extraction state, and progress URL immediately |
+| Add source | Owned session, file/pasted text, source role, idempotency key; return source ID and extraction state |
+| Start portfolio | Source IDs/versions, goal, expected revision; return durable workflow/revision ID and progress reference |
 | Read progress | Portfolio/revision ID; return current stage, pending question IDs, classified error when present, and last ready version ID |
 | Submit answers | Question IDs with answer or skip, exact base revision, and idempotency key; persist events and resume Discovery once |
 | Request change | Visible base site-version ID, latest desired-revision ID, user instruction, optional selected section/field, and idempotency key; return new revision ID and immediate classification only if unambiguous |
-| List/select versions | Return immutable version IDs, stage/verification status, theme ID, created time, and preview/download references; restoring a verified version records a new edit-base event and atomically selects that version with a revision check |
-| Fetch preview/bundle | Serve one manifest's exact HTML/CSS/assets or ZIP; a missing or unverified version is not reported as ready |
+| List versions | Immutable version IDs, candidate/verification status, creation time, and safe summary; viewing does not restore |
+| Open preview | Owned verified version; return an expiring grant URL, covering HTML and assets |
+| Restore version | Chosen version and expected revision; restore dossier/content/plan references as the new edit base and fence obsolete work |
+| Retry/cancel | Revision ID, expected state/revision, idempotency key; preserve accepted intent and last active site |
 | Add/replace photo (future) | Upload asset and crop preference, return immutable media ID, then request a render revision against a base version |
 
 The existing authentication and owner-scoped session checks apply to these operations. The UI may poll or use server events, but the database projection is authoritative. A repeated browser submission with the same idempotency key returns the original revision rather than starting another run. An edit with an obsolete base version receives a version conflict and enough current-version context for the UI to retry deliberately.
 
 ## 5. User change pipeline
 
-Every change request stores exact user text, a selected structured section/field when chosen in the editor, visible base site-version ID, base desired-revision ID, and an idempotency key. A small structured classifier (Luna only when the UI cannot identify an exact field) routes the request. The user may request multiple changes in one message; apply them as one revision and record sub-actions. Ambiguous instructions get one concise clarification instead of guessed edits. First-release targeting is through the app's section list or text input, not by reading clicks from the cross-origin preview iframe.
+Every change request stores exact user text, selected section/field when known, visible base site ID, expected desired revision, and idempotency key. Typed requests route deterministically; free-text interpretation is a bounded operation under Discovery, Content Architect, or composition ownership, using the configured model when needed. It proposes typed sub-actions; application code validates their scope. Mixed requests are one revision. Ambiguous intent gets one focused clarification. First-release targeting uses the section list or text, not DOM access to the preview.
 
 | Change request | Owning update | Regeneration path |
 | --- | --- | --- |
@@ -188,20 +243,21 @@ Every change request stores exact user text, a selected structured section/field
 | Replace or add a resume | New immutable source document; decide whether it supersedes or supplements the previous primary source | Re-extract changed source -> Discovery reconciliation -> Content -> render/verify |
 | Goal, audience, work to feature, supplied link or contact route | Intake intent and/or Discovery choice; update canonical link record | New dossier/intent projection when meaning changes -> targeted Content revision -> render/verify |
 | Project wording, emphasis, tone, section order, add/remove supported section | Content Architect package | New content package -> render/verify |
-| Broken anchor, clipping, wrong component variant, spacing within current theme | Coding Engine or theme maintainer | Same content -> new render plan or shared theme version -> verify |
-| Switch among prebuilt themes | Theme selection | Same content -> compatible render plan -> verify |
+| Supported layout variant | Render plan | Same content -> compatible composition -> render/verify |
+| Broken anchor, clipping, template/CSS defect | Renderer/composition diagnosis; shared defects go to engineering | Bounded compatible variant recovery or stop promotion; no per-user CSS fix |
+| Switch themes (future) | Theme selection and compatibility | Same content when compatible -> render/verify |
 | Replace/add photo (future upload UI) | Asset manifest and crop preference | Same content unless caption/alt changes -> render/verify |
-| Custom color, new animation, arbitrary CSS change | Future visual-editing capability | Current release offers a supported theme/variant or explains that custom styling is not yet supported |
+| Custom color, new animation, arbitrary CSS change | Future visual-editing capability | Explain the current scope; do not edit CSS or claim a variant fulfills an unsupported style request |
 | Change that mixes facts and styling | Split one recorded revision into dependent fact/content/render operations | Promote only the final checked version |
 
 **Example:** “My name is Akash, not Ajay.” The server records a fact correction against the current dossier, produces a new dossier version, updates affected copy/metadata through a mapped patch or targeted Content Architect rewrite, then re-renders. Passing only the previous `index.html` to Coding Engine would make the next full regeneration capable of restoring “Ajay”; the prior render plan preserves composition, while the dossier/content records remain the name's authority.
 
-A precise typo in an editable structured field may use a deterministic field update, but affected free prose is still checked or revised by Content Architect. A purely visual/layout edit does not re-run Discovery or rewrite content. A “regenerate another design” action uses the same content package with a new theme/variant seed; it is distinguishable from “fix this version.” The user can compare versions and restore a prior verified one. A restore creates a new edit base from the chosen version; it does not delete later versions.
+A precise field correction may use a deterministic patch; affected free prose still needs checking or Content Architect revision. A supported variant edit reuses the content. Restore selects a prior version's complete structured base without deleting history. Hide/restore-section edits update content structure and the coverage ledger, so omitted information stays recoverable.
 
 ### Apply a change without losing an earlier one
 
 1. Validate the visible base site version and expected desired revision. If another tab already accepted a newer instruction, return a conflict plus current intent summary; do not automatically merge a stale instruction whose meaning may have changed.
-2. Classify the instruction into factual, editorial, layout/theme, asset, or mixed sub-actions. The application can route exact typed selections without a model; only ambiguous prose needs a Luna classification call. Persist the raw instruction and its ordered sub-actions before starting work. Unsupported custom styling gets a clear capability response rather than a fake HTML-only fix.
+2. Classify into factual, editorial, structural, supported layout, or mixed sub-actions. Persist raw intent before interpretation, then validate/store its typed plan. An unsupported styling sub-action remains explicitly unfulfilled; do not silently treat the whole mixed request as completed. Process independent supported changes only when the user's intent permits that separation, otherwise ask once.
 3. Append the accepted event under a portfolio-level revision compare-and-swap. Permit **one active build chain per portfolio** in the first release. If a chain is running, mark its candidate superseded for promotion and queue the latest desired revision. Reconstruct that revision from the last stable structured snapshot plus **all unapplied accepted edit events in order**; do not assume an in-flight intermediate dossier/content artifact exists. Coalesce work into one candidate when several edits arrive rapidly, while preserving each event and its order.
 4. Run the earliest owning stage once for the combined events, then downstream stages. For a name correction, update the dossier fact, replace mapped identity fields/metadata in the content package, and check every known identity-bearing field. If all occurrences are typed and mapped, a deterministic content patch is enough; if free prose or grammatical context remains, Content Architect performs a targeted rewrite. Either way the whole HTML is reserialized and verified.
 5. Before promotion, require the candidate's desired revision and ordered edit-event watermark to equal the portfolio's latest accepted values. If they differ, keep the last ready site and begin the latest queued build. Never promote a partially applied mixture of requests.
@@ -210,9 +266,13 @@ A precise typo in an editable structured field may use a deterministic field upd
 
 Restoring an older verified version is also an explicit revision event if the user will continue editing it. It sets the chosen site's dossier/content/plan as the new structured base and records that choice; otherwise a later edit could unexpectedly inherit newer content from the version the user meant to leave behind. A simple “view older version” action changes no active pointer or edit base.
 
+Before restoration, apply any current owner privacy restrictions/revocations. Restoring old bytes must not reveal information that the user subsequently marked private. If old content conflicts with current restrictions, rebuild and verify a restricted version from the selected base instead of directly activating the old bundle. Otherwise an unchanged sealed bundle with a compatible receipt can be reused under the new restoration revision.
+
+Cancellation is a fenced workflow event. Stop further calls/enqueues and discard late promotion; a remote call already in progress may finish but cannot commit as current. Retain accepted changes as unapplied/cancelled intent. A retry explicitly resumes/reconstructs them within recorded budgets; a user amendment creates a new revision. Budget exhaustion is not cleared by re-delivering the same job. API polling reports current desired intent, candidate status, last active site, and an actionable safe error separately.
+
 ## 6. Photo and asset path, now and later
 
-The first release's theme already has a hero visual slot with three allowed bindings: curated built-in visual, CSS/monogram fallback, or user portrait once upload is offered. The current supplied CSS expects `.hero__visual img` and references an external image; the reusable theme must support an image-free fallback. A missing photo is normal, not a failed portfolio.
+The proposed theme needs an image-free or curated built-in hero. User portrait binding is reserved for future upload support. The reference CSS expects `.hero__visual img` and the sample uses an external image; the reusable package must support a local/image-free fallback. Missing photos are normal.
 
 When photo upload is enabled, intake validates a decodable supported image, records dimensions/orientation, stores the original, creates a display derivative and thumbnail, and records an immutable media ID. The user may choose crop/focal point or replace/remove the photo. The renderer binds that ID to the hero slot using the theme's documented aspect ratio/object-fit treatment. If derivative generation fails, keep the previous portrait or fallback visual and present the upload error. CSS is unchanged per user; the asset binding and HTML `src` change. The asset manifest handles future media without changing Discovery/Content Architect's core contracts. Caption/alt wording, when visible or required, is part of the content package or a stable renderer rule based on asset role.
 
@@ -220,14 +280,16 @@ When photo upload is enabled, intake validates a decodable supported image, reco
 
 | Failure | Detection | Outcome / repair owner |
 | --- | --- | --- |
-| PDF/DOCX text empty, garbled, or wrong column order | Extraction status and sample/readability checks | Ask for pasted text or run OCR; do not send empty source to Luna |
+| PDF/DOCX text empty, garbled, encrypted, or unreliable | Extraction/readability diagnostics | Preserve original; offer paste/replacement. OCR is deferred |
 | Resume is very sparse | Dossier completeness review | Focused questions, then a shorter truthful portfolio |
-| Source has only a name or no substantive evidence and the user skips follow-up | Content acceptance and `limited_content` flag | Generate a minimal identity/goal/contact page only if a real destination remains; otherwise return `needs_material` and request one concrete work example or contact route, with no invented work |
+| Source has only a name and user skips follow-up | Content acceptance | Meaningful minimal introduction only with a real destination; otherwise `needs_input` with one concrete request |
 | Resume has many roles/projects | Dossier source indexing and content budget | Content Architect selects leading evidence and uses concise secondary treatment; no silent source truncation |
 | Contradictory dates, titles, or metrics | Fact conflict records | Ask once or omit precise assertion; no confident guess |
-| Role ownership unclear | Question/open-item record | Use team attribution or neutral wording; no invented personal credit |
-| User supplies two resumes or a job posting | Source-type label | Ask which resume is primary; target posting informs goal, not biography |
+| Role ownership unclear | Question/open-item record | Preserve unknown attribution; use neutral supported wording or omit claim |
+| User supplies two resumes or a job posting | Source roles/conflicts | Reconcile compatible facts, ask about consequential conflicts; job posting never supplies personal achievements |
 | Model emits schema-valid but empty/generic prose | Section substance checks and human-calibrated evals | Targeted Content revision; do not pass a hollow package to rendering |
+| Model emits schema-valid unsupported claim | Field-level fact bindings plus semantic support audit | Targeted Content repair with exact evidence; IDs alone do not establish entailment |
+| Private information appears in title, alt text, or copy | Restriction gate across all public fields and bundle | Reject candidate; update affected copy/metadata and rerun checks |
 | Model output malformed, incomplete, or provider timeout | Parse/error classification | Bounded operation retry; persist attempt and stage; last good stays available |
 | Package cites missing fact/link/asset ID | Referential validation | Return exact ID to owning stage; no fuzzy matching |
 | Unsupported component or theme | Manifest compatibility check | Use declared generic variant or fail with actionable capability gap |
@@ -242,7 +304,7 @@ When photo upload is enabled, intake validates a decodable supported image, reco
 | Preview iframe shows blank despite a good DB state | Exact URL fetch and browser receipt | Treat as delivery failure, show last verified version or actionable error |
 | Preview HTML loads but frame policy or asset access blocks the page | Embedded browser check plus CSS/font/image response records | Fix preview-session scope or frame headers; do not regenerate content |
 | Theme is updated after a portfolio is ready | Versioned theme hash | Old portfolio retains pinned CSS; new versions opt into the updated theme |
-| User requests arbitrary new CSS now | Capability check | Offer existing theme/variant and record request for future visual editor; do not pretend HTML alone can change the design |
+| User requests arbitrary new CSS now | Capability check | Explain current scope and keep the working preview; stylesheet editing is future work |
 
 These are major known failure classes, not a claim to enumerate every possible browser or model defect. A newly observed repeatable failure should become a fixture and a narrow check; repair budgets should not be raised to hide validator or theme bugs.
 
@@ -250,13 +312,15 @@ These are major known failure classes, not a claim to enumerate every possible b
 
 ### Capacity and process separation
 
-Run web/API and worker as separate services from the same immutable release. The worker container includes the exact Chromium/Playwright version and browser dependencies; it controls browser concurrency independently of model-call concurrency. The web process stays responsive during generation. PostgreSQL and object storage are shared across instances; no correctness depends on a machine's ephemeral filesystem. Render documents continuous background workers and ephemeral default filesystems ([workers](https://render.com/docs/background-workers), [deploys](https://render.com/docs/deploys)).
+Keep API and worker separate; pin compatible code/schema versions and browser dependencies. Limit browser concurrency independently of model calls. Share PostgreSQL and durable artifacts through existing abstractions. Ephemeral workspace files are temporary processing inputs, not the sole persisted record. No provider migration is selected here.
 
-For initial capacity measurement, a single browser-verification worker with about 2 vCPU and 4 GiB RAM, and an API service with about 1 vCPU and 2 GiB RAM, are starting estimates rather than requirements. Begin with one concurrent Chromium run per worker, measure peak memory and queue wait, and adjust before raising browser concurrency. This sizing does not drive the architecture or require a hosting migration to implement the pipeline.
+Begin future capacity evaluation with bounded extraction/model/browser queues; measure memory, latency, and queue wait on representative sparse/large inputs before raising concurrency. Configure limits centrally. Do not promise hardware requirements or latency without measurements.
 
 ### Observability
 
 Every revision has one traceable chain: source -> dossier -> content -> render plan -> candidate -> verification -> active version. Record operation name, model profile/prompt/schema/theme versions, input/output hashes, attempt number, duration, classified error, relevant section/asset IDs, and browser receipt location. Dashboard measures extraction failure rate, question count, dossier-to-content rejection, rendering defects by component/theme, retry rate, time to first preview, queue wait, and verified promotion rate. Diagnostic artifacts keep enough bounded evidence to reproduce a failure without replaying unrelated prompts.
+
+Logs contain IDs and safe diagnostics, not resumes, provider credentials, or preview capabilities. Raw sources/agent artifacts and screenshots follow owner-scoped access and configured retention. Normal diagnostics should not require logging personal source excerpts.
 
 ### Development verification to build during implementation
 
@@ -264,21 +328,21 @@ Every revision has one traceable chain: source -> dossier -> content -> render p
 - Stage-specific contract/eval cases: sparse student, experienced individual contributor, manager/team attribution, researcher, career switcher, many projects, no project, conflicting dates/metrics, and long international names.
 - Component fixtures across text lengths, 0/1/many items, optional visual states, mobile/tablet/desktop widths, and reduced motion.
 - End-to-end integration for versioned object readback, stale job fencing, retries, failed candidate recovery, and last-good preview.
-- Real-browser checks against the exact assembled artifact and frontend preview path, including an export readback. Visual comparisons use stable fixture pages and a pinned browser environment; generated pages use geometric/function checks plus human review.
+- Real-browser checks against the serving path, both embedded and standalone, including relative asset grants/expiry. Visual comparisons use stable fixture pages and a pinned environment; personalized pages use functional/geometric checks plus human review.
 - A small anonymized, human-reviewed portfolio quality set. Evaluate factual fidelity, useful depth, fit to goal, variety within the theme, and visual readability. OpenAI recommends task-specific evals and human calibration ([evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)).
 
 ### Deployment and recovery
 
-Develop locally with the same web/worker/DB/object-store interfaces. CI checks schema compatibility, renderer/theme fixtures, frontend bundle, browser verification, and migrations before deployment. Deploy migrations once, then compatible web and worker releases. Keep old artifact schemas readable across a rollout; do not point a new worker at an unsupported old theme version. Keep database backups and object-store lifecycle/restore procedures. A failed release rolls back application code while immutable site versions remain readable. Separate staging and production data. Migration off Azure is a later operational action, not part of this architecture-writing task.
+Future implementation should exercise schema compatibility, theme/renderer fixtures, browser delivery, and migrations before a separately authorized release. Apply migrations once, then compatible API/worker versions. Keep historical artifact schemas and pinned theme bytes readable; plan database and storage backup/restore together. Follow the repository's deployment runbooks. This documentation task neither changes CI/deployment nor runs application tests or live models.
 
 ### Future extension rules
 
 1. **More themes:** register a new version with the common semantic component set and a complete asset manifest. Re-render existing content only when the user opts in; old versions remain pinned.
-2. **Generated CSS:** add a `VisualPlan`/stylesheet artifact after Content Architect, with its own owner, validator, and preview gate. The Coding Engine's site manifest can already reference a generated CSS hash; no dossier or content rewrite is needed.
+2. **Generated CSS:** introduce a portfolio-specific style artifact with its own owner, validator, lineage, and preview gate. Never overwrite shared global CSS. A compatible styling change can reuse content; altered semantic capabilities require an explicit compatibility review.
 3. **JavaScript:** add explicit behavior/component capabilities and a versioned script artifact. A page remains valid HTML/CSS when no script is present. Browser QA then tests actual interactions and failure fallback.
 4. **Multiple pages:** requires a new content document schema, navigation contract, render/preview/export rules, and explicit product decision. Do not infer multiple pages merely because a resume is long.
-5. **Public publishing:** promote an already verified immutable bundle to a public URL through a separate publish operation. Preview and download work before that feature exists.
+5. **Public publishing/export:** separate authorized operations over an already verified immutable bundle. Preview works before these features exist; export must preserve the checked bytes.
 
 ## 9. Realistic release criterion
 
-A feature-complete implementation is not complete merely because an agent returned JSON or a browser displayed something once. The first release should show repeatable **verified** previews across representative resume shapes, retain correct facts through edits, keep old ready versions during failures, and serve a downloadable bundle matching the preview. A candidate may be inspectable for diagnosis while unverified, but the UI must label it that way. Visual quality is judged against human-reviewed examples; functional correctness is gated by deterministic and real-browser evidence. That is the practical route to a dependable product with a small pipeline.
+A future release should demonstrate repeatable verified previews across representative inputs, complete evidence accounting, corrections surviving later edits, ordered concurrent changes, stale-worker rejection, and previous-version availability during failures. The [playbook's acceptance scenarios](13-agent-operation-playbook.md#8-acceptance-scenarios-for-future-implementation) define expected outcomes. Visual quality needs human-reviewed theme examples; verification means the exact candidate passed the defined checks, not a guarantee of infallibility.
