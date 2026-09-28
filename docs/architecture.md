@@ -5,10 +5,12 @@ AGENTS.md for the canonical project context and the active stage READMEs for
 their detailed contracts.
 
 The proposed resume-to-portfolio replacement is documented separately in
-[the target implementation guide](architecture/README.md),
+[the research and review guide](architecture/README.md),
 [system design](architecture/10-proposed-resume-portfolio-system.md),
 [agent and artifact contracts](architecture/11-agent-and-artifact-contracts.md),
-and [generation, preview, revision, and operations design](architecture/12-generation-preview-revisions-and-operations.md).
+[generation, preview, revision, and operations design](architecture/12-generation-preview-revisions-and-operations.md),
+and [the detailed agent playbook](architecture/13-agent-operation-playbook.md).
+These documents are proposals awaiting user review before implementation.
 
 ## 1. Explicit Python agents
 

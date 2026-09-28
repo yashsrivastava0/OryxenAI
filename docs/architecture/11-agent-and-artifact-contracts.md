@@ -1,15 +1,15 @@
 # Proposed agent and artifact contracts
 
-> **Status:** target contracts for implementation, not current API schemas. [Start here](README.md) · [System overview](10-proposed-resume-portfolio-system.md) · [Generation and operations](12-generation-preview-revisions-and-operations.md).
+> **Status:** proposed contracts for research and user review; not implemented API schemas. [Start here](README.md) · [System overview](10-proposed-resume-portfolio-system.md) · [Generation and operations](12-generation-preview-revisions-and-operations.md) · [Detailed agent playbook](13-agent-operation-playbook.md).
 
 ## 1. Contract rules shared by all stages
 
-1. Every persisted output has a `contract_version`, stable artifact ID, parent/source version IDs, created time, and content hash. A consumer rejects unknown major versions and stale parents; it does not silently coerce a new payload into an old shape.
+1. Every persisted output has a `contract_version`, stable artifact ID, portfolio/session ID, desired revision, parent IDs/hashes, operation/attempt ID, created time, and content hash. Model-produced artifacts also record prompt/configuration versions. The host computes hashes from canonical serialization. A consumer rejects unknown major versions or mismatched parents; it does not silently coerce a new payload into an old shape.
 2. IDs for facts, projects, roles, sections, links, assets, and versions are stable across targeted revisions. New records get new IDs. Deleted records remain visible in version history but disappear from the new active artifact.
 3. A model response is parsed into a strict type, then checked for cross-reference and semantic completeness. JSON-schema conformance does not establish that a claim is true, that a project is well explained, or that a page looks good ([OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)).
 4. Public copy and internal metadata are separate. The renderer can read public copy, section order, link targets, and asset slots. It cannot accidentally render source excerpts, open questions, or model reasoning.
 5. User edits are events against an exact desired revision and visible site version. An accepted edit while work is running carries forward earlier accepted edits and supersedes the old candidate. A request from a stale tab receives a conflict to review; it never silently overwrites newer intent.
-6. The only model-backed stages are Discovery, Content Architect, and Coding Engine. Each uses the configured OpenAI `gpt-6-luna` profile. The orchestrator, parser, HTML serializer, storage, and verification are ordinary software.
+6. The model-backed stages are Discovery, Content Architect, and Coding Engine, including their scoped interpretation/audit/repair operations. Each resolves a profile through `ModelClient` and `config/models.toml`. The orchestrator, parser, HTML serializer, storage, and mechanical verification are ordinary software.
 
 **Source precedence:** a later explicit user correction wins over an earlier answer, which wins over resume text for the same fact. A correction does not erase the old record; it supersedes it by ID. A supplied job description, sample portfolio, theme example, or model suggestion may shape presentation but cannot become a fact about the user. Conflicting resume sources do not get an automatic winner: Discovery records the conflict and asks or uses wording that avoids the disputed value. A user instruction to omit a fact affects public content selection, not the historical dossier. This precedence must be implemented in artifact merging and validators, not just in prompts.
 
@@ -31,11 +31,13 @@ Examples below omit some envelope fields for readability. Persisted records stil
 
 **Owner:** deterministic intake service, before Discovery.
 
-**Inputs:** pasted text or uploaded PDF/DOCX/TXT, optional goal, links, theme choice, and later optional photo. The service identifies MIME and file size, extracts text, normalizes whitespace while retaining useful headings/bullets, and records source offsets/page numbers. Tables and two-column resumes require a reading-order check. OCR is a separate fallback for image-only PDFs; if unavailable or low quality, show a readable-text request instead of sending garbage to Discovery. The original file remains an immutable source object.
+**Inputs:** pasted text or readable PDF/DOCX/TXT, optional goal, source role, and links. Identify format beyond the declared MIME, bound size/decompression/parser time and memory, preserve the original, and extract text with stable locations. Retain original spelling separately from normalized working text. Image-only, encrypted, corrupted, or unreliable documents return a readable paste/replacement request. **OCR is deferred from the first release.** PDF extraction can lose reading order and cannot recover text from images by itself ([pypdf extraction documentation](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)).
 
 `IntakeIntent/v1` separately records the person's stated goal, audience, preferred display name/pronouns if volunteered, portfolio language, supplied link IDs/URLs, contact action, chosen theme, and which fields are explicit versus defaults. A missing preference is not converted into a fabricated personal preference. The intake form can stay short; Discovery asks only for consequential missing details.
 
-The server creates a `SourceDocument` for **each** input and marks its role (`resume_candidate`, `primary_resume`, `secondary_resume`, `job_description`, `user_note`, `reference_portfolio`). Two resume candidates stay unselected until the user chooses a primary source or answers that question. Pasted text is a source with an immutable text snapshot even when there is no binary upload. Extraction preserves paragraph order, bullets, page/section positions, and original spelling in source spans. It may normalize a separate working text copy for the model. If a PDF's reading order is suspect, the UI should expose a short text preview for correction; a model must not silently infer a chronology from scrambled columns. OCR can improve a scanned PDF, but the output remains marked as OCR-derived and needs the same readable-text gate.
+The server creates a `SourceDocument` for **each** input and marks its role (`professional_details`, `job_description`, `writing_reference`, `visual_reference`, `instruction`, `correction`). An optional primary/resume relationship describes intentional replacement; it is not permission to discard other sources. Multiple resumes can contribute compatible facts. Ask about consequential contradictions, without requiring a primary-selection question for every upload. Every answer/addition/correction is an immutable source event. A job description is target context and cannot support a personal achievement.
+
+Originals, extracted text, and spans remain private. A span carries document/version, text offsets, page/paragraph where available, and extraction diagnostics. Partial extraction requires an explicit user choice to continue with the readable subset or provide a replacement; record the excluded pages/spans. Do not silently accept a partially parsed file as complete. Restrict accepted files and parsing resources as described in [OWASP upload guidance](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html). Embedded instructions in resumes/reference documents remain untrusted source text, following the separation described by [OWASP prompt injection guidance](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
 
 **Output:** `SourceDocument/v1` contains document ID, original object key/hash, format, extraction status (`readable`, `needs_text`, `partial`), extracted-text object key/hash, page count when known, and source spans. A span has ID, page/section or character range, and a short exact excerpt. The extractor does not declare that a resume statement has been externally verified.
 
@@ -61,7 +63,7 @@ The server creates a `SourceDocument` for **each** input and marks its role (`re
 
 Hashes above are schematic fields populated by the service; no model supplies them. A production record also stores extraction diagnostics and text ranges so a fact can be traced beyond a short excerpt.
 
-**Admission rules:** a meaningful text threshold, supported format, extraction diagnostics, and an explicit path for very large documents. A partial extraction is labelled partial. Multiple uploaded resumes remain separate sources; the user selects the primary one or Discovery asks which to use. A job description or sample portfolio is labelled reference material and is never merged into the person's biographical facts.
+**Admission rules:** supported format, bounded resources, readability diagnostics, and an explicit path for large documents. Text length alone does not prove quality or meaningful evidence. Every accepted source must have a terminal extraction disposition. Never silently trim the source to the model context limit.
 
 ## 3. Discovery Agent
 
@@ -79,13 +81,13 @@ Create the most useful **fact and intent handoff** for Content Architect. Discov
 
 Ask one to three high-value questions per turn, chosen from the material rather than a fixed list. Useful topics are portfolio goal/audience, personal versus team role, project problem, meaningful decision, measurable or qualitative result, work examples to feature, contact action, and ambiguous dates. A question must have a stated reason linked to an open item and must be skippable. Avoid asking for metrics a person does not have or asking the same question again after a skip. If enough material exists, go directly to the dossier. If the resume is sparse, a small interview may be necessary; a configured total-question budget prevents an endless loop, and after the user chooses to continue, finish with what is available.
 
-An initial product default can be **at most two question rounds and five questions total**, with one to three in any one round; keep these values in configuration so observed completion rates can change them. If the user explicitly chooses “continue,” stop asking immediately. An indispensable unresolved conflict may still block a specific claim; it does not block a shorter portfolio built from the remaining evidence.
+Proposed defaults are **up to three questions per turn and two rounds**, configured centrally; zero questions is valid. If the user chooses “continue,” stop the interview. A disputed optional claim is omitted or phrased without the disputed value. If available material cannot support a meaningful page, return `needs_input` with one concrete request and retain every skip; do not restart a questionnaire.
 
 A question is worthwhile when its answer could change a featured story, factual wording, section selection, or visitor action. It is not worthwhile merely because a field in a template is empty.
 
-The Discovery operation has a **tagged result**: `questions` (one to three question records with gap ID, reason, and affected fact/project IDs) or `dossier` (complete `DiscoveryDossier/v1`). The first understanding call may return a complete dossier directly when it has enough material; there is no compulsory second call. Answers and skips are persisted before continuation. A resumed call receives the current dossier draft or fact candidates, unanswered high-value gaps, the new answer events, and only cited source spans needed to resolve them. It must not reopen already skipped questions merely because a field remains blank. The orchestrator, not the agent, enforces the configured question and round limits.
+The Discovery operation returns `questions`, `dossier`, or `needs_input`. A question includes question-set ID, gap ID, reason, affected facts/entities, and answer/skip status. A complete first-call dossier can advance immediately after validation. Persist answer/skip events before continuation; load the current dossier draft, unresolved gaps, relevant original spans, and new events. The host enforces rounds/limits. Draft chunk outputs never masquerade as a complete dossier.
 
-For example, a billing resume that says only “improved processing time by 25%” could prompt: “Which part of this rollout did you personally work on, and was the 25% result for your part or the wider team?” The question record cites the ambiguous source span, explains that attribution affects portfolio wording, and accepts either an answer or a skip. A skipped question leaves an explicit gap and leads to neutral team wording.
+For example, “improved processing time by 25%” could prompt: “Which part did you handle, and was the result yours or the team's?” A skip leaves ownership unknown. Use wording that does not assign the result to either an individual or a team, or omit it when even project attribution is unclear. Never convert unknown ownership into assumed team ownership.
 
 ### Writes: `DiscoveryDossier/v1`
 
@@ -93,17 +95,20 @@ For example, a billing resume that says only “improved processing time by 25%�
 | --- | --- |
 | `intent` | Goal, likely audience, desired visitor action, explicit emphasis and tone preferences; distinguish stated preferences from defaults |
 | `subject` | Name/title/location and supplied links with stable IDs |
-| `facts[]` | Atomic statements with fact ID, normalized wording, source span or answer ID, status (`supplied`, `user_clarified`, `unclear`, `conflicting`), and ownership when applicable |
+| `facts[]` | Atomic values/statements, original wording, evidence refs, qualifiers, ownership, and status (`source_asserted`, `user_confirmed`, `conflicting`, `superseded`) |
 | `roles[]` | Organization, role, dates as supplied, responsibilities, linked project/fact IDs |
 | `projects[]` | Context/problem, personal role, team role, approach/decisions, tools, result/metric and its scope, proof/link, linked fact IDs |
 | `other_evidence[]` | Education, research, publications, awards, credentials, skills, talks, open source and other supplied material |
 | `open_items[]` | Missing/contradictory facts, importance, question status, and safe wording constraint |
 | `user_choices` | Feature/omit requests, exact terms to retain or change, selected theme preference |
 | `source_refs` | Document/answer IDs and offsets needed to trace the dossier |
+| `restrictions[]` | Fact/entity/field scope, omit/generalize/private instruction, source event, and public-use rule |
+| `source_coverage[]` | Every substantive span mapped to facts, context/reference, instruction, duplicate, or excluded material with a reason |
+| `lineage` | Exact source versions/hashes, dossier version, schema, producing operation, and host-computed payload hash |
 
-`supplied` means the user-provided material says it; it does **not** mean independently verified. A user correction creates a newer fact version and marks the former value superseded. Numeric outcomes keep units, baseline/timeframe if supplied, and individual/team attribution; unknown parts stay unknown. Resume keywords alone do not justify an invented case study.
+`source_asserted` means the source says it; `user_confirmed` means a direct answer or correction supports it. Neither means independently verified. A correction supersedes an earlier fact revision while keeping its history. Stable logical fact IDs can have immutable revisions; references must identify the exact dossier/fact revision. Missing information is a gap, not an invented fact. Numeric outcomes retain units, baseline/timeframe when supplied, and attribution. Resume keywords alone do not justify a case study.
 
-For each factual record, keep `source_refs`, `subject_id`, `ownership`, `supersedes_fact_id` when corrected, and a normalized value where relevant (for example date text and parsed date separately). Parsing a date into a machine value must never silently add a missing month or day. For a result, store the exact value/unit, whose result it was, and the measurement period only if supplied. The dossier can include factual strengths and open gaps; it does not include public-facing headlines or unsupported career positioning.
+For each factual record, keep `source_refs`, `subject_id`, `ownership`, a `supersedes_ref` to the exact earlier fact revision when corrected, and a normalized value where useful (for example date text and parsed date separately). Parsing a date must never add a missing month/day. For a result, retain exact value/unit, attribution, and measurement period only when supplied. The dossier includes factual strengths and gaps, not finished public headlines or unsupported positioning.
 
 **Illustrative compact excerpt; the real dossier can contain many records:**
 
@@ -124,26 +129,26 @@ For each factual record, keep `source_refs`, `subject_id`, `ownership`, `superse
       "id": "fact-1",
       "statement": "Ajay Mehta is the displayed name",
       "source_refs": ["resume-1:page-1:span-1"],
-      "status": "supplied"
+      "status": "source_asserted"
     },
     {
       "id": "fact-2",
       "statement": "Ajay's current title is Backend Engineer",
       "source_refs": ["resume-1:page-1:span-2"],
-      "status": "supplied"
+      "status": "source_asserted"
     },
     {
       "id": "fact-17",
       "statement": "The billing rollout reduced processing time by 25%",
-      "source_refs": ["resume-1:page-1:span-8"],
-      "status": "supplied",
+      "source_refs": ["resume-1:page-1:span-8", "answer-3"],
+      "status": "user_confirmed",
       "ownership": "team"
     },
     {
       "id": "fact-18",
       "statement": "Ajay redesigned the queue consumer for the rollout",
       "source_refs": ["answer-3"],
-      "status": "user_clarified",
+      "status": "user_confirmed",
       "ownership": "individual"
     }
   ],
@@ -162,22 +167,22 @@ For each factual record, keep `source_refs`, `subject_id`, `ownership`, `superse
 }
 ```
 
-The excerpt is fictional and illustrates data shape, not a claim about the supplied sample portfolio.
+The excerpt is fictional and partial, not a complete dossier or a claim about the user. In this example `answer-3` confirms both the individual contribution and team attribution. Full records also include original wording, restrictions, complete span coverage, lineage, and the referenced source/answer bodies.
 
 ### Discovery acceptance
 
-Require at least a usable identity or an explicit anonymous-display choice, a meaningful goal/default goal, source references for substantive facts, stable unique IDs, and no unresolved contradiction used as a confident fact. A dossier may be sparse and still valid. It should be sufficient for Content Architect to distinguish personal contribution from team outcome. A human-readable review summary can be generated from the dossier but is not the downstream source of truth.
+Require a usable identity or explicit anonymous choice, a stated/default goal with its basis, resolving evidence refs, unique IDs, all source-span dispositions, and retained restrictions/conflicts/skips. Preserve every role/project internally; display quotas never truncate the inventory. A sparse dossier can pass. Coverage catches unaccounted extracted spans, but cannot prove extraction or interpretation is perfect. Render readable Markdown and the compact frontend summary from this same dossier; neither replaces it downstream.
 
 ## 4. Content Architect Agent
 
 ### Single responsibility
 
-Transform the dossier into a **complete, detailed, one-page editorial package** for the coding stage. It selects and orders sections, chooses the leading story, writes every person-specific visible sentence, and ties important factual claims to dossier fact IDs. Fixed theme chrome may supply generic labels, but it never supplies biography. Content Architect does not browse the resume afresh, re-interview the user, decide CSS class names, or generate HTML.
+Transform the dossier into a **complete, detailed, publishable single-page content package**. Select/order sections, establish emphasis, and write every personalized public field, including metadata and accessible labels. Bind every factual public field to supporting dossier facts. Static theme labels may supply generic chrome, never biography. Do not invent achievements, rewrite facts to satisfy a template, emit HTML/CSS, or directly interview the user; route factual questions through Discovery and the host.
 
 ### Reads
 
-- One immutable Discovery dossier version and any targeted source excerpt needed to resolve a referenced ambiguity. The raw resume is not sent by default.
-- Common semantic component vocabulary supported by the selected theme(s).
+- One complete immutable Discovery dossier, including all restrictions, supersessions, gaps, and coverage. Supporting source excerpts for ambiguous or sensitive claims; no dependence on an earlier summary.
+- The pinned theme's semantic capabilities: required/optional fields, density, supported interactions, and limitations. **Do not routinely send raw `styles.css`**; selectors alone do not explain the editorial contract.
 - User's change request and prior content package for an editorial revision.
 
 ### Content depth and structure
@@ -194,6 +199,7 @@ There is no fixed project count or word minimum. A rich dossier can support mult
 | `capability_groups` | Evidence-led groups, brief explanation, skills/tools with linked supporting work | Use a modest inventory; no artificial mastery labels |
 | `credentials` | Education, research, publications, awards, or certifications and supplied dates/links | Omit the block entirely if unsupported |
 | `contact` | User-supplied contact/link action, short closing copy, visible label | If no contact route is supplied, use a real internal evidence section as the action; if neither exists, request more material |
+| `narrative` / `evidence_list` | Introduction or other professional evidence using supported paragraphs/items | Use for unusual material or a project lacking required story fields |
 
 Every selected block carries its full public copy in the package. The table is a semantic vocabulary for all first-release themes, not a requirement that every person have every block.
 
@@ -208,6 +214,10 @@ Every selected block carries its full public copy in the package. The table is a
 | `links` | Stable ID, label, URL and where it is used |
 | `asset_slots` | Optional portrait, visual, or logo need; an absent slot has a defined fallback |
 | `editorial_notes` | Review-only omissions, unresolved detail, and explanation of user-confirmed versus inferred choices |
+| `theme_capability_version` | Exact semantic vocabulary and constraints used while writing |
+| `claim_bindings[]` | Typed public field paths, supporting current fact IDs/revisions, relevant qualifiers and attribution |
+| `coverage_ledger[]` | Every relevant fact/entity: used, condensed, retained internally, excluded by restriction/editorial choice, or unresolved; destination IDs and reasons |
+| `review` | Missing evidence, restrictions applied, support/consistency findings, and compatibility issues; never rendered publicly |
 
 The `document.sections[]` array is the only source of section order and nav labels. A section's copy is typed by block type: for example `project_story` can contain `context`, `contribution`, `approach`, and `outcome`, with required fields defined by its chosen short or long variant. Only supported block types enter a renderable package. If a theme does not support one, Content Architect selects a supported generic narrative block or returns a capability gap; it never silently drops the project.
 
@@ -218,11 +228,12 @@ Each factual sentence or field also has a `claim_bindings[]` entry containing it
 | Block | Required when selected | Optional, only when supported | Normal omission behavior |
 | --- | --- | --- | --- |
 | `hero` | `name` (or chosen anonymous display identity), `eyebrow`, `headline`, `introduction`, `primary_action_label`, `primary_action_link_id` | location, second action, decorative visual slot | Image-free hero; a chosen anonymous display label is valid |
-| `project_story` | title, context, contribution | approach, result, proof link, tools | Short variant when decisions/results are unknown; no invented metric |
+| `project_story` | title and supported contribution | context/problem, approach, outcome, proof link, tools | Compact variant when context/decisions/results are unknown; generic evidence item when contribution is unknown |
 | `experience` | role or organization, at least one scope/work line | date text, progression, linked project | Narrative variant when dates are missing or inconsistent |
 | `capability_groups` | one or more named groups with supported examples | secondary tool inventory | Do not invent mastery levels or fill an arbitrary quota |
 | `credentials` | at least one sourced item | date, issuer, link | Omit section entirely when empty |
 | `contact` | heading and usable internal or supplied external action | supplied contact links, closing note | Internal action when no external contact route is provided |
+| `narrative` / `evidence_list` | heading and at least one sourced paragraph/item | links, dates, captions | Preserve unusual professional material without fabricating a project or credential |
 
 This table defines minimum renderable fields. Long-form variants may need more copy, but they cannot force Content Architect to fabricate an outcome. The selected theme's manifest supplies item-count and soft text-length bands; those guide variant selection and browser checks rather than hard truncation.
 
@@ -257,6 +268,7 @@ This table defines minimum renderable fields. Long-form variants may need more c
         "claim_bindings": [
           {"field_path": "copy.name", "fact_ids": ["fact-1"]},
           {"field_path": "copy.eyebrow", "fact_ids": ["fact-2"]},
+          {"field_path": "copy.headline", "fact_ids": ["fact-2", "fact-18"]},
           {"field_path": "copy.introduction", "fact_ids": ["fact-2", "fact-18"]}
         ],
         "asset_slots": ["hero-visual"]
@@ -269,7 +281,7 @@ This table defines minimum renderable fields. Long-form variants may need more c
           "title": "Making a billing rollout process work more efficiently",
           "context": "The team worked on a billing rollout.",
           "contribution": "I redesigned the queue consumer for that rollout.",
-          "outcome": "The team reported a 25% reduction in processing time during the rollout."
+          "outcome": "The team's billing rollout reduced processing time by 25%."
         },
         "fact_refs": ["fact-17", "fact-18"],
         "claim_bindings": [
@@ -285,23 +297,33 @@ This table defines minimum renderable fields. Long-form variants may need more c
     "title": "Ajay Mehta | Backend Engineer",
     "description": "Selected backend engineering work by Ajay Mehta."
   },
+  "claim_bindings": [
+    {"field_path": "metadata.title", "fact_ids": ["fact-1", "fact-2"]},
+    {"field_path": "metadata.description", "fact_ids": ["fact-1", "fact-2", "fact-18"]}
+  ],
+  "coverage_ledger": [
+    {"fact_id": "fact-1", "disposition": "used", "section_ids": ["hero"], "other_paths": ["metadata.title", "metadata.description"]},
+    {"fact_id": "fact-2", "disposition": "used", "section_ids": ["hero"], "other_paths": ["metadata.title", "metadata.description"]},
+    {"fact_id": "fact-17", "disposition": "used", "section_ids": ["billing-work"]},
+    {"fact_id": "fact-18", "disposition": "used", "section_ids": ["hero", "billing-work"]}
+  ],
   "links": [{"id": "link-selected-work", "label": "Explore selected work", "url": "#billing-work"}],
   "asset_slots": [{"id": "hero-visual", "kind": "theme_illustration", "optional": true}],
   "editorial_notes": ["Do not attribute the team-wide 25% result solely to Ajay.", "The measurement period and design decisions were not supplied; omit those details from public copy."]
 }
 ```
 
-The example deliberately shows an editorial limitation: the missing design decision is absent from public copy and recorded only in review metadata. A supported shorter project variant is selected for this content. The sample is schematic, not a quality benchmark for public wording.
+The example deliberately omits unsupported design rationale and measurement period. It shows field-level bindings and a partial coverage ledger; a complete package also carries all entity dispositions, the closing action, lineage, restrictions applied, and compatibility/audit results. Section-local paths resolve relative to that section; root paths resolve from the package. This is a shape example, not a complete publishable fixture or public-writing quality benchmark.
 
 ### Content acceptance
 
-- One hero, a substantive evidence section when any work/education/skills material supports one, and a coherent closing/contact action. No mandatory projects for a user who has none. If a source contains no substantive evidence and the user skips every request for more, produce a minimal truthful introduction only when a usable destination/link still makes a page meaningful, with an explicit `limited_content` review flag. If there is neither evidence nor a usable destination, return `needs_material` with one concrete request instead of manufacturing a case study or a self-link.
-- Each factual section cites existing dossier facts; measurable results have matching wording, units, and attribution. Draft review notes never appear in public copy.
+- One hero, substantive evidence when available, and a coherent closing action. No mandatory projects for someone who has none. A minimal introduction with a meaningful destination can carry a `limited_content` review flag; if neither evidence nor a usable destination exists, return `needs_input` with one concrete request.
+- Every factual public field, including metadata/alt text, binds to current permitted facts; metrics retain units and attribution. Resolve references and audit semantic support, since valid fact IDs can still accompany an unsupported paraphrase. Review notes and private facts never reach public copy.
 - Section IDs and link IDs are unique; navigation is derived from sections present; every selected block is theme-compatible.
 - A dense package remains readable. When excessive text cannot fit a supported design, shorten lower-priority repetitions or select a long-form component; never silently truncate a fact or paragraph.
-- If a single indispensable clarification is needed, emit a bounded `clarification_request` targeting the precise dossier gap. Otherwise produce the best supported package.
+- If an indispensable clarification is needed, emit a `clarification_request` for the host/Discovery to evaluate against the shared question budget and skip history. A skipped optional gap stays omitted; Content Architect cannot restart the interview. If essential material remains unavailable, return `needs_input` with a concrete reason.
 
-The Content Architect's completion check compares the section plan to the actual typed copy: every planned section has copy, every copy field required by its block variant is filled, every link ID resolves, and a section selected for the navigation has a label. A package can deliberately omit unsupported optional sections, but it records that choice in `editorial_notes`. It cannot hand the Coding Engine an outline and expect the renderer to invent paragraphs.
+Content Architect performs three logical operations: **plan sections and coverage; write complete copy; audit support, consistency, completeness, and theme compatibility**. Small inputs may combine planning/writing. Large inputs use bounded named-section batches with direct factual inputs and persisted completion records. The audit compares planned sections to finished copy, resolves links/assets, checks all coverage dispositions, and rejects placeholders or incomplete output. A detailed internal artifact can still yield a concise public page. See [the playbook](13-agent-operation-playbook.md) for the operation packets and project-writing rules.
 
 ## 5. Coding Engine Agent and controlled renderer
 
@@ -331,7 +353,7 @@ The model-backed composition operation returns a small typed plan: theme version
 }
 ```
 
-A `SiteVersion/v1` then records parent dossier/content IDs, theme ID/hash, `index.html` hash, stylesheet hash, asset manifest, screenshot keys, verification receipt, and preview URL. The AI proposes only allowed variant IDs and slots; the renderer performs all actual path and tag assembly. Initial generation makes one configured Luna composition call. A mechanical revision such as a corrected name may reuse its valid plan and re-render without another composition call; when the layout choice changes, Luna proposes the new plan.
+A `SiteVersion/v1` records parent dossier/content/plan IDs, theme/hash, HTML hash, stylesheet hash, asset manifest, screenshot references, and verification receipt. The model emits only allowed variants and bindings. Initial generation uses one composition operation with at most one targeted correction before the tested default mapping. Mechanical edits may reuse the previous compatible plan. Expiring preview grants are issued separately; never persist them in public metadata or model input.
 
 ```json
 {
@@ -354,7 +376,7 @@ The model does not emit this site manifest. The host fills it after object readb
 
 ### Theme manifest and component contract
 
-Each theme specifies semantic block types, allowed variants, required/optional fields, HTML pattern version, class vocabulary, CSS hash, asset slots, font files, image dimensions/crops, responsive expectations, and HTML/JS capability version. Theme selection is either a user choice or a bounded default based on content shape. All themes should initially support the same block types so Content Architect can write once and theme switching only rerenders.
+Each theme specifies semantic block types, variants, field slots, templates/classes, CSS hash, assets, responsive expectations, and HTML/JS capability version. Pin one shared theme for the first release. Future theme switching requires compatibility checks; arbitrary style edits are outside the current contract.
 
 **Illustrative theme manifest excerpt:**
 
@@ -369,7 +391,9 @@ Each theme specifies semantic block types, allowed variants, required/optional f
     "experience": ["experience-narrative"],
     "capability_groups": ["capability-groups"],
     "credentials": ["credentials-list"],
-    "contact": ["connect-layout"]
+    "contact": ["connect-layout"],
+    "narrative": ["narrative-flow"],
+    "evidence_list": ["evidence-list"]
   },
   "asset_slots": ["hero-visual", "portrait"],
   "capabilities": {"html": "single-document/v1", "javascript": false}
@@ -386,12 +410,12 @@ For the supplied CSS seed, `editorial-forest/v1` must be completed before genera
 
 ### Coding acceptance
 
-Every public section and required copy field from `PortfolioContent` appears in the HTML exactly once according to its component contract. The page has one main landmark, sensible heading order, live anchor targets, asset paths in the manifest, no unsupported class/variant, no script for the current capability version, and no review-only metadata. Browser verification is a separate, required step before promotion.
+Every public field appears in its declared slot with the multiplicity specified by the template. A name can intentionally appear in both hero and footer; this must be declared rather than rejected as a duplicate. No public section/field is silently dropped. Require semantic structure, resolving anchors, allowed paths/classes, escaped text/attributes, supported URL schemes, no scripts/event handlers/forms/inline styles, and no review-only data. Browser verification gates promotion separately.
 
 ## 6. Context and model-call policy
 
 - **Discovery:** one understanding call when the source is ready; question rounds only while material gaps remain. It can return the dossier in the first call. Otherwise use one dossier-finalization call after the last answer/skip. Persist answers after every user action. No repeated full extraction for a simple correction.
-- **Content Architect:** one complete plan-and-write call for ordinary cases; one optional targeted continuation for a genuinely long package or a precisely failed consistency gate. Do not split into a model call per section by default.
+- **Content Architect:** planning, writing, and audit with bounded section batches when needed. Ordinary cases can combine planning/writing. Each writing/repair call receives relevant facts directly. Do not impose a small fixed call count that makes complete output impossible; configure per-operation/revision budgets and stop explicitly when they are exhausted.
 - **Coding Engine:** one composition call for a new portfolio, then host rendering; a valid plan can be reused for a mechanical content revision. A bounded targeted repair call applies only when a correctable component mapping error survives deterministic normalization. No general “regenerate the whole site until it looks good” loop.
 
 For an oversized source, split extracted text at document/section boundaries into bounded chunks with source span IDs, extract atomic facts from each, then merge and check contradictions before the dossier is finalized. Do not keep only the beginning of a resume or silently drop later pages. The chunking threshold and per-operation context allowance are configuration values; each chunk's provenance survives the merge. The fact graph and question/answer events are durable memory. Model context is assembled from those records for the current task, not from an ever-growing raw chat transcript.
@@ -411,7 +435,7 @@ The database is the durable memory. Each request is assembled afresh from immuta
 
 1. Compile the **actual** request for one operation, including instructions, structured-output schema, selected facts/sections, examples, and any tool definitions. Keep shared instructions before user-specific material to make the prefix stable.
 2. Check `input_tokens + reserved_max_output_tokens + safety_margin <= configured_operation_context_limit`, with `configured_operation_context_limit` no greater than the selected model's published context window. The output reserve includes invisible reasoning/format tokens; the margin accounts for transport or schema changes. The model's large advertised window does not set the product's operational limit.
-3. Use the Responses [input-token counting endpoint](https://developers.openai.com/api/docs/guides/token-counting) for an exact near-limit count of the same request shape. A local estimate may reject obviously excessive material early, but a character count is not an exact token count. Record estimated and actual counts and response usage by operation.
+3. Use the configured adapter's tokenizer or counting facility when available; otherwise use a conservative estimate and larger margin. Character counts are not exact token counts. Record estimation method and actual response usage. This policy does not mandate a particular provider API.
 4. If Discovery source material does not fit, split it on section/page boundaries, carry the heading and source IDs into each chunk, extract facts per chunk, deduplicate repeated facts by source identity, and merge contradictions before a final dossier call. Never drop trailing pages. If a Content package does not fit, first remove repeated source excerpts and irrelevant history; if output itself is too large, use a bounded continuation over named sections and an integration check. Coding Engine gets only the compact manifest, never the whole stylesheet.
 5. A refusal, truncated/incomplete output, schema failure, or semantic validation failure is a classified result. Do not parse a partial JSON body into a publishable artifact. Retry only the same immutable operation within its configured attempt limit or request the precise upstream correction. Changing the input shape, schema, or prompt creates a new operation fingerprint.
 
@@ -419,11 +443,9 @@ Structured Outputs improves shape reliability but still requires application val
 
 Limits are configuration values, chosen from measured latency and failure data, not magic numbers in prompts. Transient provider failures can retry the same immutable operation within a small budget; semantic defects return a specific failure. The application records each attempt and never duplicates an uncertain successful write. Evaluation cases should be stage-specific and calibrated with human review, consistent with [OpenAI's evaluation guidance](https://developers.openai.com/api/docs/guides/evaluation-best-practices).
 
-### Requested model integration gate
+### Configured model capability gate
 
-The requested target is OpenAI `gpt-6-luna` for every model-backed stage. Keep the existing `ModelClient` abstraction, but add or adapt a direct OpenAI profile that actually reaches this model. The present provider-compatible chat adapter and its fallback policy are not proof of compatibility. Prefer the Responses API for the new structured-output operations; set schema output through its supported response format, validate the result again in application code, and handle refusal, incomplete output, unsupported schema shape, timeout, and rate-limit responses. For non-`none` reasoning effort, omit unsupported sampling parameters such as `temperature` and `top_p`; pin reasoning effort per operation and evaluate the chosen settings on representative cases. The current provider-neutral call boundary may need an adapter change to express these parameters. Do not silently substitute another model if this requested model is unavailable; surface a stage-specific configuration or provider error. These are implementation checks, not a claim that account access has already been established. See [the model page](https://developers.openai.com/api/docs/models/gpt-6-luna), [GPT-6 migration guidance](https://developers.openai.com/api/docs/guides/latest-model), and [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
-
-**Concrete repository blocker:** `ModelRuntime._validate_profile()` in `src/oryxenai/agents/shared/model_runtime.py` explicitly raises for `provider == "openai_responses"`. Current active operation routing in `config/models.toml` also has fallback profiles inconsistent with the requested single-model target. Before changing agent prompts, implement and verify the Responses transport behind `ModelClient`, update its capability declaration and operation routes, and confirm a strict schema call through the configured profile. Do not remove the explicit rejection until the transport exists. This is a target implementation dependency; these architecture documents do not change runtime configuration.
+Use `config/models.toml` as the authority for provider, model, routing, and fallback policy. During future implementation, check that each selected profile supports its request parameters, output schema, context allowance, and timeout policy. Handle refusal, truncation, invalid output, authentication errors, and rate limits explicitly. A disabled optional transport does not mean the configured workflow requires migration to that transport. Fallbacks must be configured and recorded in the operation lineage; never silently change the factual or validation contract to accommodate a provider failure. No credential setup or live model run is part of this documentation task.
 
 ## 7. Current-to-target contract differences
 

@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-115 — Research-only refinement of the portfolio proposal
+
+- **Date & Time:** 2026-09-29 01:22 +05:30 — Codex (OpenAI)
+- **Status:** open
+- **Context:** The operator clarified that this task is architecture research in Markdown and that implementation follows their review. Earlier D-114 prose also coupled the proposal to a particular model and hosting migration.
+- **Decision:** Submit the refined design in `docs/architecture/10-...` through `13-...` for review: complete evidence/coverage contracts, detailed Content Architect writing and audit, constrained composition with trusted HTML rendering, one shared pinned stylesheet, isolated verified preview, ordered edits, and bounded repair. Provider/model settings remain in `config/models.toml`; reuse storage/job boundaries without selecting a hosting migration. No implementation is authorized by this documentation task.
+- **Rejected alternatives:** Treating earlier "implement" messages as permission to change runtime after the clarification; treating short agent summaries as complete handoffs; silently fixing failures by dropping evidence or editing shared CSS per user.
+- **Consequence:** This is a refinement of D-114 pending user review, not a change to the active D-113 workflow. Code, schema, theme assets, model configuration, and deployment require a later implementation task. Current deployment decisions retain their meaning.
+
 ## D-114 — Target a theme-bound resume-to-portfolio pipeline
 
 - **Date & Time:** 2026-09-27 01:05 +05:30 — Codex (OpenAI)
