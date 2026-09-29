@@ -7,85 +7,84 @@
 1. Every persisted output has a `contract_version`, stable artifact ID, portfolio/session ID, desired revision, parent IDs/hashes, operation/attempt ID, created time, and content hash. Model-produced artifacts also record prompt/configuration versions. The host computes hashes from canonical serialization. A consumer rejects unknown major versions or mismatched parents; it does not silently coerce a new payload into an old shape.
 2. IDs for facts, projects, roles, sections, links, assets, and versions are stable across targeted revisions. New records get new IDs. Deleted records remain visible in version history but disappear from the new active artifact.
 3. A model response is parsed into a strict type, then checked for cross-reference and semantic completeness. JSON-schema conformance does not establish that a claim is true, that a project is well explained, or that a page looks good ([OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)).
-4. Public copy and internal metadata are separate. The renderer can read public copy, section order, link targets, and asset slots. It cannot accidentally render source excerpts, open questions, or model reasoning.
+4. Public copy and internal metadata are separate. Code Generator receives approved public copy, section order, link targets, and asset slots, never the raw dossier or review notes. The host rejects generated HTML that exposes source excerpts, open questions, or model reasoning.
 5. User edits are events against an exact desired revision and visible site version. An accepted edit while work is running carries forward earlier accepted edits and supersedes the old candidate. A request from a stale tab receives a conflict to review; it never silently overwrites newer intent.
-6. The model-backed stages are Discovery, Content Architect, and Coding Engine, including their scoped interpretation/audit/repair operations. Each resolves a profile through `ModelClient` and `config/models.toml`. The orchestrator, parser, HTML serializer, storage, and mechanical verification are ordinary software.
+6. The model-backed stages are Discovery, Content Architect, and Code Generator, including their scoped interpretation/audit/repair operations. Each resolves a profile through `ModelClient` and `config/models.toml`. The coordinator, source adapter, storage, and mechanical/browser verification are ordinary software. Code Generator writes the HTML.
 
 **Source precedence:** a later explicit user correction wins over an earlier answer, which wins over resume text for the same fact. A correction does not erase the old record; it supersedes it by ID. A supplied job description, sample portfolio, theme example, or model suggestion may shape presentation but cannot become a fact about the user. Conflicting resume sources do not get an automatic winner: Discovery records the conflict and asks or uses wording that avoids the disputed value. A user instruction to omit a fact affects public content selection, not the historical dossier. This precedence must be implemented in artifact merging and validators, not just in prompts.
 
 ### Artifact chain
 
 ```text
-SourceDocument/v1 + IntakeIntent/v1
-    -> DiscoveryDossier/v1
-    -> PortfolioContent/v1
-    -> RenderPlan/v1 + ThemeManifest/v1 + AssetManifest/v1
+SourceDocument/v1 (freeform text first) + IntakeIntent/v1
+    -> DiscoveryDossier/v1 -> explicit Discovery approval
+    -> PortfolioContent/v1 -> explicit Content Architect approval
+    -> GeneratedHtml/v1 + ThemeManifest/v1 + AssetManifest/v1
     -> SiteVersion/v1 (index.html, styles.css, assets, verification receipt)
 ```
 
-The chain is directional. Coding Engine may request an upstream correction, but it may not change facts in its output. The content package is the one canonical source for person-specific visible words; `index.html` is a derived artifact.
+The chain is directional. Code Generator may request an upstream correction, but it may not change facts or approved words in its output. The content package is the one canonical source for person-specific visible words; `index.html` is a derived artifact. A consumer checks the exact parent approval hash before starting.
 
 Examples below omit some envelope fields for readability. Persisted records still carry the IDs, hashes, timestamps, and parent references required by rule 1.
 
-## 2. Intake and document extraction
+## 2. Intake and future document extraction
 
 **Owner:** deterministic intake service, before Discovery.
 
-**Inputs:** pasted text or readable PDF/DOCX/TXT, optional goal, source role, and links. Identify format beyond the declared MIME, bound size/decompression/parser time and memory, preserve the original, and extract text with stable locations. Retain original spelling separately from normalized working text. Image-only, encrypted, corrupted, or unreliable documents return a readable paste/replacement request. **OCR is deferred from the first release.** PDF extraction can lose reading order and cannot recover text from images by itself ([pypdf extraction documentation](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)).
+**First-slice input:** one freeform text box. The user can type or paste a goal, notes, resume text, links, and context in any order. Preserve the exact input, assign source and character-span IDs, and retain original spelling alongside normalized working text. The UI does not require separate goal or resume fields. Empty/greeting-only input prompts for one concrete professional starting point.
 
-`IntakeIntent/v1` separately records the person's stated goal, audience, preferred display name/pronouns if volunteered, portfolio language, supplied link IDs/URLs, contact action, chosen theme, and which fields are explicit versus defaults. A missing preference is not converted into a fabricated personal preference. The intake form can stay short; Discovery asks only for consequential missing details.
+**Later adapters:** PDF and DOCX attachments produce the same `SourceDocument` and span contract before Discovery runs. File-format detection, partial extraction, OCR decisions, and upload controls belong to that later slice. PDF text extraction can lose reading order and cannot recover text from images by itself ([pypdf extraction documentation](https://pypdf.readthedocs.io/en/stable/user/extract-text.html)); future adapters must show a paste/replacement path rather than treating an unreadable file as an empty resume.
 
-The server creates a `SourceDocument` for **each** input and marks its role (`professional_details`, `job_description`, `writing_reference`, `visual_reference`, `instruction`, `correction`). An optional primary/resume relationship describes intentional replacement; it is not permission to discard other sources. Multiple resumes can contribute compatible facts. Ask about consequential contradictions, without requiring a primary-selection question for every upload. Every answer/addition/correction is an immutable source event. A job description is target context and cannot support a personal achievement.
+`IntakeIntent/v1` records any goal, audience, preferred display name/pronouns if volunteered, portfolio language, supplied link IDs/URLs, contact action, and theme choice identified in the text or later answers, with a basis for each explicit value or safe default. A missing preference is not converted into a fabricated personal preference. Discovery asks only for consequential missing details.
 
-Originals, extracted text, and spans remain private. A span carries document/version, text offsets, page/paragraph where available, and extraction diagnostics. Partial extraction requires an explicit user choice to continue with the readable subset or provide a replacement; record the excluded pages/spans. Do not silently accept a partially parsed file as complete. Restrict accepted files and parsing resources as described in [OWASP upload guidance](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html). Embedded instructions in resumes/reference documents remain untrusted source text, following the separation described by [OWASP prompt injection guidance](https://cheatsheetseries.owasp.org/cheatsheets/LLM_Prompt_Injection_Prevention_Cheat_Sheet.html).
+The server creates a `SourceDocument` for each submitted text event. Discovery classifies spans as `professional_details`, `job_description`, `writing_reference`, `visual_reference`, `instruction`, `correction`, or unresolved source role. A single paste may contain several roles. Additions and corrections are immutable events; replacing one resume does not erase previous source history. A job description is target context and cannot support a personal achievement.
 
-**Output:** `SourceDocument/v1` contains document ID, original object key/hash, format, extraction status (`readable`, `needs_text`, `partial`), extracted-text object key/hash, page count when known, and source spans. A span has ID, page/section or character range, and a short exact excerpt. The extractor does not declare that a resume statement has been externally verified.
+The original text and spans are stored outside the public site bundle. A text span carries source/version and character offsets; future document adapters may add page/paragraph and extraction diagnostics. Embedded instructions in pasted resumes or references remain source text rather than operational authority.
 
-**Illustrative extraction excerpt:**
+**Output:** `SourceDocument/v1` contains source ID, original text object key/hash, format (`text` initially), admission status, and spans. A span has an ID, exact character range, and short original excerpt. Future file adapters extend the record with extraction status and page references. Intake does not declare that a resume statement has been externally verified.
+
+**Illustrative text-source excerpt:**
 
 ```json
 {
   "contract_version": "SourceDocument/v1",
-  "id": "resume-1",
-  "format": "pdf",
-  "original_object_key": "sources/resume-1/original.pdf",
+  "id": "resume-text-1",
+  "format": "text",
+  "original_object_key": "sources/resume-text-1/original.txt",
   "original_sha256": "<computed-content-hash>",
-  "extraction_status": "readable",
-  "extracted_text_object_key": "sources/resume-1/text.txt",
-  "extracted_text_sha256": "<computed-text-hash>",
-  "page_count": 2,
+  "admission_status": "readable",
   "spans": [
-    {"id": "resume-1:page-1:span-1", "page": 1, "excerpt": "Ajay Mehta"},
-    {"id": "resume-1:page-1:span-8", "page": 1, "excerpt": "Reduced billing processing time by 25%"}
+    {"id": "resume-text-1:span-1", "start": 0, "end": 10, "excerpt": "Ajay Mehta"},
+    {"id": "resume-text-1:span-8", "start": 180, "end": 218, "excerpt": "Reduced billing processing time by 25%"}
   ]
 }
 ```
 
-Hashes above are schematic fields populated by the service; no model supplies them. A production record also stores extraction diagnostics and text ranges so a fact can be traced beyond a short excerpt.
+Hashes and offsets above illustrate shape; production values are computed from the stored text, not supplied by the model. A production record preserves exact ranges so a fact can be traced beyond a short excerpt.
 
-**Admission rules:** supported format, bounded resources, readability diagnostics, and an explicit path for large documents. Text length alone does not prove quality or meaningful evidence. Every accepted source must have a terminal extraction disposition. Never silently trim the source to the model context limit.
+**Admission rules:** preserve the whole submitted text, provide a clear path for empty input, and chunk oversized material without dropping its end. Text length alone does not prove meaningful evidence. Future file adapters add format and extraction admission without changing Discovery's source contract.
 
 ## 3. Discovery Agent
 
 ### Single responsibility
 
-Create the most useful **fact and intent handoff** for Content Architect. Discovery understands the person's career history and asks for missing context that would change the resulting page. It does not decide final positioning, section order, CTA wording, CSS theme, or public paragraphs.
+Create the complete **fact and intent handoff** for Content Architect. Discovery understands the person's work, records every substantive supplied detail and its source, asks for context that would materially change the page, and presents a detailed report for user approval. It does not write final positioning, section order, CTA wording, CSS, or public paragraphs. See the [operating specification](14-discovery-and-content-authoring-spec.md) for its detailed inventory and question examples.
 
 ### Reads
 
-- Original source document IDs and extracted text/spans; initial goal and user-supplied links.
+- Original freeform text and spans; any goal and links it contains. Future PDF/DOCX adapters provide the same readable source contract.
 - Prior questions and answers; previous dossier version for a factual revision.
 - An explicit selected theme preference, if the user has chosen one. Discovery records it; it does not analyze CSS.
 
 ### Question policy
 
-Ask one to three high-value questions per turn, chosen from the material rather than a fixed list. Useful topics are portfolio goal/audience, personal versus team role, project problem, meaningful decision, measurable or qualitative result, work examples to feature, contact action, and ambiguous dates. A question must have a stated reason linked to an open item and must be skippable. Avoid asking for metrics a person does not have or asking the same question again after a skip. If enough material exists, go directly to the dossier. If the resume is sparse, a small interview may be necessary; a configured total-question budget prevents an endless loop, and after the user chooses to continue, finish with what is available.
+Ask zero questions when the source already supports a useful report. Otherwise present one, two, or three high-value questions **together** in a round, tailored to the material rather than a fixed list. Useful topics are portfolio goal/audience, personal versus team role, project problem, meaningful decision, qualitative or measured result, work examples to feature, contact action, and ambiguous dates. Each question has a reason linked to an open gap, concise contextual wording, free-text answer, and Skip. Avoid asking for a metric merely because none was supplied.
 
-Proposed defaults are **up to three questions per turn and two rounds**, configured centrally; zero questions is valid. If the user chooses “continue,” stop the interview. A disputed optional claim is omitted or phrased without the disputed value. If available material cannot support a meaningful page, return `needs_input` with one concrete request and retain every skip; do not restart a questionnaire.
+There is no small fixed round count. One distinct gap is asked at most once unless genuinely new user information changes it; answer and skip history prevents a loop. The user may choose “continue with what I gave you” at any point. A disputed optional claim is omitted or phrased without the disputed value. If available material cannot support a meaningful page, return `needs_input` with one concrete request and retain every skip.
 
 A question is worthwhile when its answer could change a featured story, factual wording, section selection, or visitor action. It is not worthwhile merely because a field in a template is empty.
 
-The Discovery operation returns `questions`, `dossier`, or `needs_input`. A question includes question-set ID, gap ID, reason, affected facts/entities, and answer/skip status. A complete first-call dossier can advance immediately after validation. Persist answer/skip events before continuation; load the current dossier draft, unresolved gaps, relevant original spans, and new events. The host enforces rounds/limits. Draft chunk outputs never masquerade as a complete dossier.
+The Discovery operation returns `questions`, `dossier_for_review`, or `needs_input`. A question includes question-set ID, gap ID, reason, affected facts/entities, and answer/skip status. A complete first-call dossier goes directly to **Discovery review**, never directly to Content Architect. Persist answer/skip events before continuation; load the current dossier draft, unresolved gaps, relevant original spans, and new events. The host enforces distinct-gap history and revision checks. Draft chunk outputs never masquerade as a complete dossier.
 
 For example, “improved processing time by 25%” could prompt: “Which part did you handle, and was the result yours or the team's?” A skip leaves ownership unknown. Use wording that does not assign the result to either an individual or a team, or omit it when even project attribution is unclear. Never convert unknown ownership into assumed team ownership.
 
@@ -104,6 +103,7 @@ For example, “improved processing time by 25%” could prompt: “Which part d
 | `source_refs` | Document/answer IDs and offsets needed to trace the dossier |
 | `restrictions[]` | Fact/entity/field scope, omit/generalize/private instruction, source event, and public-use rule |
 | `source_coverage[]` | Every substantive span mapped to facts, context/reference, instruction, duplicate, or excluded material with a reason |
+| `question_events[]` | Every contextual question, answer or skip, linked gap and source event; prevents repeating the same unresolved request |
 | `lineage` | Exact source versions/hashes, dossier version, schema, producing operation, and host-computed payload hash |
 
 `source_asserted` means the source says it; `user_confirmed` means a direct answer or correction supports it. Neither means independently verified. A correction supersedes an earlier fact revision while keeping its history. Stable logical fact IDs can have immutable revisions; references must identify the exact dossier/fact revision. Missing information is a gap, not an invented fact. Numeric outcomes retain units, baseline/timeframe when supplied, and attribution. Resume keywords alone do not justify a case study.
@@ -171,17 +171,17 @@ The excerpt is fictional and partial, not a complete dossier or a claim about th
 
 ### Discovery acceptance
 
-Require a usable identity or explicit anonymous choice, a stated/default goal with its basis, resolving evidence refs, unique IDs, all source-span dispositions, and retained restrictions/conflicts/skips. Preserve every role/project internally; display quotas never truncate the inventory. A sparse dossier can pass. Coverage catches unaccounted extracted spans, but cannot prove extraction or interpretation is perfect. Render readable Markdown and the compact frontend summary from this same dossier; neither replaces it downstream.
+Require a usable identity or explicit anonymous choice, a stated/default goal with its basis, resolving evidence refs, unique IDs, all source-span dispositions, and retained restrictions/conflicts/skips. Preserve every role/project internally; display quotas never truncate the inventory. A sparse dossier can pass when it supports a meaningful page. Coverage catches unaccounted spans, but cannot prove interpretation is perfect. Render readable Markdown and the compact frontend summary from this same dossier; neither replaces it downstream. The user reviews/revises the full report and explicitly approves its exact dossier/report hash before Content Architect can start.
 
 ## 4. Content Architect Agent
 
 ### Single responsibility
 
-Transform the dossier into a **complete, detailed, publishable single-page content package**. Select/order sections, establish emphasis, and write every personalized public field, including metadata and accessible labels. Bind every factual public field to supporting dossier facts. Static theme labels may supply generic chrome, never biography. Do not invent achievements, rewrite facts to satisfy a template, emit HTML/CSS, or directly interview the user; route factual questions through Discovery and the host.
+Transform the **approved complete dossier** into a detailed, publishable single-page content package. Select/order sections, establish emphasis, and write every personalized public field, including metadata and accessible labels. Bind every factual public field to supporting dossier facts and account for every dossier fact/entity in coverage. Static theme labels may supply generic chrome, never biography. Do not invent achievements, rewrite facts to satisfy a template, emit HTML/CSS, or directly interview the user; route factual questions through Discovery and the host. The user reviews and explicitly approves the finished package before HTML generation.
 
 ### Reads
 
-- One complete immutable Discovery dossier, including all restrictions, supersessions, gaps, and coverage. Supporting source excerpts for ambiguous or sensitive claims; no dependence on an earlier summary.
+- One complete **approved** immutable Discovery dossier, including all restrictions, supersessions, gaps, and coverage. Supporting source excerpts for ambiguous or sensitive claims; no dependence on an earlier summary.
 - The pinned theme's semantic capabilities: required/optional fields, density, supported interactions, and limitations. **Do not routinely send raw `styles.css`**; selectors alone do not explain the editorial contract.
 - User's change request and prior content package for an editorial revision.
 
@@ -189,7 +189,7 @@ Transform the dossier into a **complete, detailed, publishable single-page conte
 
 A hero gives the professional identity and a clear reason to continue. Selected projects use context/problem, personal role, approach/decisions, outcome, and proof when the dossier supplies them. Experience explains progression and scope rather than merely repeating the resume. Skills are grouped around evidenced capability; a flat inventory can be secondary. Education, research, publications, awards, or testimonials appear only if supported by actual material. Core substance stays visible on the page, including on mobile.
 
-There is no fixed project count or word minimum. A rich dossier can support multiple detailed stories; a sparse one cannot. Each paragraph should add information, not repeat adjectives. The final package must include finished nav labels, headings, project copy, CTA/link labels, metadata title and description, and any image captions/alt text that the renderer needs. No “TODO”, “fill later”, or silent placeholder is publishable copy.
+There is no fixed project count or word minimum. A rich dossier can support multiple detailed stories; a sparse one cannot. Each paragraph should add information, not repeat adjectives. The final package must include finished nav labels, headings, project copy, CTA/link labels, metadata title and description, and any image captions/alt text that Code Generator needs. No “TODO”, “fill later”, or silent placeholder is publishable copy.
 
 | Supported semantic block | Content Architect supplies when evidence exists | When material is missing |
 | --- | --- | --- |
@@ -321,46 +321,45 @@ The example deliberately omits unsupported design rationale and measurement peri
 - Every factual public field, including metadata/alt text, binds to current permitted facts; metrics retain units and attribution. Resolve references and audit semantic support, since valid fact IDs can still accompany an unsupported paraphrase. Review notes and private facts never reach public copy.
 - Section IDs and link IDs are unique; navigation is derived from sections present; every selected block is theme-compatible.
 - A dense package remains readable. When excessive text cannot fit a supported design, shorten lower-priority repetitions or select a long-form component; never silently truncate a fact or paragraph.
-- If an indispensable clarification is needed, emit a `clarification_request` for the host/Discovery to evaluate against the shared question budget and skip history. A skipped optional gap stays omitted; Content Architect cannot restart the interview. If essential material remains unavailable, return `needs_input` with a concrete reason.
+- If an indispensable clarification is needed, emit a `clarification_request` for Discovery to evaluate against question/skip history. A skipped optional gap stays omitted; Content Architect cannot restart the interview. If essential material remains unavailable, return `needs_input` with a concrete reason.
 
-Content Architect performs three logical operations: **plan sections and coverage; write complete copy; audit support, consistency, completeness, and theme compatibility**. Small inputs may combine planning/writing. Large inputs use bounded named-section batches with direct factual inputs and persisted completion records. The audit compares planned sections to finished copy, resolves links/assets, checks all coverage dispositions, and rejects placeholders or incomplete output. A detailed internal artifact can still yield a concise public page. See [the playbook](13-agent-operation-playbook.md) for the operation packets and project-writing rules.
+Content Architect performs three logical operations: **plan sections and coverage; write complete copy; audit support, consistency, completeness, and theme compatibility**. Small inputs may combine planning/writing. Large inputs use bounded named-section batches with direct factual inputs and persisted completion records. The audit compares planned sections to finished copy, resolves links/assets, checks all coverage dispositions, and rejects placeholders or incomplete output. A detailed internal artifact can still yield a concise public page. The user reviews/edits and approves that complete package. See the [operating specification](14-discovery-and-content-authoring-spec.md) for the full writing rules.
 
-## 5. Coding Engine Agent and controlled renderer
+## 5. AI Code Generator and verified HTML
 
 ### Single responsibility
 
-Choose a polished composition from the **actual supported theme components** and turn the content package into a working site version. Coding Engine may decide between approved hero/project/experience variants and select an available visual asset. It cannot invent a new claim, change a metric, omit a required section, or write a per-user stylesheet in this release.
+Write a complete `index.html` from the **approved** content package and the actual supported theme components. Code Generator may choose an approved hero/project/experience variant and available asset, but it cannot invent a claim, change a metric or approved wording, omit a selected section, or write a per-user stylesheet.
 
 ### Reads
 
-- Exact `PortfolioContent` version; a compact `ThemeManifest` projection and component examples; asset IDs and verified storage keys; prior render plan and change request for a layout revision. The model normally does **not** read the prior full HTML, CSS, raw resume, or all prior chat.
+- Exact approved `PortfolioContent` version and hash; a compact `ThemeManifest` with permitted markup, classes, variants, required copy slots and examples; asset IDs and verified storage keys; prior generated HTML only when a targeted layout repair needs it. The model does **not** read the raw source, Discovery dossier, or unrelated chat.
 - Browser findings from a failed candidate when a repair is warranted. It receives bounded diagnostics tied to section/component IDs, not an unbounded transcript.
 
-### Writes: `RenderPlan/v1`
+### Writes: `GeneratedHtml/v1`
 
-The model-backed composition operation returns a small typed plan: theme version, section ID to supported component variant, asset-slot binding, and optional layout notes constrained to the theme's vocabulary. A host renderer serializes the plan and the content package to semantic HTML. It owns `doctype`, `<head>`, section IDs, nav links, escaping, relative asset paths, and `styles.css` reference. This still creates a different `index.html` for each user, with AI-chosen composition, while eliminating free-form CSS/JS/path creation.
+The stage returns complete HTML for one page and a private field-to-DOM binding map. It includes `doctype`, language, metadata, navigation, one main landmark, the approved ordered sections, footer, relative asset paths, and `./styles.css`. Person-specific text comes only from `PortfolioContent`; any change to that text is an error. A large page may use bounded model calls for named sections and a document shell; the coordinator assembles those AI-written fragments in approved order and refuses an incomplete set. It does not author biography or silently change copy. The host parses and validates the complete bytes, attaches the pinned CSS/assets, checks the binding map against the DOM and approved fields, then stores a candidate. The binding map is a diagnostic claim by the model, not proof that the HTML contains the copy.
 
 ```json
 {
-  "contract_version": "RenderPlan/v1",
-  "id": "plan-7",
+  "contract_version": "GeneratedHtml/v1",
+  "id": "html-7",
   "content_id": "content-4",
+  "content_hash": "<approved-content-hash>",
   "theme_id": "editorial-forest/v1",
-  "placements": [
-    {"section_id": "hero", "variant": "hero-with-illustration", "asset_slot": "hero-visual"},
-    {"section_id": "billing-work", "variant": "project-story-short", "asset_slot": null}
-  ]
+  "index_html": "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Ajay Mehta | Backend Engineer</title><link rel=\"stylesheet\" href=\"./styles.css\"></head><body><main><section id=\"hero\" class=\"hero\"><h1>Ajay Mehta</h1></section></main></body></html>",
+  "field_bindings": [{"field_path": "document.sections[hero].copy.name", "dom_target": "#hero h1"}]
 }
 ```
 
-A `SiteVersion/v1` records parent dossier/content/plan IDs, theme/hash, HTML hash, stylesheet hash, asset manifest, screenshot references, and verification receipt. The model emits only allowed variants and bindings. Initial generation uses one composition operation with at most one targeted correction before the tested default mapping. Mechanical edits may reuse the previous compatible plan. Expiring preview grants are issued separately; never persist them in public metadata or model input.
+The short excerpt demonstrates shape only; a production `index_html` must contain every approved section and field. `SiteVersion/v1` records parent dossier/content/generated-HTML IDs and approvals, theme/hash, HTML hash, stylesheet hash, asset manifest, screenshot references, and verification receipt. An HTML repair creates a new candidate under the same approved content hash. Expiring preview grants are issued separately; never persist them in public metadata or model input.
 
 ```json
 {
   "contract_version": "SiteVersion/v1",
   "id": "site-7",
   "content_id": "content-4",
-  "render_plan_id": "plan-7",
+  "generated_html_id": "html-7",
   "theme_id": "editorial-forest/v1",
   "files": [
     {"path": "index.html", "sha256": "<computed-html-hash>"},
@@ -376,7 +375,7 @@ The model does not emit this site manifest. The host fills it after object readb
 
 ### Theme manifest and component contract
 
-Each theme specifies semantic block types, variants, field slots, templates/classes, CSS hash, assets, responsive expectations, and HTML/JS capability version. Pin one shared theme for the first release. Future theme switching requires compatibility checks; arbitrary style edits are outside the current contract.
+Each theme specifies semantic block types, variants, field slots, allowed class names and markup patterns, CSS hash, assets, responsive expectations, and HTML/JS capability version. Pin one shared theme for the first release. Future theme switching requires compatibility checks; arbitrary style edits are outside the current contract.
 
 **Illustrative theme manifest excerpt:**
 
@@ -400,23 +399,23 @@ Each theme specifies semantic block types, variants, field slots, templates/clas
 }
 ```
 
-The actual manifest also names each variant's required/optional copy fields, HTML template/class IDs, local asset files and hashes, and responsive fixture IDs. A theme is published into the catalogue only after those templates and its CSS are verified together.
+The actual manifest also names each variant's required/optional copy fields, allowed DOM structure/classes, example markup, local asset files and hashes, and responsive fixture IDs. A theme is published into the catalogue only after its markup examples and CSS are verified together.
 
-The implementer should make `ThemeManifest/v1` an executable compatibility record, not a free-text description. For each variant it declares `block_type`, `variant_id`, `template_id`/template hash, required/optional copy paths, minimum/maximum item counts if the design truly has a structural limit, advisory text-length bands, emitted class/child structure, asset slots, and a fallback variant. The manifest also has a default variant per block. A build-time theme linter checks that all referenced templates, CSS selectors, fonts, and local images exist. The model sees only variant IDs, field availability, and short descriptions; the host renderer reads the full manifest and templates.
+The implementer should make `ThemeManifest/v1` an executable compatibility record, not a free-text description. For each variant it declares `block_type`, `variant_id`, required/optional copy paths, minimum/maximum item counts if the design truly has a structural limit, advisory text-length bands, permitted class/child structure, example markup, asset slots, and fallback variant. The manifest also has a default variant per block. A build-time theme linter checks that referenced selectors, fonts, images, and examples exist. Code Generator sees the class/markup contract needed to write HTML; the host validates the complete output against it.
 
-**Compatibility rule:** Content Architect chooses semantic blocks from the intersection supported by the selected theme and the first-release common vocabulary. Coding Engine chooses only a variant declared for that exact block. The host rejects unknown classes or copied reference markup that the manifest has not registered. If a new CSS version changes a component's markup needs, publish a new theme version and template version together. Existing sites keep their pinned version. Content may be reused across themes only after a compatibility check; otherwise an editorial conversion is explicit and reviewable.
+**Compatibility rule:** Content Architect chooses semantic blocks from the intersection supported by the selected theme and the first-release common vocabulary. Code Generator uses only a variant and class structure declared for that exact block. The host rejects unknown classes or copied reference markup that the manifest has not registered. If a new CSS version changes a component's markup needs, publish a new theme/markup-contract version together. Existing sites keep their pinned version. Content may be reused across themes only after a compatibility check; otherwise an editorial conversion is explicit and reviewable.
 
 For the supplied CSS seed, `editorial-forest/v1` must be completed before general use: the original selectors support `hero`, `pillar-grid`, `capability-group`, `context-layout`, and `connect-layout`, while project stories and variable experience need new shared CSS/components. Those additions are theme development, not person-specific generation. The sample's font references and remote hero image must be resolved by the theme asset build.
 
 ### Coding acceptance
 
-Every public field appears in its declared slot with the multiplicity specified by the template. A name can intentionally appear in both hero and footer; this must be declared rather than rejected as a duplicate. No public section/field is silently dropped. Require semantic structure, resolving anchors, allowed paths/classes, escaped text/attributes, supported URL schemes, no scripts/event handlers/forms/inline styles, and no review-only data. Browser verification gates promotion separately.
+Every approved public field appears in its declared DOM slot with the multiplicity allowed by the theme contract. A name can intentionally appear in both hero and footer; this must be declared rather than rejected as a duplicate. No public section/field is silently dropped or rewritten. Require parseable semantic HTML, resolving anchors, allowed paths/classes, correct text/attribute encoding, supported URL schemes, no scripts/event handlers/forms/inline styles, and no review-only data. Compare DOM text to approved fields after HTML decoding; a self-reported binding map alone is insufficient. Browser verification gates promotion separately.
 
 ## 6. Context and model-call policy
 
 - **Discovery:** one understanding call when the source is ready; question rounds only while material gaps remain. It can return the dossier in the first call. Otherwise use one dossier-finalization call after the last answer/skip. Persist answers after every user action. No repeated full extraction for a simple correction.
 - **Content Architect:** planning, writing, and audit with bounded section batches when needed. Ordinary cases can combine planning/writing. Each writing/repair call receives relevant facts directly. Do not impose a small fixed call count that makes complete output impossible; configure per-operation/revision budgets and stop explicitly when they are exhausted.
-- **Coding Engine:** one composition call for a new portfolio, then host rendering; a valid plan can be reused for a mechanical content revision. A bounded targeted repair call applies only when a correctable component mapping error survives deterministic normalization. No general “regenerate the whole site until it looks good” loop.
+- **Code Generator:** one HTML-writing call for a new portfolio, then host validation and browser checks. A bounded targeted repair call receives the same approved content, theme contract, and exact field/component error. A copy revision produces new HTML; no general “regenerate the whole site until it looks good” loop.
 
 For an oversized source, split extracted text at document/section boundaries into bounded chunks with source span IDs, extract atomic facts from each, then merge and check contradictions before the dossier is finalized. Do not keep only the beginning of a resume or silently drop later pages. The chunking threshold and per-operation context allowance are configuration values; each chunk's provenance survives the merge. The fact graph and question/answer events are durable memory. Model context is assembled from those records for the current task, not from an ever-growing raw chat transcript.
 
@@ -427,7 +426,7 @@ For an oversized source, split extracted text at document/section boundaries int
 | Discovery understanding | Stable instructions/schema, `IntakeIntent`, all readable source spans or one bounded source chunk, current correction events | Theme CSS, page HTML, unrelated chat turns | Tagged questions or dossier/fact candidates with source IDs |
 | Discovery continuation | Latest dossier/fact candidates, new answers/skips, the cited spans for open gaps, explicit user preferences | Whole resume again when only one fact changed | New dossier or next bounded question set |
 | Content writing | Exact dossier, requested goal/audience, selected theme's semantic block vocabulary, prior package and edit instruction only on revision | Raw PDF, full chat transcript, stylesheet text, prior HTML | Complete `PortfolioContent/v1` |
-| Coding composition | Exact content package, compact theme manifest projection, available asset IDs, prior plan and targeted browser finding only when relevant | Resume, dossier source excerpts, full CSS, old HTML by default | `RenderPlan/v1` with only declared IDs/variants |
+| Code generation | Exact approved content package, theme markup/class contract, available asset IDs, targeted browser finding only for repair | Raw source, dossier, unrelated chat, old HTML by default | `GeneratedHtml/v1` with complete `index.html` and field bindings |
 
 The database is the durable memory. Each request is assembled afresh from immutable artifacts and newer user events, with a deterministic ordering: stable system instructions and schema, versioned theme/component vocabulary when needed, then dynamic portfolio material. Model conversation state or provider compaction is not the canonical memory, because an opaque summary cannot replace source-linked facts. A prompt cache can speed repeated stable prefixes, but a cache hit is neither guaranteed nor a correctness condition ([OpenAI prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching)).
 
@@ -436,7 +435,7 @@ The database is the durable memory. Each request is assembled afresh from immuta
 1. Compile the **actual** request for one operation, including instructions, structured-output schema, selected facts/sections, examples, and any tool definitions. Keep shared instructions before user-specific material to make the prefix stable.
 2. Check `input_tokens + reserved_max_output_tokens + safety_margin <= configured_operation_context_limit`, with `configured_operation_context_limit` no greater than the selected model's published context window. The output reserve includes invisible reasoning/format tokens; the margin accounts for transport or schema changes. The model's large advertised window does not set the product's operational limit.
 3. Use the configured adapter's tokenizer or counting facility when available; otherwise use a conservative estimate and larger margin. Character counts are not exact token counts. Record estimation method and actual response usage. This policy does not mandate a particular provider API.
-4. If Discovery source material does not fit, split it on section/page boundaries, carry the heading and source IDs into each chunk, extract facts per chunk, deduplicate repeated facts by source identity, and merge contradictions before a final dossier call. Never drop trailing pages. If a Content package does not fit, first remove repeated source excerpts and irrelevant history; if output itself is too large, use a bounded continuation over named sections and an integration check. Coding Engine gets only the compact manifest, never the whole stylesheet.
+4. If Discovery source material does not fit, split it on text headings/paragraph boundaries, carry source span IDs into each chunk, extract facts per chunk, deduplicate repeated facts by source identity, and merge contradictions before a final dossier call. Never drop trailing material. If a Content package does not fit, first remove repeated excerpts and irrelevant history; if output itself is too large, use a bounded continuation over named sections and an integration check. Code Generator receives the complete approved content package; if HTML output cannot fit its configured limit, use bounded named-section generation and a final integrated HTML validation, never omit trailing sections.
 5. A refusal, truncated/incomplete output, schema failure, or semantic validation failure is a classified result. Do not parse a partial JSON body into a publishable artifact. Retry only the same immutable operation within its configured attempt limit or request the precise upstream correction. Changing the input shape, schema, or prompt creates a new operation fingerprint.
 
 Structured Outputs improves shape reliability but still requires application validation for cross-references, factual grounding, and page completeness ([OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)). No hidden provider transcript is replayed wholesale across stages. Persist enough bounded call metadata to reproduce the packet from immutable artifact versions; the portfolio's user-facing edit history is separate from the model's prompt history.
@@ -451,11 +450,11 @@ Use `config/models.toml` as the authority for provider, model, routing, and fall
 
 | Current implementation | Target |
 | --- | --- |
-| Discovery accepts `message/document_text/goal`, emits Markdown brief, summary, and a small fact-only profile | Intake extracts document with source spans; Discovery emits a richer canonical dossier with intent, ownership, project detail, answer references, and open gaps |
+| Discovery accepts `message/document_text/goal`, emits Markdown brief, summary, and a small fact-only profile | One freeform text box preserves source spans; Discovery emits a complete canonical dossier and readable report with intent, ownership, all projects, answer references, and open gaps. PDF/DOCX adapters come later |
 | Content Architect receives summary/profile/open items and omits the full brief | Receives the complete structured dossier; no strategic context is lost in a brief that was never passed downstream |
 | Content Architect plans single/hybrid/multi routes and separate page packs/manifest | Produces one single-page package with one section array and one canonical public-copy source |
-| Approvals are explicit stage gates | The orchestrator advances automatically after useful questions; the generated preview is the principal review surface |
-| No active generator | A new theme-bound HTML Coding Engine and renderer are added; old complex generator contracts are not restored |
+| Approvals are explicit stage gates | Discovery report and Content Architect copy each require explicit approval before the next stage starts; preview review follows generation |
+| No active generator | A theme-bound AI Code Generator writes `index.html`; the coordinator attaches fixed CSS, verifies, and previews it. Old complex generator contracts are not restored |
 | The current state validates mostly response shape and some references | New artifacts also validate completeness, cross-stage traceability, supported components, and browser-rendered behavior |
 
 Implementation must migrate or adapt old records intentionally. Old brief/profile snapshots lack the proposed source IDs and project context; an automated conversion should mark unknown provenance and ask the user to confirm material missing facts rather than inventing them.
