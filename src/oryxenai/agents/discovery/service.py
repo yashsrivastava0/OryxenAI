@@ -1,8 +1,7 @@
-"""Application service for the Discovery workflow.
+"""Application service for Discovery source collection, interview, and review.
 
-Simple linear flow: start (message + document + goal) -> Operation A
-(understand_and_question) -> answers -> Operation B (build_or_revise_brief)
--> approve. Input is stored as-is; nothing is validated.
+The service persists immutable text snapshots, schedules adaptive question
+rounds, and requires an explicit choice before building or approving a brief.
 """
 
 from __future__ import annotations
@@ -14,9 +13,16 @@ from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
 from oryxenai.agents.discovery.schemas import (
+    AnswerMode,
     DiscoveryAnswer,
     DiscoveryIntake,
     DiscoveryStatus,
+    QuestionAnswerRevision,
+    SourceDocument,
+)
+from oryxenai.agents.discovery.sources import (
+    create_source_document,
+    document_from_answer,
 )
 from oryxenai.agents.discovery.state import (
     apply_answers_in_progress,
@@ -80,13 +86,14 @@ class DiscoveryService:
         document_text: str,
         goal: str,
         *,
+        source_text: str = "",
         model_profile: str = "",
         request_id: str = "",
     ) -> dict[str, Any]:
         """Store the raw input and enqueue the understand_and_question job.
 
-        Restarting from QUESTIONS_READY (e.g. the user pastes more material
-        after NEEDS_DETAILS) enqueues a fresh Operation A run.
+        Restarting from QUESTIONS_READY or NEEDS_INPUT lets the user add more
+        material without discarding the source snapshots already collected.
         """
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
@@ -94,6 +101,7 @@ class DiscoveryService:
         if state.status not in {
             DiscoveryStatus.NOT_STARTED,
             DiscoveryStatus.QUESTIONS_READY,
+            DiscoveryStatus.NEEDS_INPUT,
             DiscoveryStatus.NEEDS_ATTENTION,
         }:
             return await self.get_discovery_state(session_id)
@@ -103,7 +111,14 @@ class DiscoveryService:
 
         policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
 
-        intake = DiscoveryIntake(message=message, document_text=document_text, goal=goal)
+        submitted = DiscoveryIntake(
+            message=message,
+            document_text=document_text,
+            goal=goal,
+            source_text=source_text,
+        )
+        intake, added_documents = _merge_intake(state.intake, submitted)
+        source_documents = [*state.source_documents, *added_documents]
         intake_payload = intake.model_dump(mode="json")
         # A browser retry can arrive after the first job has already finished
         # but before the client received its response.  The deterministic
@@ -111,7 +126,7 @@ class DiscoveryService:
         # return the persisted result instead of attempting a duplicate
         # AgentRun insert (and, more importantly, another model call).
         if (
-            state.status is DiscoveryStatus.QUESTIONS_READY
+            state.status in {DiscoveryStatus.QUESTIONS_READY, DiscoveryStatus.NEEDS_INPUT}
             and state.operation_a.run_id
             and state.intake == intake
             and state.model_profile == resolved_profile
@@ -142,6 +157,7 @@ class DiscoveryService:
             intake_payload,
             {},
             memory=state.memory,
+            question_events=[event.model_dump(mode="json") for event in state.question_events],
             retry_nonce=retry_nonce,
         )
 
@@ -152,6 +168,14 @@ class DiscoveryService:
             input_payload={
                 "operation": "understand_and_question",
                 "intake": intake_payload,
+                "source_documents": [doc.model_dump(mode="json") for doc in source_documents],
+                "answers": {
+                    qid: answer.model_dump(mode="json")
+                    for qid, answer in state.answers.items.items()
+                },
+                "question_events": [
+                    event.model_dump(mode="json") for event in state.question_events
+                ],
                 "prior_memory": state.memory,
                 "model_profile": resolved_profile,
                 "input_classification": "personal",
@@ -176,6 +200,7 @@ class DiscoveryService:
 
         queued = apply_start(state)
         queued.intake = intake
+        queued.source_documents = source_documents
         queued.model_profile = resolved_profile
         queued.routing_policy_version = str(policy_snapshot["version"])
         queued.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
@@ -194,9 +219,10 @@ class DiscoveryService:
         answers: list[DiscoveryAnswer],
         *,
         complete: bool,
+        continue_with_current_information: bool = False,
         request_id: str = "",
     ) -> dict[str, Any]:
-        """Save answers; when complete, enqueue the brief job."""
+        """Save a batch and either ask the next round or explicitly finalize."""
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
         if state.status not in {
@@ -206,76 +232,91 @@ class DiscoveryService:
         }:
             self._not_ready("save answers", state.status.value)
 
-        # The product composer submits one answer at a time.  Preserve the
-        # durable answer map and overlay the latest values so a refresh-safe
-        # multi-question conversation cannot discard earlier answers.
         answer_map: dict[str, DiscoveryAnswer] = dict(state.answers.items)
+        answer_documents: list[SourceDocument] = []
+        question_events = [event.model_copy(deep=True) for event in state.question_events]
         for answer in answers:
             if answer.question_id:
+                previous = answer_map.get(answer.question_id)
                 answer_map[answer.question_id] = answer
+                event = next(
+                    (item for item in question_events if item.question_id == answer.question_id),
+                    None,
+                )
+                if event is not None:
+                    changed = previous != answer or event.status == "pending"
+                    if answer.mode is AnswerMode.SKIPPED:
+                        event.status = "skipped"
+                        event.answer = ""
+                        event.answer_source_refs = []
+                        if changed:
+                            event.answer_history.append(
+                                QuestionAnswerRevision(
+                                    revision=len(event.answer_history) + 1,
+                                    status="skipped",
+                                    recorded_at=datetime.now(UTC).isoformat(),
+                                )
+                            )
+                    else:
+                        answer_text = _answer_text(answer.value)
+                        event.status = "answered"
+                        event.answer = answer_text
+                        if changed:
+                            event.answer_source_refs = []
+                            answer_document = document_from_answer(answer.question_id, answer_text)
+                            if answer_document is not None:
+                                answer_documents.append(answer_document)
+                                event.answer_source_refs = [
+                                    span.id for span in answer_document.spans
+                                ]
+                            event.answer_history.append(
+                                QuestionAnswerRevision(
+                                    revision=len(event.answer_history) + 1,
+                                    status="answered",
+                                    answer=answer_text,
+                                    source_refs=event.answer_source_refs,
+                                    recorded_at=datetime.now(UTC).isoformat(),
+                                )
+                            )
         next_state = state.model_copy(deep=True)
         if state.status in {DiscoveryStatus.QUESTIONS_READY, DiscoveryStatus.NEEDS_ATTENTION}:
             next_state = apply_answers_in_progress(state)
         next_state.answers.revision += 1
         next_state.answers.items = answer_map
+        next_state.question_events = question_events
+        next_state.source_documents.extend(answer_documents)
         next_state.latest_error = None
 
-        if complete:
+        operation = ""
+        if complete and continue_with_current_information:
+            answered_ids = {answer.question_id for answer in answers if answer.question_id}
+            for event in next_state.question_events:
+                if event.status == "pending" and event.question_id not in answered_ids:
+                    event.status = "continued_without_answer"
+            operation = "build_or_revise_brief"
+        elif complete:
+            operation = "understand_and_question"
+
+        if operation:
+            retry_nonce: int | str = 0
             if state.status is DiscoveryStatus.NEEDS_ATTENTION:
-                # See the Operation A retry above.  Build/revise retries need
-                # their own prior failed run identity because the worker
-                # attempt counter is reset for every newly queued job.
-                retry_nonce: int | str = (
+                retry_nonce = (
                     state.brief.run_id or state.operation_a.run_id or f"attempt-{state.attempt}"
                 )
-            else:
-                retry_nonce = 0
-            key = self._idempotency_key(
+            run, job = await self._enqueue_followup_run(
                 session_id,
-                "build_or_revise_brief",
-                next_state.intake.model_dump(mode="json"),
-                {qid: answer.model_dump(mode="json") for qid, answer in answer_map.items()},
-                memory=next_state.memory,
-                existing_brief=next_state.brief.markdown,
+                session,
+                next_state,
+                operation,
+                request_id=request_id,
                 retry_nonce=retry_nonce,
             )
-            run = AgentRun(
-                id=uuid4(),
-                agent_key="discovery",
-                status="pending",
-                input_payload={
-                    "operation": "build_or_revise_brief",
-                    "intake": next_state.intake.model_dump(mode="json"),
-                    "answers": {
-                        qid: answer.model_dump(mode="json") for qid, answer in answer_map.items()
-                    },
-                    "prior_memory": next_state.memory,
-                    "existing_brief": next_state.brief.markdown,
-                    "revision_request": "",
-                    "model_profile": next_state.model_profile,
-                    "input_classification": "personal",
-                    "routing_policy_snapshot": {
-                        "version": next_state.routing_policy_version,
-                        "fingerprint": next_state.routing_policy_fingerprint,
-                    },
-                },
-                state_before=dict(session.current_state),
-                idempotency_key=key,
-                **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
-            )
-            await self._repository.create_run(run)
-            job = await self._job_service.enqueue(
-                "discovery.build_or_revise_brief",
-                {
-                    "portfolio_session_id": str(session_id),
-                    "agent_run_id": str(run.id),
-                    "expected_session_revision": session.revision + 2,
-                    "request_id": request_id,
-                },
-                idempotency_scope=f"discovery:{session_id}",
-                idempotency_key=key,
-            )
-            next_state = apply_brief_running(next_state, str(run.id), str(job.id))
+            if operation == "build_or_revise_brief":
+                next_state = apply_brief_running(next_state, str(run.id), str(job.id))
+            else:
+                next_state = apply_start(next_state)
+                next_state.operation_a.run_id = str(run.id)
+                next_state.operation_a.job_id = str(job.id)
             next_state.attempt = 0
 
         updated = await self._repository.save_discovery_state(
@@ -284,6 +325,76 @@ class DiscoveryService:
         if updated is None:
             self._revision_conflict(session.revision, session.revision + 1)
         return await self.get_discovery_state(session_id)
+
+    async def _enqueue_followup_run(
+        self,
+        session_id: UUID,
+        session: Any,
+        state: Any,
+        operation: str,
+        *,
+        request_id: str,
+        retry_nonce: int | str,
+        revision_delta: int = 2,
+        revision_request: str = "",
+    ) -> tuple[AgentRun, Any]:
+        answers = {
+            qid: answer.model_dump(mode="json") for qid, answer in state.answers.items.items()
+        }
+        intake = state.intake.model_dump(mode="json")
+        key = self._idempotency_key(
+            session_id,
+            operation,
+            intake,
+            answers,
+            memory=state.memory,
+            question_events=[event.model_dump(mode="json") for event in state.question_events],
+            existing_brief=state.brief.markdown,
+            revision_request=revision_request,
+            retry_nonce=retry_nonce,
+        )
+        routing_snapshot = {
+            "version": state.routing_policy_version,
+            "fingerprint": state.routing_policy_fingerprint,
+        }
+        run = AgentRun(
+            id=uuid4(),
+            agent_key="discovery",
+            status="pending",
+            input_payload={
+                "operation": operation,
+                "intake": intake,
+                "source_documents": [
+                    document.model_dump(mode="json") for document in state.source_documents
+                ],
+                "answers": answers,
+                "question_events": [
+                    event.model_dump(mode="json") for event in state.question_events
+                ],
+                "prior_memory": state.memory,
+                "existing_brief": state.brief.markdown,
+                "revision_request": revision_request,
+                "model_profile": state.model_profile,
+                "input_classification": "personal",
+                "routing_policy_snapshot": routing_snapshot,
+            },
+            state_before=dict(session.current_state),
+            idempotency_key=key,
+            **durable_snapshot_for_session(self._job_service.authorization_context, session_id),
+        )
+        await self._repository.create_run(run)
+        job = await self._job_service.enqueue(
+            f"discovery.{operation}",
+            {
+                "portfolio_session_id": str(session_id),
+                "agent_run_id": str(run.id),
+                "expected_session_revision": session.revision + revision_delta,
+                "request_id": request_id,
+            },
+            idempotency_scope=f"discovery:{session_id}",
+            idempotency_key=key,
+        )
+        return run, job
 
     async def revise_brief(
         self,
@@ -313,7 +424,9 @@ class DiscoveryService:
             state.intake.model_dump(mode="json"),
             {qid: answer.model_dump(mode="json") for qid, answer in state.answers.items.items()},
             memory=state.memory,
+            question_events=[event.model_dump(mode="json") for event in state.question_events],
             existing_brief=state.brief.markdown,
+            revision_request=revision_request,
             retry_nonce=state.attempt,
         )
         run = AgentRun(
@@ -323,10 +436,16 @@ class DiscoveryService:
             input_payload={
                 "operation": "build_or_revise_brief",
                 "intake": state.intake.model_dump(mode="json"),
+                "source_documents": [
+                    document.model_dump(mode="json") for document in state.source_documents
+                ],
                 "answers": {
                     qid: answer.model_dump(mode="json")
                     for qid, answer in state.answers.items.items()
                 },
+                "question_events": [
+                    event.model_dump(mode="json") for event in state.question_events
+                ],
                 "prior_memory": state.memory,
                 "existing_brief": state.brief.markdown,
                 "revision_request": revision_request,
@@ -370,7 +489,14 @@ class DiscoveryService:
         if state.status is not DiscoveryStatus.BRIEF_REVIEW or not state.brief.markdown.strip():
             self._not_ready("approve", state.status.value)
 
-        brief_hash = _brief_hash(state.brief.markdown)
+        brief_hash = _brief_hash(
+            state.brief.markdown,
+            state.dossier,
+            title=state.brief.title,
+            user_summary=state.brief.user_summary,
+            profile=state.brief.profile.model_dump(mode="json"),
+            open_items=state.brief.open_items,
+        )
         approved = apply_approval(state, brief_hash)
         updated = await self._repository.save_discovery_state(
             session_id, approved, session.revision
@@ -506,7 +632,9 @@ class DiscoveryService:
         answers: dict[str, Any],
         *,
         memory: dict[str, Any] | None = None,
+        question_events: list[dict[str, Any]] | None = None,
         existing_brief: str = "",
+        revision_request: str = "",
         retry_nonce: int | str = 0,
     ) -> str:
         combined = json.dumps(
@@ -516,7 +644,9 @@ class DiscoveryService:
                 "intake": intake,
                 "answers": answers,
                 "memory": memory or {},
+                "question_events": question_events or [],
                 "existing_brief": existing_brief,
+                "revision_request": revision_request,
                 "retry": retry_nonce,
             },
             sort_keys=True,
@@ -539,8 +669,69 @@ class DiscoveryService:
         )
 
 
-def _brief_hash(markdown: str) -> str:
-    return hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+def _brief_hash(
+    markdown: str,
+    dossier: Any | None = None,
+    *,
+    title: str = "",
+    user_summary: str = "",
+    profile: dict[str, Any] | None = None,
+    open_items: list[str] | None = None,
+) -> str:
+    payload = {
+        "title": title,
+        "markdown": markdown,
+        "user_summary": user_summary,
+        "profile": profile or {},
+        "open_items": open_items or [],
+        "dossier": dossier.model_dump(mode="json") if dossier is not None else None,
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _merge_intake(
+    previous: DiscoveryIntake,
+    submitted: DiscoveryIntake,
+) -> tuple[DiscoveryIntake, list[SourceDocument]]:
+    """Append genuinely new material while making browser retries idempotent."""
+
+    combined = previous.model_copy(deep=True)
+    new_documents: list[SourceDocument] = []
+    fields = (
+        ("source_text", "Pasted source material", "user_provided", True),
+        ("document_text", "Document text", "user_provided", True),
+        ("message", "Your notes", "user_provided", True),
+        ("goal", "Portfolio goal", "user_intent", False),
+    )
+    for field, label, source_kind, append in fields:
+        previous_text = str(getattr(previous, field, "") or "")
+        submitted_text = str(getattr(submitted, field, "") or "")
+        if not submitted_text.strip():
+            continue
+        if submitted_text == previous_text:
+            continue
+        if previous_text and submitted_text.startswith(previous_text):
+            addition = submitted_text[len(previous_text) :].lstrip("\r\n \t")
+        else:
+            addition = submitted_text
+        if not addition.strip():
+            continue
+        if append:
+            merged_text = f"{previous_text.rstrip()}\n\n{addition}" if previous_text else addition
+            setattr(combined, field, merged_text)
+        else:
+            setattr(combined, field, submitted_text)
+        new_documents.append(create_source_document(addition, label=label, source_kind=source_kind))
+    return combined, new_documents
+
+
+def _answer_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
 
 
 def _elapsed_seconds(started_at: str | None) -> float | None:

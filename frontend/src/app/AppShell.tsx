@@ -358,6 +358,18 @@ export function AppShell({
     },
   ], [state.content, state.discovery]);
 
+  const discoveryHistory = useMemo(() => {
+    if (!state.discovery) return [];
+    const recordedTurns = state.discovery.questionHistory
+      .filter((event) => event.status === "answered" || event.status === "skipped")
+      .map((event) => ({
+        questionId: event.questionId,
+        questionText: event.question,
+        answerText: event.answer || (event.status === "skipped" ? "Skipped" : "Answer saved"),
+      }));
+    return recordedTurns.length > 0 ? recordedTurns : state.discovery.answeredTurns;
+  }, [state.discovery]);
+
   const notifyMutation = (sessionId: string) => invalidationChannelRef.current?.broadcast(sessionId);
 
   const handleStartPortfolio = async (intakeText: string) => {
@@ -379,7 +391,7 @@ export function AppShell({
       const action = "discovery-start";
       const result = await api.startDiscovery(
         sessionId,
-        { message: intakeText, goal: "create my portfolio" },
+        { source_text: intakeText, goal: "create my portfolio" },
         getOrCreateIdempotencyKey(sessionId, action),
       );
       clearIdempotencyKey(sessionId, action);
@@ -407,9 +419,13 @@ export function AppShell({
     notifyMutation(state.sessionId);
   };
 
-  const handleGenerateBrief = async () => {
+  const handleContinueWithCurrentInformation = async () => {
     if (!state.sessionId) return;
-    const result = await api.putDiscoveryAnswers(state.sessionId, { complete: true, answers: [] });
+    const result = await api.putDiscoveryAnswers(state.sessionId, {
+      complete: true,
+      answers: [],
+      continue_with_current_information: true,
+    });
     inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
@@ -423,7 +439,7 @@ export function AppShell({
       return;
     }
     if (state.discovery.safeError?.retryOperation !== "questions") {
-      await handleGenerateBrief();
+      await handleContinueWithCurrentInformation();
       return;
     }
 
@@ -435,13 +451,18 @@ export function AppShell({
         : {};
     const sessionId = state.sessionId;
     const action = "discovery-retry-questions";
+    const retryIntake = {
+      goal: typeof rawIntake.goal === "string" ? rawIntake.goal : "",
+      ...(typeof rawIntake.source_text === "string"
+        ? { source_text: rawIntake.source_text }
+        : {
+            message: typeof rawIntake.message === "string" ? rawIntake.message : "",
+            document_text: typeof rawIntake.document_text === "string" ? rawIntake.document_text : "",
+          }),
+    };
     const result = await api.startDiscovery(
       sessionId,
-      {
-        message: typeof rawIntake.message === "string" ? rawIntake.message : "",
-        document_text: typeof rawIntake.document_text === "string" ? rawIntake.document_text : "",
-        goal: typeof rawIntake.goal === "string" ? rawIntake.goal : "",
-      },
+      retryIntake,
       getOrCreateIdempotencyKey(sessionId, action),
     );
     clearIdempotencyKey(sessionId, action);
@@ -682,11 +703,11 @@ export function AppShell({
               {state.sessionId && activeStage === "discover" ? (
                 <DiscoveryStage
                   view={state.discovery}
-                  history={state.discovery?.answeredTurns ?? []}
+                  history={discoveryHistory}
                   canMutate={mutatingStage === null}
                   onStartDiscovery={handleStartPortfolio}
                   onSubmitAnswer={handleSubmitDiscoveryAnswer}
-                  onGenerateBriefNow={handleGenerateBrief}
+                  onContinueWithCurrentInformation={handleContinueWithCurrentInformation}
                   onRetryDiscovery={handleRetryDiscovery}
                   onStopDiscovery={handleStopDiscovery}
                   inFlight={mutatingStage === "discover"}

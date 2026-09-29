@@ -220,7 +220,7 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
 
     startDiscovery: (
       sessionId: string,
-      body: { message?: string; document_text?: string; goal?: string },
+      body: { source_text?: string; message?: string; document_text?: string; goal?: string },
       idempotencyKey?: string,
     ) =>
       requestJson<StageEnvelope>(
@@ -234,6 +234,7 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
       body: {
         complete: boolean;
         answers: Array<{ question_id: string; mode: DiscoveryAnswerMode; value: unknown }>;
+        continue_with_current_information?: boolean;
       },
     ) =>
       requestJson<StageEnvelope>(
