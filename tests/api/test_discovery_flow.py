@@ -114,7 +114,11 @@ async def _answer_all(client, sid: str, state: dict) -> dict:
     ]
     resp = await client.put(
         f"/api/v1/sessions/{sid}/discovery/answers",
-        json={"complete": True, "answers": answers},
+        json={
+            "complete": True,
+            "continue_with_current_information": True,
+            "answers": answers,
+        },
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
@@ -134,7 +138,7 @@ async def _full_flow(client, sid: str) -> dict:
     assert state["discovery"]["status"] == "questions_ready"
     assert state["discovery"]["operation_a"]["mode"] == "ASK_QUESTIONS"
     questions = state["discovery"]["operation_a"]["items"]
-    assert 0 < len(questions) <= 8
+    assert 0 < len(questions) <= 3
 
     answered = await _answer_all(client, sid, state)
     assert answered["discovery"]["status"] == "brief_running"
@@ -202,28 +206,45 @@ class TestFullHttpFlow:
         await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
         ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         questions = ready["discovery"]["operation_a"]["items"]
-        assert [question["id"] for question in questions] == ["direction", "audience"]
+        question_ids = [question["id"] for question in questions]
+        assert [question_id.rsplit(":", 1)[-1] for question_id in question_ids] == [
+            "direction",
+            "audience",
+        ]
 
         first = await client.put(
             f"/api/v1/sessions/{sid}/discovery/answers",
             json={
                 "complete": False,
-                "answers": [{"question_id": "direction", "mode": "answered", "value": "systems"}],
+                "answers": [
+                    {
+                        "question_id": question_ids[0],
+                        "mode": "answered",
+                        "value": "systems",
+                    }
+                ],
             },
         )
         assert first.status_code == 200, first.text
-        assert set(first.json()["discovery"]["answers"]["items"]) == {"direction"}
+        assert set(first.json()["discovery"]["answers"]["items"]) == {question_ids[0]}
         assert first.json()["discovery"]["status"] == "answers_in_progress"
 
         second = await client.put(
             f"/api/v1/sessions/{sid}/discovery/answers",
             json={
                 "complete": True,
-                "answers": [{"question_id": "audience", "mode": "answered", "value": "CTOs"}],
+                "continue_with_current_information": True,
+                "answers": [
+                    {
+                        "question_id": question_ids[1],
+                        "mode": "answered",
+                        "value": "CTOs",
+                    }
+                ],
             },
         )
         assert second.status_code == 200, second.text
-        assert set(second.json()["discovery"]["answers"]["items"]) == {"direction", "audience"}
+        assert set(second.json()["discovery"]["answers"]["items"]) == set(question_ids)
         await _run_worker_job(client, second.json()["discovery"]["brief"]["job_id"])
 
         brief_request = next(

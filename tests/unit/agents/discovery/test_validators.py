@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 from oryxenai.agents.discovery.validators import (
-    validate_brief_output,
+    ValidationOutcome,
     validate_questions_output,
 )
+from oryxenai.agents.discovery.validators import (
+    validate_brief_output as _validate_brief_output,
+)
+
+
+def validate_brief_output(data: dict[str, object]) -> ValidationOutcome:
+    """Exercise envelope rules with the minimum valid dossier contract."""
+    data.setdefault("dossier", {"contract_version": "DiscoveryDossier/v1"})
+    return _validate_brief_output(data)
 
 
 def _question(**overrides: object) -> dict[str, object]:

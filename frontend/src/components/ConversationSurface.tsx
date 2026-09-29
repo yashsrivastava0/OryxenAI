@@ -22,7 +22,7 @@ export interface ConversationSurfaceProps {
   workingLabel?: string;
   disabled?: boolean;
   onSubmitAnswer: (answer: DiscoveryAnswerSubmission, isComplete: boolean) => Promise<void>;
-  onGenerateBriefNow?: () => Promise<void>;
+  onContinueWithCurrentInformation?: () => Promise<void>;
   onRetryStalled?: () => Promise<void>;
   onStop?: () => Promise<void>;
 }
@@ -35,7 +35,7 @@ export function ConversationSurface({
   workingLabel = "Reading your source material and deciding what to ask next",
   disabled = false,
   onSubmitAnswer,
-  onGenerateBriefNow,
+  onContinueWithCurrentInformation,
   onRetryStalled,
   onStop,
 }: ConversationSurfaceProps) {
@@ -236,6 +236,19 @@ export function ConversationSurface({
     }
   };
 
+  const handleContinueWithCurrentInformation = async () => {
+    if (!onContinueWithCurrentInformation || inFlight || disabled) return;
+    setInFlight(true);
+    setError(null);
+    try {
+      await onContinueWithCurrentInformation();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Discovery could not continue with the current information.");
+    } finally {
+      setInFlight(false);
+    }
+  };
+
   const submitButtonLabel = inFlight ? "Saving answer…" : isLast ? "Submit answer" : "Next question";
 
   return (
@@ -385,6 +398,12 @@ export function ConversationSurface({
               <h2 className="question-prompt">{currentQuestion.text}</h2>
               {currentQuestion.helpText && (
                 <p className="question-help">{currentQuestion.helpText}</p>
+              )}
+              {currentQuestion.reason && (
+                <p className="question-reason"><strong>Why this matters:</strong> {currentQuestion.reason}</p>
+              )}
+              {currentQuestion.affectedIds.length > 0 && (
+                <p className="question-related-items">Related items: {currentQuestion.affectedIds.join(", ")}</p>
               )}
             </div>
 
@@ -549,31 +568,40 @@ export function ConversationSurface({
                   Skip question
                 </button>
               )}
+              {onContinueWithCurrentInformation && (
+                <button
+                  type="button"
+                  className="btn-quiet continue-current-info"
+                  disabled={inFlight || disabled}
+                  onClick={() => void handleContinueWithCurrentInformation()}
+                >
+                  Continue with current information
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
       {/* 4. Ready for Brief Payoff Card */}
-      {!isWorking && !currentQuestion && onGenerateBriefNow && (
+      {!isWorking && !currentQuestion && onContinueWithCurrentInformation && (
         <div className="discovery-workbench-card ready-for-brief-card" role="status" aria-live="polite">
           <div className="workbench-top-rule" aria-hidden="true">
             <span className="workbench-sweep" />
           </div>
 
           <div className="workbench-header">
-            <span className="eyebrow">DISCOVERY / ANSWERS COMPLETE</span>
+            <span className="eyebrow">DISCOVERY / READY TO CONTINUE</span>
             <span className="status-chip chip-ready">
               <span className="status-dot" aria-hidden="true" />
-              Ready to synthesize
+              Your choice
             </span>
           </div>
 
           <div className="ready-body">
-            <h2 className="ready-headline">We have enough detail to shape your brief.</h2>
+            <h2 className="ready-headline">Continue with the information shared so far?</h2>
             <p className="ready-thesis">
-              Discovery has analyzed your career material and your answers. Review and generate your
-              structured Portfolio Discovery Brief to continue.
+              You can ask Discovery to prepare the review brief now, or answer another question first.
             </p>
             {error && <p className="start-error" role="alert">{error}</p>}
             <div className="question-actions">
@@ -581,21 +609,9 @@ export function ConversationSurface({
                 type="button"
                 className="btn-primary"
                 disabled={inFlight || disabled}
-                onClick={async () => {
-                  setInFlight(true);
-                  setError(null);
-                  try {
-                    await onGenerateBriefNow();
-                  } catch (reason) {
-                    setError(
-                      reason instanceof Error ? reason.message : "The brief could not be started. Try again.",
-                    );
-                  } finally {
-                    setInFlight(false);
-                  }
-                }}
+                onClick={() => void handleContinueWithCurrentInformation()}
               >
-                {inFlight ? "Creating brief..." : "Create Portfolio Brief →"}
+                {inFlight ? "Preparing review brief..." : "Continue with current information"}
               </button>
             </div>
           </div>

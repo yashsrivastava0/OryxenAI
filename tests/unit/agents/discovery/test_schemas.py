@@ -9,6 +9,7 @@ from oryxenai.agents.discovery.schemas import (
     AnswerMode,
     BriefOutput,
     DiscoveryAnswer,
+    DiscoveryDossier,
     DiscoveryIntake,
     DiscoveryQuestion,
     DiscoveryState,
@@ -119,6 +120,7 @@ class TestBriefOutput:
             "brief_markdown",
             "user_summary",
             "profile",
+            "dossier",
             "open_items",
             "memory_update",
         }
@@ -131,6 +133,7 @@ class TestBriefOutput:
             brief_markdown="# Portfolio Discovery Brief\n\nLong readable content.",
             user_summary="A short friendly summary for the chat UI.",
             profile=StructuredProfile(name="Test User", skills=["Python"]),
+            dossier=DiscoveryDossier(),
             open_items=["no metrics"],
             memory_update={"intent_summary": "x"},
         )
@@ -145,6 +148,7 @@ class TestBriefOutput:
             assistant_message="m",
             brief_title="t",
             brief_markdown="x",
+            dossier=DiscoveryDossier(),
         )
         assert output.user_summary == ""
         assert output.profile == StructuredProfile()
@@ -160,6 +164,7 @@ class TestBriefOutput:
                 assistant_message="m",
                 brief_title="t",
                 brief_markdown="x",
+                dossier=DiscoveryDossier(),
                 role="not allowed",
             )
 

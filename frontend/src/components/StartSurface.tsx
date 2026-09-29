@@ -5,6 +5,7 @@ export interface StartSurfaceProps {
   onStart: (intakeText: string) => Promise<void>;
   disabled?: boolean;
   disabledReason?: string;
+  continuation?: boolean;
 }
 
 interface StarterPrompt {
@@ -14,25 +15,25 @@ interface StarterPrompt {
 
 const STARTER_PROMPTS: StarterPrompt[] = [
   {
-    id: "product_opportunity",
-    text: "Help me explore a new product opportunity in an adjacent market.",
+    id: "portfolio_goal",
+    text: "I want a portfolio that helps people understand...",
   },
   {
-    id: "simplify_workflow",
-    text: "I want to simplify an existing workflow with AI.",
+    id: "work_to_highlight",
+    text: "The work and projects I want to highlight include...",
   },
   {
-    id: "business_model",
-    text: "Assess the viability of a new business model.",
+    id: "constraints_preferences",
+    text: "My audience, preferences, or constraints are...",
   },
 ];
 
-// This is guidance for a thorough source packet, not the transport safety
-// limit. The backend contract remains bounded by the 30,000-character guard.
-const MAX_INTAKE_WORDS = 3000;
-const MAX_INTAKE_CHARACTERS = 30000;
-
-export function StartSurface({ onStart, disabled = false, disabledReason }: StartSurfaceProps) {
+export function StartSurface({
+  onStart,
+  disabled = false,
+  disabledReason,
+  continuation = false,
+}: StartSurfaceProps) {
   const [intakeText, setIntakeText] = useState(() => safeSessionStorage.getItem("oryxenai.discovery_intake_draft") ?? "");
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,10 +68,6 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
       setError("Please share your goals, context, or paste your resume before starting Discovery.");
       return;
     }
-    if (value.length > MAX_INTAKE_CHARACTERS) {
-      setError(`Keep your source material under ${MAX_INTAKE_CHARACTERS.toLocaleString()} characters.`);
-      return;
-    }
     setInFlight(true);
     setError(null);
     try {
@@ -88,24 +85,25 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
       {/* Editorial Header matching 02-discovery-intake.png */}
       <div className="discovery-intake-header">
         <h1 id="intake-heading" className="discovery-intake-title">
-          Tell us about what you're exploring.
+          {continuation ? "Share more source material." : "Give Discovery the full picture."}
         </h1>
         <p className="discovery-intake-subtitle">
-          Share your goals, context, and any constraints. The more detail you provide, the better
-          OryxenAI can understand your needs and create a focused plan.
+          {continuation
+            ? "Discovery needs more personal or professional detail before it can make a grounded brief. Add notes, work history, project details, or other source material below. Your earlier material is saved."
+            : "Share your goals, work history, projects, preferences, and constraints. You can paste source material as-is; Discovery will organize it and ask about important gaps."}
         </p>
       </div>
 
       {/* Main Textarea Container with Word Count inside */}
       <div className={`discovery-intake-box ${isFocused ? "is-focused" : ""} ${error ? "has-error" : ""}`}>
         <label htmlFor="discovery-intake-textarea" className="visually-hidden">
-          What should this portfolio make clear?
+          Source material and portfolio goals
         </label>
         <textarea
           ref={textareaRef}
           id="discovery-intake-textarea"
           className="discovery-intake-textarea"
-          placeholder="Type your response here... (or paste your resume, work history, or project notes)"
+          placeholder="Write your goals or paste resumes, project notes, work history, and other relevant material..."
           value={intakeText}
           onInput={(e) => {
             setIntakeText((e.target as HTMLTextAreaElement).value);
@@ -118,9 +116,7 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
         />
         <div className="discovery-intake-meta">
           {error && <span className="discovery-intake-error" role="alert">{error}</span>}
-          <span className={`discovery-intake-counter ${wordCount > MAX_INTAKE_WORDS ? "over-limit" : ""}`}>
-            {wordCount.toLocaleString()} / {MAX_INTAKE_WORDS.toLocaleString()} words
-          </span>
+          <span className="discovery-intake-counter">{wordCount.toLocaleString()} words</span>
         </div>
       </div>
 
@@ -153,7 +149,9 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
       )}
 
       <p className="intake-supporting-note">
-        Start with what you have. You can refine the brief before moving to Content.
+        {continuation
+          ? "Add the details you have; Discovery will keep the new material with your earlier sources."
+          : "Start with what you have. You can clarify gaps and review the evidence before approving the brief."}
       </p>
 
       {/* Reserved action area matching 02-discovery-intake.png; intake keeps
@@ -168,9 +166,11 @@ export function StartSurface({ onStart, disabled = false, disabledReason }: Star
                 onClick={submit}
                 disabled={disabled || inFlight || !intakeText.trim()}
               >
-                {inFlight ? "Starting Discovery…" : "Start Discovery →"}
+                {inFlight
+                  ? continuation ? "Adding details…" : "Starting Discovery…"
+                  : continuation ? "Add details and continue →" : "Start Discovery →"}
               </button>
-              <span className="dock-reassurance">Your input is private and secure.</span>
+              <span className="dock-reassurance">Long source material is accepted; the server will report any transport limit.</span>
             </div>
           </div>
         </div>

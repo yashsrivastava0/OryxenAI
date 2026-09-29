@@ -5,15 +5,19 @@ Linear flow with a single transition map and one error state.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, datetime
 from typing import Any
 
 from oryxenai.agents.discovery.schemas import (
+    DiscoveryDossier,
     DiscoveryQuestion,
     DiscoveryState,
     DiscoveryStatus,
     OperationAState,
     OperationMode,
+    QuestionHistoryEvent,
     StructuredProfile,
 )
 
@@ -41,12 +45,21 @@ _VALID_TRANSITIONS: dict[DiscoveryStatus, frozenset[DiscoveryStatus]] = {
     DiscoveryStatus.NOT_STARTED: frozenset({DiscoveryStatus.QUESTIONS_QUEUED}),
     DiscoveryStatus.QUESTIONS_QUEUED: frozenset({DiscoveryStatus.QUESTIONS_RUNNING}),
     DiscoveryStatus.QUESTIONS_RUNNING: frozenset(
-        {DiscoveryStatus.QUESTIONS_READY, DiscoveryStatus.NEEDS_ATTENTION}
+        {
+            DiscoveryStatus.QUESTIONS_READY,
+            DiscoveryStatus.NEEDS_INPUT,
+            DiscoveryStatus.NEEDS_ATTENTION,
+        }
     ),
     DiscoveryStatus.QUESTIONS_READY: frozenset(
-        {DiscoveryStatus.QUESTIONS_QUEUED, DiscoveryStatus.ANSWERS_IN_PROGRESS}
+        {
+            DiscoveryStatus.QUESTIONS_QUEUED,
+            DiscoveryStatus.ANSWERS_IN_PROGRESS,
+        }
     ),
-    DiscoveryStatus.ANSWERS_IN_PROGRESS: frozenset({DiscoveryStatus.BRIEF_RUNNING}),
+    DiscoveryStatus.ANSWERS_IN_PROGRESS: frozenset(
+        {DiscoveryStatus.QUESTIONS_QUEUED, DiscoveryStatus.BRIEF_RUNNING}
+    ),
     DiscoveryStatus.BRIEF_RUNNING: frozenset(
         {DiscoveryStatus.BRIEF_REVIEW, DiscoveryStatus.NEEDS_ATTENTION}
     ),
@@ -60,6 +73,7 @@ _VALID_TRANSITIONS: dict[DiscoveryStatus, frozenset[DiscoveryStatus]] = {
             DiscoveryStatus.BRIEF_RUNNING,
         }
     ),
+    DiscoveryStatus.NEEDS_INPUT: frozenset({DiscoveryStatus.QUESTIONS_QUEUED}),
 }
 
 
@@ -95,16 +109,38 @@ def apply_questions_ready(
     assistant_message: str,
     memory_update: dict[str, Any],
 ) -> DiscoveryState:
-    _validate_transition(state.status, DiscoveryStatus.QUESTIONS_READY)
+    target_status = (
+        DiscoveryStatus.NEEDS_INPUT
+        if mode is OperationMode.NEEDS_DETAILS
+        else DiscoveryStatus.QUESTIONS_READY
+    )
+    _validate_transition(state.status, target_status)
     new_state = state.model_copy(deep=True)
-    new_state.status = DiscoveryStatus.QUESTIONS_READY
+    new_state.status = target_status
+    normalized_items: list[DiscoveryQuestion] = []
+    for index, item in enumerate(items, start=1):
+        normalized = item.model_copy(deep=True)
+        normalized.id = f"{run_id}:{index}:{item.id or 'question'}"
+        if not normalized.gap_id:
+            normalized.gap_id = f"gap:{run_id}:{index}"
+        normalized_items.append(normalized)
+        new_state.question_events.append(
+            QuestionHistoryEvent(
+                question_id=normalized.id,
+                gap_id=normalized.gap_id,
+                question=normalized.text,
+                reason=normalized.reason or "",
+                affected_ids=normalized.affected_ids,
+                status="pending",
+            )
+        )
     new_state.operation_a = OperationAState(
         version=version,
         run_id=run_id,
         job_id=state.operation_a.job_id,
         mode=mode,
         assistant_message=assistant_message,
-        items=items,
+        items=normalized_items,
         memory_update=memory_update,
     )
     new_state.memory = _merge_memory(state.memory, memory_update)
@@ -140,6 +176,7 @@ def apply_brief_review(
     revision_request: str = "",
     user_summary: str = "",
     profile: dict[str, Any] | None = None,
+    dossier: dict[str, Any] | DiscoveryDossier | None = None,
 ) -> DiscoveryState:
     _validate_transition(state.status, DiscoveryStatus.BRIEF_REVIEW)
     new_state = state.model_copy(deep=True)
@@ -153,6 +190,20 @@ def apply_brief_review(
     new_state.brief.open_items = open_items
     new_state.brief.memory_update = memory_update
     new_state.brief.revision_request = revision_request
+    if dossier is not None:
+        parsed_dossier = (
+            dossier
+            if isinstance(dossier, DiscoveryDossier)
+            else DiscoveryDossier.model_validate(dossier)
+        )
+        new_state.dossier = parsed_dossier
+        canonical = json.dumps(
+            parsed_dossier.model_dump(mode="json"),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        new_state.brief.dossier_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     new_state.memory = _merge_memory(state.memory, memory_update)
     new_state.latest_error = None
     return new_state

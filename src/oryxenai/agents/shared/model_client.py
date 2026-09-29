@@ -49,10 +49,12 @@ class MockModelClient:
         result_validator: Any = None,
     ) -> Any:
         del result_validator
-        return _mock_structured_result(output_model)
+        return _mock_structured_result(output_model, input_payload)
 
 
-def _mock_structured_result(output_model: type[BaseModel]) -> Any:
+def _mock_structured_result(
+    output_model: type[BaseModel], input_payload: Mapping[str, object]
+) -> Any:
     """Build a deterministic StructuredModelResult for the given output model.
 
     Discovery and Content Architect output models each get a valid minimal
@@ -75,64 +77,92 @@ def _mock_structured_result(output_model: type[BaseModel]) -> Any:
     )
     from oryxenai.agents.discovery.schemas import (
         BriefOutput,
+        DiscoveryDossier,
         DiscoveryQuestion,
-        ExperienceEntry,
         OperationMode,
-        ProjectEntry,
         QuestionKind,
         QuestionOption,
         QuestionSetOutput,
+        SourceCoverage,
+        SourceDisposition,
         StructuredModelResult,
         StructuredProfile,
     )
 
     parsed: BaseModel | None
     if output_model is QuestionSetOutput:
+        source_documents = input_payload.get("source_documents", [])
+        has_personal_sources = bool(
+            isinstance(source_documents, list)
+            and any(
+                isinstance(document, Mapping)
+                and document.get("source_kind") in {"user_provided", "user_answer"}
+                and bool(document.get("spans"))
+                for document in source_documents
+            )
+        )
         parsed = QuestionSetOutput(
-            mode=OperationMode.ASK_QUESTIONS,
-            assistant_message="I have enough to ask a few focused questions.",
-            questions=[
-                DiscoveryQuestion(
-                    id="target_direction",
-                    text="Should the portfolio lead with backend or full-stack?",
-                    kind=QuestionKind.SINGLE_SELECT,
-                    options=[
-                        QuestionOption(id="backend", label="Backend"),
-                        QuestionOption(id="fullstack", label="Full-stack"),
-                        QuestionOption(id="balanced", label="Balanced"),
-                    ],
-                )
-            ],
+            mode=OperationMode.ASK_QUESTIONS
+            if has_personal_sources
+            else OperationMode.NEEDS_DETAILS,
+            assistant_message=(
+                "I have enough to ask a few focused questions."
+                if has_personal_sources
+                else "Share personal or professional source material so Discovery can build a grounded brief."
+            ),
+            questions=(
+                [
+                    DiscoveryQuestion(
+                        id="target_direction",
+                        text="Should the portfolio lead with backend or full-stack?",
+                        kind=QuestionKind.SINGLE_SELECT,
+                        options=[
+                            QuestionOption(id="backend", label="Backend"),
+                            QuestionOption(id="fullstack", label="Full-stack"),
+                            QuestionOption(id="balanced", label="Balanced"),
+                        ],
+                    )
+                ]
+                if has_personal_sources
+                else []
+            ),
             memory_update={"intent_summary": "Backend engineering roles", "open_items": []},
         )
     elif output_model is BriefOutput:
+        source_documents = input_payload.get("source_documents", [])
+        coverage: list[SourceCoverage] = []
+        if isinstance(source_documents, list):
+            for document in source_documents:
+                if not isinstance(document, Mapping):
+                    continue
+                spans = document.get("spans", [])
+                if not isinstance(spans, list):
+                    continue
+                for span in spans:
+                    if isinstance(span, Mapping) and isinstance(span.get("id"), str):
+                        coverage.append(
+                            SourceCoverage(
+                                span_id=span["id"],
+                                disposition=SourceDisposition.EXCLUDED,
+                                reason="The deterministic mock does not classify source material.",
+                            )
+                        )
         parsed = BriefOutput(
             mode=OperationMode.BRIEF_READY,
-            assistant_message="I prepared the Discovery brief. Review it and change anything before approving.",
-            brief_title="Portfolio Discovery Brief — Mock User",
+            assistant_message="The deterministic mock returned a placeholder brief for review.",
+            brief_title="Discovery mock output",
             brief_markdown=(
-                "# Portfolio Discovery Brief — Mock User\n\n"
-                "## Portfolio direction at a glance\n\n"
-                "**Primary goal:** Create a portfolio that helps the user move forward.\n\n"
-                "## Approval summary\n\n"
-                "Ready for approval."
+                "# Discovery mock output\n\n"
+                "This deterministic mock does not analyze source material or create portfolio claims. "
+                "Use a configured model workflow for a grounded Discovery brief."
             ),
             user_summary=(
-                "Here's the direction: a portfolio built around the user's current work. "
-                "The full detailed brief is ready for the next stage."
+                "This is a deterministic placeholder. It does not classify source material or make "
+                "claims about your experience."
             ),
-            profile=StructuredProfile(
-                name="Mock User",
-                current_title="Software Engineer",
-                experience=[
-                    ExperienceEntry(
-                        organization="Mock Company", role="Software Engineer", dates="2023-present"
-                    )
-                ],
-                projects=[ProjectEntry(name="Mock Project", summary="A sample project.")],
-                skills=["Python"],
-            ),
-            open_items=["no metrics supplied"],
+            profile=StructuredProfile(),
+            dossier=DiscoveryDossier(source_coverage=coverage),
+            open_items=["Deterministic mock does not analyze supplied source material."],
             memory_update={},
         )
     elif output_model is ContentArchitectOutput:

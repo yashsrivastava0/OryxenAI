@@ -8,6 +8,7 @@ database is never touched.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -144,6 +145,56 @@ _DEFAULT_PROFILE: dict[str, Any] = {
     "private_omitted": ["phone number"],
 }
 
+_DEFAULT_DOSSIER: dict[str, Any] = {
+    "contract_version": "DiscoveryDossier/v1",
+    "intent": {},
+    "subject": {
+        "name": "Mock User",
+        "current_title": "Software Engineer",
+        "links": [{"label": "GitHub", "url": "https://github.com/mockuser"}],
+    },
+    "facts": [
+        {
+            "id": "fact-mock-user",
+            "category": "experience",
+            "statement": "Mock User works as a software engineer.",
+            "original_wording": "Software Engineer",
+            "ownership": "individual",
+        }
+    ],
+    "roles": [
+        {
+            "id": "role-mock-user",
+            "organization": "Northstar Systems",
+            "role": "Software Engineer",
+            "dates": "2023-present",
+            "details": ["Built FastAPI services"],
+            "fact_ids": ["fact-mock-user"],
+        }
+    ],
+    "projects": [
+        {
+            "id": "project-queueguard",
+            "name": "QueueGuard",
+            "problem": "Durable background job system",
+            "personal_contribution": "Designed job retries",
+            "tools": ["Python", "FastAPI", "PostgreSQL"],
+            "fact_ids": ["fact-mock-user"],
+        }
+    ],
+    "other_evidence": [
+        {
+            "id": "evidence-python",
+            "category": "skill",
+            "title": "Python",
+            "fact_ids": ["fact-mock-user"],
+        }
+    ],
+    "open_items": [{"id": "gap-metrics", "detail": "No metrics supplied", "importance": "context"}],
+    "source_coverage": [],
+    "lineage": {},
+}
+
 _DEFAULT_BRIEF: dict[str, Any] = {
     "mode": "BRIEF_READY",
     "assistant_message": "I prepared the Discovery brief. Review it and change anything before approving.",
@@ -160,6 +211,7 @@ _DEFAULT_BRIEF: dict[str, Any] = {
         "current work and the QueueGuard project. The full detailed brief is ready for the next stage."
     ),
     "profile": _DEFAULT_PROFILE,
+    "dossier": _DEFAULT_DOSSIER,
     "open_items": ["no metrics supplied"],
     "memory_update": {},
 }
@@ -217,7 +269,78 @@ class _MockModelClient:
             parsed = self.questions_payload
         else:
             revision_request = str((input_payload or {}).get("revision_request", "") or "")
-            parsed = self.brief_revised_payload if revision_request else self.brief_payload
+            parsed = deepcopy(
+                self.brief_revised_payload if revision_request else self.brief_payload
+            )
+            dossier = parsed.setdefault("dossier", deepcopy(_DEFAULT_DOSSIER))
+            source_documents = input_payload.get("source_documents", [])
+            spans = [
+                (document, span)
+                for document in source_documents
+                if isinstance(document, dict)
+                for span in document.get("spans", [])
+                if isinstance(span, dict)
+            ]
+            source_fact_refs = [
+                span["id"]
+                for document, span in spans
+                if document.get("source_kind") == "user_provided"
+            ]
+            answer_source_refs = [
+                span["id"]
+                for document, span in spans
+                if document.get("source_kind") == "user_answer"
+            ]
+            dossier["subject"]["source_refs"] = source_fact_refs
+            dossier["intent"]["basis"] = {"goal": "User-provided portfolio goal"}
+            dossier["intent"]["basis_refs"] = {
+                "goal": [
+                    span["id"]
+                    for document, span in spans
+                    if document.get("source_kind") == "user_intent"
+                ],
+                "preferences": answer_source_refs,
+            }
+            dossier["intent"]["preferences"] = [
+                str(answer.get("value"))
+                for answer in (input_payload.get("answers", {}) or {}).values()
+                if isinstance(answer, dict) and answer.get("value") is not None
+            ]
+            if not source_fact_refs:
+                dossier["subject"] = {}
+                dossier["facts"] = []
+                dossier["roles"] = []
+                dossier["projects"] = []
+                dossier["other_evidence"] = []
+                parsed["brief_title"] = "Discovery mock output"
+                parsed["brief_markdown"] = (
+                    "# Discovery mock output\n\n"
+                    "No personal source material was supplied to this deterministic test client."
+                )
+                parsed["user_summary"] = (
+                    "The deterministic test client did not receive personal source material."
+                )
+            for fact in dossier.get("facts", []):
+                fact["source_refs"] = source_fact_refs
+            for collection in ("roles", "projects", "other_evidence"):
+                for entity in dossier.get(collection, []):
+                    entity["source_refs"] = source_fact_refs
+            dossier["source_coverage"] = [
+                {
+                    "span_id": span["id"],
+                    "disposition": (
+                        "fact"
+                        if document.get("source_kind") == "user_provided"
+                        else "intent_preference"
+                    ),
+                    "fact_ids": (
+                        [fact["id"] for fact in dossier.get("facts", [])]
+                        if document.get("source_kind") == "user_provided"
+                        else []
+                    ),
+                }
+                for document, span in spans
+            ]
         parsed_output = output_model.model_validate(parsed).model_dump(mode="json")
         return StructuredModelResult(
             parsed_output=parsed_output,

@@ -26,6 +26,7 @@ class StartRequest(BaseModel):
     message: str = ""
     document_text: str = ""
     goal: str = ""
+    source_text: str = ""
     model_profile: str | None = None
 
 
@@ -33,6 +34,7 @@ class AnswersRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     complete: bool = False
+    continue_with_current_information: bool = False
     answers: list[DiscoveryAnswer] = Field(default_factory=list)
 
 
@@ -99,6 +101,7 @@ async def start_discovery(
                 body.message,
                 body.document_text,
                 body.goal,
+                source_text=body.source_text,
                 model_profile=body.model_profile or "",
             )
         )
@@ -120,6 +123,7 @@ async def save_discovery_answers(
                 access.session.id,
                 body.answers,
                 complete=body.complete,
+                continue_with_current_information=body.continue_with_current_information,
             )
         )
     except DiscoveryOperationError as exc:

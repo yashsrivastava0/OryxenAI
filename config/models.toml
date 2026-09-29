@@ -90,7 +90,7 @@ allow_personal_gemini_fallback = true
 normal_calls = 1
 recovery_allowance = 1
 max_output_tokens = 4096
-input_limit_tokens = 64000
+input_limit_tokens = 1000000
 timeout_seconds = 180
 reasoning_effort = "low"
 
@@ -101,8 +101,8 @@ allow_gemini = true
 allow_personal_gemini_fallback = true
 normal_calls = 1
 recovery_allowance = 1
-max_output_tokens = 12000
-input_limit_tokens = 64000
+max_output_tokens = 24000
+input_limit_tokens = 1000000
 timeout_seconds = 180
 reasoning_effort = "medium"
 
