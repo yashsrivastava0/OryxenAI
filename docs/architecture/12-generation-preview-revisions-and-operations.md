@@ -40,6 +40,7 @@ sequenceDiagram
     UI->>API: Load complete copy for review
     User->>UI: Approve exact Content version
     API->>DB: Pin content hash and queue Code Generator job
+    API-->>UI: Content approved; show generation progress
     Worker->>AI: Write HTML from approved content and theme contract
     AI-->>Worker: Generated index.html and field map
     Worker->>Store: Save candidate HTML, CSS, assets
@@ -47,9 +48,10 @@ sequenceDiagram
     Worker->>DB: Promote verified version if still current
     UI->>API: Poll progress / current version
     API-->>UI: Version details and owner-scoped preview grant
+    UI-->>User: Open interactive preview automatically
 ```
 
-The initial request returns quickly with a portfolio/revision ID. Model calls and Chromium checks never run inside the user's text-submission HTTP request. The browser polls server state or uses a progress stream backed by that same persisted state; a reconnect does not restart generation.
+The initial request returns quickly with a portfolio/revision ID. Content approval likewise returns quickly after atomically pinning the package and queuing Code Generator work. There is no separate Generate click or Code Generator approval: the frontend shows the persisted `generating_html` and `verifying` states, then opens the ready interactive preview automatically. Model calls and Chromium checks do not run inside an approval HTTP request. The browser polls server state or uses a progress stream backed by that same persisted state; a reconnect does not restart generation.
 
 ### Stage transitions
 
