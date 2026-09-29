@@ -40,6 +40,7 @@ class DiscoveryStatus(StrEnum):
     ANSWERS_IN_PROGRESS = "answers_in_progress"
     BRIEF_RUNNING = "brief_running"
     BRIEF_REVIEW = "brief_review"
+    NEEDS_INPUT = "needs_input"
     APPROVED = "approved"
     NEEDS_ATTENTION = "needs_attention"
 
@@ -55,6 +56,224 @@ class DiscoveryIntake(BaseModel):
     message: str = ""
     document_text: str = ""
     goal: str = ""
+    source_text: str = ""
+
+
+class ProfileLink(BaseModel):
+    """One public link (portfolio, GitHub, LinkedIn, ...)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = ""
+    url: str = ""
+
+
+class SourceDisposition(StrEnum):
+    FACT = "fact"
+    INTENT_PREFERENCE = "intent_preference"
+    RESTRICTION = "restriction"
+    REFERENCE_CONTEXT = "reference_context"
+    DUPLICATE = "duplicate"
+    EXCLUDED = "excluded"
+
+
+class FactStatus(StrEnum):
+    SOURCE_ASSERTED = "source_asserted"
+    USER_CONFIRMED = "user_confirmed"
+    CONFLICTING = "conflicting"
+    SUPERSEDED = "superseded"
+
+
+class FactOwnership(StrEnum):
+    INDIVIDUAL = "individual"
+    TEAM = "team"
+    UNKNOWN = "unknown"
+
+
+class SourceSpan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    start: int
+    end: int
+    excerpt: str = ""
+
+
+class SourceDocument(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    label: str = "Source material"
+    source_kind: str = "user_provided"
+    format: str = "text"
+    offset_unit: str = "utf16_code_units"
+    original_text: str
+    sha256: str
+    spans: list[SourceSpan] = Field(default_factory=list)
+    created_at: str = ""
+
+
+class DossierIntent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    goal: str = ""
+    audience: str = ""
+    visitor_action: str = ""
+    language: str = ""
+    preferences: list[str] = Field(default_factory=list)
+    basis: dict[str, str] = Field(default_factory=dict)
+    basis_refs: dict[str, list[str]] = Field(default_factory=dict)
+
+
+class DossierSubject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = ""
+    current_title: str = ""
+    location: str = ""
+    links: list[ProfileLink] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class DossierFact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    category: str = ""
+    statement: str = ""
+    original_wording: str = ""
+    source_refs: list[str] = Field(default_factory=list)
+    qualifiers: list[str] = Field(default_factory=list)
+    ownership: FactOwnership = FactOwnership.UNKNOWN
+    status: FactStatus = FactStatus.SOURCE_ASSERTED
+    supersedes_ref: str = ""
+
+
+class DossierRole(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    organization: str = ""
+    role: str = ""
+    dates: str = ""
+    details: list[str] = Field(default_factory=list)
+    fact_ids: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class DossierProject(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    name: str = ""
+    problem: str = ""
+    personal_contribution: str = ""
+    team_contribution: str = ""
+    approach: list[str] = Field(default_factory=list)
+    tools: list[str] = Field(default_factory=list)
+    outcomes: list[str] = Field(default_factory=list)
+    links: list[str] = Field(default_factory=list)
+    fact_ids: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class DossierEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    category: str = ""
+    title: str = ""
+    detail: str = ""
+    fact_ids: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class DossierOpenItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    detail: str = ""
+    importance: str = "context"
+    status: str = "open"
+    safe_wording: str = ""
+    affected_ids: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class DossierRestriction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = ""
+    scope: str = ""
+    instruction: str = ""
+    disposition: str = "omit"
+    source_refs: list[str] = Field(default_factory=list)
+
+
+class SourceCoverage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    span_id: str
+    disposition: SourceDisposition
+    fact_ids: list[str] = Field(default_factory=list)
+    reason: str = ""
+
+
+class QuestionAnswerRevision(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    revision: int = 0
+    status: str = "answered"
+    answer: str = ""
+    source_refs: list[str] = Field(default_factory=list)
+    recorded_at: str = ""
+
+
+class QuestionHistoryEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: str
+    gap_id: str = ""
+    question: str = ""
+    reason: str = ""
+    affected_ids: list[str] = Field(default_factory=list)
+    status: str = "pending"
+    answer: str = ""
+    answer_source_refs: list[str] = Field(default_factory=list)
+    answer_history: list[QuestionAnswerRevision] = Field(default_factory=list)
+
+
+class DossierLineage(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = 1
+    source_document_ids: list[str] = Field(default_factory=list)
+    source_hashes: list[str] = Field(default_factory=list)
+    schema_version: str = "DiscoveryDossier/v1"
+    provenance_status: str = "source_indexed"
+    created_at: str = ""
+    payload_hash: str = ""
+
+
+class DiscoveryDossier(BaseModel):
+    """Complete source-linked factual handoff produced by Discovery."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    contract_version: str = "DiscoveryDossier/v1"
+    id: str = ""
+    intent: DossierIntent = Field(default_factory=DossierIntent)
+    subject: DossierSubject = Field(default_factory=DossierSubject)
+    facts: list[DossierFact] = Field(default_factory=list)
+    roles: list[DossierRole] = Field(default_factory=list)
+    projects: list[DossierProject] = Field(default_factory=list)
+    other_evidence: list[DossierEvidence] = Field(default_factory=list)
+    open_items: list[DossierOpenItem] = Field(default_factory=list)
+    user_choices: list[str] = Field(default_factory=list)
+    restrictions: list[DossierRestriction] = Field(default_factory=list)
+    source_coverage: list[SourceCoverage] = Field(default_factory=list)
+    question_events: list[QuestionHistoryEvent] = Field(default_factory=list)
+    lineage: DossierLineage = Field(default_factory=DossierLineage)
 
 
 # ── Output: Operation A (understand_and_question) ───────────────────────────
@@ -78,6 +297,8 @@ class DiscoveryQuestion(BaseModel):
     kind: QuestionKind = QuestionKind.TEXT
     options: list[QuestionOption] = Field(default_factory=list)
     reason: str | None = None
+    gap_id: str = ""
+    affected_ids: list[str] = Field(default_factory=list)
     allow_skip: bool = True
     allow_auto: bool = False
 
@@ -94,15 +315,6 @@ class QuestionSetOutput(BaseModel):
 
 
 # ── Output: Operation B (build_or_revise_brief) ─────────────────────────────
-
-
-class ProfileLink(BaseModel):
-    """One public link (portfolio, GitHub, LinkedIn, ...)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    label: str = ""
-    url: str = ""
 
 
 class ExperienceEntry(BaseModel):
@@ -175,6 +387,7 @@ class BriefOutput(BaseModel):
     brief_markdown: str
     user_summary: str = ""
     profile: StructuredProfile = Field(default_factory=StructuredProfile)
+    dossier: DiscoveryDossier
     open_items: list[str] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
 
@@ -236,6 +449,7 @@ class BriefState(BaseModel):
     markdown: str = ""
     user_summary: str = ""
     profile: StructuredProfile = Field(default_factory=StructuredProfile)
+    dossier_hash: str = ""
     open_items: list[str] = Field(default_factory=list)
     memory_update: dict[str, Any] = Field(default_factory=dict)
     revision_request: str = ""
@@ -252,6 +466,9 @@ class DiscoveryState(BaseModel):
     routing_policy_version: str = ""
     routing_policy_fingerprint: str = ""
     intake: DiscoveryIntake = Field(default_factory=DiscoveryIntake)
+    source_documents: list[SourceDocument] = Field(default_factory=list)
+    dossier: DiscoveryDossier | None = None
+    question_events: list[QuestionHistoryEvent] = Field(default_factory=list)
     operation_a: OperationAState = Field(default_factory=OperationAState)
     answers: AnswersState = Field(default_factory=AnswersState)
     brief: BriefState = Field(default_factory=BriefState)

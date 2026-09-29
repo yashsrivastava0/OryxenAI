@@ -206,6 +206,14 @@ async def _execute_persisted(
         if not _job_owns_active_state(state, operation, run_id, job_id):
             return {"status": "cancelled", "job_id": str(job_id)}
         running = _running_state(state, operation, run_id)
+        if not running.source_documents:
+            # Upgrade an already-queued legacy run from its persisted intake
+            # once, then keep those exact IDs stable across worker retries.
+            from oryxenai.agents.discovery.sources import documents_from_intake
+
+            running.source_documents = documents_from_intake(
+                running.intake.model_dump(mode="python")
+            )
         running.attempt = attempt
         running.max_attempts = max_attempts
         expected_revision = int(payload.get("expected_session_revision", session.revision))
@@ -213,6 +221,22 @@ async def _execute_persisted(
         await db.commit()
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)
+        input_payload.setdefault("intake", running.intake.model_dump(mode="json"))
+        input_payload.setdefault("source_documents", [])
+        if not input_payload["source_documents"] and running.source_documents:
+            input_payload["source_documents"] = [
+                document.model_dump(mode="json") for document in running.source_documents
+            ]
+        input_payload.setdefault(
+            "question_events",
+            [event.model_dump(mode="json") for event in running.question_events],
+        )
+        input_payload.setdefault(
+            "answers",
+            {qid: answer.model_dump(mode="json") for qid, answer in running.answers.items.items()},
+        )
+        run.input_payload = input_payload
+        await db.commit()
 
     from oryxenai.agents.shared.model_runtime import get_model_runtime
 
@@ -242,11 +266,13 @@ async def _execute_persisted(
     agent_input: dict[str, Any] = {
         "operation": operation,
         "intake": input_payload.get("intake", {}),
+        "source_documents": input_payload.get("source_documents", []),
+        "question_events": input_payload.get("question_events", []),
+        "answers": input_payload.get("answers", {}),
         "prior_memory": input_payload.get("prior_memory", {}),
         "routing_policy_snapshot": input_payload.get("routing_policy_snapshot", {}),
     }
     if operation in _BRIEF_OPS:
-        agent_input["answers"] = input_payload.get("answers", {})
         agent_input["existing_brief"] = input_payload.get("existing_brief", "")
         agent_input["revision_request"] = input_payload.get("revision_request", "")
     context = build_context(
@@ -412,6 +438,7 @@ async def _apply_result(
                 revision_request=revision_request,
                 user_summary=result.output.get("user_summary", ""),
                 profile=result.output.get("profile", {}) or {},
+                dossier=result.output.get("dossier"),
             )
         next_state.attempt = attempt
 

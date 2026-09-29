@@ -123,8 +123,7 @@ max_token_bytes = 8192
 
 [discovery]
 # Discovery agent output limits. Input is never validated.
-max_questions = 8
-max_projects = 8               # profile.projects is truncated to this, never rejected
+max_questions = 3
 max_answer_chars = 10000
 
 [content_architect]

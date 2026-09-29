@@ -139,7 +139,8 @@ class TestFlowTransitions:
         assert state.status == DiscoveryStatus.QUESTIONS_READY
         assert state.operation_a.version == "discovery.understand_and_question.v3"
         assert state.operation_a.run_id == "run-1"
-        assert state.operation_a.items[0].id == "q1"
+        assert state.operation_a.items[0].id == "run-1:1:q1"
+        assert state.question_events[0].question_id == "run-1:1:q1"
         assert state.operation_a.mode == OperationMode.ASK_QUESTIONS
 
     def test_questions_ready_persists_mode_and_memory(self):
@@ -153,6 +154,7 @@ class TestFlowTransitions:
             assistant_message="Share more details.",
             memory_update={"intent_summary": "backend role", "open_items": ["no metrics"]},
         )
+        assert state.status == DiscoveryStatus.NEEDS_INPUT
         assert state.operation_a.mode == OperationMode.NEEDS_DETAILS
         assert state.operation_a.assistant_message == "Share more details."
         assert state.operation_a.memory_update["intent_summary"] == "backend role"

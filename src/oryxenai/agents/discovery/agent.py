@@ -1,26 +1,37 @@
-"""Discovery agent — turns raw user input into questions and a portfolio brief.
+"""Discovery agent for source-grounded intake, clarification, and briefing.
 
-Two model calls maximum:
-  1. understand_and_question: user input -> interaction mode + questions (0..7)
-  2. build_or_revise_brief: user input + answers + memory -> detailed brief
+Each durable job makes one model call. Completed answer batches can enqueue
+additional question jobs; there is no fixed total interview-round limit.
 
 The legacy operation names prepare_questions / build_brief are accepted as
-aliases so persisted in-flight run payloads keep working. Input is accepted
-as-is (no input validation). The output contract is the only validation gate,
-enforced by validators.py.
+aliases so persisted in-flight run payloads keep working. Input is preserved
+as submitted; output and source-reference consistency are checked by
+validators.py.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from oryxenai.agents.discovery.prompt_builder import build_instructions
 from oryxenai.agents.discovery.schemas import (
     BriefOutput,
+    DiscoveryDossier,
+    EducationEntry,
+    ExperienceEntry,
     OperationMode,
+    ProjectEntry,
+    QuestionHistoryEvent,
     QuestionSetOutput,
+    SourceDocument,
     StructuredModelResult,
+    StructuredProfile,
 )
+from oryxenai.agents.discovery.sources import source_segments_for_model
 from oryxenai.agents.discovery.validators import (
     validate_brief_output,
     validate_questions_output,
@@ -38,17 +49,6 @@ logger = get_logger("oryxenai.agents.discovery")
 
 _QUESTIONS_OPERATIONS = {"understand_and_question", "prepare_questions"}
 _BRIEF_OPERATIONS = {"build_or_revise_brief", "build_brief"}
-_MATERIAL_HEADING_MARKERS = (
-    "professional summary",
-    "professional experience",
-    "work experience",
-    "education",
-    "certifications",
-    "core skills",
-    "technical skills",
-    "selected projects",
-    "employment history",
-)
 
 
 class DiscoveryModelOutputError(Exception):
@@ -92,10 +92,13 @@ class DiscoveryAgent(Agent):
 
     async def _run_understand_and_question(self, context: AgentContext) -> AgentResult:
         intake = self._intake_from(context.agent_input)
+        documents = _source_documents_from(context.agent_input, intake)
+        question_events = _question_events_from(context.agent_input)
         source_packet = {
-            "message": intake.get("message", ""),
-            "document_text": intake.get("document_text", ""),
-            "goal": intake.get("goal", ""),
+            "goal": _unindexed_goal(intake, documents),
+            "source_documents": source_segments_for_model(documents),
+            "answers": context.agent_input.get("answers", {}),
+            "question_history": [event.model_dump(mode="json") for event in question_events],
             "prior_memory": context.agent_input.get("prior_memory", {}),
         }
 
@@ -105,7 +108,25 @@ class DiscoveryAgent(Agent):
         )
 
         def validate(parsed: dict[str, Any]) -> None:
-            validation = validate_questions_output(parsed, self._config.max_questions)
+            closed_gaps = {
+                event.gap_id
+                for event in question_events
+                if event.gap_id and event.status != "pending"
+            }
+            questions = parsed.get("questions")
+            if isinstance(questions, list):
+                for question in questions:
+                    if not isinstance(question, dict) or question.get("gap_id"):
+                        continue
+                    normalized_text = " ".join(str(question.get("text", "")).casefold().split())
+                    question["gap_id"] = (
+                        "gap_" + hashlib.sha256(normalized_text.encode("utf-8")).hexdigest()[:16]
+                    )
+            validation = validate_questions_output(
+                parsed,
+                self._config.max_questions,
+                closed_gap_ids=closed_gaps,
+            )
             if not validation.is_valid:
                 raise DiscoveryModelOutputError("understand_and_question", validation.errors)
 
@@ -131,22 +152,6 @@ class DiscoveryAgent(Agent):
 
         mode = OperationMode(parsed.get("mode", OperationMode.ASK_QUESTIONS.value))
         questions = parsed.get("questions") or []
-        if mode is OperationMode.NEEDS_DETAILS and not questions and _has_material(intake):
-            # A substantive resume/document paired with NEEDS_DETAILS is a
-            # contradictory but transport-valid model response. Reusing it
-            # from the durable cache would otherwise leave the UI with no
-            # actionable question forever. A small deterministic fallback
-            # preserves the cost saving and keeps the conversation moving.
-            logger.warning(
-                "understand_and_question returned NEEDS_DETAILS for substantive material; "
-                "using deterministic question fallback"
-            )
-            mode = OperationMode.ASK_QUESTIONS
-            questions = _fallback_questions()
-            parsed["assistant_message"] = (
-                "I have enough material to work from. Two quick choices will help me position "
-                "the portfolio accurately."
-            )
         logger.info("understand_and_question mode=%s questions=%d", mode.value, len(questions))
         for question in questions:
             options = question.get("options") if isinstance(question, dict) else None
@@ -171,12 +176,14 @@ class DiscoveryAgent(Agent):
 
     async def _run_build_or_revise_brief(self, context: AgentContext) -> AgentResult:
         intake = self._intake_from(context.agent_input)
+        documents = _source_documents_from(context.agent_input, intake)
+        question_events = _question_events_from(context.agent_input)
         answers = context.agent_input.get("answers", {})
         source_packet = {
-            "message": intake.get("message", ""),
-            "document_text": intake.get("document_text", ""),
-            "goal": intake.get("goal", ""),
+            "goal": _unindexed_goal(intake, documents),
+            "source_documents": source_segments_for_model(documents),
             "answers": answers,
+            "question_history": [event.model_dump(mode="json") for event in question_events],
             "prior_memory": context.agent_input.get("prior_memory", {}),
             "existing_brief": str(context.agent_input.get("existing_brief", "") or ""),
             "revision_request": str(context.agent_input.get("revision_request", "") or ""),
@@ -188,7 +195,8 @@ class DiscoveryAgent(Agent):
         )
 
         def validate(parsed: dict[str, Any]) -> None:
-            validation = validate_brief_output(parsed)
+            _normalize_dossier_lineage(parsed, documents, question_events)
+            validation = validate_brief_output(parsed, documents)
             if not validation.is_valid:
                 raise DiscoveryModelOutputError("build_or_revise_brief", validation.errors)
 
@@ -217,10 +225,8 @@ class DiscoveryAgent(Agent):
             len(parsed.get("brief_markdown", "")),
         )
 
-        profile = dict(parsed.get("profile", {}) or {})
-        projects = profile.get("projects")
-        if isinstance(projects, list) and len(projects) > self._config.max_projects:
-            profile["projects"] = projects[: self._config.max_projects]
+        dossier = DiscoveryDossier.model_validate(parsed["dossier"])
+        profile = _profile_from_dossier(dossier)
 
         return AgentResult(
             output={
@@ -230,7 +236,8 @@ class DiscoveryAgent(Agent):
                 "brief_title": str(parsed.get("brief_title", "") or ""),
                 "brief_markdown": str(parsed.get("brief_markdown", "") or ""),
                 "user_summary": str(parsed.get("user_summary", "") or ""),
-                "profile": profile,
+                "profile": profile.model_dump(mode="json"),
+                "dossier": dossier.model_dump(mode="json"),
                 "open_items": parsed.get("open_items", []) or [],
                 "memory_update": parsed.get("memory_update", {}) or {},
             },
@@ -247,47 +254,8 @@ class DiscoveryAgent(Agent):
             "message": str(raw.get("message", "") or ""),
             "document_text": str(raw.get("document_text", "") or ""),
             "goal": str(raw.get("goal", "") or ""),
+            "source_text": str(raw.get("source_text", "") or ""),
         }
-
-
-def _has_material(intake: dict[str, Any]) -> bool:
-    """Recognize clearly substantive source material without another model call."""
-
-    document_text = str(intake.get("document_text", "") or "").strip()
-    if len(document_text) >= 240:
-        return True
-    message = str(intake.get("message", "") or "").strip().casefold()
-    if len(message) >= 2400:
-        return True
-    if len(message) < 800:
-        return False
-    marker_count = sum(marker in message for marker in _MATERIAL_HEADING_MARKERS)
-    return marker_count >= 2
-
-
-def _fallback_questions() -> list[dict[str, Any]]:
-    """Return the minimum useful interaction for a contradictory model mode."""
-
-    return [
-        {
-            "id": "portfolio_priority",
-            "text": "Which kind of opportunity should this portfolio prioritize first?",
-            "kind": "text",
-            "options": [],
-            "reason": "sets the portfolio's positioning and call to action",
-            "allow_skip": True,
-            "allow_auto": False,
-        },
-        {
-            "id": "signature_proof",
-            "text": "Which project or accomplishment should be the main proof point on the portfolio?",
-            "kind": "text",
-            "options": [],
-            "reason": "determines the strongest story for the case-study section",
-            "allow_skip": True,
-            "allow_auto": False,
-        },
-    ]
 
 
 def _parsed_output(result: StructuredModelResult) -> dict[str, Any]:
@@ -308,3 +276,138 @@ def _metadata(result: StructuredModelResult, manifest: dict[str, str]) -> dict[s
         "telemetry": result.telemetry,
         "cache": result.cache_metadata,
     }
+
+
+def _source_documents_from(
+    agent_input: dict[str, Any], intake: dict[str, Any]
+) -> list[SourceDocument]:
+    raw_documents = agent_input.get("source_documents", [])
+    if isinstance(raw_documents, list) and (raw_documents or "source_documents" in agent_input):
+        return [SourceDocument.model_validate(item) for item in raw_documents]
+    from oryxenai.agents.discovery.sources import documents_from_intake
+
+    return documents_from_intake(intake)
+
+
+def _question_events_from(agent_input: dict[str, Any]) -> list[QuestionHistoryEvent]:
+    raw_events = agent_input.get("question_events", [])
+    if not isinstance(raw_events, list):
+        return []
+    return [QuestionHistoryEvent.model_validate(item) for item in raw_events]
+
+
+def _unindexed_goal(intake: dict[str, Any], documents: list[SourceDocument]) -> str:
+    if any(document.source_kind == "user_intent" for document in documents):
+        return ""
+    return str(intake.get("goal", "") or "")
+
+
+def _normalize_dossier_lineage(
+    parsed: dict[str, Any],
+    documents: list[SourceDocument],
+    question_events: list[QuestionHistoryEvent],
+) -> None:
+    """Set immutable provenance metadata from server-held snapshots, never model guesses."""
+
+    raw_dossier = parsed.get("dossier")
+    if not isinstance(raw_dossier, dict):
+        return
+    lineage = raw_dossier.get("lineage")
+    if not isinstance(lineage, dict):
+        lineage = {}
+        raw_dossier["lineage"] = lineage
+    lineage.update(
+        {
+            "version": 1,
+            "schema_version": "DiscoveryDossier/v1",
+            "provenance_status": "source_indexed" if documents else "unverified_legacy",
+            "source_document_ids": [document.id for document in documents],
+            "source_hashes": [document.sha256 for document in documents],
+            "created_at": datetime.now(UTC).isoformat(),
+        }
+    )
+    raw_dossier["contract_version"] = "DiscoveryDossier/v1"
+    if not raw_dossier.get("id"):
+        raw_dossier["id"] = f"dossier_{uuid4().hex}"
+    raw_dossier["question_events"] = [event.model_dump(mode="json") for event in question_events]
+    canonical = json.dumps(
+        {key: value for key, value in raw_dossier.items() if key != "lineage"},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    lineage["payload_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _profile_from_dossier(dossier: DiscoveryDossier) -> StructuredProfile:
+    """Project only source-linked dossier facts into the legacy CA profile shape."""
+
+    facts_by_id = {fact.id: fact for fact in dossier.facts}
+    experience = [
+        ExperienceEntry(
+            organization=role.organization,
+            role=role.role,
+            dates=role.dates,
+            highlights=[
+                _qualified_fact(facts_by_id[fact_id])
+                for fact_id in role.fact_ids
+                if fact_id in facts_by_id
+            ]
+            or role.details,
+        )
+        for role in dossier.roles
+    ]
+    projects = [
+        ProjectEntry(
+            name=project.name,
+            summary=project.problem,
+            contribution=project.personal_contribution,
+            tech=project.tools,
+            link=project.links[0] if project.links else "",
+        )
+        for project in dossier.projects
+    ]
+    education: list[EducationEntry] = []
+    skills: list[str] = []
+    languages: list[str] = []
+    for evidence in dossier.other_evidence:
+        category = evidence.category.casefold()
+        value = evidence.title or evidence.detail
+        if category in {"education", "certification"}:
+            education.append(
+                EducationEntry(
+                    institution=evidence.title if category == "education" else "",
+                    credential=evidence.detail or evidence.title,
+                )
+            )
+        elif category in {"skill", "tool", "technology"} and value:
+            skills.append(value)
+        elif category in {"language", "spoken_language"} and value:
+            languages.append(value)
+    private_omitted = [
+        restriction.instruction
+        for restriction in dossier.restrictions
+        if restriction.disposition.casefold() in {"omit", "generalize", "restricted"}
+        and restriction.instruction
+    ]
+    return StructuredProfile(
+        name=dossier.subject.name,
+        current_title=dossier.subject.current_title,
+        location=dossier.subject.location,
+        links=dossier.subject.links,
+        experience=experience,
+        education=education,
+        projects=projects,
+        skills=list(dict.fromkeys(skills)),
+        spoken_languages=list(dict.fromkeys(languages)),
+        private_omitted=private_omitted,
+    )
+
+
+def _qualified_fact(fact: Any) -> str:
+    statement = str(fact.statement)
+    if fact.ownership.value == "team":
+        return f"Team contribution: {statement}"
+    if fact.ownership.value == "unknown":
+        return f"Attribution not specified: {statement}"
+    return statement

@@ -42,6 +42,11 @@ def _brief_payload(project_count: int) -> dict[str, Any]:
             "name": "Test User",
             "projects": [{"name": f"Project {i}"} for i in range(project_count)],
         },
+        "dossier": {
+            "projects": [
+                {"id": f"project-{i}", "name": f"Project {i}"} for i in range(project_count)
+            ]
+        },
         "open_items": [],
         "memory_update": {},
     }
@@ -69,22 +74,16 @@ def _questions_context(message: str) -> Any:
     )
 
 
-async def test_build_or_revise_brief_truncates_projects_over_the_configured_max():
-    """A resume can legitimately list more projects than max_projects.
-
-    Truncating (not rejecting) means one good generation is never thrown
-    away and retried against a condition that can only fail again the same
-    way — profile.projects reflects real facts about the source material,
-    not a random model mistake. See validators.py::validate_brief_output.
-    """
+async def test_build_or_revise_brief_preserves_projects_over_the_configured_max():
+    """Preserve the full project inventory even when it exceeds old config."""
     agent = DiscoveryAgent(model_client=_FakeModelClient(_brief_payload(project_count=12)))
     agent._config.max_projects = 5
 
     result = await agent.run(_context())
 
     projects = result.output["profile"]["projects"]
-    assert len(projects) == 5
-    assert [p["name"] for p in projects] == [f"Project {i}" for i in range(5)]
+    assert len(projects) == 12
+    assert [p["name"] for p in projects] == [f"Project {i}" for i in range(12)]
 
 
 async def test_build_or_revise_brief_keeps_projects_under_the_max_untouched():
@@ -96,8 +95,8 @@ async def test_build_or_revise_brief_keeps_projects_under_the_max_untouched():
     assert len(result.output["profile"]["projects"]) == 3
 
 
-async def test_questions_fallback_keeps_substantive_material_actionable():
-    """A contradictory cached NEEDS_DETAILS result still yields questions."""
+async def test_needs_details_does_not_invent_questions_for_supplied_material():
+    """A model may ask the user for more detail without a synthetic fallback."""
     resume = "\n".join(
         [
             "# Professional Summary",
@@ -122,13 +121,12 @@ async def test_questions_fallback_keeps_substantive_material_actionable():
 
     result = await agent.run(_questions_context(resume))
 
-    assert result.output["mode"] == "ASK_QUESTIONS"
-    assert len(result.output["questions"]) == 2
-    assert result.output["questions"][0]["id"] == "portfolio_priority"
+    assert result.output["mode"] == "NEEDS_DETAILS"
+    assert result.output["questions"] == []
 
 
-async def test_questions_fallback_handles_long_unstructured_material():
-    """A long paste still gets an actionable question when headings are absent."""
+async def test_needs_details_mode_is_preserved_for_long_unstructured_material():
+    """Long source does not justify generic, invented questions."""
     agent = DiscoveryAgent(
         model_client=_FakeModelClient(
             {
@@ -142,8 +140,5 @@ async def test_questions_fallback_handles_long_unstructured_material():
 
     result = await agent.run(_questions_context("Experience detail. " * 180))
 
-    assert result.output["mode"] == "ASK_QUESTIONS"
-    assert [question["id"] for question in result.output["questions"]] == [
-        "portfolio_priority",
-        "signature_proof",
-    ]
+    assert result.output["mode"] == "NEEDS_DETAILS"
+    assert result.output["questions"] == []

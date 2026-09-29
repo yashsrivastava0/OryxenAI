@@ -1,141 +1,104 @@
 # Discovery Agent
 
-Discovery is the first OryxenAI workflow. It turns a user message, an optional
-attached document, and an optional goal into a detailed Portfolio Discovery
-Brief. It asks only high-value questions along the way, then stops after the
-user explicitly approves the brief.
+Discovery is the first active OryxenAI workflow. It reads the user's portfolio
+goal and supplied text, preserves addressable source spans, asks adaptive
+clarification rounds when they can materially improve the result, and produces
+a reviewable Discovery Brief plus a source-linked `DiscoveryDossier/v1`.
+Discovery stops after explicit approval. Content Architect remains a separate,
+explicitly started stage.
 
 ## Responsibilities
 
-- Understand what the user wants and what the portfolio should target.
-- Ask only high-value questions (at most 8, asked one at a time in the chat).
-- Produce a detailed, readable, editable Portfolio Discovery Brief (free
-  Markdown) that gives the user a grounded, reviewable account of their goals,
-  evidence, priorities, and restrictions.
-- Stop after explicit approval.
+- Preserve intake text and user answers in session state, including source
+  document digests and UTF-16 offsets that map directly to browser selections.
+- Distinguish personal facts, user intent/preferences, team scope, job criteria,
+  references, duplicates, exclusions, conflicts, and explicit restrictions.
+- Ask at most three focused questions per round. A completed answer batch can
+  trigger another round; there is no hard-coded total-round or project-count
+  limit. Users can skip questions or explicitly continue with the available
+  information.
+- Produce a detailed editable brief and a dossier whose facts, entities,
+  restrictions, open items, and source coverage reference the supplied spans.
+- Require explicit approval of the current brief and dossier snapshot.
 
 ## Non-responsibilities
 
-Discovery must NOT:
-
-- Write final hero/about/project copy or decide content on the user's behalf.
-- Do not start Content Architect automatically; it is a separate explicit call after
-  Discovery approval.
-- Fetch URLs, scrape the web, OCR, or analyze images.
-- Fabricate employment, education, dates, clients, awards, metrics, or
-  personal contributions.
+Discovery does not write final public website copy, fetch links, analyze binary
+documents or images, or start another agent. Text supplied by the user remains
+the evidence boundary. Intake attachments and OCR can be added as a separate
+deterministic Intake capability later.
 
 ## Flow
 
-1. `POST /api/v1/sessions/{id}/discovery/start` stores the raw input
-   (`message`, `document_text`, `goal`) as-is and enqueues the
-   `discovery.understand_and_question` job. **Input is never validated** —
-   the agent accepts any input and decides how to handle it.
-2. The worker runs Operation A: one model call returns an interaction mode —
-   `NEEDS_DETAILS` (ask the user for material), `ASK_QUESTIONS` (0..7
-   specific questions), or `READY_FOR_BRIEF` (enough material) — plus an
-   `assistant_message`, the questions, and a compact `memory_update`.
-3. `PUT .../discovery/answers` stores the answers as-is; with `complete: true`
-   it enqueues `discovery.build_or_revise_brief`.
-4. `POST .../discovery/revise` re-runs Operation B with a natural-language
-   `revision_request` and the current brief (allowed only while under review).
-5. The worker runs Operation B: one model call produces three complementary
-   outputs — the full detailed brief as free Markdown (`brief_markdown`,
-   persisted for review), a short user-facing
-   summary (`user_summary`, what the chat UI shows by default), and a
-   compact structured profile of categorized facts (`profile`: name,
-   experience, education, projects, skills, links). All three are saved to
-   session state; only `user_summary` is the primary rendered view.
-6. `POST .../discovery/approve` snapshots the approved brief by hash.
+1. `POST /api/v1/sessions/{id}/discovery/start` stores the text and creates
+   immutable source-document snapshots. `source_text`, `message`, and
+   `document_text` are addressable source material; `goal` is recorded as user
+   intent. New text can be appended after `NEEDS_INPUT` without discarding
+   earlier material.
+2. The worker runs `understand_and_question`. It returns `NEEDS_DETAILS`,
+   `ASK_QUESTIONS`, or `READY_FOR_BRIEF`; question batches contain at most
+   three questions. User answers and skips are persisted with their history
+   and answer-source spans.
+3. Submitting a completed answer batch queues another question round. The
+   explicit `continue_with_current_information` action closes the interview
+   and queues brief preparation. `READY_FOR_BRIEF` presents that action without
+   an automatic stage transition.
+4. `POST .../discovery/revise` regenerates the brief and dossier from the same
+   source snapshots, answers, and revision request.
+5. The review surface presents the report alongside an evidence inspector for
+   source excerpts, claim references, source coverage, open items, restrictions,
+   and question history.
+6. `POST .../discovery/approve` hashes the reviewed Markdown and dossier
+   together. Content Architect continues to receive the existing approved
+   brief/profile projection; its contract is unchanged by this Discovery-only
+   slice.
 
-The legacy job kinds `discovery.prepare_questions` / `discovery.build_brief`
-and operation names `prepare_questions` / `build_brief` remain registered as
-aliases so in-flight runs keep working.
+## Source and dossier contracts
+
+Source documents live in the existing Discovery JSONB session snapshot; no
+database migration is required. Each document preserves the exact original
+text, its SHA-256 digest, a label, and non-overlapping spans. Offsets count
+UTF-16 code units so browser `String.slice` can select the same excerpt.
+Answer text is indexed as a source document. Skips and unanswered questions
+remain explicit history events, not evidence.
+
+`DiscoveryDossier/v1` contains intent, subject, source-linked facts, roles,
+projects, other evidence, open items, restrictions, one disposition per source
+span, question history, and server-owned lineage metadata. Validation rejects
+duplicate or missing coverage, unknown references, ungrounded facts, broken
+fact links, and lineage that does not match the supplied source snapshot. The
+legacy `StructuredProfile` used by Content Architect is rebuilt from the
+dossier, with no project truncation. Existing sessions without source snapshots
+are marked unverified; they are not retroactively presented as source-linked.
+
+The approval hash includes both `brief_markdown` and the dossier snapshot, so a
+source or claim change invalidates downstream approval matching.
 
 ## State machine
 
-Statuses (9): `not_started, questions_queued, questions_running,
-questions_ready, answers_in_progress, brief_running, brief_review, approved,
-needs_attention`. Linear flow; any non-terminal status can fail into
-`needs_attention` with a visible `latest_error`, and retry returns to the
-queue. `brief_review -> brief_running` exists so revision re-runs Operation B.
-The state also carries `attempt`/`max_attempts`/`started_at` so the UI can
-show progress and elapsed time, plus `memory` (compact conversation memory)
-and `operation_a` (last Operation A output for refresh recovery).
+Statuses include `not_started`, `questions_queued`, `questions_running`,
+`needs_input`, `questions_ready`, `answers_in_progress`, `brief_running`,
+`brief_review`, `approved`, and `needs_attention`. Answer completion can return
+to `questions_queued` or proceed to `brief_running` only when the user chooses
+to continue. A nonterminal operation can fail into `needs_attention`; the
+worker retries transient failures within the configured job retry policy.
 
-## Output contract
+## Prompt and model configuration
 
-Only the transport envelope is validated (`validators.py`), never the brief
-content:
-
-- Operation A (`QuestionSetOutput`) — `mode` is one of `NEEDS_DETAILS`,
-  `ASK_QUESTIONS`, `READY_FOR_BRIEF`; `assistant_message` non-empty; questions
-  have an `id`, non-empty `text`, a valid `kind`, and options for select
-  kinds; mode-specific question-count rules (NEEDS_DETAILS/READY_FOR_BRIEF
-  must have zero questions, ASK_QUESTIONS at least one).
-- Operation B (`BriefOutput`) — `mode` is `BRIEF_READY`, `assistant_message`,
-  `brief_title`, `brief_markdown`, and `user_summary` non-empty; `open_items`
-  and `memory_update` are lists/dicts when present; `profile` (if present) is
-  checked for SHAPE only against `StructuredProfile` — its field values are
-  never judged for accuracy. `profile.projects` length is NOT a validation
-  error (a resume can genuinely list more than a handful of real projects,
-  and that's a fact about the input, not a model mistake — rejecting and
-  retrying could only ever fail again the same way); `DiscoveryAgent`
-  truncates it to `[discovery].max_projects` after validation instead.
-
-A model output that fails the contract raises `DiscoveryModelOutputError`
-(surfaced as `MODEL_OUTPUT_INVALID`, retryable — it's usually a one-off
-generation-quality issue on the same input). Truly unexpected exceptions
-surface as `MODEL_OPERATION_FAILED` (not retryable). Either way the failure
-only reaches `needs_attention` once retries are exhausted — see "Failure
-behavior" below.
-
-## Prompts
-
-Three prompt files. The system prompt is loaded first, then the operation
-prompt with the output JSON schema injected and the raw user input appended
-as untrusted CDATA:
-
-- `prompts/system.md`
-- `prompts/understand_and_question.md`
-- `prompts/build_or_revise_brief.md`
-
-How the model produces the output and how detailed the brief should be is the
-prompt's logic; there is no repair loop and no few-shot library.
-
-## Model integration
-
-There is no demo mode. The worker always builds the live provider adapter for
-the `[profiles.discovery]` profile in `config/models.toml` (currently real
-OpenAI, `gpt-5.6-luna`, via the generic OpenAI-protocol adapter — swapping to
-any other OpenAI-compatible provider is a config change only, never a code
-change: see `ModelCapabilities` in `providers/capabilities.py`); missing
-configuration raises a controlled `ProviderConfigError`. The mock-runs dev
-harness uses the deterministic `MockModelClient` fallback so it never makes
-network calls.
-
-## Failure behavior
-
-- Retryable failures (provider timeout/rate-limit/server errors, and
-  `DiscoveryModelOutputError` — invalid model output) are retried silently by
-  the worker with backoff, up to `[worker.retry].max_attempts` (default 3).
-  `discovery.status` stays at its running value and `attempt` increments each
-  try; nothing is shown to the user while retries remain, so a transient hit
-  doesn't produce a dead-end error racing the worker's own automatic retry.
-- Once a failure is non-retryable, or the last attempt is exhausted,
-  `needs_attention` is set with the error code/message and the UI shows a
-  "Try again" action.
-- The worker renews a claimed job's lease while its handler is still running
-  (`Worker._renew_lease_loop`, `jobs/worker.py`) so a legitimately slow
-  model call is never mistaken for an abandoned job and re-dispatched a
-  second, concurrent time.
+The shared and operation prompts define the evidence hierarchy, anti-injection
+boundary, adaptive interview method, dossier coverage rules, and report
+quality. Prompt versions and module hashes invalidate stale structured-result
+cache entries. Provider, model profile, operation context ceiling, output
+budget, and fallback policy remain in `config/models.toml`; question batch size
+is configured in `config/app.toml`. No model name is frozen in this document.
 
 ## HTTP surface
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/api/v1/sessions/{id}/discovery` | Current state (status, error, attempt, elapsed) |
-| POST | `/api/v1/sessions/{id}/discovery/start` | Store input, enqueue Operation A (202) |
-| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save answers; `complete: true` enqueues Operation B |
-| POST | `/api/v1/sessions/{id}/discovery/revise` | Natural-language brief revision (202) |
-| POST | `/api/v1/sessions/{id}/discovery/approve` | Approve the reviewed brief |
+| GET | `/api/v1/sessions/{id}/discovery` | Current state, dossier, sources, jobs, and safe errors |
+| POST | `/api/v1/sessions/{id}/discovery/start` | Store or append intake and queue question analysis |
+| PUT | `/api/v1/sessions/{id}/discovery/answers` | Save answers; optionally continue with current information |
+| POST | `/api/v1/sessions/{id}/discovery/revise` | Revise the brief and dossier while under review |
+| POST | `/api/v1/sessions/{id}/discovery/approve` | Approve the current brief and dossier snapshot |
+| POST | `/api/v1/sessions/{id}/discovery/stop` | Stop active work while preserving source and answer history |
