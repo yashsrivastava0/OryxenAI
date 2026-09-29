@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-116 — Complete agent handoffs with two approvals and AI-written HTML
+
+- **Date & Time:** 2026-09-29 16:13 +05:30 — Codex (OpenAI)
+- **Status:** decided-not-yet-implemented
+- **Context:** The operator wants Discovery and Content Architect to preserve and develop complete user context for a later Code Generator, with text entry first, explicit report/copy review, and HTML integrated with a preset stylesheet.
+- **Decision:** The target first intake is one freeform text box; PDF/DOCX attachments are later adapters. Discovery preserves every substantive source detail in a linked dossier and asks zero or a contextual group of one to three questions when useful; its report requires explicit user approval. Content Architect receives the complete approved dossier, records a disposition for every item, writes all person-specific single-page copy, and requires explicit approval. The AI Code Generator writes `index.html` using only that approved copy as person-specific input plus the pinned theme markup contract; a coordinator attaches unchanged `styles.css`, verifies, and previews the exact bundle. Provider/model routing remains configuration-driven.
+- **Rejected alternatives:** A small fixed interview, lossy profile-only handoff, automatic progression past either review gate, first-slice file parsing, a plan-only Code Generator with host-authored HTML, or per-user stylesheet changes.
+- **Consequence:** Supersedes D-115's automatic progression and trusted-renderer choices in the target proposal; D-113 still describes the active product. The revised design is documented in `docs/architecture/10-...` through `14-...`. Application code, schema, theme assets, and deployment remain future implementation work.
+
 ## D-115 — Research-only refinement of the portfolio proposal
 
 - **Date & Time:** 2026-09-29 01:22 +05:30 — Codex (OpenAI)
