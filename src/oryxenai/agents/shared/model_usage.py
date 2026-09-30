@@ -12,8 +12,10 @@ from zoneinfo import ZoneInfo
 
 from oryxenai.agents.shared.contracts import ModelCallContext, ResolvedModelRoute
 from oryxenai.agents.shared.providers.errors import (
+    ModelCallAllowanceExhaustedError,
     ModelCapacityUnavailableError,
     ModelUsagePersistenceError,
+    ModelUsageSettlementError,
     ProviderError,
     ProviderTimeoutError,
 )
@@ -345,15 +347,11 @@ class ModelUsageLedger:
                 is_recovery = str(event.get("attempt_kind", "normal")) != "normal"
                 if is_recovery:
                     if operation.recovery_used >= operation.recovery_allowance:
-                        raise ModelUsagePersistenceError(
-                            "The durable model recovery allowance is exhausted."
-                        )
+                        raise ModelCallAllowanceExhaustedError()
                     operation.recovery_used += 1
                 else:
                     if operation.normal_used >= operation.normal_calls:
-                        raise ModelUsagePersistenceError(
-                            "The durable model-call allowance is exhausted."
-                        )
+                        raise ModelCallAllowanceExhaustedError()
                     operation.normal_used += 1
                 operation.updated_at = datetime.now(UTC)
                 row = ModelCallAttempt(
@@ -613,7 +611,7 @@ class ModelUsageLedger:
             # operation reservation remains authoritative and prevents an
             # unaccounted extra transmission when it exists.
             logger.warning("model usage completion persistence failed error=%s", type(exc).__name__)
-            raise ModelUsagePersistenceError() from exc
+            raise ModelUsageSettlementError() from exc
 
 
 def _safe_details(value: Any) -> dict[str, Any]:

@@ -178,9 +178,10 @@ approved public scope incomplete.
 
 A model output that fails the contract raises
 `ContentArchitectModelOutputError` (surfaced as `MODEL_OUTPUT_INVALID`,
-retryable). Truly unexpected exceptions surface as `MODEL_OPERATION_FAILED`
-(not retryable). Either way the failure only reaches `needs_attention` once
-retries are exhausted, same as Discovery.
+terminal for that run). Truly unexpected exceptions surface as
+`MODEL_OPERATION_FAILED` (not retryable). Eligible pre-send failures can
+use the worker's retry policy; after a model call, the
+original failure reaches `needs_attention` without an unproductive redelivery.
 
 ## Prompts
 

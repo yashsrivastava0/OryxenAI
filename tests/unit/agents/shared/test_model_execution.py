@@ -13,6 +13,7 @@ from oryxenai.agents.shared.providers.errors import (
     ModelUsagePersistenceError,
     ProviderAuthError,
     ProviderConfigError,
+    ProviderConnectionError,
 )
 from oryxenai.core.settings import get_settings
 
@@ -294,6 +295,40 @@ async def test_both_provider_structural_failures_return_model_output_error() -> 
     assert primary.calls == 1
     assert fallback.calls == 1
     assert client.budget.recovery_used == 1
+
+
+@pytest.mark.asyncio
+async def test_exhausted_provider_attempts_keep_original_failure_terminal() -> None:
+    runtime = ModelRuntime(get_settings().models)
+    ledger = ModelUsageLedger()
+    primary = _FailingClient(ProviderConnectionError())
+    fallback = _FailingClient(ProviderConnectionError())
+    runtime.resolve_profile_client = lambda name: {
+        "experiential_luna": primary,
+        "gemini_flash_lite_1": fallback,
+        "gemini_flash_lite_2": fallback,
+        "gemini_flash_lite_3": fallback,
+    }[name]  # type: ignore[method-assign]
+    client = RoutedModelClient(
+        runtime,
+        "discovery",
+        input_classification="personal",
+        usage_ledger=ledger,
+    )
+
+    with pytest.raises(ProviderConnectionError) as failure:
+        await client.generate_structured(
+            operation="understand_and_question",
+            instructions="Return an object.",
+            input_payload={"input_classification": "personal"},
+            output_model=_Output,
+        )
+
+    assert failure.value.retryable is False
+    assert failure.value.code == "PROVIDER_CONNECTION_ERROR"
+    assert primary.calls == 1
+    assert fallback.calls == 1
+    assert client.budget.transmissions == 2
 
 
 @pytest.mark.asyncio
