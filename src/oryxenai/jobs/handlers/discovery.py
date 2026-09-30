@@ -217,7 +217,9 @@ async def _execute_persisted(
         running.attempt = attempt
         running.max_attempts = max_attempts
         expected_revision = int(payload.get("expected_session_revision", session.revision))
-        await repo.save_discovery_state(session_id, running, expected_revision)
+        saved = await repo.save_discovery_state(session_id, running, expected_revision)
+        if saved is None:
+            raise ValueError("Discovery state revision changed before the worker started")
         await db.commit()
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)

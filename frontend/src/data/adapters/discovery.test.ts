@@ -15,6 +15,13 @@ describe("adaptDiscovery", () => {
     expect(vm.currentQuestions[0]?.options).toHaveLength(3);
   });
 
+  it("shows at most three choices from an older oversized question", () => {
+    const raw = structuredClone(fixtures.questionsReady);
+    raw.operation_a.items[0]!.options.push({ id: "extra", label: "Extra choice" });
+    const vm = adaptDiscovery(raw);
+    expect(vm.currentQuestions[0]?.options).toHaveLength(3);
+  });
+
   it("treats questions_ready with no remaining unanswered question as working, not an empty composer", () => {
     const vm = adaptDiscovery(fixtures.questionsReadyStale);
     expect(vm.state).toBe("working");
@@ -56,6 +63,22 @@ describe("adaptDiscovery", () => {
     const vm = adaptDiscovery(fixtures.needsAttention);
     expect(vm.state).toBe("attention");
     expect(vm.safeError?.summary).toBe("Discovery could not continue.");
+  });
+
+  it("tracks the brief job after questions, even when the older question job failed", () => {
+    const vm = adaptDiscovery(
+      {
+        status: "brief_running",
+        operation_a: { job_id: "question-job", items: [] },
+        brief: { job_id: "brief-job" },
+      },
+      [
+        { id: "question-job", kind: "discovery.understand_and_question", status: "failed" },
+        { id: "brief-job", kind: "discovery.build_or_revise_brief", status: "running" },
+      ],
+    );
+    expect(vm.state).toBe("working");
+    expect(vm.job?.id).toBe("brief-job");
   });
 
   it("uses the backend error message and selects the Operation A retry path", () => {
