@@ -7,8 +7,8 @@ approval.
 
 ## Responsibilities
 
-- Decide professional positioning, narrative thesis, and single-page vs
-  hybrid vs multi-page presentation — on merit, never for appearance.
+- Decide professional positioning, narrative thesis, and the section order
+  for one single-page portfolio when the approved Discovery dossier is present.
 - Produce final public copy for every justified route: nav labels, hero,
   about, project/work-sample stories, experience summaries, capability
   grouping, achievements/education treatment, contact/closing CTA.
@@ -16,6 +16,8 @@ approval.
   ownership, publication status) for every important claim, and gate
   publication so unresolved material never reaches finished public copy.
 - Produce a complete, grounded content plan and public content projection for user review.
+- Record a disposition for each dossier fact, role, project, and other evidence
+  item, with a public destination or a concrete reason for keeping it internal.
 - Record why major site-strategy decisions (audience, presentation mode, CTA, tone, and density)
   were made, so user-confirmed preferences remain distinct from safe defaults.
 - Stop after producing content; never invoke another agent.
@@ -30,19 +32,16 @@ Content Architect must NOT:
 - Generate React, CSS, SVG, or any portfolio code.
 - Perform external research or crawl links.
 
-## Input: a compact approved snapshot only
+## Input: the approved Discovery dossier
 
-Content Architect never receives the raw resume, `document_text`, or even
-Discovery's full brief markdown. It reads only the compact, already-approved
-Discovery output: `brief.title`, `user_summary`, the structured `profile`
-(facts only), `open_items`, and the Discovery brief's approval hash +
-session revision (used to detect a stale source — see below). The full
-prose brief is deliberately excluded: `profile` + `user_summary` already
-carry the grounded facts, and re-sending the entire brief on every call
-(including every revision) would duplicate information, inflate latency and
-token cost, and risk this workflow reading stale Discovery prose instead of
-its own finalized output. Optional user `preferences` (goal,
-audience, tone, density) may be supplied at start.
+Content Architect receives a snapshot of the approved `DiscoveryDossier/v1`,
+including all source-linked facts, entities, restrictions, question history,
+and open items. It also receives the brief title, short summary, structured
+profile, approval hash, and session revision. The raw pasted text and freeform
+brief Markdown stay upstream. The dossier is the factual source for planning
+and every writing call; the profile helps navigate it and supports older
+approved sessions without a dossier. Optional user preferences may be supplied
+at start.
 
 ## The adaptive bounded workflow
 
@@ -52,15 +51,13 @@ call per page or section:
 
 1. **`plan_content`** (always runs) — decides the site/story strategy and
    route plan, and either writes the FULL final content in this same call
-   (`content_included=true`, most single-page/hybrid portfolios) or defers
-   it (`content_included=false`, a real multi-page plan too large for one
-   call).
+   (`content_included=true`) or defers it (`content_included=false`) when the
+   dossier is too rich for one response.
 2. **`write_pages`** (only if stage 1 deferred) — writes final content for
    every remaining route in one batched call.
-3. **`integrate_content`** (only if warranted — a cross-route
-   inconsistency was flagged, or the route plan has more than 2 routes) —
-   a short reconciliation pass for terminology/nav consistency across
-   routes; never adds a claim or a route.
+3. **`integrate_content`** (only if warranted) — a bounded reconciliation or
+   repair pass for consistency and approval readiness; never adds a claim or
+   route.
 
 All three operations share one output contract, `ContentArchitectOutput`,
 discriminated by a `mode` field. This mirrors how Discovery's own
@@ -70,15 +67,16 @@ schema.
 ## Flow
 
 1. `POST /api/v1/sessions/{id}/content-architect/start` requires Discovery to
-   be `approved`. It snapshots the approved brief + profile + the Discovery
-   brief's approval hash, then enqueues `content_architect.build`.
+   be `approved`. It snapshots the complete dossier and approval hash, then
+   enqueues `content_architect.build`.
 2. The worker runs the build (1–3 model calls as above) and moves the state
    to `content_review`.
 3. `POST .../content-architect/revise` re-runs the build with a
    natural-language `revision_request` and the current authoritative content
    as `prior_output` (allowed only while under review).
-4. `POST .../content-architect/approve` hashes the final content and marks
-   the run `approved` (terminal).
+4. `POST .../content-architect/approve` checks that the Discovery source is
+   still approved and that source coverage and page structure are complete,
+   then hashes the reviewed content and marks the run `approved` (terminal).
 
 ## Claim grounding and publication gating
 
@@ -110,6 +108,13 @@ title and purpose, exactly one non-empty content pack whose section sequence
 matches the route plan, and only approved claim references. The public manifest
 must also be present. A failure returns an actionable 409 so the operator can
 request a revision before approving incomplete content.
+
+For a dossier-backed run, approval additionally requires one root-page route,
+`single_page` presentation mode, and one coverage disposition for every fact,
+role, project, and other evidence item. Public dispositions reference an
+existing section or the manifest; internal, restricted, and unresolved items
+carry a reason. Legacy approved sessions without a dossier retain the older
+route behavior.
 
 ## Sections, not loose blocks
 

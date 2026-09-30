@@ -82,9 +82,26 @@ def validate_questions_output(
             if not isinstance(options, list) or not options:
                 errors.append(f"Question {index} ({kind}) has no options")
             else:
+                seen_option_ids: set[str] = set()
+                seen_option_labels: set[str] = set()
                 for option in options:
-                    if not isinstance(option, dict) or not str(option.get("id", "")).strip():
+                    if not isinstance(option, dict):
+                        errors.append(f"Question {index} has an invalid option")
+                        continue
+                    option_id = str(option.get("id", "") or "").strip()
+                    option_label = str(option.get("label", "") or "").strip()
+                    if not option_id:
                         errors.append(f"Question {index} has an option without an id")
+                    elif option_id in seen_option_ids:
+                        errors.append(f"Question {index} has a duplicate option id: {option_id}")
+                    else:
+                        seen_option_ids.add(option_id)
+                    if not option_label:
+                        errors.append(f"Question {index} has an option without a label")
+                    elif option_label.casefold() in seen_option_labels:
+                        errors.append(f"Question {index} has a duplicate option label")
+                    else:
+                        seen_option_labels.add(option_label.casefold())
 
     if mode == OperationMode.NEEDS_DETAILS.value and questions:
         errors.append("NEEDS_DETAILS must have an empty questions list")

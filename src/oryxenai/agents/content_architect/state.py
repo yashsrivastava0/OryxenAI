@@ -20,6 +20,7 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectSourceRef,
     ContentArchitectState,
     ContentArchitectStatus,
+    ContentCoverageEntry,
     DecisionRecord,
     PageContentPack,
     PublicationStatus,
@@ -177,6 +178,7 @@ def apply_build_result(
     warnings: list[str],
     stages_run: list[str],
     memory_update: dict[str, Any],
+    coverage_ledger: list[ContentCoverageEntry] | None = None,
 ) -> ContentArchitectState:
     """Persist a successful build result and move to CONTENT_REVIEW."""
     _validate_transition(state.status, ContentArchitectStatus.CONTENT_REVIEW)
@@ -191,6 +193,7 @@ def apply_build_result(
     new_state.page_content_packs = page_content_packs
     new_state.public_content_manifest = public_content_manifest
     new_state.claim_grounding = claim_grounding
+    new_state.coverage_ledger = coverage_ledger or []
     new_state.omissions = omissions
     new_state.unresolved_issues = unresolved_issues
     new_state.privacy_and_confidentiality = privacy_and_confidentiality

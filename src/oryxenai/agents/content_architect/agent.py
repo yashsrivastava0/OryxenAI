@@ -93,6 +93,7 @@ class ContentArchitectAgent(Agent):
             "approved_brief_title": intake.get("approved_brief_title", ""),
             "user_summary": intake.get("user_summary", ""),
             "profile": intake.get("profile", {}),
+            "dossier": intake.get("dossier", {}),
             "open_items": intake.get("open_items", []),
             "preferences": preferences,
             "prior_output": prior_output,
@@ -109,6 +110,7 @@ class ContentArchitectAgent(Agent):
         decision_basis = list(parsed_plan.get("decision_basis") or [])
         route_plan = list(parsed_plan.get("route_plan") or [])
         claim_grounding = list(parsed_plan.get("claim_grounding") or [])
+        coverage_ledger = list(parsed_plan.get("coverage_ledger") or [])
         omissions = list(parsed_plan.get("omissions") or [])
         unresolved_issues = list(parsed_plan.get("unresolved_issues") or [])
         privacy_and_confidentiality = list(parsed_plan.get("privacy_and_confidentiality") or [])
@@ -126,6 +128,9 @@ class ContentArchitectAgent(Agent):
                 "site_story_strategy": site_story_strategy,
                 "route_plan": route_plan,
                 "claim_grounding": claim_grounding,
+                "dossier": intake.get("dossier", {}),
+                "profile": intake.get("profile", {}),
+                "open_items": intake.get("open_items", []),
                 "preferences": preferences,
             }
             parsed_pages, version, meta_pages = await self._call_stage(
@@ -140,6 +145,7 @@ class ContentArchitectAgent(Agent):
 
             page_content_packs = list(parsed_pages.get("page_content_packs") or [])
             public_content_manifest = dict(parsed_pages.get("public_content_manifest") or {})
+            coverage_ledger = list(parsed_pages.get("coverage_ledger") or coverage_ledger)
             warnings.extend(parsed_pages.get("warnings") or [])
             decision_basis.extend(parsed_pages.get("decision_basis") or [])
             memory_update.update(parsed_pages.get("memory_update") or {})
@@ -157,6 +163,8 @@ class ContentArchitectAgent(Agent):
                 "claim_grounding": claim_grounding,
                 "page_content_packs": page_content_packs,
                 "public_content_manifest": public_content_manifest,
+                "coverage_ledger": coverage_ledger,
+                "dossier": intake.get("dossier", {}),
             }
             parsed_integrate, version, meta_integrate = await self._call_stage(
                 "integrate_content",
@@ -174,6 +182,7 @@ class ContentArchitectAgent(Agent):
             public_content_manifest = dict(
                 parsed_integrate.get("public_content_manifest") or public_content_manifest
             )
+            coverage_ledger = list(parsed_integrate.get("coverage_ledger") or coverage_ledger)
             warnings.extend(parsed_integrate.get("warnings") or [])
             decision_basis.extend(parsed_integrate.get("decision_basis") or [])
             memory_update.update(parsed_integrate.get("memory_update") or {})
@@ -206,6 +215,9 @@ class ContentArchitectAgent(Agent):
             claim_grounding=claim_grounding,
             page_content_packs=page_content_packs,
             public_content_manifest=public_content_manifest,
+            coverage_ledger=coverage_ledger,
+            dossier=intake.get("dossier", {}),
+            site_story_strategy=site_story_strategy,
         )
         if readiness_errors and len(stages_run) < 3:
             repair_packet = {
@@ -213,7 +225,9 @@ class ContentArchitectAgent(Agent):
                 "claim_grounding": claim_grounding,
                 "page_content_packs": page_content_packs,
                 "public_content_manifest": public_content_manifest,
+                "coverage_ledger": coverage_ledger,
                 "approval_readiness_errors": readiness_errors,
+                "dossier": intake.get("dossier", {}),
             }
             parsed_repair, version, meta_repair = await self._call_stage(
                 "integrate_content",
@@ -228,6 +242,7 @@ class ContentArchitectAgent(Agent):
             public_content_manifest = dict(
                 parsed_repair.get("public_content_manifest") or public_content_manifest
             )
+            coverage_ledger = list(parsed_repair.get("coverage_ledger") or coverage_ledger)
             warnings.extend(parsed_repair.get("warnings") or [])
             decision_basis.extend(parsed_repair.get("decision_basis") or [])
             memory_update.update(parsed_repair.get("memory_update") or {})
@@ -236,6 +251,9 @@ class ContentArchitectAgent(Agent):
                 claim_grounding=claim_grounding,
                 page_content_packs=page_content_packs,
                 public_content_manifest=public_content_manifest,
+                coverage_ledger=coverage_ledger,
+                dossier=intake.get("dossier", {}),
+                site_story_strategy=site_story_strategy,
             )
         if readiness_errors:
             raise ContentArchitectModelOutputError("approval_readiness", readiness_errors)
@@ -254,6 +272,7 @@ class ContentArchitectAgent(Agent):
                 "decision_basis": decision_basis,
                 "route_plan": route_plan,
                 "claim_grounding": claim_grounding,
+                "coverage_ledger": coverage_ledger,
                 "page_content_packs": page_content_packs,
                 "public_content_manifest": public_content_manifest,
                 "omissions": omissions,
@@ -319,6 +338,7 @@ class ContentArchitectAgent(Agent):
             "approved_brief_title": str(raw.get("approved_brief_title", "") or ""),
             "user_summary": str(raw.get("user_summary", "") or ""),
             "profile": raw.get("profile", {}) or {},
+            "dossier": raw.get("dossier", {}) or {},
             "open_items": raw.get("open_items", []) or [],
         }
 
@@ -329,6 +349,9 @@ def _approval_readiness_errors(
     claim_grounding: list[dict[str, Any]],
     page_content_packs: list[dict[str, Any]],
     public_content_manifest: dict[str, Any],
+    coverage_ledger: list[dict[str, Any]] | None = None,
+    dossier: dict[str, Any] | None = None,
+    site_story_strategy: dict[str, Any] | None = None,
 ) -> list[str]:
     state = ContentArchitectState.model_validate(
         {
@@ -345,7 +368,78 @@ def _approval_readiness_errors(
     ]
     if not public_routes:
         return ["At least one route must be approved for publication"]
-    return public_scope_errors(state, public_routes)
+    errors = public_scope_errors(state, public_routes) + _coverage_errors(
+        dossier or {}, coverage_ledger or [], route_plan, page_content_packs
+    )
+    if (dossier or {}).get("contract_version") == "DiscoveryDossier/v1":
+        if len(route_plan) != 1 or route_plan[0].get("path") not in {"/", "/index.html"}:
+            errors.append("Current portfolio target requires one complete root-page route")
+        if (site_story_strategy or {}).get("presentation_mode") != "single_page":
+            errors.append("Current portfolio target requires single_page presentation_mode")
+    return errors
+
+
+def _coverage_errors(
+    dossier: dict[str, Any],
+    ledger: list[dict[str, Any]],
+    route_plan: list[dict[str, Any]],
+    page_content_packs: list[dict[str, Any]],
+) -> list[str]:
+    """Require a disposition for every fact/entity in a new Discovery dossier."""
+    if dossier.get("contract_version") != "DiscoveryDossier/v1":
+        return []  # Existing approved sessions may predate dossier production.
+    expected = {
+        f"{kind}/{item['id']}"
+        for field, kind in (
+            ("facts", "fact"),
+            ("roles", "role"),
+            ("projects", "project"),
+            ("other_evidence", "evidence"),
+        )
+        for item in dossier.get(field, [])
+        if isinstance(item, dict) and item.get("id")
+    }
+    approved_routes = {
+        route.get("route_id")
+        for route in route_plan
+        if route.get("publication_status", "approved") == "approved"
+    }
+    public_refs = {
+        f"{pack.get('route_id')}#{section.get('section_id')}"
+        for pack in page_content_packs
+        if pack.get("route_id") in approved_routes
+        for section in pack.get("sections", [])
+        if isinstance(section, dict) and section.get("section_id")
+    }
+    public_refs.add("manifest")
+    errors: list[str] = []
+    seen: set[str] = set()
+    for index, entry in enumerate(ledger):
+        if not isinstance(entry, dict):
+            errors.append(f"Coverage ledger entry {index} is not an object")
+            continue
+        source_id = str(entry.get("source_id", "") or "")
+        disposition = entry.get("disposition")
+        refs = entry.get("public_refs", [])
+        if not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs):
+            errors.append(f"Coverage ledger {source_id!r} has invalid public_refs")
+            refs = []
+        if source_id not in expected:
+            errors.append(f"Coverage ledger has unknown source_id {source_id!r}")
+        if source_id in seen:
+            errors.append(f"Coverage ledger repeats source_id {source_id!r}")
+        seen.add(source_id)
+        if disposition not in {"published", "condensed", "internal", "restricted", "unresolved"}:
+            errors.append(f"Coverage ledger {source_id!r} has invalid disposition")
+        elif disposition in {"published", "condensed"}:
+            if not refs or set(refs) - public_refs:
+                errors.append(f"Coverage ledger {source_id!r} needs valid public_refs")
+        elif refs or not str(entry.get("reason", "") or "").strip():
+            errors.append(f"Coverage ledger {source_id!r} needs a reason and no public_refs")
+    missing = sorted(expected - seen)
+    if missing:
+        errors.append(f"Coverage ledger is missing dossier items: {', '.join(missing[:10])}")
+    return errors
 
 
 def _parsed_output(result: Any) -> dict[str, Any]:

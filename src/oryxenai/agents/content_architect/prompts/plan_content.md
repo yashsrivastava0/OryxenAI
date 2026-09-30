@@ -1,27 +1,28 @@
 <!--
   Operation: plan_content (always runs first)
-  Version: content_architect.plan_content.v5
+  Version: content_architect.plan_content.v6
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
 <operation>
-Read the approved Discovery snapshot (brief title, user_summary, structured profile, open_items —
-the full brief markdown is deliberately NOT included; the structured profile and user_summary are
-the compact grounded facts) and any stated preferences (goal, audience, tone, density). Decide the
-site/story strategy and the route plan. When the resulting plan is small enough to write completely
-in this same call (a single page, or a hybrid with only a couple of extra routes), also write the
-FULL final content for every route in this same response and set content_included=true. When the
-plan calls for enough distinct routes that writing all of their content here would mean rushing or
-padding it, set content_included=false and leave page_content_packs/public_content_manifest empty —
-a second, batched operation will write them from the strategy you produce here.
+Read the approved Discovery snapshot (complete source-linked dossier when available, brief title,
+user_summary, legacy structured profile, and open_items) and any stated preferences (goal, audience,
+tone, density). The dossier is authoritative; the profile is only a navigation aid when a dossier
+exists. Account for every dossier fact and entity before choosing public emphasis. Decide the
+site/story strategy and the route plan. For a DiscoveryDossier/v1 input, plan exactly one complete
+root-page route at "/" with presentation_mode="single_page". If you can write all supported copy
+well in this call, set content_included=true. If the dossier is too rich to write completely in
+this output, set content_included=false and leave page_content_packs/public_content_manifest empty;
+the second operation will write the full page from the same dossier and strategy. Legacy approved
+sessions without a dossier may retain their existing route choices.
 </operation>
 
 <mode_and_content_included>
 Set mode="STRATEGY_AND_CONTENT" together with content_included=true, or mode="STRATEGY_ONLY"
 together with content_included=false. These two fields must always agree. Prefer
-STRATEGY_AND_CONTENT whenever you can write genuinely complete, unpadded content for every route in
-this one call — most single-page and hybrid portfolios qualify. Only defer to STRATEGY_ONLY when a
-real multi-page plan has more routes than you can write well in one response.
+STRATEGY_AND_CONTENT whenever you can write genuinely complete, unpadded content in this call.
+Defer to STRATEGY_ONLY when the source detail is too rich to write fully within this response;
+do not shorten the approved dossier to make a one-call result fit.
 </mode_and_content_included>
 
 <detail_and_coverage>
@@ -33,14 +34,17 @@ visitor-facing copy in this response. When content_included=false, preserve the 
 in the route plan and make the second batched writing call responsible for all route sections.
 There is no line or word minimum: a sparse source stays honest, while a rich source receives
 correspondingly rich treatment.
+When content_included=true, return the complete coverage_ledger for the dossier alongside the
+finished copy. When content is deferred, the writing call will provide that ledger after reading
+the same full dossier; do not treat the route plan as a substitute for source coverage.
 </detail_and_coverage>
 
 <site_story_strategy>
 Populate site_story_strategy with: positioning and a truthful value proposition, primary and
 secondary audience, the main visitor action, a central narrative thesis, which evidence should
 lead / support / be shortened / be omitted, content risks and unresolved facts, the chosen
-presentation_mode ("single_page" | "hybrid" | "multi_page"), and a short presentation_rationale
-explaining why that mode fits this specific profile (not a generic justification).
+presentation_mode ("single_page" for dossier-backed inputs), and a short presentation_rationale
+explaining why the section depth fits this specific profile (not a generic justification).
 </site_story_strategy>
 
 <user_facing_summary>
@@ -63,7 +67,8 @@ because nothing was supplied), confidence, and a one-line rationale.
 </decision_basis>
 
 <route_plan>
-For every selected route, provide a stable route_id, a path, a title, its purpose, the audience
+For the single root route on dossier-backed inputs (or each legacy route), provide a stable route_id,
+a path, a title, its purpose, the audience
 takeaway, a priority, a content_density, a section_sequence (ordered section IDs you intend to
 write — these must match the section_id values you use later in page_content_packs), mobile_notes,
 source_refs pointing back to the parts of the snapshot it draws from, and publication_status
@@ -120,8 +125,8 @@ requires; otherwise use the supplied name and facts fully. Record only actual re
 privacy_and_confidentiality.
 Unclear team ownership: phrase the contribution as the team's outcome plus the user's specific
 supported role, never as a solo achievement.
-Too many strong projects: select the strongest few for dedicated routes and group the rest into a
-shared "more work" section rather than creating a route for every one of them.
+Too many strong projects: feature the strongest stories on the single page and give the remainder
+an honest, concise treatment or an explicit internal disposition. Do not create a route per project.
 Missing public links or contact details: note the gap in unresolved_issues; do not
 fabricate a URL or claim that a public link exists.
 Unresolved project detail (ownership/publication unclear): preserve the uncertainty in

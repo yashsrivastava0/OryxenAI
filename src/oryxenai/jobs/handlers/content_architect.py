@@ -17,6 +17,7 @@ from uuid import UUID
 from oryxenai.agents.content_architect.agent import ContentArchitectModelOutputError
 from oryxenai.agents.content_architect.schemas import (
     ClaimGrounding,
+    ContentCoverageEntry,
     DecisionRecord,
     PageContentPack,
     RoutePlanEntry,
@@ -291,6 +292,10 @@ async def _apply_result(
             return {"status": "failed", "run_id": str(run_id), "operation": "build"}
 
         output = result.output
+        coverage_ledger = [
+            ContentCoverageEntry.model_validate(item)
+            for item in (output.get("coverage_ledger") or [])
+        ]
         route_plan = [
             RoutePlanEntry.model_validate(item) for item in (output.get("route_plan") or [])
         ]
@@ -315,6 +320,7 @@ async def _apply_result(
             page_content_packs=page_content_packs,
             public_content_manifest=output.get("public_content_manifest", {}) or {},
             claim_grounding=claim_grounding,
+            coverage_ledger=coverage_ledger,
             omissions=output.get("omissions", []) or [],
             unresolved_issues=output.get("unresolved_issues", []) or [],
             privacy_and_confidentiality=output.get("privacy_and_confidentiality", []) or [],

@@ -1,12 +1,8 @@
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
 import type { StageJobViewModel } from "../data/adapters/job";
-import {
-  answeredDiscoveryQuestion,
-  skippedDiscoveryQuestion,
-  type DiscoveryAnswerSubmission,
-} from "../data/discovery-answer";
-import { safeSessionStorage } from "../data/safe-storage";
+import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
+import { DiscoveryQuestionCard } from "./DiscoveryQuestionCard";
 
 export interface AnsweredTurn {
   questionId: string;
@@ -41,17 +37,11 @@ export function ConversationSurface({
 }: ConversationSurfaceProps) {
   const currentQuestion = questions[0] ?? null;
 
-  const [textAnswer, setTextAnswer] = useState("");
-  const [selectedSingleOption, setSelectedSingleOption] = useState<string | null>(null);
-  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [inFlight, setInFlight] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusAnnouncement, setStatusAnnouncement] = useState<string>("");
   const [nowMs, setNowMs] = useState(() => Date.now());
-
-  const draftKey = currentQuestion ? `oryxenai.draft.${currentQuestion.id}` : null;
-  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     if (!isWorking) return;
@@ -76,153 +66,21 @@ export function ConversationSurface({
     return `${Math.floor(seconds / 60)} minutes`;
   };
 
-  const currentQuestionOrdinal = history.length + 1;
-  const totalQuestionsInBatch = history.length + questions.length;
-  const questionOrdinalText = `Question ${String(currentQuestionOrdinal).padStart(2, "0")}${
-    totalQuestionsInBatch > 0 ? ` of ${String(totalQuestionsInBatch).padStart(2, "0")}` : ""
-  }`;
-
   useEffect(() => {
-    if (currentQuestion) {
-      if (draftKey) {
-        const saved = safeSessionStorage.getItem(draftKey);
-        if (saved) setTextAnswer(saved);
-        else setTextAnswer("");
-      } else {
-        setTextAnswer("");
-      }
-      setSelectedSingleOption(null);
-      setSelectedOptions([]);
-      setError(null);
-      setStatusAnnouncement(`${questionOrdinalText}: ${currentQuestion.text}`);
+    if (questions.length > 0) {
+      setStatusAnnouncement(`${questions.length} Discovery question${questions.length === 1 ? "" : "s"} ready to answer.`);
     }
-  }, [currentQuestion?.id, draftKey]);
+  }, [questions.map((question) => question.id).join("|")]);
 
-  const handleTextChange = (value: string) => {
-    setTextAnswer(value);
-    if (draftKey) {
-      safeSessionStorage.setItem(draftKey, value);
-    }
-  };
-
-  const handleClearDraft = () => {
-    if (draftKey) safeSessionStorage.removeItem(draftKey);
-    setTextAnswer("");
-    setSelectedSingleOption(null);
-    setSelectedOptions([]);
-  };
-
-  const executeAnswer = async (fn: () => Promise<void>) => {
-    if (typeof document !== "undefined" && "startViewTransition" in document) {
-      (document as unknown as { startViewTransition: (cb: () => Promise<void>) => void }).startViewTransition(fn);
-    } else {
-      await fn();
-    }
-  };
-
-  const isLast = questions.length <= 1;
-
-  const handleTextSubmit = async () => {
-    if (!currentQuestion || inFlight || disabled) return;
-    const trimmed = textAnswer.trim();
-    if (!trimmed) return;
-
+  const handleSubmitAnswer = async (answer: DiscoveryAnswerSubmission, isComplete: boolean) => {
+    if (inFlight || disabled) throw new Error("Another Discovery action is still saving.");
     setInFlight(true);
-    setError(null);
     try {
-      await executeAnswer(async () => {
-        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, trimmed), isLast);
-        handleClearDraft();
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
+      await onSubmitAnswer(answer, isComplete);
     } finally {
       setInFlight(false);
     }
   };
-
-  const handleSingleSelect = (optionId: string) => {
-    if (inFlight || disabled) return;
-    setSelectedSingleOption(optionId);
-  };
-
-  const handleSingleSubmit = async () => {
-    if (!currentQuestion || inFlight || disabled || !selectedSingleOption) return;
-    setInFlight(true);
-    setError(null);
-    try {
-      await executeAnswer(async () => {
-        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedSingleOption), isLast);
-        handleClearDraft();
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
-    } finally {
-      setInFlight(false);
-    }
-  };
-
-  const handleMultiSelectSubmit = async () => {
-    if (!currentQuestion || inFlight || disabled) return;
-    if (!selectedOptions.length) return;
-    setInFlight(true);
-    setError(null);
-    try {
-      await executeAnswer(async () => {
-        await onSubmitAnswer(answeredDiscoveryQuestion(currentQuestion.id, selectedOptions), isLast);
-        handleClearDraft();
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
-    } finally {
-      setInFlight(false);
-    }
-  };
-
-  const handleSkip = async () => {
-    if (!currentQuestion || inFlight || disabled) return;
-    setInFlight(true);
-    setError(null);
-    try {
-      await executeAnswer(async () => {
-        await onSubmitAnswer(skippedDiscoveryQuestion(currentQuestion.id), isLast);
-        handleClearDraft();
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "We couldn't save that answer. Try again.");
-    } finally {
-      setInFlight(false);
-    }
-  };
-
-  const isSubmitDisabled = (() => {
-    if (inFlight || disabled) return true;
-    if (!currentQuestion) return true;
-    if (currentQuestion.kind === "text") return !textAnswer.trim();
-    if (currentQuestion.kind === "multi_select") return selectedOptions.length === 0;
-    if (currentQuestion.kind === "single_select" || currentQuestion.kind === "boolean") {
-      return !selectedSingleOption;
-    }
-    return false;
-  })();
-
-  const handleSubmit = async () => {
-    if (currentQuestion?.kind === "text") {
-      await handleTextSubmit();
-    } else if (currentQuestion?.kind === "multi_select") {
-      await handleMultiSelectSubmit();
-    } else if (currentQuestion?.kind === "single_select" || currentQuestion?.kind === "boolean") {
-      await handleSingleSubmit();
-    }
-  };
-
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-      e.preventDefault();
-      void handleSubmit();
-    }
-  };
-
   const handleStop = async () => {
     if (!onStop || stopping || disabled) return;
     setStopping(true);
@@ -248,8 +106,6 @@ export function ConversationSurface({
       setInFlight(false);
     }
   };
-
-  const submitButtonLabel = inFlight ? "Saving answer…" : isLast ? "Submit answer" : "Next question";
 
   return (
     <section className="conversation-surface" aria-label="Discovery interview">
@@ -382,207 +238,35 @@ export function ConversationSurface({
         </details>
       )}
 
-      {/* 3. Actionable Focused Single-Question Card */}
-      {!isWorking && currentQuestion && (
-        <div className="discovery-workbench-card active-question-card">
-          <div className="workbench-top-rule" aria-hidden="true">
-            <span className="workbench-sweep" />
-          </div>
-
-          <div className="question-content">
-            <div className="question-header">
-              <div className="question-eyebrow-row">
-                <span className="question-stage-tag">DISCOVERY</span>
-                <span className="question-ordinal">{questionOrdinalText}</span>
-              </div>
-              <h2 className="question-prompt">{currentQuestion.text}</h2>
-              {currentQuestion.helpText && (
-                <p className="question-help">{currentQuestion.helpText}</p>
-              )}
-              {currentQuestion.reason && (
-                <p className="question-reason"><strong>Why this matters:</strong> {currentQuestion.reason}</p>
-              )}
-              {currentQuestion.affectedIds.length > 0 && (
-                <p className="question-related-items">Related items: {currentQuestion.affectedIds.join(", ")}</p>
-              )}
-            </div>
-
-            {error && (
-              <div className="discovery-error-callout" role="alert">
-                <span className="error-icon" aria-hidden="true">⚠</span>
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Single Select */}
-            {currentQuestion.kind === "single_select" && (
-              <fieldset className="choice-fieldset">
-                <legend className="choice-group-hint">SELECT ONE</legend>
-                <div className="choice-list" role="radiogroup" aria-label={currentQuestion.text}>
-                  {currentQuestion.options.map((opt) => {
-                    const isSelected = selectedSingleOption === opt.id;
-                    return (
-                      <label
-                        key={opt.id}
-                        className={`choice-tile ${isSelected ? "is-selected" : ""}`}
-                      >
-                        <input
-                          type="radio"
-                          name={`discovery-q-${currentQuestion.id}`}
-                          className="visually-hidden choice-input"
-                          checked={isSelected}
-                          disabled={inFlight || disabled}
-                          onChange={() => handleSingleSelect(opt.id)}
-                        />
-                        <span className="choice-indicator choice-indicator--radio" aria-hidden="true">
-                          {isSelected && <span className="choice-radio-dot" />}
-                        </span>
-                        <span className="choice-text">{opt.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            )}
-
-            {/* Boolean */}
-            {currentQuestion.kind === "boolean" && (
-              <fieldset className="choice-fieldset">
-                <legend className="choice-group-hint">SELECT ONE</legend>
-                <div className="choice-list boolean-choice-list" role="radiogroup" aria-label={currentQuestion.text}>
-                  {[
-                    { id: "true", label: "Yes" },
-                    { id: "false", label: "No" },
-                  ].map((opt) => {
-                    const isSelected = selectedSingleOption === opt.id;
-                    return (
-                      <label
-                        key={opt.id}
-                        className={`choice-tile ${isSelected ? "is-selected" : ""}`}
-                      >
-                        <input
-                          type="radio"
-                          name={`discovery-q-${currentQuestion.id}`}
-                          className="visually-hidden choice-input"
-                          checked={isSelected}
-                          disabled={inFlight || disabled}
-                          onChange={() => handleSingleSelect(opt.id)}
-                        />
-                        <span className="choice-indicator choice-indicator--radio" aria-hidden="true">
-                          {isSelected && <span className="choice-radio-dot" />}
-                        </span>
-                        <span className="choice-text">{opt.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            )}
-
-            {/* Multi Select */}
-            {currentQuestion.kind === "multi_select" && (
-              <fieldset className="choice-fieldset">
-                <legend className="choice-group-hint">SELECT ALL THAT APPLY</legend>
-                <div className="choice-list" role="group" aria-label={currentQuestion.text}>
-                  {currentQuestion.options.map((opt) => {
-                    const checked = selectedOptions.includes(opt.id);
-                    return (
-                      <label
-                        key={opt.id}
-                        className={`choice-tile ${checked ? "is-selected" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="visually-hidden choice-input"
-                          checked={checked}
-                          disabled={inFlight || disabled}
-                          onChange={(e) => {
-                            const isChecked = (e.target as HTMLInputElement).checked;
-                            setSelectedOptions((prev) =>
-                              isChecked ? [...prev, opt.id] : prev.filter((id) => id !== opt.id),
-                            );
-                          }}
-                        />
-                        <span className="choice-indicator choice-indicator--checkbox" aria-hidden="true">
-                          {checked && (
-                            <svg width="12" height="10" viewBox="0 0 12 10" fill="none">
-                              <path d="M1 5L4.5 8.5L11 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </span>
-                        <span className="choice-text">{opt.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </fieldset>
-            )}
-
-            {/* Text Composer */}
-            {currentQuestion.kind === "text" && (
-              <div className="text-composer-group">
-                <label className="choice-group-hint composer-label" htmlFor={`discovery-answer-${currentQuestion.id}`}>
-                  YOUR ANSWER
-                </label>
-                <textarea
-                  id={`discovery-answer-${currentQuestion.id}`}
-                  ref={composerRef}
-                  className="workbench-textarea composer-textarea"
-                  rows={5}
-                  placeholder="Describe the outcome, your contribution, or the decision behind the work…"
-                  value={textAnswer}
-                  onInput={(e) => handleTextChange((e.target as HTMLTextAreaElement).value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={inFlight || disabled}
-                />
-                {textAnswer.trim().length > 0 && (
-                  <div className="draft-status-row" aria-live="polite">
-                    <span className="draft-status-indicator">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M20 6L9 17l-5-5" />
-                      </svg>
-                      Draft saved
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Reserved Action Dock */}
+      {/* Show the full contextual batch together; each answer persists independently. */}
+      {!isWorking && questions.length > 0 && (
+        <div className="discovery-question-group" role="group" aria-label="Discovery questions" style={{ display: "grid", gap: "3rem" }}>
+          {questions.map((question, index) => (
+            <DiscoveryQuestionCard
+              key={question.id}
+              question={question}
+              ordinal={history.length + index + 1}
+              total={history.length + questions.length}
+              isLast={questions.length === 1}
+              disabled={disabled || inFlight}
+              onSubmitAnswer={handleSubmitAnswer}
+            />
+          ))}
+          {onContinueWithCurrentInformation && (
             <div className="question-actions">
               <button
                 type="button"
-                className="btn-primary btn-next-question"
-                disabled={isSubmitDisabled}
-                onClick={() => void handleSubmit()}
+                className="btn-quiet continue-current-info"
+                disabled={inFlight || disabled}
+                onClick={() => void handleContinueWithCurrentInformation()}
               >
-                {submitButtonLabel}
+                Continue with current information
               </button>
-              {currentQuestion.allowSkip && (
-                <button
-                  type="button"
-                  className="btn-quiet btn-skip-question"
-                  disabled={inFlight || disabled}
-                  onClick={() => void handleSkip()}
-                >
-                  Skip question
-                </button>
-              )}
-              {onContinueWithCurrentInformation && (
-                <button
-                  type="button"
-                  className="btn-quiet continue-current-info"
-                  disabled={inFlight || disabled}
-                  onClick={() => void handleContinueWithCurrentInformation()}
-                >
-                  Continue with current information
-                </button>
-              )}
             </div>
-          </div>
+          )}
+          {error && <p className="start-error" role="alert">{error}</p>}
         </div>
       )}
-
       {/* 4. Ready for Brief Payoff Card */}
       {!isWorking && !currentQuestion && onContinueWithCurrentInformation && (
         <div className="discovery-workbench-card ready-for-brief-card" role="status" aria-live="polite">
