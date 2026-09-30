@@ -474,6 +474,7 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
           label: typeof option.label === "string" ? option.label : "",
         }))
         .filter((option) => option.id && option.label)
+        .slice(0, 3)
     : [];
   return {
     id: raw.id,
@@ -537,12 +538,13 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
   const briefState = isRecord(raw.brief) ? raw.brief : {};
   const rawDossier = adaptDossier(briefState.dossier ?? raw.dossier);
   const sourceDocuments = readSourceDocuments(raw.source_documents, briefState.dossier ?? raw.dossier);
-  const activeJobId =
-    typeof operationA.job_id === "string"
-      ? operationA.job_id
-      : typeof briefState.job_id === "string"
-        ? briefState.job_id
-        : null;
+  const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
+  const questionJobId = typeof operationA.job_id === "string" ? operationA.job_id : null;
+  const briefJobId = typeof briefState.job_id === "string" ? briefState.job_id : null;
+  const briefIsActive =
+    status === "brief_running" || status === "brief_review" || status === "approved" ||
+    (status === "needs_attention" && latestError?.operation === "build_or_revise_brief");
+  const activeJobId = briefIsActive ? briefJobId ?? questionJobId : questionJobId ?? briefJobId;
   const job: StageJobViewModel | null = selectStageJob(jobs, activeJobId);
   const items = Array.isArray(operationA.items) ? operationA.items : [];
   const answers = isRecord(raw.answers) && isRecord(raw.answers.items) ? raw.answers.items : {};
@@ -603,7 +605,6 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
             answerHistory: [],
           }));
 
-  const latestError = isRecord(raw.latest_error) ? raw.latest_error : null;
   const operation = typeof latestError?.operation === "string" ? latestError.operation : "";
   const retryOperation: DiscoveryRetryOperation =
     operation === "understand_and_question" ||

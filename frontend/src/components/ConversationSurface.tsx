@@ -238,32 +238,18 @@ export function ConversationSurface({
         </details>
       )}
 
-      {/* Show the full contextual batch together; each answer persists independently. */}
-      {!isWorking && questions.length > 0 && (
-        <div className="discovery-question-group" role="group" aria-label="Discovery questions" style={{ display: "grid", gap: "3rem" }}>
-          {questions.map((question, index) => (
-            <DiscoveryQuestionCard
-              key={question.id}
-              question={question}
-              ordinal={history.length + index + 1}
-              total={history.length + questions.length}
-              isLast={questions.length === 1}
-              disabled={disabled || inFlight}
-              onSubmitAnswer={handleSubmitAnswer}
-            />
-          ))}
-          {onContinueWithCurrentInformation && (
-            <div className="question-actions">
-              <button
-                type="button"
-                className="btn-quiet continue-current-info"
-                disabled={inFlight || disabled}
-                onClick={() => void handleContinueWithCurrentInformation()}
-              >
-                Continue with current information
-              </button>
-            </div>
-          )}
+      {/* Save each answer before revealing the next question. */}
+      {!isWorking && currentQuestion && (
+        <div className="discovery-question-group" role="group" aria-label="Discovery question">
+          <DiscoveryQuestionCard
+            key={currentQuestion.id}
+            question={currentQuestion}
+            ordinal={history.length + 1}
+            total={history.length + questions.length}
+            isLast={questions.length === 1}
+            disabled={disabled || inFlight}
+            onSubmitAnswer={handleSubmitAnswer}
+          />
           {error && <p className="start-error" role="alert">{error}</p>}
         </div>
       )}
@@ -285,7 +271,7 @@ export function ConversationSurface({
           <div className="ready-body">
             <h2 className="ready-headline">Continue with the information shared so far?</h2>
             <p className="ready-thesis">
-              You can ask Discovery to prepare the review brief now, or answer another question first.
+              Discovery has enough context to prepare your review brief.
             </p>
             {error && <p className="start-error" role="alert">{error}</p>}
             <div className="question-actions">

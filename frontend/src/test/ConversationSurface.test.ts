@@ -8,7 +8,7 @@ import { questionsMcqReady, questionsReady, questionsTextReady } from "../data/a
 const noop = async () => {};
 
 describe("ConversationSurface discovery question rendering", () => {
-  it("renders multi-select question with SELECT ALL THAT APPLY group hint and stacked tiles", () => {
+  it("renders three choices and a free-text field for a multi-select question", () => {
     const vm = adaptDiscovery(questionsMcqReady);
     const html = render(
       h(ConversationSurface, {
@@ -28,16 +28,15 @@ describe("ConversationSurface discovery question rendering", () => {
     expect(html).toContain("NanoSecure-Risk");
     expect(html).toContain("choice-tile");
     expect(html).toContain("choice-indicator--checkbox");
-    expect(html).toContain("Save answer");
+    expect(html).toContain("Next question");
     expect(html).toContain("Skip question");
-    expect(html).toContain("Answer in my own words");
-    expect(html).toContain("What primary audience should this portfolio address?");
-    expect(html).toContain('aria-label="Discovery questions"');
+    expect(html).toContain("Add context or write your own answer");
+    expect(html).not.toContain("What primary audience should this portfolio address?");
+    expect(html).toContain('aria-label="Discovery question"');
     expect(html).toContain("Question 01 of 02");
-    expect(html).toContain("Question 02 of 02");
   });
 
-  it("shows all three contextual questions in the same batch", () => {
+  it("shows one question at a time from a three-question batch", () => {
     const two = adaptDiscovery(questionsMcqReady).currentQuestions;
     const third = adaptDiscovery(questionsReady).currentQuestions[0]!;
     const html = render(
@@ -50,11 +49,9 @@ describe("ConversationSurface discovery question rendering", () => {
     );
 
     expect(html).toContain("Which project stories should lead your portfolio?");
-    expect(html).toContain("What primary audience should this portfolio address?");
-    expect(html).toContain("What kind of work do you want this portfolio to lead with?");
+    expect(html).not.toContain("What primary audience should this portfolio address?");
+    expect(html).not.toContain("What kind of work do you want this portfolio to lead with?");
     expect(html).toContain("Question 01 of 03");
-    expect(html).toContain("Question 02 of 03");
-    expect(html).toContain("Question 03 of 03");
   });
 
   it("renders single-select question with SELECT ONE group hint and radio options", () => {
@@ -74,11 +71,11 @@ describe("ConversationSurface discovery question rendering", () => {
     expect(html).toContain("Design");
     expect(html).toContain("Engineering");
     expect(html).toContain("Writing");
-    // questionsReady has 1 question, so the CTA is "Submit answer"
-    expect(html).toContain("Submit answer");
+    expect(html).toContain("Add context or write your own answer");
+    expect(html).toContain("Continue to brief");
   });
 
-  it("renders text question with YOUR ANSWER label, textarea, and action", () => {
+  it("renders a text question with an answer field and action", () => {
     const vm = adaptDiscovery(questionsTextReady);
     const html = render(
       h(ConversationSurface, {
@@ -89,13 +86,12 @@ describe("ConversationSurface discovery question rendering", () => {
       }),
     );
 
-    expect(html).toContain("YOUR ANSWER");
+    expect(html).toContain("Your answer");
     expect(html).toContain("What should someone understand after reading your portfolio?");
     expect(html).toContain("A sentence or two is enough. Focus on the change you helped create.");
     expect(html).toContain("composer-textarea");
-    expect(html).toContain("Describe the outcome, your contribution, or the decision behind the work");
-    // Since questionsTextReady has only 1 question in currentQuestions, CTA is "Submit answer"
-    expect(html).toContain("Submit answer");
+    expect(html).toContain("Write what feels important");
+    expect(html).toContain("Continue to brief");
   });
 
   it("renders compact earlier answers disclosure when history is present", () => {

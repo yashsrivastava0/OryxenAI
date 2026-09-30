@@ -5,7 +5,11 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from oryxenai.agents.discovery.agent import DiscoveryAgent
+from oryxenai.agents.discovery.agent import (
+    DiscoveryAgent,
+    _normalize_dossier_links,
+    _normalize_question_choices,
+)
 from oryxenai.agents.discovery.schemas import StructuredModelResult
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
@@ -29,6 +33,43 @@ class _FakeModelClient:
             finish_reason="stop",
             latency_ms=1.0,
         )
+
+
+def test_question_choices_are_three_or_free_text():
+    payload = {
+        "questions": [
+            {
+                "kind": "single_select",
+                "options": [{"id": str(i), "label": str(i)} for i in range(9)],
+            },
+            {"kind": "multi_select", "options": [{"id": "only", "label": "Only"}]},
+        ]
+    }
+    _normalize_question_choices(payload)
+    assert [option["id"] for option in payload["questions"][0]["options"]] == ["0", "1", "2"]
+    assert payload["questions"][1]["kind"] == "text"
+    assert payload["questions"][1]["options"] == []
+
+
+def test_dossier_link_normalization_preserves_claims_and_repairs_references():
+    payload = {
+        "dossier": {
+            "facts": [{"id": "fact-1", "statement": "Built a service", "source_refs": ["span-1"]}],
+            "projects": [{"id": "project-1", "fact_ids": ["fact-1"], "source_refs": []}],
+            "source_coverage": [
+                {"span_id": "span-1", "disposition": "reference_context", "fact_ids": []},
+                {"span_id": "span-2", "disposition": "fact", "fact_ids": []},
+            ],
+        }
+    }
+    _normalize_dossier_links(payload)
+    dossier = payload["dossier"]
+    assert dossier["facts"][0]["statement"] == "Built a service"
+    assert dossier["projects"][0]["source_refs"] == ["span-1"]
+    assert dossier["source_coverage"][0]["disposition"] == "fact"
+    assert dossier["source_coverage"][0]["fact_ids"] == ["fact-1"]
+    assert dossier["source_coverage"][1]["disposition"] == "reference_context"
+    assert dossier["open_items"][0]["source_refs"] == ["span-2"]
 
 
 def _brief_payload(project_count: int) -> dict[str, Any]:

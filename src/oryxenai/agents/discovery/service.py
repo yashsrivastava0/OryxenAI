@@ -1,7 +1,7 @@
 """Application service for Discovery source collection, interview, and review.
 
-The service persists immutable text snapshots, schedules adaptive question
-rounds, and requires an explicit choice before building or approving a brief.
+The service persists immutable text snapshots, schedules one contextual question
+batch, and requires approval of the resulting brief.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from oryxenai.agents.discovery.schemas import (
     DiscoveryAnswer,
     DiscoveryIntake,
     DiscoveryQuestion,
+    DiscoveryState,
     DiscoveryStatus,
     QuestionAnswerRevision,
     QuestionKind,
@@ -41,6 +42,7 @@ from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.core.logging import get_logger
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.discovery import DiscoveryRepository
+from oryxenai.jobs.contracts import JobStatus
 from oryxenai.jobs.service import JobService
 
 logger = get_logger("oryxenai.agents.discovery.service")
@@ -94,11 +96,13 @@ class DiscoveryService:
     ) -> dict[str, Any]:
         """Store the raw input and enqueue the understand_and_question job.
 
-        Restarting from QUESTIONS_READY or NEEDS_INPUT lets the user add more
-        material without discarding the source snapshots already collected.
+        Restarting from NEEDS_INPUT lets the user add more material without
+        discarding the source snapshots already collected.
         """
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
+
+        state = await self._recover_failed_question_job(state)
 
         if state.status not in {
             DiscoveryStatus.NOT_STARTED,
@@ -224,9 +228,10 @@ class DiscoveryService:
         continue_with_current_information: bool = False,
         request_id: str = "",
     ) -> dict[str, Any]:
-        """Save a batch and either ask the next round or explicitly finalize."""
+        """Save answers and prepare the brief when the batch is complete."""
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
+        state = await self._recover_failed_question_job(state)
         if state.status not in {
             DiscoveryStatus.QUESTIONS_READY,
             DiscoveryStatus.ANSWERS_IN_PROGRESS,
@@ -339,14 +344,12 @@ class DiscoveryService:
         next_state.latest_error = None
 
         operation = ""
-        if complete and continue_with_current_information:
+        if complete:
             answered_ids = {answer.question_id for answer in answers if answer.question_id}
             for event in next_state.question_events:
                 if event.status == "pending" and event.question_id not in answered_ids:
                     event.status = "continued_without_answer"
             operation = "build_or_revise_brief"
-        elif complete:
-            operation = "understand_and_question"
 
         if operation:
             retry_nonce: int | str = 0
@@ -377,6 +380,27 @@ class DiscoveryService:
             self._revision_conflict(session.revision, session.revision + 1)
         return await self.get_discovery_state(session_id)
 
+    async def _recover_failed_question_job(self, state: DiscoveryState) -> DiscoveryState:
+        """A failed legacy job may leave its question state marked as queued."""
+        if state.status not in {
+            DiscoveryStatus.QUESTIONS_QUEUED,
+            DiscoveryStatus.QUESTIONS_RUNNING,
+        }:
+            return state
+        if not state.operation_a.job_id:
+            return state
+        job = await self._job_service.get(UUID(state.operation_a.job_id))
+        if job is None or job.status not in {JobStatus.FAILED.value, JobStatus.CANCELLED.value}:
+            return state
+        return apply_needs_attention(
+            state,
+            {
+                "code": "DISCOVERY_JOB_FAILED",
+                "message": "Discovery can be retried with the saved answers.",
+                "retryable": False,
+            },
+        )
+
     async def _enqueue_followup_run(
         self,
         session_id: UUID,
@@ -386,7 +410,7 @@ class DiscoveryService:
         *,
         request_id: str,
         retry_nonce: int | str,
-        revision_delta: int = 2,
+        revision_delta: int = 1,
         revision_request: str = "",
     ) -> tuple[AgentRun, Any]:
         answers = {

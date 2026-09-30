@@ -13,10 +13,10 @@ explicitly started stage.
   document digests and UTF-16 offsets that map directly to browser selections.
 - Distinguish personal facts, user intent/preferences, team scope, job criteria,
   references, duplicates, exclusions, conflicts, and explicit restrictions.
-- Ask at most three focused questions per round. A completed answer batch can
-  trigger another round; there is no hard-coded total-round or project-count
-  limit. Users can skip questions or explicitly continue with the available
-  information.
+- Ask zero to three focused questions in one contextual batch. Ask none when
+  the supplied context is sufficient. Users can skip individual questions;
+  each answer is saved before the next question appears. The interview does
+  not repeat after the batch is complete.
 - Produce a detailed editable brief and a dossier whose facts, entities,
   restrictions, open items, and source coverage reference the supplied spans.
 - Require explicit approval of the current brief and dossier snapshot.
@@ -39,11 +39,11 @@ deterministic Intake capability later.
    `ASK_QUESTIONS`, or `READY_FOR_BRIEF`; question batches contain at most
    three questions. User answers and skips are persisted with their history
    and answer-source spans.
-3. Submitting a completed answer batch queues another question round. The
-   `continue_with_current_information` action closes the interview and queues
-   brief preparation. In the product UI, `READY_FOR_BRIEF` automatically
-   triggers this action; API clients may call it explicitly. Discovery still
-   waits for the user's approval before Content Architect can start.
+3. Submitting the final answer or skip queues brief preparation immediately.
+   `continue_with_current_information` remains an API-compatible way to end
+   a partial batch. In the product UI, `READY_FOR_BRIEF` automatically queues
+   the brief. Discovery still waits for explicit approval before Content
+   Architect can start.
 4. `POST .../discovery/revise` regenerates the brief and dossier from the same
    source snapshots, answers, and revision request.
 5. The review surface presents the report alongside an evidence inspector for
@@ -78,10 +78,10 @@ source or claim change invalidates downstream approval matching.
 
 Statuses include `not_started`, `questions_queued`, `questions_running`,
 `needs_input`, `questions_ready`, `answers_in_progress`, `brief_running`,
-`brief_review`, `approved`, and `needs_attention`. Answer completion can return
-to `questions_queued` or proceed to `brief_running` when the user continues
-or the product UI receives `READY_FOR_BRIEF`. A nonterminal operation can fail into `needs_attention`; the
-Eligible pre-send failures can follow the worker retry policy. When a
+`brief_review`, `approved`, and `needs_attention`. A completed answer batch
+proceeds to `brief_running`; `READY_FOR_BRIEF` skips questions entirely. A
+nonterminal operation can fail into `needs_attention`. Eligible pre-send
+failures can follow the worker retry policy. When a
 provider error has used the run's call allowance, Discovery shows the
 original provider or output failure and offers an explicit stage retry with
 the saved intake and answers.

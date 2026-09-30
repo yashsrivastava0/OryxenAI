@@ -168,6 +168,98 @@ class TestFullHttpFlow:
         assert approved["discovery"]["status"] == "approved"
         assert approved["discovery"]["brief"]["approved"] is not None
 
+    async def test_last_answer_starts_brief_without_another_question_job(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        questions = ready["discovery"]["operation_a"]["items"]
+        assert questions
+
+        for index, question in enumerate(questions):
+            final = index == len(questions) - 1
+            response = await client.put(
+                f"/api/v1/sessions/{sid}/discovery/answers",
+                json={
+                    "complete": final,
+                    "answers": [
+                        {
+                            "question_id": question["id"],
+                            "mode": "answered",
+                            "value": "My own context",
+                        }
+                    ],
+                },
+            )
+            assert response.status_code == 200, response.text
+            state = response.json()
+            assert state["discovery"]["status"] == (
+                "brief_running" if final else "answers_in_progress"
+            )
+
+        from oryxenai.jobs.service import JobService
+
+        async with client._transport.app.state.sessionmaker() as db:
+            job = await JobService(db).get(UUID(state["discovery"]["brief"]["job_id"]))
+            assert job is not None
+            assert job.job_kind == "discovery.build_or_revise_brief"
+            assert job.payload["expected_session_revision"] == state["session_revision"]
+
+        await _run_worker_job(client, state["discovery"]["brief"]["job_id"])
+        review = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        assert review["discovery"]["status"] == "brief_review"
+        assert all(
+            event["status"] == "answered" for event in review["discovery"]["question_events"]
+        )
+
+    async def test_failed_legacy_question_job_can_continue_to_brief(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        questions = ready["discovery"]["operation_a"]["items"]
+        assert questions
+
+        response = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": False,
+                "answers": [
+                    {"question_id": question["id"], "mode": "answered", "value": "Saved context"}
+                    for question in questions
+                ],
+            },
+        )
+        assert response.status_code == 200, response.text
+
+        from oryxenai.agents.discovery.schemas import DiscoveryStatus
+        from oryxenai.db.models.background_job import BackgroundJob
+        from oryxenai.db.repositories.discovery import DiscoveryRepository
+
+        async with client._transport.app.state.sessionmaker() as db:
+            repo = DiscoveryRepository(db)
+            session = await repo.get_session(UUID(sid))
+            assert session is not None
+            state = await repo.get_discovery_state(UUID(sid))
+            state.status = DiscoveryStatus.QUESTIONS_QUEUED
+            await repo.save_discovery_state(UUID(sid), state, session.revision)
+            job = await db.get(BackgroundJob, UUID(state.operation_a.job_id))
+            assert job is not None
+            job.status = "failed"
+            await db.commit()
+
+        # The existing answers survive and the failed question job can be
+        # continued without asking the same batch again.
+        retry = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={"complete": True, "answers": [], "continue_with_current_information": True},
+        )
+        assert retry.status_code == 200, retry.text
+        assert retry.json()["discovery"]["status"] == "brief_running"
+        await _run_worker_job(client, retry.json()["discovery"]["brief"]["job_id"])
+        review = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        assert review["discovery"]["status"] == "brief_review"
+
     async def test_incremental_answers_are_merged_before_brief_generation(
         self, client, monkeypatch
     ):
