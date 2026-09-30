@@ -19,7 +19,7 @@ logger = get_logger("oryxenai.agents.discovery.prompt_builder")
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v7"
+PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v8"
 PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v8"
 PROMPT_VERSION_SYSTEM = "discovery.system.v5"
 

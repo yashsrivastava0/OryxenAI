@@ -1,7 +1,7 @@
 """Discovery agent for source-grounded intake, clarification, and briefing.
 
-Each durable job makes one model call. Completed answer batches can enqueue
-additional question jobs; there is no fixed total interview-round limit.
+Each durable job makes one model call. A completed question batch proceeds to
+the brief, without another interview round.
 
 The legacy operation names prepare_questions / build_brief are accepted as
 aliases so persisted in-flight run payloads keep working. Input is preserved
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -149,19 +150,11 @@ class DiscoveryAgent(Agent):
         )
 
         parsed = _parsed_output(result)
+        _normalize_question_choices(parsed)
 
         mode = OperationMode(parsed.get("mode", OperationMode.ASK_QUESTIONS.value))
         questions = parsed.get("questions") or []
         logger.info("understand_and_question mode=%s questions=%d", mode.value, len(questions))
-        for question in questions:
-            options = question.get("options") if isinstance(question, dict) else None
-            if isinstance(options, list) and len(options) > 3:
-                logger.warning(
-                    "understand_and_question question %r returned %d options (frontend caps at 3)",
-                    question.get("id", ""),
-                    len(options),
-                )
-
         return AgentResult(
             output={
                 "operation": "understand_and_question",
@@ -195,9 +188,15 @@ class DiscoveryAgent(Agent):
         )
 
         def validate(parsed: dict[str, Any]) -> None:
+            _normalize_dossier_links(parsed)
             _normalize_dossier_lineage(parsed, documents, question_events)
             validation = validate_brief_output(parsed, documents)
             if not validation.is_valid:
+                logger.warning(
+                    "Discovery brief validation rejected response count=%d categories=%s",
+                    len(validation.errors),
+                    [re.sub(r"'[^']*'", "'<id>'", error) for error in validation.errors[:12]],
+                )
                 raise DiscoveryModelOutputError("build_or_revise_brief", validation.errors)
 
         result = await generate_with_cache(
@@ -262,6 +261,26 @@ def _parsed_output(result: StructuredModelResult) -> dict[str, Any]:
     if isinstance(result, StructuredModelResult):
         return result.parsed_output
     return dict(result.parsed_output)
+
+
+def _normalize_question_choices(parsed: dict[str, Any]) -> None:
+    """Keep exactly three suggestions, or use free text when fewer are usable."""
+    questions = parsed.get("questions")
+    if not isinstance(questions, list):
+        return
+    for question in questions:
+        if not isinstance(question, dict):
+            continue
+        if question.get("kind") not in {"single_select", "multi_select"}:
+            continue
+        options = question.get("options")
+        if not isinstance(options, list):
+            continue
+        if len(options) < 3:
+            question["kind"] = "text"
+            question["options"] = []
+        elif len(options) > 3:
+            question["options"] = options[:3]
 
 
 def _metadata(result: StructuredModelResult, manifest: dict[str, str]) -> dict[str, Any]:
@@ -337,6 +356,75 @@ def _normalize_dossier_lineage(
         separators=(",", ":"),
     )
     lineage["payload_hash"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _normalize_dossier_links(parsed: dict[str, Any]) -> None:
+    """Repair mechanical cross-links without changing the model's claims."""
+    dossier = parsed.get("dossier")
+    if not isinstance(dossier, dict):
+        return
+    facts = dossier.get("facts")
+    coverage = dossier.get("source_coverage")
+    if not isinstance(facts, list) or not isinstance(coverage, list):
+        return
+    fact_refs: dict[str, list[str]] = {}
+    span_facts: dict[str, list[str]] = {}
+    for fact in facts:
+        if not isinstance(fact, dict) or not isinstance(fact.get("id"), str):
+            continue
+        refs = fact.get("source_refs")
+        if not isinstance(refs, list):
+            continue
+        fact_id = fact["id"]
+        fact_refs[fact_id] = [ref for ref in refs if isinstance(ref, str)]
+        for ref in fact_refs[fact_id]:
+            span_facts.setdefault(ref, []).append(fact_id)
+    for key in ("roles", "projects", "other_evidence"):
+        entities = dossier.get(key)
+        if not isinstance(entities, list):
+            continue
+        for entity in entities:
+            if not isinstance(entity, dict):
+                continue
+            ids = entity.get("fact_ids")
+            refs = entity.get("source_refs")
+            if not isinstance(ids, list) or not isinstance(refs, list):
+                continue
+            entity["source_refs"] = list(
+                dict.fromkeys(
+                    [*refs, *(ref for fact_id in ids for ref in fact_refs.get(fact_id, []))]
+                )
+            )
+    for item in coverage:
+        if not isinstance(item, dict):
+            continue
+        span_id = item.get("span_id")
+        if not isinstance(span_id, str):
+            continue
+        cited = span_facts.get(span_id, [])
+        if cited:
+            item["disposition"] = "fact"
+            item["fact_ids"] = list(dict.fromkeys(cited))
+        elif item.get("disposition") == "fact":
+            # The model labeled this passage as factual but supplied no
+            # supported fact. Keep it visible as an open source item rather
+            # than dropping the passage or asserting an ungrounded claim.
+            item["disposition"] = "reference_context"
+            item["fact_ids"] = []
+            open_items = dossier.setdefault("open_items", [])
+            if isinstance(open_items, list) and not any(
+                isinstance(open_item, dict) and span_id in open_item.get("source_refs", [])
+                for open_item in open_items
+            ):
+                open_items.append(
+                    {
+                        "id": f"open_source_{hashlib.sha256(span_id.encode()).hexdigest()[:12]}",
+                        "detail": "A supplied passage needs review before it is used as a factual claim.",
+                        "importance": "context",
+                        "status": "open",
+                        "source_refs": [span_id],
+                    }
+                )
 
 
 def _profile_from_dossier(dossier: DiscoveryDossier) -> StructuredProfile:

@@ -27,24 +27,19 @@ export function DiscoveryQuestionCard({
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedSingleOption, setSelectedSingleOption] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
-  const [useOwnWords, setUseOwnWords] = useState(false);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const draftKey = `oryxenai.draft.${question.id}`;
   const locked = disabled || inFlight;
   const questionOrdinalText = `Question ${String(ordinal).padStart(2, "0")} of ${String(total).padStart(2, "0")}`;
-  const showTextComposer = question.kind === "text" || useOwnWords;
-  const canSubmit = showTextComposer
-    ? Boolean(textAnswer.trim())
-    : question.kind === "multi_select"
-      ? selectedOptions.length > 0
-      : Boolean(selectedSingleOption);
+  const canSubmit = Boolean(
+    textAnswer.trim() || selectedSingleOption || selectedOptions.length > 0,
+  );
 
   useEffect(() => {
     setTextAnswer(safeSessionStorage.getItem(draftKey) ?? "");
     setSelectedSingleOption(null);
     setSelectedOptions([]);
-    setUseOwnWords(false);
     setError(null);
   }, [draftKey]);
 
@@ -62,11 +57,20 @@ export function DiscoveryQuestionCard({
 
   const submit = async (skip = false) => {
     if (locked || (!skip && !canSubmit)) return;
-    const value = showTextComposer
-      ? textAnswer
-      : question.kind === "multi_select"
-        ? selectedOptions
-        : selectedSingleOption;
+    const selectedValue = question.kind === "multi_select"
+      ? selectedOptions
+      : selectedSingleOption;
+    const selectedIds = Array.isArray(selectedValue)
+      ? selectedValue
+      : selectedValue ? [selectedValue] : [];
+    const choiceLabels = new Map(question.options.map((option) => [option.id, option.label]));
+    const selectedText = selectedIds.map((id) =>
+      question.kind === "boolean" ? (id === "true" ? "Yes" : "No") : choiceLabels.get(id) ?? id,
+    ).join(", ");
+    const customText = textAnswer.trim();
+    const value = customText
+      ? selectedText ? `${selectedText}. ${customText}` : customText
+      : selectedValue;
     const answer = skip
       ? skippedDiscoveryQuestion(question.id)
       : answeredDiscoveryQuestion(question.id, value);
@@ -102,17 +106,11 @@ export function DiscoveryQuestionCard({
           </div>
           <h2 className="question-prompt">{question.text}</h2>
           {question.helpText && <p className="question-help">{question.helpText}</p>}
-          {question.reason && (
-            <p className="question-reason"><strong>Why this matters:</strong> {question.reason}</p>
-          )}
-          {question.affectedIds.length > 0 && (
-            <p className="question-related-items">Related items: {question.affectedIds.join(", ")}</p>
-          )}
         </div>
 
         {error && <div className="discovery-error-callout" role="alert">{error}</div>}
 
-        {!useOwnWords && question.kind === "single_select" && (
+        {question.kind === "single_select" && (
           <fieldset className="choice-fieldset">
             <legend className="choice-group-hint">SELECT ONE</legend>
             <div className="choice-list" role="radiogroup" aria-label={question.text}>
@@ -139,7 +137,7 @@ export function DiscoveryQuestionCard({
           </fieldset>
         )}
 
-        {!useOwnWords && question.kind === "boolean" && (
+        {question.kind === "boolean" && (
           <fieldset className="choice-fieldset">
             <legend className="choice-group-hint">SELECT ONE</legend>
             <div className="choice-list boolean-choice-list" role="radiogroup" aria-label={question.text}>
@@ -169,7 +167,7 @@ export function DiscoveryQuestionCard({
           </fieldset>
         )}
 
-        {!useOwnWords && question.kind === "multi_select" && (
+        {question.kind === "multi_select" && (
           <fieldset className="choice-fieldset">
             <legend className="choice-group-hint">SELECT ALL THAT APPLY</legend>
             <div className="choice-list" role="group" aria-label={question.text}>
@@ -206,35 +204,22 @@ export function DiscoveryQuestionCard({
           </fieldset>
         )}
 
-        {question.kind !== "text" && (
-          <button
-            type="button"
-            className="btn-quiet"
-            disabled={locked}
-            onClick={() => setUseOwnWords((current) => !current)}
-          >
-            {useOwnWords ? "Use suggested choices" : "Answer in my own words"}
-          </button>
-        )}
-
-        {showTextComposer && (
-          <div className="text-composer-group">
+        <div className="text-composer-group">
             <label className="choice-group-hint composer-label" htmlFor={`discovery-answer-${question.id}`}>
-              {question.kind === "text" ? "YOUR ANSWER" : "YOUR OWN WORDS"}
+              {question.kind === "text" ? "Your answer" : "Add context or write your own answer"}
             </label>
             <textarea
               id={`discovery-answer-${question.id}`}
               className="workbench-textarea composer-textarea"
-              rows={5}
-              placeholder="Describe the outcome, your contribution, or the decision behind the work…"
+              rows={question.kind === "text" ? 4 : 3}
+              placeholder={question.kind === "text" ? "Write what feels important…" : "Optional details, or a different answer…"}
               value={textAnswer}
               onInput={(event) => updateText((event.target as HTMLTextAreaElement).value)}
               onKeyDown={onComposerKeyDown}
               disabled={locked}
             />
             {Boolean(textAnswer.trim()) && <div className="draft-status-row" aria-live="polite">Draft saved</div>}
-          </div>
-        )}
+        </div>
 
         <div className="question-actions">
           <button
@@ -243,7 +228,7 @@ export function DiscoveryQuestionCard({
             disabled={locked || !canSubmit}
             onClick={() => void submit()}
           >
-            {inFlight ? "Saving answer…" : isLast ? "Submit answer" : "Save answer"}
+            {inFlight ? "Saving answer…" : isLast ? "Continue to brief" : "Next question"}
           </button>
           {question.allowSkip && (
             <button

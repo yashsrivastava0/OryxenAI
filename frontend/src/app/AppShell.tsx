@@ -485,6 +485,26 @@ export function AppShell({
       await refetchCurrentSession();
       return;
     }
+    const rawQuestions =
+      typeof state.discovery.raw === "object" && state.discovery.raw !== null &&
+      "operation_a" in state.discovery.raw &&
+      typeof state.discovery.raw.operation_a === "object" && state.discovery.raw.operation_a !== null &&
+      "items" in state.discovery.raw.operation_a &&
+      Array.isArray(state.discovery.raw.operation_a.items)
+        ? state.discovery.raw.operation_a.items
+        : [];
+    const answeredIds = new Set(state.discovery.answeredQuestionIds);
+    if (
+      state.discovery.safeError?.retryOperation === "questions" &&
+      rawQuestions.length > 0 &&
+      rawQuestions.every((item: unknown) =>
+        typeof item === "object" && item !== null && "id" in item &&
+        typeof item.id === "string" && answeredIds.has(item.id),
+      )
+    ) {
+      await handleContinueWithCurrentInformation();
+      return;
+    }
     if (state.discovery.safeError?.retryOperation !== "questions") {
       await handleContinueWithCurrentInformation();
       return;
