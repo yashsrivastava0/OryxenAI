@@ -16,6 +16,10 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 Preserved exact appended intake and readable answer evidence, rejected malformed question options and answers, showed contextual question batches together, and advanced zero-question Discovery to brief preparation in the product. Passed the complete approved dossier to every Content Architect writing call and required a single-page coverage ledger before review and approval (D-116). Verified with the full Python and frontend suites; no live model call or deployment.
 
+### 2026-09-30 16:25 +05:30 — Codex (OpenAI) — [7f97920] — local Google login reliability
+
+Traced the local Google callback through a failing `/api/v1/me` provider response; restarting the API restored onboarding without changing Supabase or Google settings. Added a bounded retry and safe diagnostics for JWKS failures, verified the authenticated browser flow and focused auth tests, and left deployment untouched.
+
 ### 2026-09-29 16:29 +05:30 — Codex (OpenAI) — [f25bf4a] — docs/architecture/, DECISIONS.md
 
 Defined the target Discovery and Content Architect handoffs in full (D-116): source-complete dossier, contextual zero-to-three-question flow, two explicit approvals, finished public copy, and AI-written `index.html` verified with the pinned stylesheet. This was architecture documentation only; no runtime, model, or deployment change was made.
