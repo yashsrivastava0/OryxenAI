@@ -26,20 +26,28 @@ Context-bounded, high-density issue tracker for deployment and CI/CD pipelines.
 
 | Parameter | Current Value | Notes |
 | :--- | :--- | :--- |
-| **Live deployment** | ✅ LIVE at `07132fe823cd0a2279c8ae3dddab9b90277771f6` | First successful production deploy, 2026-09-22 14:51 UTC |
+| **Live deployment** | Last deployed `07132fe823cd0a2279c8ae3dddab9b90277771f6`; currently unreachable | Azure VM was stopped (deallocated) during the scheduled uptime window on 2026-09-30; see BLOCKER-017 |
 | **Local checkout** | Retirement changes are local only | Not deployed; active route and worker registries expose only Discovery and Content Architect |
-| **Public URLs** | `https://app.oryxenai.me`, `https://preview.oryxenai.me` | Both confirmed reachable (curl + browser render) |
+| **Public URLs** | `https://app.oryxenai.me`, `https://preview.oryxenai.me` | App URL unreachable on 2026-09-30; preview URL not retested in this diagnosis |
 | **CI Quality Gate** | ✅ Passing (Docker Smoke Test) | Green since `2ede02a`; all 1,433 pytest tests pass |
 | **Azure VM Deploy Trigger** | ▶️ Enabled, auto-deploy-on-merge to `deployment` only | `false &&` guard removed at `a29ddf5` per explicit operator go-ahead |
 | **Day-to-day branch** | `staging` | Never triggers a deploy. See AGENTS.md "Branch workflow: `staging` vs `deployment`" |
 | **Promotion to `deployment`** | Requires explicit, per-instance operator go-ahead | No standing/assumed permission — even for routine changes |
 | **Merged PRs this session** | [#1](https://github.com/yashsrivastava0/OryxenAI/pull/1)–[#7](https://github.com/yashsrivastava0/OryxenAI/pull/7) | All merged into `deployment` (regular merge commits) |
-| **VM power schedule** | ⏰ Auto-shutdown 01:00 IST, auto-start 07:00 IST | **The VM is expected to be unreachable ~01:00-07:00 IST daily** — intentional, see D-112 and `docs/deployment/vm-cost-automation.md` |
-| **Last Updated** | 2026-09-25 | Local workflow cleanup documented; live deployment state remains unchanged |
+| **VM power schedule** | Auto-shutdown 01:00 IST; 07:00 auto-start workflow disabled | The intended ~01:00–07:00 IST outage window from D-112 is currently extended indefinitely until the workflow or VM is started |
+| **Last Updated** | 2026-09-30 | Local auth recovery and separate Azure availability diagnosis |
 
 ---
 
 ## Active Blockers
+
+- **[BLOCKER-017] Production VM remains off because auto-start is disabled**
+  - **Subsystem:** Azure VM and `oryxenai-vm-autostart` Logic App.
+  - **First seen:** 2026-09-30 16:34 IST by Codex (OpenAI).
+  - **Error signature:** `app.oryxenai.me` returned `ERR_CONNECTION_REFUSED`; DNS resolved, TCP ports 80 and 443 were unreachable. Azure Portal showed the VM `Stopped (deallocated)` and the Logic App `Disabled` with no runs in the last 24 hours.
+  - **Root cause:** The Logic App activity log records a successful `Disable Workflow` on 2026-09-23 00:29 IST. With VM auto-shutdown still enabled at 01:00 IST, the disabled workflow cannot perform the scheduled 07:00 IST start. The reason for disabling it is not recorded here.
+  - **Diagnosed fix:** Confirm whether the daily start schedule is still desired. If so, enable the existing Logic App and start the VM once, then verify its recurrence, VM services, and HTTPS endpoints. No application, Supabase, or Google configuration change is indicated by this production availability finding.
+  - **Status:** Open; no Azure state changed during diagnosis.
 
 - CI workflow edits are local; the remote quality gate has not been run for this checkout.
 
