@@ -185,9 +185,37 @@ async def test_jwks_cache_and_unknown_kid_rotation_refresh() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("first_result", [503, "timeout"])
+async def test_jwks_transient_failure_is_retried_once(first_result: int | str) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            if first_result == "timeout":
+                raise httpx.ReadTimeout("timed out", request=request)
+            return httpx.Response(first_result)
+        return httpx.Response(
+            200, json={"keys": [_jwk(RSA_PRIVATE, kid="key-1", algorithm="RS256")]}
+        )
+
+    verifier, _ = _verifier([], handler)
+    try:
+        assert (await verifier.verify(_token(RSA_PRIVATE))).subject == SUBJECT
+    finally:
+        await verifier.aclose()
+    assert calls == 2
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("status", [429, 503])
 async def test_jwks_rate_limit_and_outage_are_safe(status: int) -> None:
+    calls = 0
+
     def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         return httpx.Response(status)
 
     verifier, _ = _verifier([], handler)
@@ -197,6 +225,7 @@ async def test_jwks_rate_limit_and_outage_are_safe(status: int) -> None:
             await verifier.verify(_token(RSA_PRIVATE))
     finally:
         await verifier.aclose()
+    assert calls == (1 if status == 429 else 2)
 
 
 @pytest.mark.asyncio

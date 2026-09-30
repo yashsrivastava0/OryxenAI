@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 import time
 from collections.abc import Mapping, Sequence
@@ -23,6 +24,7 @@ from oryxenai.auth.errors import (
 from oryxenai.core.settings import AuthConfig
 
 _JWT_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+logger = logging.getLogger(__name__)
 
 
 def extract_bearer_token(values: Sequence[str], *, max_bytes: int = 8192) -> str:
@@ -166,20 +168,29 @@ class SupabaseJwtVerifier:
                 and not force
             ):
                 return
-            try:
-                response = await self._client.get(
-                    self._jwks_url,
-                    headers={"Accept": "application/json"},
-                )
-            except httpx.TimeoutException as exc:
-                raise AuthProviderUnavailableError() from exc
-            except httpx.RequestError as exc:
-                raise AuthProviderUnavailableError() from exc
+            for attempt in range(2):
+                try:
+                    response = await self._client.get(
+                        self._jwks_url,
+                        headers={"Accept": "application/json"},
+                    )
+                except httpx.RequestError as exc:
+                    if attempt == 0:
+                        await asyncio.sleep(0.2)
+                        continue
+                    logger.warning("Supabase JWKS request failed: %s", type(exc).__name__)
+                    raise AuthProviderUnavailableError() from exc
+                if response.status_code >= 500 and attempt == 0:
+                    await asyncio.sleep(0.2)
+                    continue
+                break
             if response.status_code == 429:
                 raise AuthRateLimitedError()
             if response.status_code >= 500:
+                logger.warning("Supabase JWKS returned HTTP %s", response.status_code)
                 raise AuthProviderUnavailableError()
             if response.status_code != 200:
+                logger.warning("Supabase JWKS returned HTTP %s", response.status_code)
                 raise AuthProviderUnavailableError()
             try:
                 payload = response.json()
@@ -192,8 +203,10 @@ class SupabaseJwtVerifier:
                     and item.get("kid")
                 }
             except (ValueError, TypeError, KeyError) as exc:
+                logger.warning("Supabase JWKS response could not be parsed")
                 raise AuthProviderUnavailableError() from exc
             if not keys:
+                logger.warning("Supabase JWKS response contained no usable keys")
                 raise AuthProviderUnavailableError()
             self._keys = keys
             self._fetched_at = time.monotonic()
