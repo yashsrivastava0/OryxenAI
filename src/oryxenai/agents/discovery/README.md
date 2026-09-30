@@ -81,7 +81,10 @@ Statuses include `not_started`, `questions_queued`, `questions_running`,
 `brief_review`, `approved`, and `needs_attention`. Answer completion can return
 to `questions_queued` or proceed to `brief_running` when the user continues
 or the product UI receives `READY_FOR_BRIEF`. A nonterminal operation can fail into `needs_attention`; the
-worker retries transient failures within the configured job retry policy.
+Eligible pre-send failures can follow the worker retry policy. When a
+provider error has used the run's call allowance, Discovery shows the
+original provider or output failure and offers an explicit stage retry with
+the saved intake and answers.
 
 ## Prompt and model configuration
 
