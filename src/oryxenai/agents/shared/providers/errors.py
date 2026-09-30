@@ -50,6 +50,8 @@ _SAFE_FAILURE_MESSAGES = {
     "MODEL_INPUT_TOO_LARGE": "The approved input is too large for this operation's configured limit.",
     "MODEL_ROUTING_POLICY_CHANGED": "The saved routing policy changed before this operation ran; restart the stage safely.",
     "MODEL_USAGE_PERSISTENCE_UNAVAILABLE": "Model usage accounting is temporarily unavailable; no provider request was sent.",
+    "MODEL_CALL_ALLOWANCE_EXHAUSTED": "This run has used its model request allowance. Retry the stage to start a new run.",
+    "MODEL_USAGE_SETTLEMENT_UNAVAILABLE": "Model usage accounting could not record a provider response. Retry the stage after accounting is restored.",
     "NETWORK_RETRY_EXHAUSTED": "The model provider network retry budget was exhausted.",
 }
 
@@ -243,6 +245,30 @@ class ModelUsagePersistenceError(ProviderError):
 
     def __init__(self, message: str = "Model usage accounting is unavailable") -> None:
         super().__init__(message, code="MODEL_USAGE_PERSISTENCE_UNAVAILABLE", retryable=True)
+
+
+class ModelCallAllowanceExhaustedError(ModelUsagePersistenceError):
+    """A previous delivery consumed this logical operation's call budget."""
+
+    def __init__(self) -> None:
+        ProviderError.__init__(
+            self,
+            "The model-call allowance for this run is exhausted.",
+            code="MODEL_CALL_ALLOWANCE_EXHAUSTED",
+            retryable=False,
+        )
+
+
+class ModelUsageSettlementError(ModelUsagePersistenceError):
+    """A provider transmission happened, but its accounting could not settle."""
+
+    def __init__(self) -> None:
+        ProviderError.__init__(
+            self,
+            "The model-call settlement could not be persisted.",
+            code="MODEL_USAGE_SETTLEMENT_UNAVAILABLE",
+            retryable=False,
+        )
 
 
 class ModelCapacityUnavailableError(ProviderError):

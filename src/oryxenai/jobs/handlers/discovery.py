@@ -302,16 +302,16 @@ async def _execute_persisted(
         )
         raise
     except DiscoveryModelOutputError as exc:
-        # The model produced a response that failed the output contract. This
-        # is almost always a one-off generation-quality issue on the same
-        # input, not a permanent condition — retry it like any other
-        # transient provider error, bounded by the same max_attempts budget.
+        # The response has already used this run's durable model-call budget.
+        # A worker redelivery would only fail at reservation; an explicit
+        # stage retry creates a fresh run with a fresh allowance.
         logger.warning(
             "discovery operation=%s produced invalid output type=%s",
             operation,
             type(exc).__name__,
         )
         retry_error = ModelOutputInvalidError()
+        retry_error.retryable = False
         await _persist_failure(
             sessionmaker,
             session_id,

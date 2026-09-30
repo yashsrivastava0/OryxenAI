@@ -143,6 +143,11 @@ class RoutedModelClient(ModelClient):
                 error=exc,
                 elapsed_ms=(time.monotonic() - started) * 1000.0,
             )
+            if isinstance(exc, ProviderError):
+                # The normal transmission is already durably reserved. A
+                # worker redelivery cannot reserve it again; the user can
+                # explicitly start a new run after seeing the real failure.
+                exc.retryable = False
             raise
         await self._usage.finish(
             attempt_id,
@@ -263,6 +268,7 @@ class RoutedModelClient(ModelClient):
                 last_error = exc
                 self._runtime.capacity_registry.mark_failure(route.capacity_source_id)
                 if not self._can_recover(exc, index, names, route):
+                    self._terminal_after_transmission(exc)
                     raise
                 continue
             except ModelUsagePersistenceError:
@@ -349,6 +355,7 @@ class RoutedModelClient(ModelClient):
                     ),
                 )
                 if not self._can_recover(exc, index, names, route):
+                    self._terminal_after_transmission(exc)
                     raise
                 continue
             await self._usage.finish(
@@ -366,6 +373,7 @@ class RoutedModelClient(ModelClient):
             self._decorate_result(result, route, index)
             return result
         if last_error is not None:
+            self._terminal_after_transmission(last_error)
             raise last_error
         raise ProviderConfigError(
             f"No provider profile could be resolved for {self._engine}.{operation}."
@@ -479,6 +487,12 @@ class RoutedModelClient(ModelClient):
                 return route.provider.casefold() != "gemini" and next_provider == "gemini"
             return bool(error.retryable)
         return False
+
+    def _terminal_after_transmission(self, error: BaseException) -> None:
+        """Avoid a worker retry that can only hit the durable call ceiling."""
+
+        if self._budget.transmissions > 0 and isinstance(error, ProviderError):
+            error.retryable = False
 
     @staticmethod
     def _decorate_result(result: Any, route: ResolvedModelRoute, fallback_attempt: int) -> None:

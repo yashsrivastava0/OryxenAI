@@ -199,13 +199,14 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         )
         raise
     except ContentArchitectModelOutputError as exc:
-        # A one-off generation-quality issue on the same input, not a permanent
-        # condition — retry it like any other transient provider error, bounded
-        # by the same max_attempts budget.
+        # A response has already consumed this run's durable call allowance.
+        # Redelivery repeats the same reservation or cached output; an
+        # explicit stage retry starts a new run if the user wants another.
         logger.warning(
             "content_architect build produced invalid output type=%s", type(exc).__name__
         )
         retry_error = ModelOutputInvalidError()
+        retry_error.retryable = False
         await _persist_failure(
             sessionmaker,
             session_id,
