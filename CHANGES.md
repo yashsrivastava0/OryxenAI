@@ -12,6 +12,10 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-30 21:20 +05:30 — Codex (OpenAI) — [77f7749] — model accounting and stage retry
+
+Traced the local Discovery failure to provider connection errors followed by an automatic redelivery that exhausted the run's call allowance and mislabeled the result as an accounting outage. Restarted the local worker and verified the saved intake reached its questions; made spent-call failures terminal for that run, separated allowance and settlement errors, and checked the affected Python flows. No push or deployment.
+
 ### 2026-09-30 15:00 +05:30 — Codex (OpenAI) — [cf9bac3] — Discovery, Content Architect, product UI, regressions
 
 Preserved exact appended intake and readable answer evidence, rejected malformed question options and answers, showed contextual question batches together, and advanced zero-question Discovery to brief preparation in the product. Passed the complete approved dossier to every Content Architect writing call and required a single-page coverage ledger before review and approval (D-116). Verified with the full Python and frontend suites; no live model call or deployment.
