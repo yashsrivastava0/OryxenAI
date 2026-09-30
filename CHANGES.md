@@ -12,6 +12,10 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-30 15:00 +05:30 — Codex (OpenAI) — [cf9bac3] — Discovery, Content Architect, product UI, regressions
+
+Preserved exact appended intake and readable answer evidence, rejected malformed question options and answers, showed contextual question batches together, and advanced zero-question Discovery to brief preparation in the product. Passed the complete approved dossier to every Content Architect writing call and required a single-page coverage ledger before review and approval (D-116). Verified with the full Python and frontend suites; no live model call or deployment.
+
 ### 2026-09-29 16:29 +05:30 — Codex (OpenAI) — [f25bf4a] — docs/architecture/, DECISIONS.md
 
 Defined the target Discovery and Content Architect handoffs in full (D-116): source-complete dossier, contextual zero-to-three-question flow, two explicit approvals, finished public copy, and AI-written `index.html` verified with the pinned stylesheet. This was architecture documentation only; no runtime, model, or deployment change was made.
