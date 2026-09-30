@@ -16,8 +16,10 @@ from oryxenai.agents.discovery.schemas import (
     AnswerMode,
     DiscoveryAnswer,
     DiscoveryIntake,
+    DiscoveryQuestion,
     DiscoveryStatus,
     QuestionAnswerRevision,
+    QuestionKind,
     SourceDocument,
 )
 from oryxenai.agents.discovery.sources import (
@@ -232,6 +234,53 @@ class DiscoveryService:
         }:
             self._not_ready("save answers", state.status.value)
 
+        active_questions = {item.id: item for item in state.operation_a.items}
+        seen_question_ids: set[str] = set()
+        for answer in answers:
+            question_id = answer.question_id
+            if not question_id or question_id not in active_questions:
+                raise DiscoveryOperationError(
+                    "DISCOVERY_INVALID_ANSWER",
+                    "Answer refers to a question outside the current round.",
+                    status_code=400,
+                )
+            if question_id in seen_question_ids:
+                raise DiscoveryOperationError(
+                    "DISCOVERY_INVALID_ANSWER",
+                    "Submit each question at most once per request.",
+                    status_code=400,
+                )
+            seen_question_ids.add(question_id)
+            if answer.mode is AnswerMode.ANSWERED and not _has_answer_value(answer.value):
+                raise DiscoveryOperationError(
+                    "DISCOVERY_INVALID_ANSWER",
+                    "An answered question needs a response; use Skip instead.",
+                    status_code=400,
+                )
+            question = active_questions[question_id]
+            if answer.mode is AnswerMode.ANSWERED and not (
+                isinstance(answer.value, str)
+                or (question.kind is QuestionKind.MULTI_SELECT and isinstance(answer.value, list))
+            ):
+                raise DiscoveryOperationError(
+                    "DISCOVERY_INVALID_ANSWER",
+                    "Answer must be text or selected options from the current question.",
+                    status_code=400,
+                )
+            if answer.mode is AnswerMode.ANSWERED and isinstance(answer.value, list):
+                option_ids = {option.id for option in question.options}
+                selected = answer.value
+                if (
+                    question.kind is not QuestionKind.MULTI_SELECT
+                    or any(not isinstance(item, str) or item not in option_ids for item in selected)
+                    or len(set(selected)) != len(selected)
+                ):
+                    raise DiscoveryOperationError(
+                        "DISCOVERY_INVALID_ANSWER",
+                        "Selected options must be unique choices from the current question.",
+                        status_code=400,
+                    )
+
         answer_map: dict[str, DiscoveryAnswer] = dict(state.answers.items)
         answer_documents: list[SourceDocument] = []
         question_events = [event.model_copy(deep=True) for event in state.question_events]
@@ -258,7 +307,9 @@ class DiscoveryService:
                                 )
                             )
                     else:
-                        answer_text = _answer_text(answer.value)
+                        answer_text = _answer_text(
+                            answer.value, active_questions[answer.question_id]
+                        )
                         event.status = "answered"
                         event.answer = answer_text
                         if changed:
@@ -712,13 +763,16 @@ def _merge_intake(
         if submitted_text == previous_text:
             continue
         if previous_text and submitted_text.startswith(previous_text):
-            addition = submitted_text[len(previous_text) :].lstrip("\r\n \t")
+            addition = submitted_text[len(previous_text) :]
         else:
             addition = submitted_text
-        if not addition.strip():
+        if not addition:
             continue
         if append:
-            merged_text = f"{previous_text.rstrip()}\n\n{addition}" if previous_text else addition
+            if previous_text and submitted_text.startswith(previous_text):
+                merged_text = submitted_text
+            else:
+                merged_text = f"{previous_text}\n\n{addition}" if previous_text else addition
             setattr(combined, field, merged_text)
         else:
             setattr(combined, field, submitted_text)
@@ -726,7 +780,29 @@ def _merge_intake(
     return combined, new_documents
 
 
-def _answer_text(value: Any) -> str:
+def _has_answer_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list | dict):
+        return bool(value)
+    return True
+
+
+def _answer_text(value: Any, question: DiscoveryQuestion) -> str:
+    """Record the user's selected label rather than an opaque model option ID."""
+    if question.kind is QuestionKind.BOOLEAN and isinstance(value, str):
+        return {"true": "Yes", "false": "No"}.get(value, value)
+    if question.kind in {QuestionKind.SINGLE_SELECT, QuestionKind.MULTI_SELECT}:
+        option_labels = {option.id: option.label for option in question.options}
+        if isinstance(value, str):
+            return option_labels.get(value, value)
+        if isinstance(value, list):
+            return ", ".join(
+                option_labels.get(item, item) if isinstance(item, str) else str(item)
+                for item in value
+            )
     if value is None:
         return ""
     if isinstance(value, str):

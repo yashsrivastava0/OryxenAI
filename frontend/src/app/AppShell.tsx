@@ -92,6 +92,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+export function readyDiscoveryRunKey(sessionId: string | null, raw: unknown): string | null {
+  if (!sessionId || !isRecord(raw) || raw.status !== "questions_ready") return null;
+  const operation = raw.operation_a;
+  if (!isRecord(operation) || operation.mode !== "READY_FOR_BRIEF") return null;
+  return typeof operation.run_id === "string" && operation.run_id
+    ? `${sessionId}:${operation.run_id}`
+    : null;
+}
+
 function hasCopyableOutput(stage: JourneyStageId, value: unknown): boolean {
   if (!isRecord(value)) return false;
   if (stage !== "discover") return true;
@@ -133,6 +142,7 @@ export function AppShell({
   const invalidationChannelRef = useRef<InvalidationChannel | null>(null);
   const initialNormalizationDone = useRef(false);
   const seenCacheReceipts = useRef(new Set<string>());
+  const autoBriefAttempts = useRef(new Set<string>());
   const cacheNoticeId = useRef(0);
   const [cacheNotice, setCacheNotice] = useState<{ id: number; message: string } | null>(null);
 
@@ -431,6 +441,43 @@ export function AppShell({
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
     notifyMutation(state.sessionId);
   };
+
+  const readyBriefKey = readyDiscoveryRunKey(state.sessionId, state.discovery?.raw);
+  useEffect(() => {
+    if (!readyBriefKey || !state.sessionId || mutatingStage !== null) return;
+    if (autoBriefAttempts.current.has(readyBriefKey)) return;
+    autoBriefAttempts.current.add(readyBriefKey);
+    const sessionId = state.sessionId;
+    setMutatingStage("discover");
+    void (async () => {
+      try {
+        const result = await api.putDiscoveryAnswers(sessionId, {
+          complete: true,
+          answers: [],
+          continue_with_current_information: true,
+        });
+        inspectCacheReceipt("discovery", result);
+        dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
+        dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+        notifyMutation(sessionId);
+      } catch {
+        // A lost response may follow a successful enqueue. Read the server
+        // before offering the manual Continue action as a fallback.
+        try {
+          const result = await api.getDiscovery(sessionId);
+          dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
+          dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+          if (isRecord(result.discovery) && result.discovery.status === "questions_ready") {
+            dispatch({ type: "announce", message: "The brief could not start automatically. Choose Continue to retry." });
+          }
+        } catch {
+          dispatch({ type: "connection/set", state: "stale" });
+        }
+      } finally {
+        setMutatingStage(null);
+      }
+    })();
+  }, [api, inspectCacheReceipt, mutatingStage, readyBriefKey, state.sessionId]);
 
   const handleRetryDiscovery = async () => {
     if (!state.sessionId || !state.discovery) return;

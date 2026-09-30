@@ -78,7 +78,9 @@ async def _approve_discovery(db_session, session_id, monkeypatch) -> None:
     answers = [
         DiscoveryAnswer(question_id=q["id"], mode="answered", value="pick-one") for q in questions
     ]
-    answered = await discovery_service.save_answers(session_id, answers, complete=True)
+    answered = await discovery_service.save_answers(
+        session_id, answers, complete=True, continue_with_current_information=True
+    )
     await db_session.commit()
 
     brief_job = await JobService(db_session).get(UUID(answered["discovery"]["brief"]["job_id"]))

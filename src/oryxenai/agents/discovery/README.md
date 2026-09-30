@@ -40,18 +40,18 @@ deterministic Intake capability later.
    three questions. User answers and skips are persisted with their history
    and answer-source spans.
 3. Submitting a completed answer batch queues another question round. The
-   explicit `continue_with_current_information` action closes the interview
-   and queues brief preparation. `READY_FOR_BRIEF` presents that action without
-   an automatic stage transition.
+   `continue_with_current_information` action closes the interview and queues
+   brief preparation. In the product UI, `READY_FOR_BRIEF` automatically
+   triggers this action; API clients may call it explicitly. Discovery still
+   waits for the user's approval before Content Architect can start.
 4. `POST .../discovery/revise` regenerates the brief and dossier from the same
    source snapshots, answers, and revision request.
 5. The review surface presents the report alongside an evidence inspector for
    source excerpts, claim references, source coverage, open items, restrictions,
    and question history.
 6. `POST .../discovery/approve` hashes the reviewed Markdown and dossier
-   together. Content Architect continues to receive the existing approved
-   brief/profile projection; its contract is unchanged by this Discovery-only
-   slice.
+   together. Content Architect snapshots the full approved dossier, retaining
+   the compact profile as a compatibility aid for older approved sessions.
 
 ## Source and dossier contracts
 
@@ -79,8 +79,8 @@ source or claim change invalidates downstream approval matching.
 Statuses include `not_started`, `questions_queued`, `questions_running`,
 `needs_input`, `questions_ready`, `answers_in_progress`, `brief_running`,
 `brief_review`, `approved`, and `needs_attention`. Answer completion can return
-to `questions_queued` or proceed to `brief_running` only when the user chooses
-to continue. A nonterminal operation can fail into `needs_attention`; the
+to `questions_queued` or proceed to `brief_running` when the user continues
+or the product UI receives `READY_FOR_BRIEF`. A nonterminal operation can fail into `needs_attention`; the
 worker retries transient failures within the configured job retry policy.
 
 ## Prompt and model configuration

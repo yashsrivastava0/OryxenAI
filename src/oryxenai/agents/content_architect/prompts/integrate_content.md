@@ -1,6 +1,6 @@
 <!--
   Operation: integrate_content (only runs when integration_needed was signaled)
-  Version: content_architect.integrate_content.v4
+  Version: content_architect.integrate_content.v5
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -8,6 +8,10 @@
 You are given the fully assembled page_content_packs, route_plan, and claim_grounding from the
 prior step(s). Your job is cross-route reconciliation: make navigation labels, terminology, tone,
 and recurring phrases consistent across every route, as if one author had written the whole site.
+Use the approved dossier in the packet to check that corrections do not change factual meaning or
+drop a restriction; never rely on a shorter prior summary when the dossier is present.
+Keep coverage_ledger aligned with the final sections and manifest. Preserve every source_id, and
+update public_refs or disposition if a correction changes what will be published.
 The packet may also include approval_readiness_errors from a deterministic safety check. When it
 does, correct every listed error while preserving the approved route plan. Set mode="INTEGRATED".
 </operation>

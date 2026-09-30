@@ -103,11 +103,15 @@ async def _approve_discovery(client) -> str:
     questions = state["discovery"]["operation_a"]["items"]
     answers = [{"question_id": q["id"], "mode": "answered", "value": "pick-one"} for q in questions]
     resp = await client.put(
-        f"/api/v1/sessions/{sid}/discovery/answers", json={"complete": True, "answers": answers}
+        f"/api/v1/sessions/{sid}/discovery/answers",
+        json={
+            "complete": True,
+            "answers": answers,
+            "continue_with_current_information": True,
+        },
     )
     assert resp.status_code == 200, resp.text
-    answered = resp.json()
-    await _run_job(client, answered["discovery"]["brief"]["job_id"], _DISCOVERY_HANDLERS)
+    await _run_job(client, resp.json()["discovery"]["brief"]["job_id"], _DISCOVERY_HANDLERS)
 
     resp = await client.post(f"/api/v1/sessions/{sid}/discovery/approve", json={})
     assert resp.status_code == 200, resp.text
@@ -158,6 +162,20 @@ async def _remove_public_content_sections(client, sid: str) -> None:
         await db.commit()
 
 
+async def _remove_coverage_ledger(client, sid: str) -> None:
+    from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
+
+    app = client._transport.app
+    async with app.state.sessionmaker() as db:
+        repo = PortfolioSessionRepository(db)
+        session = await repo.get_by_id(UUID(sid))
+        new_state = dict(session.current_state)
+        new_state["content_architect"] = dict(new_state["content_architect"])
+        new_state["content_architect"]["coverage_ledger"] = []
+        await repo.update_state(UUID(sid), new_state, session.revision)
+        await db.commit()
+
+
 class TestFullHttpFlow:
     async def test_full_flow_and_approval(self, client):
         sid = await _approve_discovery(client)
@@ -166,6 +184,8 @@ class TestFullHttpFlow:
         assert review["content_architect"]["site_story_strategy"]
         assert review["content_architect"]["route_plan"]
         assert review["content_architect"]["page_content_packs"]
+        assert review["content_architect"]["intake"]["dossier"]["facts"]
+        assert review["content_architect"]["coverage_ledger"]
         assert review["content_architect"]["stages_run"] == ["plan_content"]
 
         resp = await client.post(f"/api/v1/sessions/{sid}/content-architect/approve")
@@ -186,6 +206,18 @@ class TestFullHttpFlow:
         assert error["code"] == "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"
         assert error["details"]["approved_route_ids"]
         assert any("no public sections" in item for item in error["details"]["errors"])
+
+    async def test_approval_rejects_missing_dossier_coverage(self, client):
+        sid = await _approve_discovery(client)
+        await _build_content(client, sid)
+        await _remove_coverage_ledger(client, sid)
+
+        resp = await client.post(f"/api/v1/sessions/{sid}/content-architect/approve")
+
+        assert resp.status_code == 409
+        error = resp.json()["error"]
+        assert error["code"] == "CONTENT_ARCHITECT_COVERAGE_INCOMPLETE"
+        assert any("missing dossier items" in item for item in error["details"]["errors"])
 
     async def test_start_requires_discovery_approved(self, client):
         sid = await _create_session(client)

@@ -548,7 +548,7 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
   const answers = isRecord(raw.answers) && isRecord(raw.answers.items) ? raw.answers.items : {};
   const answeredIds = Object.keys(answers);
 
-  // A ready-for-brief response is an explicit user decision point. Other
+  // The app starts brief preparation when READY_FOR_BRIEF arrives. Other
   // question-ready snapshots with no unanswered item are likely stale data.
   const allQuestions = items.map(adaptQuestion).filter((q): q is DiscoveryQuestionVM => q !== null);
   const answeredTurns = allQuestions

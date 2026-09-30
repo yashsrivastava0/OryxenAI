@@ -15,8 +15,9 @@ from oryxenai.agents.content_architect.service import (
     ContentArchitectService,
     _content_hash,
     _elapsed_seconds,
+    _intake_from_discovery,
 )
-from oryxenai.agents.discovery.schemas import DiscoveryApproval, DiscoveryState
+from oryxenai.agents.discovery.schemas import DiscoveryApproval, DiscoveryDossier, DiscoveryState
 
 
 def _service() -> ContentArchitectService:
@@ -45,6 +46,25 @@ class TestContentHash:
 
     def test_differs_for_different_content(self):
         assert _content_hash([{"a": 1}], {}) != _content_hash([{"a": 2}], {})
+
+
+def test_approved_discovery_dossier_is_snapshotted_without_loss():
+    discovery = DiscoveryState(
+        dossier=DiscoveryDossier.model_validate(
+            {
+                "facts": [{"id": "fact:last", "statement": "Final project detail"}],
+                "projects": [{"id": "project:last", "name": "Final project"}],
+            }
+        )
+    )
+    discovery.brief.approved = DiscoveryApproval(brief_hash="approved-hash")
+
+    intake = _intake_from_discovery(discovery, 7)
+
+    assert intake.dossier["facts"][0]["statement"] == "Final project detail"
+    assert intake.dossier["projects"][0]["name"] == "Final project"
+    assert intake.discovery_brief_hash == "approved-hash"
+    assert intake.discovery_session_revision == 7
 
 
 class TestIdempotencyKey:

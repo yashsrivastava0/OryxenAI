@@ -497,7 +497,25 @@ class _ContentArchitectMockModelClient:
                 f"unexpected operation for single-page Content Architect mock: {operation}"
             )
         revision_request = str((input_payload or {}).get("revision_request", "") or "")
-        parsed = self.plan_payload_revised if revision_request else self.plan_payload
+        parsed = deepcopy(self.plan_payload_revised if revision_request else self.plan_payload)
+        dossier = input_payload.get("dossier", {})
+        if dossier.get("contract_version") == "DiscoveryDossier/v1":
+            parsed["coverage_ledger"] = [
+                {
+                    "source_id": f"{kind}/{item['id']}",
+                    "disposition": "internal",
+                    "public_refs": [],
+                    "reason": "Fixture keeps this source item in the reviewed dossier.",
+                }
+                for field, kind in (
+                    ("facts", "fact"),
+                    ("roles", "role"),
+                    ("projects", "project"),
+                    ("other_evidence", "evidence"),
+                )
+                for item in dossier.get(field, [])
+                if item.get("id")
+            ]
         parsed_output = output_model.model_validate(parsed).model_dump(mode="json")
         return StructuredModelResult(
             parsed_output=parsed_output,

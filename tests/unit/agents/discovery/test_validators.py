@@ -42,6 +42,26 @@ class TestValidateQuestionsOutput:
         assert outcome.is_valid
         assert outcome.errors == []
 
+    def test_choice_options_need_distinct_ids_and_labels(self):
+        outcome = validate_questions_output(
+            _valid_questions_output(
+                [
+                    _question(
+                        options=[
+                            {"id": "same", "label": "Backend"},
+                            {"id": "same", "label": " backend "},
+                            {"id": "", "label": ""},
+                        ]
+                    )
+                ]
+            )
+        )
+        assert not outcome.is_valid
+        assert any("duplicate option id" in error for error in outcome.errors)
+        assert any("duplicate option label" in error for error in outcome.errors)
+        assert any("without an id" in error for error in outcome.errors)
+        assert any("without a label" in error for error in outcome.errors)
+
     def test_valid_empty_for_ready_for_brief(self):
         outcome = validate_questions_output(
             {

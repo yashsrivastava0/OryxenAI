@@ -78,7 +78,7 @@ def test_required_viewports_keep_stage_actions_visible(
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=content-review", wait_until="networkidle")
     assert page.get_by_role("heading", name="Three routes. A stronger story ahead.").is_visible()
-    assert page.get_by_role("button", name="Approve & continue").is_visible()
+    assert page.get_by_role("button", name="Approve content").is_visible()
     assert_no_horizontal_overflow(page)
 
 
@@ -102,8 +102,10 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
     page = browser_page
     page.set_viewport_size({"width": 1366, "height": 768})
     page.goto(f"{BASE_URL}/?fixture=discovery-input", wait_until="networkidle")
-    assert page.get_by_text("0 / 3,000 words").is_visible()
-    assert page.get_by_text("Your input is private and secure.").is_visible()
+    assert page.get_by_text("0 words").is_visible()
+    assert page.get_by_text(
+        "Start with what you have. You can clarify gaps and review the evidence before approving the brief."
+    ).is_visible()
     assert page.get_by_text("A deeper conversation for a more intentional future.").count() == 0
     prompt_box = page.locator(".starting-points-grid").bounding_box()
     dock_box = page.locator(".intake-dock").bounding_box()

@@ -26,7 +26,7 @@ operation prompts. See src/oryxenai/agents/discovery/README.md for routes
 and state transitions.
 
 **Content Architect** is implemented end to end as the second and final
-active stage. It consumes only an approved Discovery snapshot, requires
+active stage. It consumes the approved Discovery dossier when available, requires
 Discovery approval to start, and runs as one durable job. The agent makes one
 to three sequential model calls internally (plan_content, optionally
 write_pages, optionally integrate_content). It has no chat UI and is
