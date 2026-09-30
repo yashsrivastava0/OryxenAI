@@ -30,15 +30,14 @@ class TestContentArchitectIntake:
         intake = ContentArchitectIntake()
         assert intake.approved_brief_title == ""
         assert intake.profile == {}
+        assert intake.dossier == {}
         assert intake.open_items == []
 
     def test_does_not_carry_full_brief_markdown(self):
         """The full Discovery brief prose is deliberately not part of this schema.
 
-        profile + user_summary carry the compact grounded facts; keeping the
-        full markdown out avoids duplicated context, latency, and the risk of
-        a later stage reading stale Discovery prose instead of finalized
-        Content Architect output.
+        The source-linked dossier, rather than duplicate Markdown, now carries
+        the complete approved factual handoff for new sessions.
         """
         assert "approved_brief_markdown" not in ContentArchitectIntake.model_fields
 
@@ -46,8 +45,10 @@ class TestContentArchitectIntake:
         intake = ContentArchitectIntake(
             user_summary="A short summary.",
             profile={"name": "Test User"},
+            dossier={"facts": [{"id": "fact:1", "statement": "An exact detail"}]},
         )
         assert intake.profile["name"] == "Test User"
+        assert intake.dossier["facts"][0]["statement"] == "An exact detail"
 
     def test_unknown_fields_accepted(self):
         intake = ContentArchitectIntake(approved_brief_title="t", something_else={"nested": True})

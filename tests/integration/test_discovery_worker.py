@@ -75,7 +75,9 @@ async def test_full_worker_flow_with_mock_client(db_session, monkeypatch) -> Non
         DiscoveryAnswer(question_id=question["id"], mode="answered", value="pick-one")
         for question in questions
     ]
-    answered = await service.save_answers(session_id, answers, complete=True)
+    answered = await service.save_answers(
+        session_id, answers, complete=True, continue_with_current_information=True
+    )
     await db_session.commit()
     assert answered["discovery"]["status"] == "brief_running"
 

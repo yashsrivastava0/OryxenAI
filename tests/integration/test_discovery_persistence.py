@@ -54,7 +54,7 @@ async def test_state_round_trips_through_session_current_state(db_session) -> No
 
 
 @pytest.mark.asyncio
-async def test_start_after_needs_attention_replaces_intake(db_session) -> None:
+async def test_start_after_needs_attention_preserves_prior_intake(db_session) -> None:
     session = await PortfolioSessionRepository(db_session).create("Retry intake")
     session_id = session.id
     service = DiscoveryService(DiscoveryRepository(db_session), JobService(db_session))
@@ -73,5 +73,5 @@ async def test_start_after_needs_attention_replaces_intake(db_session) -> None:
     retried = await service.start(session_id, message="second", document_text="", goal="new goal")
     await db_session.commit()
     assert retried["discovery"]["status"] == "questions_queued"
-    assert retried["discovery"]["intake"]["message"] == "second"
+    assert retried["discovery"]["intake"]["message"] == "first\n\nsecond"
     assert retried["discovery"]["intake"]["goal"] == "new goal"

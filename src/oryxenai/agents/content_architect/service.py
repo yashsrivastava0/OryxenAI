@@ -1,6 +1,6 @@
 """Application service for the Content Architect workflow.
 
-Single-job flow: start (compact approved Discovery snapshot + preferences)
+Single-job flow: start (complete approved Discovery dossier + preferences)
 -> content_architect.build (up to 3 internal model calls) -> review -> revise
 (optional, re-runs build) -> approve. Requires Discovery to be APPROVED
 before starting, and rejects any further operation once Discovery's approved
@@ -118,14 +118,7 @@ class ContentArchitectService:
 
         policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
 
-        intake = ContentArchitectIntake(
-            approved_brief_title=discovery.brief.title,
-            user_summary=discovery.brief.user_summary,
-            profile=discovery.brief.profile.model_dump(mode="json"),
-            open_items=list(discovery.brief.open_items),
-            discovery_brief_hash=discovery.brief.approved.brief_hash,
-            discovery_session_revision=session.revision,
-        )
+        intake = _intake_from_discovery(discovery, session.revision)
         prefs = ContentArchitectPreferences(**(preferences or {}))
         source_ref = ContentArchitectSourceRef(
             discovery_brief_hash=discovery.brief.approved.brief_hash,
@@ -268,13 +261,42 @@ class ContentArchitectService:
         """Approve the reviewed content."""
         session = await self._require_session(session_id)
         state = await self._repository.get_content_architect_state(session_id)
+        if state.status not in {
+            ContentArchitectStatus.CONTENT_REVIEW,
+            ContentArchitectStatus.APPROVED,
+        }:
+            self._not_ready("approve", state.status.value)
+        discovery = await self._repository.get_discovery_snapshot(session_id)
+        self._check_discovery_not_stale(discovery, state)
         if state.status is ContentArchitectStatus.APPROVED:
             return await self.get_content_architect_state(session_id)
-        if state.status is not ContentArchitectStatus.CONTENT_REVIEW:
-            self._not_ready("approve", state.status.value)
+
+        from oryxenai.agents.content_architect.agent import _coverage_errors
 
         packs_payload = [pack.model_dump(mode="json") for pack in state.page_content_packs]
-        content_hash = _content_hash(packs_payload, state.public_content_manifest)
+        route_payload = [route.model_dump(mode="json") for route in state.route_plan]
+        coverage_payload = [entry.model_dump(mode="json") for entry in state.coverage_ledger]
+        coverage_errors = _coverage_errors(
+            state.intake.dossier, coverage_payload, route_payload, packs_payload
+        )
+        if state.intake.dossier.get("contract_version") == "DiscoveryDossier/v1":
+            if len(state.route_plan) != 1 or state.route_plan[0].path not in {"/", "/index.html"}:
+                coverage_errors.append("Portfolio content needs one complete root-page route")
+            if state.site_story_strategy.get("presentation_mode") != "single_page":
+                coverage_errors.append("Portfolio content needs single_page presentation_mode")
+        if coverage_errors:
+            raise ContentArchitectOperationError(
+                "CONTENT_ARCHITECT_COVERAGE_INCOMPLETE",
+                "Cannot approve incomplete source coverage or page structure; revise the content.",
+                details={"errors": coverage_errors},
+            )
+        content_hash = _content_hash(
+            packs_payload,
+            state.public_content_manifest,
+            route_plan=route_payload,
+            claim_grounding=[claim.model_dump(mode="json") for claim in state.claim_grounding],
+            coverage_ledger=coverage_payload,
+        )
         try:
             approved = apply_approval(state, content_hash)
         except NoPublishableRoutesError as exc:
@@ -377,6 +399,7 @@ class ContentArchitectService:
             ],
             "public_content_manifest": state.public_content_manifest,
             "claim_grounding": [claim.model_dump(mode="json") for claim in state.claim_grounding],
+            "coverage_ledger": [entry.model_dump(mode="json") for entry in state.coverage_ledger],
         }
 
     def _check_discovery_not_stale(
@@ -445,11 +468,38 @@ class ContentArchitectService:
         )
 
 
-def _content_hash(page_content_packs: Any, public_content_manifest: Any) -> str:
+def _intake_from_discovery(
+    discovery: DiscoveryState, session_revision: int
+) -> ContentArchitectIntake:
+    """Pin the complete approved factual handoff for every writing operation."""
+    if discovery.brief.approved is None:
+        raise ValueError("Content Architect intake requires approved Discovery")
+    return ContentArchitectIntake(
+        approved_brief_title=discovery.brief.title,
+        user_summary=discovery.brief.user_summary,
+        profile=discovery.brief.profile.model_dump(mode="json"),
+        dossier=discovery.dossier.model_dump(mode="json") if discovery.dossier else {},
+        open_items=list(discovery.brief.open_items),
+        discovery_brief_hash=discovery.brief.approved.brief_hash,
+        discovery_session_revision=session_revision,
+    )
+
+
+def _content_hash(
+    page_content_packs: Any,
+    public_content_manifest: Any,
+    *,
+    route_plan: Any = None,
+    claim_grounding: Any = None,
+    coverage_ledger: Any = None,
+) -> str:
     combined = json.dumps(
         {
             "page_content_packs": page_content_packs,
             "public_content_manifest": public_content_manifest,
+            "route_plan": route_plan,
+            "claim_grounding": claim_grounding,
+            "coverage_ledger": coverage_ledger,
         },
         sort_keys=True,
         default=str,

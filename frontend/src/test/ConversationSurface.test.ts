@@ -28,8 +28,33 @@ describe("ConversationSurface discovery question rendering", () => {
     expect(html).toContain("NanoSecure-Risk");
     expect(html).toContain("choice-tile");
     expect(html).toContain("choice-indicator--checkbox");
-    expect(html).toContain("Next question");
+    expect(html).toContain("Save answer");
     expect(html).toContain("Skip question");
+    expect(html).toContain("Answer in my own words");
+    expect(html).toContain("What primary audience should this portfolio address?");
+    expect(html).toContain('aria-label="Discovery questions"');
+    expect(html).toContain("Question 01 of 02");
+    expect(html).toContain("Question 02 of 02");
+  });
+
+  it("shows all three contextual questions in the same batch", () => {
+    const two = adaptDiscovery(questionsMcqReady).currentQuestions;
+    const third = adaptDiscovery(questionsReady).currentQuestions[0]!;
+    const html = render(
+      h(ConversationSurface, {
+        questions: [...two, third],
+        history: [],
+        isWorking: false,
+        onSubmitAnswer: noop,
+      }),
+    );
+
+    expect(html).toContain("Which project stories should lead your portfolio?");
+    expect(html).toContain("What primary audience should this portfolio address?");
+    expect(html).toContain("What kind of work do you want this portfolio to lead with?");
+    expect(html).toContain("Question 01 of 03");
+    expect(html).toContain("Question 02 of 03");
+    expect(html).toContain("Question 03 of 03");
   });
 
   it("renders single-select question with SELECT ONE group hint and radio options", () => {

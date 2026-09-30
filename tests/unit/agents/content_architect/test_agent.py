@@ -10,6 +10,7 @@ import pytest
 from oryxenai.agents.content_architect.agent import (
     ContentArchitectAgent,
     ContentArchitectModelOutputError,
+    _approval_readiness_errors,
 )
 from oryxenai.agents.discovery.schemas import StructuredModelResult
 from oryxenai.agents.shared.context import build_context
@@ -22,12 +23,14 @@ class _FakeModelClient:
     def __init__(self, payloads: dict[str, dict[str, Any]]) -> None:
         self._payloads = payloads
         self.calls: list[str] = []
+        self.packets: list[dict[str, Any]] = []
 
     async def complete(self, *args: Any, **kwargs: Any) -> str:
         raise NotImplementedError
 
     async def generate_structured(self, *, operation: str, **kwargs: Any) -> StructuredModelResult:
         self.calls.append(operation)
+        self.packets.append(kwargs["input_payload"])
         return StructuredModelResult(
             parsed_output=self._payloads[operation],
             response_id=f"fake-{operation}",
@@ -125,6 +128,71 @@ async def test_single_page_stops_after_one_call():
     assert client.calls == ["plan_content"]
     assert result.output["stages_run"] == ["plan_content"]
     assert result.output["page_content_packs"]
+
+
+async def test_full_dossier_reaches_planning_and_deferred_writing():
+    dossier = {
+        "facts": [{"id": "fact:last", "statement": "Led the final project"}],
+        "projects": [{"id": "project:last", "name": "Final project"}],
+        "restrictions": [{"id": "restriction:client", "instruction": "Omit client name"}],
+    }
+    client = _FakeModelClient(
+        {
+            "plan_content": _plan_payload(content_included=False),
+            "write_pages": _pages_payload(route_count=1),
+        }
+    )
+    agent = ContentArchitectAgent(model_client=client)
+    context = _context()
+    context.agent_input["intake"]["dossier"] = dossier
+
+    await agent.run(context)
+
+    assert client.calls == ["plan_content", "write_pages"]
+    assert all(packet["dossier"] == dossier for packet in client.packets)
+
+
+def test_dossier_backed_content_requires_one_page_and_complete_coverage():
+    dossier = {
+        "contract_version": "DiscoveryDossier/v1",
+        "facts": [{"id": "fact:last"}],
+        "projects": [{"id": "project:last"}],
+    }
+    route = _route("home")
+    route["path"] = "/"
+    pack = _pack("home")
+    valid_ledger = [
+        {
+            "source_id": "fact/fact:last",
+            "disposition": "published",
+            "public_refs": ["home#hero"],
+        },
+        {
+            "source_id": "project/project:last",
+            "disposition": "internal",
+            "reason": "The source lacks enough project context for public copy.",
+        },
+    ]
+    kwargs = {
+        "route_plan": [route],
+        "claim_grounding": [],
+        "page_content_packs": [pack],
+        "public_content_manifest": {"nav": []},
+        "dossier": dossier,
+        "site_story_strategy": {"presentation_mode": "single_page"},
+    }
+
+    assert not _approval_readiness_errors(**kwargs, coverage_ledger=valid_ledger)
+    assert any(
+        "missing dossier items" in error
+        for error in _approval_readiness_errors(**kwargs, coverage_ledger=valid_ledger[:1])
+    )
+    assert any(
+        "one complete root-page route" in error
+        for error in _approval_readiness_errors(
+            **{**kwargs, "route_plan": [_route("home")]}, coverage_ledger=valid_ledger
+        )
+    )
 
 
 async def test_multi_page_calls_write_pages_when_content_deferred():

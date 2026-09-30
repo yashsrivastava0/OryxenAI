@@ -1,9 +1,9 @@
 """Content Architect agent domain schemas.
 
 Only the OUTPUT contract is validated (envelope shape, not business content).
-Input is a compact APPROVED Discovery snapshot — never the raw resume, never
-the full Discovery brief markdown, never document text — plus optional user
-preferences. No model-specific imports.
+Input is the approved Discovery dossier when available, with the legacy
+profile/summary retained for older sessions, plus optional user preferences.
+No model-specific imports.
 """
 
 from __future__ import annotations
@@ -78,20 +78,16 @@ class DecisionBasis(StrEnum):
     SAFE_DEFAULT = "safe_default"
 
 
-# ── Input (compact approved snapshot, deliberately unvalidated) ────────────
+# ── Input (approved Discovery snapshot) ────────────────────────────────────
 
 
 class ContentArchitectIntake(BaseModel):
-    """Compact approved Discovery snapshot.
+    """Approved Discovery facts, including the complete dossier when present.
 
-    Deliberately excludes the raw resume/document text AND the full Discovery
-    brief markdown — grounding relies on the structured `profile` (facts) and
-    the short `user_summary`, the same compact facts Discovery itself already
-    extracted. Re-sending the full prose brief on every model call (including
-    every revision) duplicates information already captured in `profile`,
-    inflates latency/cost, and risks later stages reading stale Discovery
-    prose instead of this agent's own finalized output. The Discovery source
-    remains fully traceable via `discovery_brief_hash`/`discovery_session_revision`.
+    The raw pasted text and free-form brief stay upstream. The dossier carries
+    the full fact/entity inventory, restrictions, source references, question
+    history, and open items that a compact profile cannot represent. Older
+    approved sessions without a dossier retain the legacy profile fallback.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -99,6 +95,7 @@ class ContentArchitectIntake(BaseModel):
     approved_brief_title: str = ""
     user_summary: str = ""
     profile: dict[str, Any] = Field(default_factory=dict)
+    dossier: dict[str, Any] = Field(default_factory=dict)
     open_items: list[str] = Field(default_factory=list)
     discovery_brief_hash: str = ""
     discovery_session_revision: int = 0
@@ -211,6 +208,17 @@ class DecisionRecord(BaseModel):
     rationale: str = ""
 
 
+class ContentCoverageEntry(BaseModel):
+    """Editorial disposition of one source-linked Discovery fact or entity."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str = ""
+    disposition: str = ""
+    public_refs: list[str] = Field(default_factory=list)
+    reason: str = ""
+
+
 class ContentArchitectOutput(BaseModel):
     """Structured output shared by the three internal model operations.
 
@@ -232,6 +240,7 @@ class ContentArchitectOutput(BaseModel):
     decision_basis: list[DecisionRecord] = Field(default_factory=list)
     route_plan: list[RoutePlanEntry] = Field(default_factory=list)
     claim_grounding: list[ClaimGrounding] = Field(default_factory=list)
+    coverage_ledger: list[ContentCoverageEntry] = Field(default_factory=list)
     page_content_packs: list[PageContentPack] = Field(default_factory=list)
     public_content_manifest: dict[str, Any] = Field(default_factory=dict)
     omissions: list[str] = Field(default_factory=list)
@@ -297,6 +306,7 @@ class ContentArchitectState(BaseModel):
     page_content_packs: list[PageContentPack] = Field(default_factory=list)
     public_content_manifest: dict[str, Any] = Field(default_factory=dict)
     claim_grounding: list[ClaimGrounding] = Field(default_factory=list)
+    coverage_ledger: list[ContentCoverageEntry] = Field(default_factory=list)
     omissions: list[str] = Field(default_factory=list)
     unresolved_issues: list[str] = Field(default_factory=list)
     privacy_and_confidentiality: list[str] = Field(default_factory=list)

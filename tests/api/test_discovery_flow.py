@@ -252,7 +252,61 @@ class TestFullHttpFlow:
             for request in model.requests
             if request.get("operation") == "build_or_revise_brief"
         )
-        assert set(brief_request["input_payload"]["answers"]) == {"direction", "audience"}
+        assert set(brief_request["input_payload"]["answers"]) == set(question_ids)
+
+    async def test_invalid_answer_batch_does_not_change_discovery(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        before = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        question_id = before["discovery"]["operation_a"]["items"][0]["id"]
+
+        for answers in (
+            [{"question_id": "from-an-old-round", "mode": "answered", "value": "backend"}],
+            [
+                {"question_id": question_id, "mode": "answered", "value": "backend"},
+                {"question_id": question_id, "mode": "answered", "value": "fullstack"},
+            ],
+            [{"question_id": question_id, "mode": "answered", "value": "  "}],
+            [{"question_id": question_id, "mode": "answered", "value": ["backend"]}],
+            [{"question_id": question_id, "mode": "answered", "value": {"backend": True}}],
+        ):
+            response = await client.put(
+                f"/api/v1/sessions/{sid}/discovery/answers",
+                json={"complete": False, "answers": answers},
+            )
+            assert response.status_code == 400, response.text
+
+        after = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        assert after["session_revision"] == before["session_revision"]
+        assert after["discovery"]["answers"]["items"] == {}
+
+    async def test_selected_option_label_is_stored_as_answer_evidence(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        before = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        question_id = before["discovery"]["operation_a"]["items"][0]["id"]
+
+        response = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": False,
+                "answers": [{"question_id": question_id, "mode": "answered", "value": "backend"}],
+            },
+        )
+        assert response.status_code == 200, response.text
+        state = response.json()["discovery"]
+        assert state["answers"]["items"][question_id]["value"] == "backend"
+        event = next(
+            event for event in state["question_events"] if event["question_id"] == question_id
+        )
+        assert event["answer"] == "Backend"
+        assert event["answer_source_refs"]
+        assert any(
+            document["source_kind"] == "user_answer" and document["original_text"] == "Backend"
+            for document in state["source_documents"]
+        )
 
     async def test_revision_endpoint_enqueues_brief_and_stays_in_review(self, client):
         sid = await _create_session(client)

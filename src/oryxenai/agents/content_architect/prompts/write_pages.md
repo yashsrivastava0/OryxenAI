@@ -1,15 +1,18 @@
 <!--
   Operation: write_pages (only runs when plan_content set content_included=false)
-  Version: content_architect.write_pages.v4
+  Version: content_architect.write_pages.v5
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
 <operation>
 You are given the site_story_strategy, route_plan, and claim_grounding already decided by the
-planning step. Write the complete visitor-facing content for EVERY route in route_plan whose
+planning step, plus the same approved Discovery dossier when available. Recheck the complete
+source-linked facts, restrictions, and open items while writing; a route-plan summary cannot be
+the sole factual source for a section. Write the complete visitor-facing content for EVERY route in route_plan whose
 publication_status is NOT "blocked", in this single response — final public content for approved
 routes and neutral review drafts for pending routes. Never ask for another call per page or per
-section, and never leave a route's content incomplete. Set mode="PAGES_READY".
+section, and never leave a route's content incomplete. Return one coverage_ledger disposition for
+every dossier fact, role, project, and other evidence item. Set mode="PAGES_READY".
 </operation>
 
 <do_not_redecide>
