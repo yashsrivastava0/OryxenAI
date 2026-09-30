@@ -20,6 +20,10 @@ Preserved exact appended intake and readable answer evidence, rejected malformed
 
 Traced the local Google callback through a failing `/api/v1/me` provider response; restarting the API restored onboarding without changing Supabase or Google settings. Added a bounded retry and safe diagnostics for JWKS failures, verified the authenticated browser flow and focused auth tests, and left deployment untouched.
 
+### 2026-09-30 16:35 +05:30 — Codex (OpenAI) — [bc0e3a6] — Azure availability diagnosis
+
+Verified that the public app is unreachable because the Azure VM is deallocated and its scheduled auto-start Logic App is disabled. Recorded the September 23 disable event and the recovery steps in the deployment issue ledger; no Azure state or deployment branch was changed.
+
 ### 2026-09-29 16:29 +05:30 — Codex (OpenAI) — [f25bf4a] — docs/architecture/, DECISIONS.md
 
 Defined the target Discovery and Content Architect handoffs in full (D-116): source-complete dossier, contextual zero-to-three-question flow, two explicit approvals, finished public copy, and AI-written `index.html` verified with the pinned stylesheet. This was architecture documentation only; no runtime, model, or deployment change was made.
