@@ -12,6 +12,10 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-09-30 23:30 +05:30 — Codex (OpenAI) — [1ecb98d] — Discovery answer flow and brief recovery
+
+Fixed the follow-up job revision mismatch that failed after answer submission, and recovered saved answers from older failed question jobs. A completed contextual question batch now prepares the brief directly. Simplified the interface to one question at a time with three suggested choices and an always-visible custom answer; corrected active-job display and repaired mechanical dossier links without inventing claims. Verified the authenticated local flow through detailed brief review, the full Python and frontend suites, build, lint, type checks, and database readiness. No push or deployment.
+
 ### 2026-09-30 21:20 +05:30 — Codex (OpenAI) — [77f7749] — model accounting and stage retry
 
 Traced the local Discovery failure to provider connection errors followed by an automatic redelivery that exhausted the run's call allowance and mislabeled the result as an accounting outage. Restarted the local worker and verified the saved intake reached its questions; made spent-call failures terminal for that run, separated allowance and settlement errors, and checked the affected Python flows. No push or deployment.
