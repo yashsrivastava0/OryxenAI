@@ -95,6 +95,37 @@ function StageFixture() {
       />
     );
   }
+  if (fixture === "discovery-question-queued") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery(questionsMcqReady)}
+        history={[]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={async () => { await new Promise((resolve) => window.setTimeout(resolve, 1200)); }}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
+  }
+  if (fixture === "discovery-question-save-fails") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery(questionsMcqReady)}
+        history={[]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={async () => {
+          await new Promise((resolve) => window.setTimeout(resolve, 150));
+          throw new Error("Save failed");
+        }}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
+  }
   if (fixture === "discovery-question-text") {
     return (
       <DiscoveryStage

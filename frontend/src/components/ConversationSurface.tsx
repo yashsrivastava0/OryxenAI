@@ -1,4 +1,4 @@
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
 import type { StageJobViewModel } from "../data/adapters/job";
 import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
@@ -16,6 +16,7 @@ export interface ConversationSurfaceProps {
   isWorking: boolean;
   job?: StageJobViewModel | null;
   workingLabel?: string;
+  workingPhase?: "questions" | "brief" | "revision";
   disabled?: boolean;
   onSubmitAnswer: (answer: DiscoveryAnswerSubmission, isComplete: boolean) => Promise<void>;
   onContinueWithCurrentInformation?: () => Promise<void>;
@@ -29,14 +30,18 @@ export function ConversationSurface({
   isWorking,
   job,
   workingLabel = "Reading your source material and deciding what to ask next",
+  workingPhase = "questions",
   disabled = false,
   onSubmitAnswer,
   onContinueWithCurrentInformation,
   onRetryStalled,
   onStop,
 }: ConversationSurfaceProps) {
-  const currentQuestion = questions[0] ?? null;
-
+  const [pendingIds, setPendingIds] = useState<string[]>([]);
+  const saveTail = useRef<Promise<void>>(Promise.resolve());
+  const saveGeneration = useRef(0);
+  const visibleQuestions = questions.filter((question) => !pendingIds.includes(question.id));
+  const currentQuestion = visibleQuestions[0] ?? null;
   const [inFlight, setInFlight] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,9 +61,14 @@ export function ConversationSurface({
   const heartbeatAgeSeconds = Number.isFinite(jobHeartbeatMs) ? Math.max(0, (nowMs - jobHeartbeatMs) / 1000) : null;
   const workerStalled = Boolean(
     isWorking &&
-      ((job?.status === "queued" && queuedAgeSeconds !== null && queuedAgeSeconds >= 20) ||
-        (job?.status === "running" && heartbeatAgeSeconds !== null && heartbeatAgeSeconds >= 180)),
+      job?.status === "running" && heartbeatAgeSeconds !== null && heartbeatAgeSeconds >= 180,
   );
+  const waitingInLine = job?.status === "queued" && queuedAgeSeconds !== null && queuedAgeSeconds >= 20;
+  const phaseSteps = workingPhase === "questions"
+    ? ["Source received", "Understanding background", "Preparing questions"]
+    : workingPhase === "revision"
+      ? ["Revision received", "Updating the brief", "Preparing your review"]
+      : ["Material received", "Writing your brief", "Preparing your review"];
 
   const formatDuration = (seconds: number | null): string => {
     if (seconds === null) return "a moment";
@@ -72,13 +82,32 @@ export function ConversationSurface({
     }
   }, [questions.map((question) => question.id).join("|")]);
 
+  useEffect(() => {
+    const present = new Set(questions.map((question) => question.id));
+    setPendingIds((ids) => ids.filter((id) => present.has(id)));
+  }, [questions.map((question) => question.id).join("|")]);
+
   const handleSubmitAnswer = async (answer: DiscoveryAnswerSubmission, isComplete: boolean) => {
-    if (inFlight || disabled) throw new Error("Another Discovery action is still saving.");
-    setInFlight(true);
-    try {
+    if (disabled) throw new Error("Discovery is currently busy.");
+    setError(null);
+    setPendingIds((ids) => [...ids, answer.questionId]);
+    const generation = saveGeneration.current;
+    const save = saveTail.current.then(async () => {
+      if (generation !== saveGeneration.current) {
+        throw new Error("An earlier answer could not be saved. Please submit it again.");
+      }
       await onSubmitAnswer(answer, isComplete);
-    } finally {
-      setInFlight(false);
+    });
+    saveTail.current = save.then(() => undefined, () => undefined);
+    try {
+      await save;
+    } catch (reason) {
+      if (generation === saveGeneration.current) {
+        saveGeneration.current += 1;
+        setPendingIds([]);
+        setError(reason instanceof Error ? reason.message : "Could not save that answer.");
+      }
+      throw reason;
     }
   };
   const handleStop = async () => {
@@ -123,11 +152,11 @@ export function ConversationSurface({
 
           <div className="workbench-header">
             <span className="eyebrow">
-              DISCOVERY / {workerStalled ? "WORKER CHECK" : "ANALYZING SOURCE"}
+              DISCOVERY / {workerStalled ? "WORKER CHECK" : workingPhase.toUpperCase()}
             </span>
             <span className="status-chip chip-active">
               <span className="status-dot pulsing" aria-hidden="true" />
-              {workerStalled ? "Waiting for worker" : "Reading material"}
+              {workerStalled ? "Checking worker" : waitingInLine ? "Waiting in line" : workingPhase === "questions" ? "Reading material" : "Writing brief"}
             </span>
           </div>
 
@@ -135,23 +164,24 @@ export function ConversationSurface({
             <h2 className="working-headline">
               {workerStalled
                 ? "Discovery is waiting for the background worker"
-                : (workingLabel || "Reading your source material and deciding what to ask next.")}
+                : waitingInLine ? "Discovery is waiting in line" : (workingLabel || "Preparing your brief.")}
             </h2>
+            <p className="working-elapsed">{formatDuration(queuedAgeSeconds)} elapsed</p>
 
             <div className="living-draft-activity-rail" aria-hidden="true">
               <div className="activity-step step-done">
                 <span className="step-point">✓</span>
-                <span className="step-text">Source received</span>
+                <span className="step-text">{phaseSteps[0]}</span>
               </div>
               <span className="activity-connector active" />
               <div className="activity-step step-running">
                 <span className="step-point">●</span>
-                <span className="step-text">Understanding background & finding gaps</span>
+                <span className="step-text">{phaseSteps[1]}</span>
               </div>
               <span className="activity-connector" />
               <div className="activity-step step-pending">
                 <span className="step-point">○</span>
-                <span className="step-text">Formulating focused questions</span>
+                <span className="step-text">{phaseSteps[2]}</span>
               </div>
             </div>
 
@@ -188,7 +218,7 @@ export function ConversationSurface({
               <div className="working-note">
                 <p>
                   The server has your material. You may leave or refresh this page; the background job
-                  persists and this workbench will update as soon as questions are prepared.
+                  persists and this workbench will update as soon as the result is ready.
                 </p>
                 {onStop && (
                   <div className="question-actions">
@@ -238,23 +268,28 @@ export function ConversationSurface({
         </details>
       )}
 
-      {/* Save each answer before revealing the next question. */}
+      {/* Reveal the next question while ordered saves complete in the background. */}
       {!isWorking && currentQuestion && (
         <div className="discovery-question-group" role="group" aria-label="Discovery question">
           <DiscoveryQuestionCard
             key={currentQuestion.id}
             question={currentQuestion}
-            ordinal={history.length + 1}
+            ordinal={history.length + pendingIds.length + 1}
             total={history.length + questions.length}
-            isLast={questions.length === 1}
+            isLast={visibleQuestions.length === 1}
             disabled={disabled || inFlight}
             onSubmitAnswer={handleSubmitAnswer}
           />
           {error && <p className="start-error" role="alert">{error}</p>}
         </div>
       )}
+      {!isWorking && !currentQuestion && pendingIds.length > 0 && (
+        <div className="discovery-workbench-card ready-for-brief-card" role="status">
+          Saving your answers and preparing the brief…
+        </div>
+      )}
       {/* 4. Ready for Brief Payoff Card */}
-      {!isWorking && !currentQuestion && onContinueWithCurrentInformation && (
+      {!isWorking && !currentQuestion && pendingIds.length === 0 && onContinueWithCurrentInformation && (
         <div className="discovery-workbench-card ready-for-brief-card" role="status" aria-live="polite">
           <div className="workbench-top-rule" aria-hidden="true">
             <span className="workbench-sweep" />

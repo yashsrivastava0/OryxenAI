@@ -5,11 +5,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from oryxenai.agents.discovery.agent import (
-    DiscoveryAgent,
-    _normalize_dossier_links,
-    _normalize_question_choices,
-)
+from oryxenai.agents.discovery.agent import DiscoveryAgent, _packet
+from oryxenai.agents.discovery.normalize import normalize_brief, normalize_questions
 from oryxenai.agents.discovery.schemas import StructuredModelResult
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
@@ -35,6 +32,18 @@ class _FakeModelClient:
         )
 
 
+def test_model_packet_is_stable_across_new_source_ids():
+    intake = {
+        "message": "Build my portfolio",
+        "document_text": "I designed a PostgreSQL queue.",
+        "goal": "Find engineering work",
+    }
+    first, first_documents, _ = _packet({"intake": intake})
+    second, second_documents, _ = _packet({"intake": intake})
+    assert first == second
+    assert first_documents[0].id != second_documents[0].id
+
+
 def test_question_choices_are_three_or_free_text():
     payload = {
         "questions": [
@@ -45,31 +54,31 @@ def test_question_choices_are_three_or_free_text():
             {"kind": "multi_select", "options": [{"id": "only", "label": "Only"}]},
         ]
     }
-    _normalize_question_choices(payload)
-    assert [option["id"] for option in payload["questions"][0]["options"]] == ["0", "1", "2"]
-    assert payload["questions"][1]["kind"] == "text"
-    assert payload["questions"][1]["options"] == []
+    payload["questions"][0]["text"] = "Choose a focus"
+    payload["questions"][1]["text"] = "Choose an audience"
+    normalized, errors = normalize_questions(payload)
+    assert errors == []
+    assert normalized is not None
+    assert [option["id"] for option in normalized["questions"][0]["options"]] == ["0", "1", "2"]
+    assert normalized["questions"][1]["kind"] == "text"
+    assert normalized["questions"][1]["options"] == []
 
 
-def test_dossier_link_normalization_preserves_claims_and_repairs_references():
+def test_dossier_normalization_preserves_claims_and_repairs_references():
     payload = {
+        "brief_markdown": "# Brief\n\nA useful brief.",
         "dossier": {
-            "facts": [{"id": "fact-1", "statement": "Built a service", "source_refs": ["span-1"]}],
-            "projects": [{"id": "project-1", "fact_ids": ["fact-1"], "source_refs": []}],
-            "source_coverage": [
-                {"span_id": "span-1", "disposition": "reference_context", "fact_ids": []},
-                {"span_id": "span-2", "disposition": "fact", "fact_ids": []},
-            ],
-        }
+            "facts": [{"id": "fact-1", "statement": "Built a service"}],
+            "projects": [{"id": "project-1", "name": "Service", "fact_ids": ["fact-1", "absent"]}],
+        },
     }
-    _normalize_dossier_links(payload)
-    dossier = payload["dossier"]
-    assert dossier["facts"][0]["statement"] == "Built a service"
-    assert dossier["projects"][0]["source_refs"] == ["span-1"]
-    assert dossier["source_coverage"][0]["disposition"] == "fact"
-    assert dossier["source_coverage"][0]["fact_ids"] == ["fact-1"]
-    assert dossier["source_coverage"][1]["disposition"] == "reference_context"
-    assert dossier["open_items"][0]["source_refs"] == ["span-2"]
+    normalized, errors = normalize_brief(payload, documents=[], question_events=[])
+    assert errors == []
+    assert normalized is not None
+    dossier = normalized["dossier"]
+    assert dossier.facts[0].statement == "Built a service"
+    assert dossier.projects[0].fact_ids == ["fact-1"]
+    assert dossier.source_coverage == []
 
 
 def _brief_payload(project_count: int) -> dict[str, Any]:

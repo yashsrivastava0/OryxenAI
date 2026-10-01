@@ -273,40 +273,19 @@ class _MockModelClient:
                 self.brief_revised_payload if revision_request else self.brief_payload
             )
             dossier = parsed.setdefault("dossier", deepcopy(_DEFAULT_DOSSIER))
-            source_documents = input_payload.get("source_documents", [])
-            spans = [
-                (document, span)
-                for document in source_documents
-                if isinstance(document, dict)
-                for span in document.get("spans", [])
-                if isinstance(span, dict)
-            ]
-            source_fact_refs = [
-                span["id"]
-                for document, span in spans
-                if document.get("source_kind") == "user_provided"
-            ]
-            answer_source_refs = [
-                span["id"]
-                for document, span in spans
-                if document.get("source_kind") == "user_answer"
-            ]
-            dossier["subject"]["source_refs"] = source_fact_refs
-            dossier["intent"]["basis"] = {"goal": "User-provided portfolio goal"}
-            dossier["intent"]["basis_refs"] = {
-                "goal": [
-                    span["id"]
-                    for document, span in spans
-                    if document.get("source_kind") == "user_intent"
-                ],
-                "preferences": answer_source_refs,
-            }
+            sources = input_payload.get("sources", [])
+            has_personal_source = any(
+                isinstance(source, dict)
+                and source.get("kind") == "user_provided"
+                and str(source.get("text", "")).strip()
+                for source in sources
+            )
             dossier["intent"]["preferences"] = [
-                str(answer.get("value"))
-                for answer in (input_payload.get("answers", {}) or {}).values()
-                if isinstance(answer, dict) and answer.get("value") is not None
+                str(event.get("answer"))
+                for event in (input_payload.get("question_history", []) or [])
+                if isinstance(event, dict) and event.get("answer")
             ]
-            if not source_fact_refs:
+            if not has_personal_source:
                 dossier["subject"] = {}
                 dossier["facts"] = []
                 dossier["roles"] = []
@@ -320,27 +299,6 @@ class _MockModelClient:
                 parsed["user_summary"] = (
                     "The deterministic test client did not receive personal source material."
                 )
-            for fact in dossier.get("facts", []):
-                fact["source_refs"] = source_fact_refs
-            for collection in ("roles", "projects", "other_evidence"):
-                for entity in dossier.get(collection, []):
-                    entity["source_refs"] = source_fact_refs
-            dossier["source_coverage"] = [
-                {
-                    "span_id": span["id"],
-                    "disposition": (
-                        "fact"
-                        if document.get("source_kind") == "user_provided"
-                        else "intent_preference"
-                    ),
-                    "fact_ids": (
-                        [fact["id"] for fact in dossier.get("facts", [])]
-                        if document.get("source_kind") == "user_provided"
-                        else []
-                    ),
-                }
-                for document, span in spans
-            ]
         parsed_output = output_model.model_validate(parsed).model_dump(mode="json")
         return StructuredModelResult(
             parsed_output=parsed_output,

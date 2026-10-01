@@ -23,8 +23,8 @@ def test_active_routes_use_only_experiential_luna() -> None:
         "discovery", "understand_and_question", input_classification="sanitized"
     )
 
-    assert personal == ("experiential_luna",)
-    assert sanitized == ("experiential_luna",)
+    assert personal == ("experiential_luna_6",)
+    assert sanitized == ("experiential_luna_6",)
     assert settings.models.get_profile(personal[0]).api_key_env == "EXPLABS_API_KEY"
     assert settings.models.routing.selectable_profiles == []
     assert all(
@@ -41,8 +41,8 @@ def test_active_routes_use_only_experiential_luna() -> None:
 @pytest.mark.parametrize(
     ("engine", "operation", "profile", "model"),
     [
-        ("discovery", "understand_and_question", "experiential_luna", "gpt-5.6-luna"),
-        ("discovery", "build_or_revise_brief", "experiential_luna", "gpt-5.6-luna"),
+        ("discovery", "understand_and_question", "experiential_luna_6", "gpt-6-luna"),
+        ("discovery", "build_or_revise_brief", "experiential_luna_6", "gpt-6-luna"),
         ("content_architect", "plan_content", "experiential_luna_6", "gpt-6-luna"),
         ("content_architect", "write_pages", "experiential_luna_6", "gpt-6-luna"),
         ("content_architect", "integrate_content", "experiential_luna_6", "gpt-6-luna"),
@@ -62,7 +62,7 @@ def test_all_active_personal_operations_keep_experiential_as_primary(
     route = settings.models.routing.operation_route(engine, operation)
     assert route is not None
     assert route.fallback_profiles == []
-    assert route.recovery_allowance == 0
+    assert route.recovery_allowance == (1 if engine == "discovery" else 0)
     assert all(settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in names)
 
 
