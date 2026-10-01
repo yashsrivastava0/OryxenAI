@@ -4,7 +4,7 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
-### 2026-10-01 21:55 +05:30 — Claude Code (Anthropic) — [pending] — Preview removed from Content Architect
+### 2026-10-01 21:55 +05:30 — Claude Code (Anthropic) — [a21390c] — Preview removed from Content Architect
 
 Per the operator, previewing belongs only to the Code Generator. Removed the Live preview tab, the browser-side component and template-substitution helper (with its tests) and their styles from the Content review, which now shows the structured copy and the evidence and coverage inspector only. Moved the pinned `index.html` and `styles.css` fixture out of the served frontend folder into `docs/pinned-theme/` for the future Code Generator, so the app no longer serves it. Content Architect's output contract is unchanged (D-121 narrows D-118). Verified with the frontend typecheck and unit tests, lint, types, the full Python suite and a rebuilt bundle. No push or deployment.
 
