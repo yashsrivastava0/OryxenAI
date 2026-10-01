@@ -1,0 +1,52 @@
+{
+  "theme_id": "editorial-forest/v1",
+  "display_name": "Editorial Forest",
+  "contract_version": "ThemeContract/v1",
+  "stylesheet": "styles.css",
+  "capabilities": {
+    "javascript": false,
+    "generated_css": false
+  },
+  "hook_classes": [
+    "context-content__intro"
+  ],
+  "notes": "Released theme versions are immutable: never edit a listed file; ship v2 instead. styles.css is the LF-normalized reviewed reference stylesheet (the original CRLF file hashes to 3a643eee...). Fonts: Space Grotesk (SIL OFL 1.1, see LICENSE-fonts-OFL.txt), fontsource 5.3.0 latin subset.",
+  "files": [
+    {
+      "path": "assets/fonts/space-grotesk-400.woff2",
+      "sha256": "65fd17fcbd2e2f522940b5f67ead3d23329e02891aa5495e74d11a499c0b0673",
+      "bytes": 13388,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/fonts/space-grotesk-500.woff2",
+      "sha256": "1b1a8131d9edf975d9decee81e2f2bf504812f7a4f498e5500f28a613e22e64c",
+      "bytes": 13312,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/fonts/space-grotesk-600.woff2",
+      "sha256": "685bbbf69fa616df1ef81847c85fc76be097ddfb3468ff2257be54511ab3130f",
+      "bytes": 13284,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/fonts/space-grotesk-700.woff2",
+      "sha256": "35f8aec56cfd5cbfdb03cc68733a54a0b05bb3617ffcd5fd332badc0b045ca55",
+      "bytes": 12840,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/hero-visual.svg",
+      "sha256": "5f6ddf0cf27037ffa028d90c1a8b0d56e86b98489da53fc5cc6931ee0e39b319",
+      "bytes": 19183,
+      "media_type": "image/svg+xml"
+    },
+    {
+      "path": "styles.css",
+      "sha256": "a74260f29a014d4c28aa3cfc497094d4236194fafbbc476bc60177cf6bba612b",
+      "bytes": 34466,
+      "media_type": "text/css; charset=utf-8"
+    }
+  ]
+}
