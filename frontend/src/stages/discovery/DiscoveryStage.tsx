@@ -285,7 +285,7 @@ function DiscoveryReviewPanel({
         }
         secondaryLabel={!isApproved ? "Revise" : undefined}
         onSecondary={!isApproved ? () => setShowRevisionComposer(true) : undefined}
-        primaryLabel={isApproved ? "Start Content Architect" : "Approve & continue →"}
+        primaryLabel={isApproved ? "Start Content Architect" : "Approve & continue"}
         onPrimary={isApproved ? onStartNextStage : onApproveAndContinue}
         disabled={!canMutate || inFlight}
         busy={inFlight}
