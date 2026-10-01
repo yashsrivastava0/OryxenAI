@@ -49,6 +49,7 @@ class ModelCapabilities(BaseModel):
     # newer mode/TTL or content-block breakpoint fields.
     supports_prompt_cache_options: bool = False
     supports_prompt_cache_breakpoint: bool = False
+    supports_streaming: bool = False
 
 
 DEFAULT_OPENCODE_GO = ModelCapabilities(

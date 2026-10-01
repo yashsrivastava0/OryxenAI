@@ -24,6 +24,7 @@ from oryxenai.agents.discovery.schemas import (
     OperationMode,
 )
 from oryxenai.agents.discovery.state import (
+    apply_answers_in_progress,
     apply_brief_review,
     apply_brief_running,
     apply_needs_attention,
@@ -41,12 +42,14 @@ from oryxenai.agents.shared.providers.errors import (
     ProviderError,
     safe_operation_failure,
 )
+from oryxenai.auth.authorization import DurableAuthorizationContext
 from oryxenai.auth.worker_fence import WorkerAuthorizationFence
 from oryxenai.core.logging import get_logger
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.db.session import get_sessionmaker
 from oryxenai.jobs.contracts import JobStatus
 from oryxenai.jobs.repository import JobRepository
+from oryxenai.jobs.service import JobService
 
 logger = get_logger("oryxenai.jobs.handlers.discovery")
 
@@ -216,8 +219,7 @@ async def _execute_persisted(
             )
         running.attempt = attempt
         running.max_attempts = max_attempts
-        expected_revision = int(payload.get("expected_session_revision", session.revision))
-        saved = await repo.save_discovery_state(session_id, running, expected_revision)
+        saved = await repo.save_discovery_state(session_id, running, session.revision)
         if saved is None:
             raise ValueError("Discovery state revision changed before the worker started")
         await db.commit()
@@ -424,6 +426,31 @@ async def _apply_result(
                 assistant_message=result.output.get("assistant_message", ""),
                 memory_update=result.output.get("memory_update", {}) or {},
             )
+            if next_state.operation_a.mode is OperationMode.READY_FOR_BRIEF:
+                from oryxenai.agents.discovery.service import DiscoveryService
+
+                authorization = (
+                    DurableAuthorizationContext(
+                        portfolio_session_id=job.portfolio_session_id,
+                        owner_user_id=job.owner_user_id,
+                        actor_user_id=job.actor_user_id,
+                        authorization_context_version=1,
+                        entitlement_revision=job.entitlement_revision,
+                    )
+                    if job is not None and job.authorization_context_version == 1
+                    else None
+                )
+                service = DiscoveryService(repo, JobService(db, authorization))
+                next_state = apply_answers_in_progress(next_state)
+                followup, followup_job = await service._enqueue_followup_run(
+                    session_id,
+                    session,
+                    next_state,
+                    "build_or_revise_brief",
+                    request_id=str(payload.get("request_id", "") or ""),
+                    retry_nonce=0,
+                )
+                next_state = apply_brief_running(next_state, str(followup.id), str(followup_job.id))
         else:
             run = await repo.get_run(run_id)
             revision_request = ""

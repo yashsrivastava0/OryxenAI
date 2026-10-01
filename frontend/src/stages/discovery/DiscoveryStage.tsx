@@ -61,6 +61,7 @@ export function DiscoveryStage({
   // Attention / Error
   if (view.state === "attention") {
     return (
+      <>
       <AttentionPanel
         title="Discovery needs attention"
         summary={view.safeError?.summary || "An issue occurred while processing your discovery answers."}
@@ -69,6 +70,8 @@ export function DiscoveryStage({
         onRetry={onRetryDiscovery}
         errorDetails={view.safeError ?? undefined}
       />
+      {view.brief?.markdown && <section className="discovery-previous-brief" aria-label="Saved brief"><SafeMarkdown content={view.brief.markdown} /></section>}
+      </>
     );
   }
 
@@ -99,19 +102,30 @@ export function DiscoveryStage({
   }
 
   // Conversation questioning mode
+  const rawStatus = typeof view.raw === "object" && view.raw !== null && "status" in view.raw ? view.raw.status : "";
+  const workingPhase = view.brief?.markdown ? "revision" : rawStatus === "brief_running" ? "brief" : "questions";
   return (
+    <>
     <ConversationSurface
       questions={view.currentQuestions}
       history={history}
       isWorking={view.state === "working"}
       job={view.job}
       workingLabel={view.statusText}
+      workingPhase={workingPhase}
       disabled={!canMutate}
       onSubmitAnswer={onSubmitAnswer}
       onContinueWithCurrentInformation={onContinueWithCurrentInformation}
       onRetryStalled={onRetryDiscovery}
       onStop={onStopDiscovery}
     />
+    {view.state === "working" && view.brief?.markdown && (
+      <section className="discovery-previous-brief is-revising" aria-label="Saved brief while revision runs">
+        <p className="eyebrow">Previous brief · revision in progress</p>
+        <SafeMarkdown content={view.brief.markdown} />
+      </section>
+    )}
+    </>
   );
 }
 

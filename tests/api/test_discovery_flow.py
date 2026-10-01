@@ -14,6 +14,7 @@ import pytest
 from httpx import ASGITransport
 
 from oryxenai.agents.discovery.agent import DiscoveryAgent
+from oryxenai.agents.shared.contracts import AgentResult
 from oryxenai.agents.shared.providers.errors import ProviderTimeoutError
 from oryxenai.main import create_app
 from tests.conftest import _MockModelClient, install_test_identity
@@ -62,6 +63,56 @@ async def _start(client, sid: str, **overrides) -> dict:
     resp = await client.post(f"/api/v1/sessions/{sid}/discovery/start", json=body)
     assert resp.status_code == 202, resp.text
     return resp.json()
+
+
+async def test_ready_for_brief_queues_owned_followup(client, monkeypatch) -> None:
+    class _ReadyAgent:
+        async def run(self, context):
+            return AgentResult(
+                output={
+                    "mode": "READY_FOR_BRIEF",
+                    "assistant_message": "Preparing your brief.",
+                    "questions": [],
+                }
+            )
+
+    monkeypatch.setattr(
+        "oryxenai.jobs.handlers.discovery._build_discovery_agent",
+        lambda *args, **kwargs: _ReadyAgent(),
+    )
+    sid = await _create_session(client)
+    started = await _start(client, sid)
+    question_job_id = started["discovery"]["operation_a"]["job_id"]
+
+    # Claim the job exactly as the worker does so the owner/lease fence is real.
+    from oryxenai.jobs.handlers.discovery import DiscoveryUnderstandAndQuestionHandler
+    from oryxenai.jobs.repository import JobRepository
+
+    async with client._transport.app.state.sessionmaker() as db:
+        claimed = await JobRepository(db).claim_batch(
+            "test-worker",
+            120.0,
+            10,
+            allowed_job_kinds={"discovery.understand_and_question"},
+        )
+        await db.commit()
+    job = next(item for item in claimed if str(item.id) == question_job_id)
+    payload = dict(job.payload)
+    payload.update({"job_id": str(job.id), "attempt": job.attempt, "lease_token": job.lease_token})
+    await DiscoveryUnderstandAndQuestionHandler().execute(payload, "test-worker")
+
+    response = await client.get(f"/api/v1/sessions/{sid}/discovery")
+    assert response.status_code == 200
+    discovery = response.json()["discovery"]
+    assert discovery["status"] == "brief_running"
+
+    from oryxenai.jobs.service import JobService
+
+    async with client._transport.app.state.sessionmaker() as db:
+        followup = await JobService(db).get(UUID(discovery["brief"]["job_id"]))
+        assert followup is not None
+        assert followup.authorization_context_version == 1
+        assert followup.owner_user_id is not None
 
 
 async def _run_worker_job(
@@ -354,7 +405,9 @@ class TestFullHttpFlow:
             for request in model.requests
             if request.get("operation") == "build_or_revise_brief"
         )
-        assert set(brief_request["input_payload"]["answers"]) == set(question_ids)
+        assert {
+            event["answer"] for event in brief_request["input_payload"]["question_history"]
+        } == {"systems", "CTOs"}
 
     async def test_invalid_answer_batch_does_not_change_discovery(self, client):
         sid = await _create_session(client)

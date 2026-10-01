@@ -120,11 +120,10 @@ class BackgroundJob(Base):
             "execution_lane IS NULL OR execution_lane IN ('model-generation')",
             name="ck_background_jobs_execution_lane",
         ),
-        Index("ix_bgjobs_authorization", "portfolio_session_id", "owner_user_id", "actor_user_id"),
         Index(
-            "ux_bgjobs_running_execution_lane",
+            "ix_bgjobs_running_execution_lane",
             "execution_lane",
-            unique=True,
             postgresql_where=text("status = 'running' AND execution_lane IS NOT NULL"),
         ),
+        Index("ix_bgjobs_authorization", "portfolio_session_id", "owner_user_id", "actor_user_id"),
     )

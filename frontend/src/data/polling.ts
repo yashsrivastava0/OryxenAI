@@ -6,7 +6,7 @@
 // so this is testable in plain Node, matching the pattern already used by
 // src/oryxenai/auth/static/auth-runtime.mjs.
 
-const DEFAULT_INTERVAL_MS = 1500;
+const DEFAULT_INTERVAL_MS = 1000;
 const BACKOFF_STEPS_MS = [1500, 3000, 6000, 12000];
 const MAX_BACKOFF_MS = 15000;
 
@@ -96,11 +96,12 @@ export class PollCoordinator {
   }
 
   /** Subscribe a resource key to the poll cadence and fetch it immediately. */
-  subscribe(key: string, fetcher: PollFetcher): void {
+  subscribe(key: string, fetcher: PollFetcher, immediate = true): void {
     this.unsubscribe(key);
     const sub: Subscription = { fetcher, failureCount: 0, timer: null, inFlight: false };
     this.subscriptions.set(key, sub);
-    void this.runOnce(key, sub);
+    if (immediate) void this.runOnce(key, sub);
+    else this.scheduleNext(key, sub, this.intervalMs);
   }
 
   unsubscribe(key: string): void {

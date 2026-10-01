@@ -21,8 +21,11 @@ routes. The browser polls stage and durable-job status; it does not treat
 browser state as an authorization boundary.
 
 Discovery progresses through question queuing/running, answer collection,
-brief creation/review, and approval. Failures enter needs_attention and
-expose a safe recovery action. Brief revisions are allowed while under review.
+brief creation/review, and approval. When no questions are needed, the worker
+queues brief creation in the same transaction that saves the question result.
+Failures enter needs_attention and expose a safe recovery action. Brief
+revisions are allowed while under review, and a failed revision retry retains
+the user's revision request.
 
 Content Architect progresses through build_running, content_review, and
 approval, with needs_attention for terminal failures. Revisions rerun its
@@ -36,9 +39,11 @@ goal. It can ask focused questions, one at a time, before drafting the brief.
 The interface shows questions with the available answer options and lets the
 user provide a written answer or skip when allowed.
 
-The Discovery result includes a full editable Markdown brief, a user-facing
-summary, and a structured profile. The user can review, edit or request a
-revision, then explicitly approve the current brief.
+The Discovery result includes a Markdown brief, a user-facing summary, and a
+structured dossier and profile. The user can review or request a revision,
+then explicitly approve the current brief. The evidence inspector presents
+facts, roles, projects, open items, and explicit restrictions even when the
+dossier has no span-level coverage rows.
 
 ## 4. Content Architect review
 
@@ -53,7 +58,9 @@ are not part of the public content projection.
 
 ## 5. Errors and progress
 
-The UI reads durable stage state and job progress from the API. Retryable
+The UI reads durable stage state and job progress from the API. Discovery polls
+while work is active, shows elapsed time and whether a job is queued or
+running, and keeps an earlier brief visible during revision. Retryable
 provider or invalid-output failures follow the configured worker retry policy.
 When retries end, a safe error is shown with a recovery action. The client
 must not invent success from a request timeout or a stale poll response.

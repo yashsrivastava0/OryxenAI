@@ -185,10 +185,9 @@ export function AppShell({
     dispatch({ type: "connection/set", state: "checking" });
     const sessionId = state.sessionId;
 
-    const [sessionResult, discoveryResult, contentResult] = await Promise.allSettled([
+    const [sessionResult, discoveryResult] = await Promise.allSettled([
       api.getSession(sessionId),
       api.getDiscovery(sessionId),
-      api.getContentArchitect(sessionId),
     ]);
 
     if (sessionResult.status === "fulfilled") {
@@ -207,7 +206,10 @@ export function AppShell({
       dispatch({ type: "discovery/set", view });
     }
 
-    if (contentResult.status === "fulfilled") {
+    const contentResult = discoveryApproved
+      ? await Promise.allSettled([api.getContentArchitect(sessionId)]).then(([result]) => result)
+      : null;
+    if (contentResult?.status === "fulfilled") {
       inspectCacheReceipt("content_architect", contentResult.value);
       const view = adaptContentArchitect(
         contentResult.value.content_architect,
@@ -234,7 +236,7 @@ export function AppShell({
       }
     }
 
-    const results = [sessionResult, discoveryResult, contentResult];
+    const results = [sessionResult, discoveryResult, ...(contentResult ? [contentResult] : [])];
     dispatch({
       type: "connection/set",
       state: results.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
@@ -303,7 +305,7 @@ export function AppShell({
           dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
           throw error;
         }
-      });
+      }, false);
     } else poller.unsubscribe("discovery");
 
     if (state.content?.state === "working") {
@@ -326,7 +328,7 @@ export function AppShell({
           dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
           throw error;
         }
-      });
+      }, false);
     } else poller.unsubscribe("content_architect");
 
     return () => {
@@ -483,6 +485,18 @@ export function AppShell({
     if (!state.sessionId || !state.discovery) return;
     if (state.discovery.job?.status === "queued" || state.discovery.job?.status === "running") {
       await refetchCurrentSession();
+      return;
+    }
+    const rawBrief = typeof state.discovery.raw === "object" && state.discovery.raw !== null &&
+      "brief" in state.discovery.raw && typeof state.discovery.raw.brief === "object" && state.discovery.raw.brief !== null
+        ? state.discovery.raw.brief as Record<string, unknown> : {};
+    const savedRevision = typeof rawBrief.revision_request === "string" ? rawBrief.revision_request.trim() : "";
+    if (state.discovery.safeError?.retryOperation === "brief" && savedRevision) {
+      const result = await api.reviseDiscovery(state.sessionId, savedRevision);
+      inspectCacheReceipt("discovery", result);
+      dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+      notifyMutation(state.sessionId);
       return;
     }
     const rawQuestions =

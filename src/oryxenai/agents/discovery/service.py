@@ -103,6 +103,15 @@ class DiscoveryService:
         state = await self._repository.get_discovery_state(session_id)
 
         state = await self._recover_failed_question_job(state)
+        if (
+            sum(len(value or "") for value in (message, document_text, goal, source_text))
+            > self._settings.discovery.max_input_chars
+        ):
+            raise DiscoveryOperationError(
+                "DISCOVERY_INPUT_TOO_LARGE",
+                "The supplied material is too long. Shorten it and try again.",
+                status_code=413,
+            )
 
         if state.status not in {
             DiscoveryStatus.NOT_STARTED,
@@ -200,6 +209,7 @@ class DiscoveryService:
             },
             idempotency_scope=f"discovery:{session_id}",
             idempotency_key=key,
+            max_attempts=self._settings.worker_retry.agent_job_max_attempts,
         )
 
         queued = apply_start(state)
@@ -240,6 +250,12 @@ class DiscoveryService:
         active_questions = {item.id: item for item in state.operation_a.items}
         seen_question_ids: set[str] = set()
         for answer in answers:
+            if len(str(answer.value or "")) > self._settings.discovery.max_answer_chars:
+                raise DiscoveryOperationError(
+                    "DISCOVERY_ANSWER_TOO_LARGE",
+                    "An answer is too long. Shorten it and try again.",
+                    status_code=413,
+                )
             question_id = answer.question_id
             if not question_id or question_id not in active_questions:
                 raise DiscoveryOperationError(
@@ -367,6 +383,11 @@ class DiscoveryService:
                 operation,
                 request_id=request_id,
                 retry_nonce=retry_nonce,
+                revision_request=(
+                    state.brief.revision_request
+                    if state.status is DiscoveryStatus.NEEDS_ATTENTION and state.brief.markdown
+                    else ""
+                ),
             )
             if operation == "build_or_revise_brief":
                 next_state = apply_brief_running(next_state, str(run.id), str(job.id))
@@ -471,6 +492,7 @@ class DiscoveryService:
             },
             idempotency_scope=f"discovery:{session_id}",
             idempotency_key=key,
+            max_attempts=self._settings.worker_retry.agent_job_max_attempts,
         )
         return run, job
 
@@ -488,7 +510,14 @@ class DiscoveryService:
         """
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
-        if state.status is not DiscoveryStatus.BRIEF_REVIEW or not state.brief.markdown.strip():
+        if (
+            state.status
+            not in {
+                DiscoveryStatus.BRIEF_REVIEW,
+                DiscoveryStatus.NEEDS_ATTENTION,
+            }
+            or not state.brief.markdown.strip()
+        ):
             self._not_ready("revise", state.status.value)
         revision_request = (revision_request or "").strip()
         if not revision_request:
@@ -547,9 +576,11 @@ class DiscoveryService:
             },
             idempotency_scope=f"discovery:{session_id}",
             idempotency_key=key,
+            max_attempts=self._settings.worker_retry.agent_job_max_attempts,
         )
 
         running = apply_brief_running(state, str(run.id), str(job.id))
+        running.brief.revision_request = revision_request
         running.routing_policy_version = str(policy_snapshot["version"])
         running.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
         running.attempt = 0

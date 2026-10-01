@@ -47,6 +47,34 @@ class _FailingClient(_FakeClient):
         raise self.error
 
 
+@pytest.mark.asyncio
+async def test_discovery_retries_once_on_same_configured_route() -> None:
+    runtime = ModelRuntime(get_settings().models)
+    ledger = ModelUsageLedger()
+
+    class FlakyClient(_FakeClient):
+        async def generate_structured(self, **kwargs: object) -> StructuredModelResult:
+            self.calls += 1
+            self.requests.append(dict(kwargs))
+            if self.calls == 1:
+                raise ProviderConnectionError()
+            return self.result
+
+    provider = FlakyClient()
+    runtime.resolve_profile_client = lambda _name: provider  # type: ignore[method-assign]
+    client = RoutedModelClient(runtime, "discovery", usage_ledger=ledger)
+    result = await client.generate_structured(
+        operation="understand_and_question",
+        instructions="Return an object.",
+        input_payload={"value": "synthetic"},
+        output_model=_Output,
+    )
+    assert result.parsed_output == {"ok": True}
+    assert provider.calls == 2
+    assert provider.requests[0]["model_profile"] == provider.requests[1]["model_profile"]
+    assert client.budget.recovery_used == 1
+
+
 def _runtime_with_legacy_fallbacks() -> ModelRuntime:
     """Exercise generic fallback mechanics without changing active routes."""
     config = get_settings().models.model_copy(deep=True)
@@ -83,6 +111,7 @@ async def test_capacity_rejection_uses_one_shared_fallback_without_provider_call
     fallback = _FakeClient()
     clients = {
         "experiential_luna": primary,
+        "experiential_luna_6": primary,
         "gemini_flash_lite_1": fallback,
         "gemini_flash_lite_2": fallback,
         "gemini_flash_lite_3": fallback,
@@ -94,7 +123,7 @@ async def test_capacity_rejection_uses_one_shared_fallback_without_provider_call
     async def reserve(**kwargs: object) -> str:
         route = kwargs["route"]
         profile_name = route.profile_name
-        if profile_name == "experiential_luna":
+        if profile_name == "experiential_luna_6":
             error = ModelCapacityUnavailableError()
             raise error
         reservations.append(profile_name)
@@ -135,6 +164,7 @@ async def test_usage_persistence_failure_is_terminal_and_never_rotates_provider(
     ledger = ModelUsageLedger()
     clients = {
         "experiential_luna": _FakeClient(),
+        "experiential_luna_6": _FakeClient(),
         "gemini_flash_lite_1": _FakeClient(),
         "gemini_flash_lite_2": _FakeClient(),
         "gemini_flash_lite_3": _FakeClient(),
@@ -173,6 +203,7 @@ async def test_usage_settlement_failure_is_terminal_after_provider_response() ->
     fallback = _FakeClient()
     runtime.resolve_profile_client = lambda name: {
         "experiential_luna": primary,
+        "experiential_luna_6": primary,
         "gemini_flash_lite_1": fallback,
         "gemini_flash_lite_2": fallback,
         "gemini_flash_lite_3": fallback,
@@ -209,6 +240,7 @@ async def test_primary_auth_failure_uses_gemini_fallback_for_personal_input() ->
     fallback = _FakeClient()
     runtime.resolve_profile_client = lambda name: {
         "experiential_luna": primary,
+        "experiential_luna_6": primary,
         "gemini_flash_1": fallback,
         "gemini_flash_2": fallback,
         "gemini_flash_3": fallback,
@@ -331,6 +363,7 @@ async def test_exhausted_provider_attempts_keep_original_failure_terminal() -> N
     fallback = _FailingClient(ProviderConnectionError())
     runtime.resolve_profile_client = lambda name: {
         "experiential_luna": primary,
+        "experiential_luna_6": primary,
         "gemini_flash_lite_1": fallback,
         "gemini_flash_lite_2": fallback,
         "gemini_flash_lite_3": fallback,
@@ -364,7 +397,7 @@ async def test_primary_configuration_failure_uses_gemini_fallback() -> None:
     fallback = _FakeClient()
 
     def resolve_profile(name: str) -> _FakeClient:
-        if name == "experiential_luna":
+        if name == "experiential_luna_6":
             raise ProviderConfigError("EXPLABS_API_KEY is unavailable")
         return fallback
 

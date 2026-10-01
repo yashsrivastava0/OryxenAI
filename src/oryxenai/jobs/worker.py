@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 import signal
 import uuid
 from datetime import UTC, datetime
@@ -130,6 +131,23 @@ class Worker:
         self._sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
         self._model_runtime.attach_sessionmaker(self._sessionmaker)
         logger.info("worker instance=%s starting", self._instance_id)
+        route_name = self._model_runtime.policy_profile_name("discovery", "understand_and_question")
+        profile = self._settings.models.get_profile(route_name)
+        key_ready = bool(profile and profile.api_key_env and os.environ.get(profile.api_key_env))
+        base_ready = bool(
+            profile
+            and (
+                profile.base_url or (profile.base_url_env and os.environ.get(profile.base_url_env))
+            )
+        )
+        logger.info(
+            "discovery model route=%s credential_present=%s base_url_present=%s",
+            route_name,
+            key_ready,
+            base_ready,
+        )
+        if not key_ready or not base_ready:
+            logger.error("discovery model route is not ready for live requests")
 
         await self._init_heartbeat()
 
@@ -216,10 +234,7 @@ class Worker:
                     await asyncio.sleep(self._settings.worker.polling_interval)
                     continue
                 recovered = await self._recover_stale(capacity)
-                claimed = await self._claim_due(max(0, capacity - len(recovered)))
                 for job in recovered:
-                    self._dispatch(job)
-                for job in claimed:
                     self._dispatch(job)
             except Exception as exc:
                 logger.warning("worker poll transient error=%s", type(exc).__name__)
@@ -241,6 +256,7 @@ class Worker:
                 ),
                 allowed_job_kinds=allowed_job_kinds,
                 foreground_job_kinds=foreground_job_kinds(),
+                model_lane_concurrency=self._settings.worker.model_lane_concurrency,
             )
             await session.commit()
         return jobs
@@ -265,8 +281,8 @@ class Worker:
                 foreground_job_kinds=foreground_job_kinds(),
             )
             await session.commit()
-        # Requeue before claiming so a fresh foreground request can take the
-        # unique model-generation lane before an abandoned job is dispatched.
+        # Requeue before claiming so a fresh foreground request can take a
+        # model-generation lane slot before an abandoned job is dispatched.
         return await self._claim_due(limit)
 
     # ── dispatch ───────────────────────────────────────────────────────────

@@ -9,10 +9,11 @@ def test_settings_worker_config():
     """Settings loads worker config from default config/app.toml."""
     reset_settings()
     s = Settings()
-    assert s.worker.polling_interval == 2.0
+    assert s.worker.polling_interval == 0.5
+    assert s.worker.model_lane_concurrency == 4
     assert s.worker.heartbeat_interval == 30.0
     assert s.worker.claim_batch_size == 5
-    assert s.worker.concurrency == 2
+    assert s.worker.concurrency == 4
     assert s.worker.shutdown_grace == 10.0
 
 

@@ -577,7 +577,8 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
   const failedJob = job?.status === "failed" || job?.status === "cancelled";
   const renderedState: StageState = failedJob ? "attention" : effectiveState;
   const brief =
-    status === "brief_review" || status === "approved"
+    status === "brief_review" || status === "approved" ||
+    ((status === "brief_running" || status === "needs_attention") && Boolean(briefState.markdown))
       ? {
           title: typeof briefState.title === "string" ? briefState.title : "",
           markdown: typeof briefState.markdown === "string" ? briefState.markdown : "",

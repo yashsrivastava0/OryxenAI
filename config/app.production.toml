@@ -22,7 +22,8 @@ primary_origin = "https://<APP_HOST>"
 allowed_origins = ["https://<APP_HOST>"]
 
 [worker]
-concurrency = 1
+concurrency = 4
+model_lane_concurrency = 4
 
 [artifact_storage]
 # Preserve the configured provider boundary for deletion of historical typed

@@ -305,6 +305,7 @@ class ModelUsageLedger:
             return
         try:
             from sqlalchemy import select
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
 
             from oryxenai.db.models.model_usage import (
                 ModelBudgetReservation,
@@ -336,7 +337,7 @@ class ModelUsageLedger:
                         input_classification=context.input_classification,
                         input_fingerprint=str(context.metadata.get("input_fingerprint", "") or ""),
                         normal_calls=int(context.metadata.get("normal_calls", 1) or 1),
-                        recovery_allowance=int(context.metadata.get("recovery_allowance", 1) or 1),
+                        recovery_allowance=int(context.metadata.get("recovery_allowance", 0)),
                         policy_snapshot={
                             "input_classification": context.input_classification,
                             "routing_policy_version": context.routing_policy_version,
@@ -384,6 +385,24 @@ class ModelUsageLedger:
                     request_units,
                     token_units,
                 ) in _quota_windows(now, input_reserved):
+                    # Concurrent jobs share one row per window. Create it with
+                    # ON CONFLICT DO NOTHING so the first reservation of a new
+                    # window cannot fail a parallel job with a unique violation,
+                    # then lock the surviving row.
+                    await db.execute(
+                        pg_insert(ModelCapacityWindow)
+                        .values(
+                            capacity_source_id=str(event["capacity_source_id"]),
+                            provider=str(event["provider"]),
+                            model=str(event["model"]),
+                            quota_group=str(event["quota_group"]),
+                            window_kind=window_kind,
+                            window_start=window_start,
+                            window_end=window_end,
+                            confidence="unknown",
+                        )
+                        .on_conflict_do_nothing(constraint="ux_model_capacity_window_key")
+                    )
                     window = (
                         await db.execute(
                             select(ModelCapacityWindow)
@@ -395,21 +414,9 @@ class ModelUsageLedger:
                                 ModelCapacityWindow.window_start == window_start,
                             )
                             .with_for_update()
+                            .execution_options(populate_existing=True)
                         )
-                    ).scalar_one_or_none()
-                    if window is None:
-                        window = ModelCapacityWindow(
-                            capacity_source_id=str(event["capacity_source_id"]),
-                            provider=str(event["provider"]),
-                            model=str(event["model"]),
-                            quota_group=str(event["quota_group"]),
-                            window_kind=window_kind,
-                            window_start=window_start,
-                            window_end=window_end,
-                            confidence="unknown",
-                        )
-                        db.add(window)
-                        await db.flush()
+                    ).scalar_one()
                     request_limit = window.request_limit
                     token_limit = window.input_token_limit
                     daily_limit = window.daily_request_limit
