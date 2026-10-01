@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { adaptContentArchitect } from "./content";
+import { adaptContentArchitect, pageContentIsEmpty } from "./content";
 import {
   contentFixtureNotStarted,
   contentFixtureBuildRunning,
@@ -27,17 +27,32 @@ describe("adaptContentArchitect", () => {
     expect(view.statusText).toBe("Structuring your portfolio content");
   });
 
-  it("maps content_review to review and extracts structured sections", () => {
+  it("maps content_review to review and extracts the page content tree", () => {
     const view = adaptContentArchitect(contentFixtureReview, true);
     expect(view.state).toBe("review");
-    expect(view.routePlan.length).toBe(2);
-    expect(view.routePlan[0]?.path).toBe("/");
-    expect(view.routePlan[1]?.routeId).toBe("route_case_study_queueguard");
-    expect(view.pageContentPacks.length).toBe(1);
-    expect(view.pageContentPacks[0]?.sections[0]?.sectionId).toBe("hero");
+    expect(view.positioning).toBe("Staff-level infrastructure engineer leading reliability at scale.");
+    expect(view.pageContent.hero.name).toBe("Priya Nandan");
+    expect(view.pageContent.hero.headlineEmphasis).toBe("never lose a message.");
+    expect(view.pageContent.systemsPractice.pillars).toHaveLength(4);
+    expect(view.pageContent.technicalCapabilities.groups[1]?.items).toContain("Kafka");
+    expect(view.pageContent.professionalContext.organizations).toEqual(["Example Systems", "Northwind Labs"]);
+    expect(view.pageContent.connect.destinations.filter((d) => d.featured)).toHaveLength(2);
+    expect(view.claimGrounding[0]?.fieldPaths).toEqual(["systems_practice.pillars[0].description"]);
+    expect(view.claimGrounding[1]?.publicationStatus).toBe("pending");
+    expect(view.coverageLedger.map((e) => e.disposition)).toEqual(["used", "unresolved"]);
     expect(view.decisionBasis.length).toBe(1);
     expect(view.warnings).toContain("Omitted internal employer metrics per privacy policy.");
     expect(view.safeError).toBeNull();
+  });
+
+  it("degrades to an empty page for legacy or malformed content without throwing", () => {
+    const view = adaptContentArchitect(
+      { status: "content_review", page_content: { hero: "oops", systems_practice: { pillars: [1, null] } } },
+      true,
+    );
+    expect(view.state).toBe("review");
+    expect(pageContentIsEmpty(view.pageContent)).toBe(true);
+    expect(view.pageContent.systemsPractice.pillars).toEqual([]);
   });
 
   it("maps approved to complete", () => {

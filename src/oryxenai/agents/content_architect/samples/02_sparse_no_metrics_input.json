@@ -1,70 +1,152 @@
 {
   "operation": "build",
   "intake": {
-    "approved_brief_title": "Portfolio Discovery Brief — Sam Okafor",
-    "user_summary": "Sam is a new graduate with two small projects and no available metrics. The brief recommends a single honest page rather than a padded multi-page site.",
+    "approved_brief_title": "Portfolio Discovery Brief — Arjun Mehta",
+    "user_summary": "Early-career student with one team course project and no metrics.",
     "profile": {
-      "name": "Sam Okafor",
-      "current_title": "Computer Science Graduate",
-      "location": "",
-      "links": [
+      "name": "Arjun Mehta",
+      "current_title": "Computer Science student"
+    },
+    "dossier": {
+      "contract_version": "DiscoveryDossier/v1",
+      "id": "dossier-arjun",
+      "intent": {
+        "goal": "Backend internships",
+        "audience": "Hiring managers",
+        "visitor_action": "Get in touch",
+        "language": "en",
+        "preferences": [],
+        "basis": {},
+        "basis_refs": {}
+      },
+      "subject": {
+        "name": "Arjun Mehta",
+        "current_title": "Computer Science student",
+        "location": "Pune, India",
+        "links": [
+          {
+            "label": "GitHub",
+            "url": "https://github.com/arjunmehta-dev"
+          }
+        ],
+        "source_refs": []
+      },
+      "facts": [
         {
-          "label": "GitHub",
-          "url": "https://github.com/samokafor"
-        }
-      ],
-      "experience": [],
-      "education": [
-        {
-          "institution": "State University",
-          "credential": "B.S. Computer Science",
-          "dates": "2021-2025"
-        }
-      ],
-      "projects": [
-        {
-          "name": "Campus Event Finder",
-          "summary": "A group course project to search and filter campus events.",
-          "contribution": "Built the search and filtering feature.",
-          "tech": [
-            "JavaScript",
-            "React"
-          ],
-          "link": ""
+          "id": "g1",
+          "category": "education",
+          "statement": "Studying B.Sc. Computer Science at State University, graduating 2027.",
+          "original_wording": "Studying B.Sc. Computer Science at State University, graduating 2027.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
         },
         {
-          "name": "Habit Tracker",
-          "summary": "A personal habit-tracking app.",
-          "contribution": "Solo-built, not deployed publicly.",
-          "tech": [
-            "Python",
-            "SQLite"
-          ],
-          "link": "https://github.com/samokafor/habit-tracker"
+          "id": "g2",
+          "category": "project",
+          "statement": "Worked on a three-person course project building a library catalog app.",
+          "original_wording": "Worked on a three-person course project building a library catalog app.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "team",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "g3",
+          "category": "skills",
+          "statement": "Comfortable with Python, Java, and SQL.",
+          "original_wording": "Comfortable with Python, Java, and SQL.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "g4",
+          "category": "goal",
+          "statement": "Looking for backend internships.",
+          "original_wording": "Looking for backend internships.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "user_confirmed",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "g5",
+          "category": "project",
+          "statement": "Says they built the catalog search, but the split of work is unclear.",
+          "original_wording": "Says they built the catalog search, but the split of work is unclear.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "unknown",
+          "status": "conflicting",
+          "supersedes_ref": ""
         }
       ],
-      "skills": [
-        "JavaScript",
-        "React",
-        "Python",
-        "SQL"
+      "roles": [],
+      "projects": [
+        {
+          "id": "p1",
+          "name": "Library catalog app",
+          "problem": "A course assignment to catalog and search books.",
+          "personal_contribution": "",
+          "team_contribution": "Built by a team of three.",
+          "approach": [],
+          "tools": [
+            "Python",
+            "SQL"
+          ],
+          "outcomes": [],
+          "links": [],
+          "fact_ids": [
+            "g2",
+            "g5"
+          ],
+          "source_refs": []
+        }
       ],
-      "spoken_languages": [],
-      "private_omitted": []
+      "other_evidence": [
+        {
+          "id": "e1",
+          "category": "education",
+          "title": "State University",
+          "detail": "B.Sc. Computer Science, expected 2027.",
+          "fact_ids": [
+            "g1"
+          ],
+          "source_refs": []
+        }
+      ],
+      "open_items": [
+        {
+          "id": "o1",
+          "detail": "Which parts of the catalog app Arjun built personally.",
+          "importance": "important",
+          "status": "open",
+          "safe_wording": "Contributed to a team course project.",
+          "affected_ids": [
+            "g5"
+          ],
+          "source_refs": []
+        }
+      ],
+      "user_choices": [],
+      "restrictions": [],
+      "source_coverage": [],
+      "question_events": [],
+      "lineage": {
+        "version": 1,
+        "schema_version": "DiscoveryDossier/v1"
+      }
     },
     "open_items": [
-      "no metrics available for either project",
-      "team scope of Campus Event Finder unclear"
-    ],
-    "discovery_brief_hash": "sha256:example-sparse-no-metrics",
-    "discovery_session_revision": 2
+      "Which parts of the catalog app Arjun built personally."
+    ]
   },
-  "preferences": {
-    "goal": "Get a first junior developer role",
-    "audience": "Junior/entry-level hiring managers",
-    "tone": "honest, approachable",
-    "density": "light"
-  },
-  "prior_output": {},
-  "revision_request": ""
+  "preferences": {}
 }

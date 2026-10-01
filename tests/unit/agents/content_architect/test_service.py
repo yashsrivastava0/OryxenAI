@@ -40,12 +40,16 @@ class TestElapsedSeconds:
 
 class TestContentHash:
     def test_deterministic_for_same_content(self):
-        packs = [{"route_id": "home", "blocks": []}]
-        manifest = {"nav": []}
-        assert _content_hash(packs, manifest) == _content_hash(packs, manifest)
+        page = {"hero": {"name": "A"}}
+        assert _content_hash(page) == _content_hash(page)
 
     def test_differs_for_different_content(self):
-        assert _content_hash([{"a": 1}], {}) != _content_hash([{"a": 2}], {})
+        assert _content_hash({"a": 1}) != _content_hash({"a": 2})
+
+    def test_claims_and_coverage_are_part_of_the_hash(self):
+        base = _content_hash({"a": 1}, claim_grounding=[], coverage_ledger=[])
+        assert base != _content_hash({"a": 1}, claim_grounding=[{"claim_id": "c"}])
+        assert base != _content_hash({"a": 1}, coverage_ledger=[{"source_id": "fact/1"}])
 
 
 def test_approved_discovery_dossier_is_snapshotted_without_loss():

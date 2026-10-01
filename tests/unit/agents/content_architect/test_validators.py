@@ -2,63 +2,19 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from oryxenai.agents.content_architect.validators import validate_stage_output
+from tests.unit.agents.content_architect.helpers import claim, valid_page
 
 
-def _route(**overrides: object) -> dict[str, object]:
-    base: dict[str, object] = {
-        "route_id": "home",
-        "path": "/",
-        "purpose": "Home page",
-        "publication_status": "approved",
-    }
-    base.update(overrides)
-    return base
-
-
-def _claim(**overrides: object) -> dict[str, object]:
-    base: dict[str, object] = {
-        "claim_id": "c1",
-        "statement": "Did a thing",
-        "source_reference": "profile.projects[0]",
-        "evidence_status": "verified",
-        "ownership": "individual",
-        "publication_status": "approved",
-    }
-    base.update(overrides)
-    return base
-
-
-def _section(**overrides: object) -> dict[str, object]:
-    base: dict[str, object] = {
-        "section_id": "hero",
-        "purpose": "Intro",
-        "content": {"text": "hello"},
-        "claim_ids": [],
-    }
-    base.update(overrides)
-    return base
-
-
-def _pack(**overrides: object) -> dict[str, object]:
-    base: dict[str, object] = {
-        "route_id": "home",
-        "sections": [_section()],
-        "internal_notes": {},
-    }
-    base.update(overrides)
-    return base
-
-
-def _plan_content_single_page(**overrides: object) -> dict[str, object]:
-    base: dict[str, object] = {
+def _plan_with_content(**overrides: Any) -> dict[str, Any]:
+    base: dict[str, Any] = {
         "mode": "STRATEGY_AND_CONTENT",
         "content_included": True,
         "site_story_strategy": {"positioning": "x"},
-        "route_plan": [_route()],
-        "claim_grounding": [_claim()],
-        "page_content_packs": [_pack()],
-        "public_content_manifest": {"nav": []},
+        "claim_grounding": [claim()],
+        "page_content": valid_page(),
     }
     base.update(overrides)
     return base
@@ -66,7 +22,7 @@ def _plan_content_single_page(**overrides: object) -> dict[str, object]:
 
 class TestValidatePlanContent:
     def test_valid_single_page_with_content(self):
-        outcome = validate_stage_output(_plan_content_single_page(), "plan_content")
+        outcome = validate_stage_output(_plan_with_content(), "plan_content")
         assert outcome.is_valid
         assert outcome.errors == []
 
@@ -76,492 +32,268 @@ class TestValidatePlanContent:
                 "mode": "STRATEGY_ONLY",
                 "content_included": False,
                 "site_story_strategy": {"positioning": "x"},
-                "route_plan": [_route(), _route(route_id="about", path="/about")],
             },
             "plan_content",
         )
         assert outcome.is_valid
 
     def test_mode_must_match_operation(self):
-        outcome = validate_stage_output(
-            {**_plan_content_single_page(), "mode": "PAGES_READY"}, "plan_content"
-        )
+        outcome = validate_stage_output(_plan_with_content(mode="PAGES_READY"), "plan_content")
         assert not outcome.is_valid
-        assert any("'mode' must be one of" in error for error in outcome.errors)
+        assert any("'mode'" in e for e in outcome.errors)
 
     def test_content_included_inconsistent_with_mode(self):
         outcome = validate_stage_output(
-            {**_plan_content_single_page(), "mode": "STRATEGY_ONLY"}, "plan_content"
-        )
-        assert not outcome.is_valid
-        assert any("inconsistent with content_included" in error for error in outcome.errors)
-
-    def test_empty_route_plan_rejected(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "site_story_strategy": {"positioning": "x"},
-                "route_plan": [],
-            },
+            _plan_with_content(mode="STRATEGY_ONLY"),
             "plan_content",
         )
         assert not outcome.is_valid
-        assert any("'route_plan' must not be empty" in error for error in outcome.errors)
+        assert any("inconsistent" in e for e in outcome.errors)
 
     def test_empty_strategy_rejected(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "site_story_strategy": {},
-                "route_plan": [_route()],
-            },
-            "plan_content",
-        )
+        outcome = validate_stage_output(_plan_with_content(site_story_strategy={}), "plan_content")
         assert not outcome.is_valid
-        assert any("'site_story_strategy' must not be empty" in error for error in outcome.errors)
+        assert any("site_story_strategy" in e for e in outcome.errors)
 
-    def test_content_included_true_requires_content(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_AND_CONTENT",
-                "content_included": True,
-                "site_story_strategy": {"positioning": "x"},
-                "route_plan": [_route()],
-                "page_content_packs": [],
-                "public_content_manifest": {},
-            },
-            "plan_content",
-        )
+    def test_content_included_true_requires_page_content(self):
+        payload = _plan_with_content()
+        del payload["page_content"]
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any("'page_content_packs' must not be empty" in error for error in outcome.errors)
-        assert any(
-            "'public_content_manifest' must not be empty" in error for error in outcome.errors
-        )
+        assert any("page_content" in e for e in outcome.errors)
 
-    def test_content_included_requires_one_pack_for_each_active_route(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "route_plan": [_route(), _route(route_id="about", path="/about")],
-            },
-            "plan_content",
-        )
+    def test_incomplete_page_is_a_readiness_concern_not_a_validation_error(self):
+        """Completeness (e.g. four pillars) is repaired by the agent, not rejected here."""
+        payload = _plan_with_content()
+        payload["page_content"]["systems_practice"]["pillars"] = []
+        assert validate_stage_output(payload, "plan_content").is_valid
+
+    def test_wrong_scalar_type_in_page_rejected(self):
+        payload = _plan_with_content()
+        payload["page_content"]["hero"]["name"] = 123
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any(
-            "about" in error and "complete page content pack" in error for error in outcome.errors
-        )
+        assert any("hero.name" in e for e in outcome.errors)
 
-    def test_content_included_requires_declared_sections_in_order(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "route_plan": [_route(section_sequence=["hero", "about"])],
-                "page_content_packs": [
-                    _pack(sections=[_section(), _section(section_id="contact")])
-                ],
-            },
-            "plan_content",
-        )
+    def test_page_regions_must_be_objects(self):
+        payload = _plan_with_content()
+        payload["page_content"]["hero"] = "Mock User"
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any(
-            "sections must exactly match section_sequence" in error for error in outcome.errors
-        )
+        assert any("hero must be an object" in e for e in outcome.errors)
 
-    def test_content_included_rejects_empty_visitor_facing_section(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [_pack(sections=[_section(content={})])],
-            },
-            "plan_content",
-        )
+    def test_pillars_must_be_objects(self):
+        payload = _plan_with_content()
+        payload["page_content"]["systems_practice"]["pillars"] = ["a", "b", "c", "d"]
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any("no visitor-facing content" in error for error in outcome.errors)
 
-    def test_large_route_count_is_not_a_validation_error(self):
-        """A long route plan is a fact about the input, not a shape defect.
-
-        The agent enforces its configured route ceiling after validation.
-        Keeping this structural validator independent of deployment policy
-        makes the producer error actionable without redefining valid output
-        shape.
-        """
-        routes = [_route(route_id=f"r{i}", path=f"/{i}") for i in range(20)]
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "site_story_strategy": {"positioning": "x"},
-                "route_plan": routes,
-            },
-            "plan_content",
-        )
-        assert outcome.is_valid
-
-    def test_duplicate_route_ids_rejected(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "site_story_strategy": {"positioning": "x"},
-                "route_plan": [_route(), _route()],
-            },
-            "plan_content",
-        )
+    def test_group_items_must_be_strings(self):
+        payload = _plan_with_content()
+        payload["page_content"]["technical_capabilities"]["groups"][0]["items"] = [1, 2]
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any("Duplicate route_id" in error for error in outcome.errors)
-
-    def test_route_missing_path_rejected(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "site_story_strategy": {"positioning": "x"},
-                "route_plan": [_route(path="")],
-            },
-            "plan_content",
-        )
-        assert not outcome.is_valid
-        assert any("has no path" in error for error in outcome.errors)
-
-    def test_invalid_route_publication_status_rejected(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "site_story_strategy": {"positioning": "x"},
-                "route_plan": [_route(publication_status="maybe")],
-            },
-            "plan_content",
-        )
-        assert not outcome.is_valid
-        assert any("invalid publication_status" in error for error in outcome.errors)
 
     def test_verified_claim_without_source_rejected(self):
         outcome = validate_stage_output(
-            {**_plan_content_single_page(), "claim_grounding": [_claim(source_reference="")]},
+            _plan_with_content(claim_grounding=[claim() | {"source_reference": ""}]),
             "plan_content",
         )
         assert not outcome.is_valid
-        assert any("has no source_reference" in error for error in outcome.errors)
+        assert any("no source_reference" in e for e in outcome.errors)
 
     def test_unresolved_claim_without_source_accepted(self):
+        unresolved = claim() | {"evidence_status": "unresolved", "source_reference": ""}
         outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "claim_grounding": [_claim(evidence_status="unresolved", source_reference="")],
-            },
-            "plan_content",
+            _plan_with_content(claim_grounding=[unresolved]), "plan_content"
         )
         assert outcome.is_valid
 
     def test_duplicate_claim_ids_rejected(self):
         outcome = validate_stage_output(
-            {**_plan_content_single_page(), "claim_grounding": [_claim(), _claim()]},
-            "plan_content",
+            _plan_with_content(claim_grounding=[claim("c1"), claim("c1")]), "plan_content"
         )
         assert not outcome.is_valid
-        assert any("Duplicate claim_id" in error for error in outcome.errors)
+        assert any("Duplicate claim_id" in e for e in outcome.errors)
 
-    def test_invalid_evidence_status_rejected(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "claim_grounding": [_claim(evidence_status="team_outcome")],
-            },
-            "plan_content",
-        )
-        assert not outcome.is_valid
-        assert any("invalid evidence_status" in error for error in outcome.errors)
+    def test_invalid_enums_rejected(self):
+        for field, value in (
+            ("evidence_status", "mostly"),
+            ("ownership", "everyone"),
+            ("publication_status", "maybe"),
+        ):
+            outcome = validate_stage_output(
+                _plan_with_content(claim_grounding=[claim() | {field: value}]), "plan_content"
+            )
+            assert not outcome.is_valid, field
 
-    def test_invalid_ownership_rejected(self):
+    def test_claim_field_paths_must_be_strings(self):
         outcome = validate_stage_output(
-            {**_plan_content_single_page(), "claim_grounding": [_claim(ownership="solo")]},
-            "plan_content",
+            _plan_with_content(claim_grounding=[claim() | {"field_paths": [1]}]), "plan_content"
         )
         assert not outcome.is_valid
-        assert any("invalid ownership" in error for error in outcome.errors)
 
-    def test_invalid_claim_publication_status_rejected(self):
+    def test_claim_with_unknown_key_rejected(self):
         outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "claim_grounding": [_claim(publication_status="maybe")],
-            },
+            _plan_with_content(claim_grounding=[claim() | {"section_ids": ["hero"]}]),
             "plan_content",
         )
         assert not outcome.is_valid
-        assert any("invalid publication_status" in error for error in outcome.errors)
 
 
 class TestPublicationGating:
-    def test_blocked_route_referenced_in_page_content_packs_rejected(self):
+    def test_blocked_claim_bound_to_field_rejected(self):
+        blocked = claim("c9", publication_status="blocked", field_paths=["hero.intro"])
         outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "route_plan": [_route(publication_status="blocked")],
-            },
-            "plan_content",
+            _plan_with_content(claim_grounding=[blocked]), "plan_content"
         )
         assert not outcome.is_valid
-        assert any("blocked route_id" in error for error in outcome.errors)
+        assert any("blocked claim" in e for e in outcome.errors)
 
-    def test_pending_route_may_appear_in_page_content_packs(self):
-        outcome = validate_stage_output(
-            {**_plan_content_single_page(), "route_plan": [_route(publication_status="pending")]},
-            "plan_content",
-        )
-        assert outcome.is_valid
+    def test_blocked_claim_with_no_field_paths_is_fine(self):
+        blocked = claim("c9", publication_status="blocked")
+        assert validate_stage_output(
+            _plan_with_content(claim_grounding=[blocked]), "plan_content"
+        ).is_valid
 
-    def test_blocked_claim_referenced_by_section_rejected(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "claim_grounding": [_claim(publication_status="blocked")],
-                "page_content_packs": [_pack(sections=[_section(claim_ids=["c1"])])],
-            },
-            "plan_content",
-        )
-        assert not outcome.is_valid
-        assert any("blocked claim_id" in error for error in outcome.errors)
+    def test_pending_claim_may_exist(self):
+        pending = claim("c8", publication_status="pending")
+        assert validate_stage_output(
+            _plan_with_content(claim_grounding=[pending]), "plan_content"
+        ).is_valid
 
-    def test_pack_referencing_unknown_route_rejected(self):
+    def test_known_blocked_claim_still_checked_when_stage_omits_claims(self):
         outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [_pack(route_id="does-not-exist")],
-            },
-            "plan_content",
+            {"mode": "PAGES_READY", "content_included": False, "page_content": valid_page()},
+            "write_pages",
+            known_claim_grounding=[
+                claim("c9", publication_status="blocked", field_paths=["hero.intro"])
+            ],
         )
         assert not outcome.is_valid
-        assert any("unknown route_id" in error for error in outcome.errors)
-
-    def test_section_referencing_unknown_claim_rejected(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [_pack(sections=[_section(claim_ids=["nope"])])],
-            },
-            "plan_content",
-        )
-        assert not outcome.is_valid
-        assert any("unknown claim_id" in error for error in outcome.errors)
 
 
 class TestInternalNoteLeakage:
-    def test_status_note_inside_content_rejected(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [
-                    _pack(
-                        sections=[_section(content={"text": "x", "status_note": "pending review"})]
-                    )
-                ],
-            },
-            "plan_content",
-        )
+    def test_status_note_inside_page_content_rejected(self):
+        payload = _plan_with_content()
+        payload["page_content"]["hero"]["status_note"] = "Ownership pending confirmation."
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any("internal-review key" in error for error in outcome.errors)
+        assert any("status_note" in e for e in outcome.errors)
 
     def test_nested_internal_key_rejected(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [
-                    _pack(
-                        sections=[
-                            _section(
-                                content={
-                                    "items": [{"title": "x", "publication_check": ["confirm"]}]
-                                }
-                            )
-                        ]
-                    )
-                ],
-            },
-            "plan_content",
-        )
+        payload = _plan_with_content()
+        payload["page_content"]["systems_practice"]["pillars"][0]["evidence_status"] = "verified"
+        outcome = validate_stage_output(payload, "plan_content")
         assert not outcome.is_valid
-        assert any("internal-review key" in error for error in outcome.errors)
+        assert any("evidence_status" in e for e in outcome.errors)
 
     def test_internal_notes_field_itself_is_fine(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [_pack(internal_notes={"status_note": "needs review"})],
-            },
-            "plan_content",
-        )
-        assert outcome.is_valid
-
-    def test_duplicate_section_id_within_pack_rejected(self):
-        outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "page_content_packs": [_pack(sections=[_section(), _section()])],
-            },
-            "plan_content",
-        )
-        assert not outcome.is_valid
-        assert any("duplicate section_id" in error for error in outcome.errors)
+        payload = _plan_with_content(internal_notes={"review_note": "confirm the client name"})
+        assert validate_stage_output(payload, "plan_content").is_valid
 
 
 class TestDecisionBasis:
     def test_valid_decision_basis(self):
         outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "decision_basis": [
-                    {
-                        "decision": "presentation_mode",
-                        "value": "single_page",
-                        "basis": "safe_default",
-                    }
-                ],
-            },
+            _plan_with_content(
+                decision_basis=[{"decision": "tone", "value": "plain", "basis": "safe_default"}]
+            ),
             "plan_content",
         )
         assert outcome.is_valid
 
     def test_invalid_basis_value_rejected(self):
         outcome = validate_stage_output(
-            {
-                **_plan_content_single_page(),
-                "decision_basis": [{"decision": "presentation_mode", "basis": "guessed"}],
-            },
+            _plan_with_content(decision_basis=[{"decision": "tone", "basis": "vibes"}]),
             "plan_content",
         )
         assert not outcome.is_valid
-        assert any("invalid 'basis'" in error for error in outcome.errors)
 
     def test_missing_decision_name_rejected(self):
         outcome = validate_stage_output(
-            {**_plan_content_single_page(), "decision_basis": [{"basis": "safe_default"}]},
+            _plan_with_content(decision_basis=[{"value": "x", "basis": "safe_default"}]),
             "plan_content",
         )
         assert not outcome.is_valid
-        assert any("has no 'decision' name" in error for error in outcome.errors)
+
+
+class TestCoverageLedgerShape:
+    def test_ledger_entry_must_be_valid_model(self):
+        outcome = validate_stage_output(
+            _plan_with_content(
+                coverage_ledger=[{"source_id": "fact/1", "disposition": "used", "field_paths": "x"}]
+            ),
+            "plan_content",
+        )
+        assert not outcome.is_valid
+
+    def test_legacy_public_refs_key_is_tolerated_as_stray(self):
+        outcome = validate_stage_output(
+            _plan_with_content(coverage_ledger=[{"source_id": "fact/1", "public_refs": []}]),
+            "plan_content",
+        )
+        assert outcome.is_valid
 
 
 class TestValidateWritePages:
     def test_valid_write_pages(self):
         outcome = validate_stage_output(
-            {
-                "mode": "PAGES_READY",
-                "content_included": False,
-                "page_content_packs": [_pack()],
-                "public_content_manifest": {"nav": []},
-            },
+            {"mode": "PAGES_READY", "content_included": False, "page_content": valid_page()},
             "write_pages",
-            known_route_plan=[_route()],
         )
         assert outcome.is_valid
 
     def test_missing_content_rejected(self):
         outcome = validate_stage_output(
-            {
-                "mode": "PAGES_READY",
-                "content_included": False,
-                "page_content_packs": [],
-                "public_content_manifest": {},
-            },
-            "write_pages",
+            {"mode": "PAGES_READY", "content_included": False}, "write_pages"
         )
         assert not outcome.is_valid
+        assert any("page_content" in e for e in outcome.errors)
 
     def test_wrong_mode_rejected(self):
         outcome = validate_stage_output(
-            {
-                "mode": "STRATEGY_ONLY",
-                "content_included": False,
-                "page_content_packs": [_pack()],
-                "public_content_manifest": {"nav": []},
-            },
+            {"mode": "INTEGRATED", "content_included": False, "page_content": valid_page()},
             "write_pages",
         )
         assert not outcome.is_valid
-
-    def test_known_route_plan_still_blocks_blocked_routes(self):
-        outcome = validate_stage_output(
-            {
-                "mode": "PAGES_READY",
-                "content_included": False,
-                "page_content_packs": [_pack()],
-                "public_content_manifest": {"nav": []},
-            },
-            "write_pages",
-            known_route_plan=[_route(publication_status="blocked")],
-        )
-        assert not outcome.is_valid
-        assert any("blocked route_id" in error for error in outcome.errors)
 
 
 class TestValidateIntegrateContent:
     def test_valid_integrate(self):
         outcome = validate_stage_output(
-            {
-                "mode": "INTEGRATED",
-                "content_included": False,
-                "page_content_packs": [_pack()],
-                "public_content_manifest": {"nav": []},
-            },
+            {"mode": "INTEGRATED", "content_included": False, "page_content": valid_page()},
             "integrate_content",
-            known_route_plan=[_route()],
         )
         assert outcome.is_valid
 
-    def test_missing_public_manifest_rejected(self):
+    def test_missing_page_content_rejected(self):
         outcome = validate_stage_output(
-            {
-                "mode": "INTEGRATED",
-                "content_included": False,
-                "page_content_packs": [_pack()],
-            },
+            {"mode": "INTEGRATED", "content_included": False, "page_content": {}},
             "integrate_content",
         )
         assert not outcome.is_valid
-        assert any(
-            "'public_content_manifest' must not be empty" in error for error in outcome.errors
-        )
 
 
 class TestDefensiveShapeChecks:
     def test_non_dict_input_rejected(self):
-        outcome = validate_stage_output([], "plan_content")  # type: ignore[arg-type]
-        assert not outcome.is_valid
+        assert not validate_stage_output([], "plan_content").is_valid  # type: ignore[arg-type]
 
     def test_unknown_operation_rejected(self):
-        outcome = validate_stage_output(_plan_content_single_page(), "not_a_real_operation")
-        assert not outcome.is_valid
-
-    def test_non_list_route_plan_rejected(self):
-        outcome = validate_stage_output(
-            {**_plan_content_single_page(), "route_plan": "not-a-list"}, "plan_content"
-        )
-        assert not outcome.is_valid
-        assert any("'route_plan' must be a list" in error for error in outcome.errors)
+        assert not validate_stage_output({}, "bogus").is_valid
 
     def test_non_bool_content_included_rejected(self):
-        outcome = validate_stage_output(
-            {**_plan_content_single_page(), "content_included": "yes"}, "plan_content"
-        )
+        outcome = validate_stage_output(_plan_with_content(content_included="yes"), "plan_content")
         assert not outcome.is_valid
-        assert any("'content_included' must be a boolean" in error for error in outcome.errors)
 
-    def test_non_list_page_content_packs_rejected(self):
-        outcome = validate_stage_output(
-            {**_plan_content_single_page(), "page_content_packs": "nope"}, "plan_content"
-        )
+    def test_non_list_claim_grounding_rejected(self):
+        outcome = validate_stage_output(_plan_with_content(claim_grounding={}), "plan_content")
         assert not outcome.is_valid
-        assert any("'page_content_packs' must be a list" in error for error in outcome.errors)
 
-    def test_pack_sections_must_be_a_list(self):
-        outcome = validate_stage_output(
-            {**_plan_content_single_page(), "page_content_packs": [_pack(sections="nope")]},
-            "plan_content",
-        )
+    def test_non_dict_internal_notes_rejected(self):
+        outcome = validate_stage_output(_plan_with_content(internal_notes=[]), "plan_content")
         assert not outcome.is_valid
-        assert any("'sections' must be a list" in error for error in outcome.errors)
+
+    def test_non_object_page_content_rejected(self):
+        outcome = validate_stage_output(_plan_with_content(page_content=[]), "plan_content")
+        assert not outcome.is_valid

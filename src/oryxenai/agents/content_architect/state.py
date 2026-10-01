@@ -12,6 +12,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+from oryxenai.agents.content_architect.page_content import (
+    claim_binding_errors,
+    page_completeness_errors,
+    page_shape_errors,
+)
 from oryxenai.agents.content_architect.schemas import (
     ClaimGrounding,
     ContentArchitectApproval,
@@ -21,10 +26,9 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectState,
     ContentArchitectStatus,
     ContentCoverageEntry,
+    ContentStoryStrategy,
     DecisionRecord,
-    PageContentPack,
-    PublicationStatus,
-    RoutePlanEntry,
+    PortfolioPageContent,
 )
 
 
@@ -40,47 +44,32 @@ class InvalidTransitionError(Exception):
         )
 
 
-class NoPublishableRoutesError(ValueError):
-    """Approval attempted with no route cleared for public output.
+class ContentNotPublishableError(ValueError):
+    """Approval attempted with no page content at all.
 
-    `publication_status` is a first-class, cross-agent gating invariant: a
-    Content Architect run may plan `pending`/`blocked` content (it still gets
-    written, just gated), but APPROVED state must always carry at least one
-    route the model cleared for publication. The state machine is the
-    authoritative place to refuse approval when it would otherwise produce a
-    state with zero publishable routes.
+    The state machine is the authoritative place to refuse approval when a
+    review state carries nothing for a visitor to read.
     """
 
-    def __init__(
-        self,
-        *,
-        route_statuses: dict[str, str],
-        route_count: int,
-        message: str = "",
-    ) -> None:
-        self.route_statuses = route_statuses
-        self.route_count = route_count
+    def __init__(self, message: str = "") -> None:
         self.message = message or (
-            "Cannot approve: no publishable routes. At least one route_plan "
-            "entry must have publication_status 'approved'."
+            "Cannot approve: there is no page content. Revise or re-run Content Architect."
         )
         super().__init__(self.message)
 
 
 class PublicScopeIncompleteError(ValueError):
-    """Approval attempted with a route that cannot form a complete public pack.
+    """Approval attempted with page content that is incomplete or unsafe.
 
-    Content Architect owns the public route/content boundary. This check runs
-    before the approval hash is stamped, so an approved route never has
-    incomplete content, section plans, or claim references.
+    This check runs before the approval hash is stamped, so an approved page
+    never has missing template fields or claims bound to non-public copy.
     """
 
-    def __init__(self, *, route_ids: list[str], errors: list[str]) -> None:
-        self.route_ids = route_ids
+    def __init__(self, *, errors: list[str]) -> None:
         self.errors = errors
         super().__init__(
-            "Cannot approve: the public route scope is incomplete. "
-            "Revise Content Architect so every approved route has complete safe content."
+            "Cannot approve: the page content is incomplete. "
+            "Revise Content Architect so the page has complete safe content."
         )
 
 
@@ -166,11 +155,10 @@ def apply_build_result(
     version: str,
     run_id: str,
     user_summary: str,
-    site_story_strategy: dict[str, Any],
+    site_story_strategy: ContentStoryStrategy,
     decision_basis: list[DecisionRecord],
-    route_plan: list[RoutePlanEntry],
-    page_content_packs: list[PageContentPack],
-    public_content_manifest: dict[str, Any],
+    page_content: PortfolioPageContent,
+    internal_notes: dict[str, Any],
     claim_grounding: list[ClaimGrounding],
     omissions: list[str],
     unresolved_issues: list[str],
@@ -189,9 +177,8 @@ def apply_build_result(
     new_state.user_summary = user_summary
     new_state.site_story_strategy = site_story_strategy
     new_state.decision_basis = decision_basis
-    new_state.route_plan = route_plan
-    new_state.page_content_packs = page_content_packs
-    new_state.public_content_manifest = public_content_manifest
+    new_state.page_content = page_content
+    new_state.internal_notes = internal_notes
     new_state.claim_grounding = claim_grounding
     new_state.coverage_ledger = coverage_ledger or []
     new_state.omissions = omissions
@@ -206,23 +193,11 @@ def apply_build_result(
 
 def apply_approval(state: ContentArchitectState, content_hash: str) -> ContentArchitectState:
     _validate_transition(state.status, ContentArchitectStatus.APPROVED)
-    public_routes = [
-        route
-        for route in state.route_plan
-        if route.publication_status == PublicationStatus.APPROVED
-    ]
-    if not public_routes:
-        raise NoPublishableRoutesError(
-            route_statuses={
-                route.route_id: str(route.publication_status) for route in state.route_plan
-            },
-            route_count=len(state.route_plan),
-        )
-    scope_errors = public_scope_errors(state, public_routes)
+    if not state.page_content.model_dump(mode="json", exclude_defaults=True):
+        raise ContentNotPublishableError()
+    scope_errors = public_scope_errors(state)
     if scope_errors:
-        raise PublicScopeIncompleteError(
-            route_ids=[route.route_id for route in public_routes], errors=scope_errors
-        )
+        raise PublicScopeIncompleteError(errors=scope_errors)
     new_state = state.model_copy(deep=True)
     new_state.status = ContentArchitectStatus.APPROVED
     new_state.approved = ContentArchitectApproval(
@@ -255,105 +230,20 @@ def _merge_memory(current: dict[str, Any], update: dict[str, Any]) -> dict[str, 
     return merged
 
 
-def public_scope_errors(
-    state: ContentArchitectState, public_routes: list[RoutePlanEntry]
-) -> list[str]:
-    """Return deterministic public-scope completeness errors.
+def public_scope_errors(state: ContentArchitectState) -> list[str]:
+    """Return deterministic completeness and publication-gate errors.
 
-    Free-form copy remains deliberately unjudged; this verifies only the
-    stable IDs, route topology, completeness, and publication gates required
-    to approve it safely.
+    Free-form copy remains deliberately unjudged; this verifies only that the
+    pinned template can render without gaps and that no claim cleared for
+    less than publication is bound to a populated public field.
     """
-    errors: list[str] = []
-    route_ids: set[str] = set()
-    route_paths: set[str] = set()
-    pack_by_route: dict[str, list[PageContentPack]] = {}
-    for pack in state.page_content_packs:
-        pack_by_route.setdefault(pack.route_id, []).append(pack)
-    claims = {claim.claim_id: claim for claim in state.claim_grounding}
-
-    if not state.public_content_manifest:
-        errors.append("public_content_manifest is required for the approved public scope")
-    for route in public_routes:
-        route_id = route.route_id.strip()
-        path = route.path.strip()
-        if not _is_safe_identifier(route.route_id):
-            errors.append(f"approved route {route_id or '<unknown>'!r} has an unsafe route_id")
-        elif route_id.casefold() in route_ids:
-            errors.append(f"approved route_id {route_id!r} collides case-insensitively")
-        else:
-            route_ids.add(route_id.casefold())
-        if not _is_safe_route_path(path):
-            errors.append(f"approved route {route_id or '<unknown>'!r} has an unsafe path")
-        elif _canonical_path(path).casefold() in route_paths:
-            errors.append(f"approved route path {path!r} collides case-insensitively")
-        else:
-            route_paths.add(_canonical_path(path).casefold())
-        if not route.title.strip():
-            errors.append(f"approved route {route_id!r} has no title")
-        if not route.purpose.strip():
-            errors.append(f"approved route {route_id!r} has no purpose")
-
-        packs = pack_by_route.get(route_id, [])
-        if len(packs) != 1:
-            errors.append(
-                f"approved route {route_id!r} must have exactly one content pack; found {len(packs)}"
-            )
-            continue
-        pack = packs[0]
-        if not pack.sections:
-            errors.append(f"approved route {route_id!r} has no public sections")
-            continue
-        section_ids = [section.section_id for section in pack.sections]
-        if not route.section_sequence:
-            errors.append(f"approved route {route_id!r} has no section_sequence")
-        elif section_ids != route.section_sequence:
-            errors.append(
-                f"approved route {route_id!r} section_sequence does not exactly match its content pack"
-            )
-        if len(section_ids) != len(set(section_ids)) or any(
-            not section_id.strip() for section_id in section_ids
-        ):
-            errors.append(f"approved route {route_id!r} has invalid section IDs")
-        for section in pack.sections:
-            if not section.purpose.strip():
-                errors.append(
-                    f"approved route {route_id!r} section {section.section_id!r} has no purpose"
-                )
-            if not section.content:
-                errors.append(
-                    f"approved route {route_id!r} section {section.section_id!r} has no content"
-                )
-            for claim_id in section.claim_ids:
-                claim = claims.get(claim_id)
-                if claim is None:
-                    errors.append(
-                        f"approved route {route_id!r} references unknown claim {claim_id!r}"
-                    )
-                elif claim.publication_status != PublicationStatus.APPROVED:
-                    errors.append(
-                        f"approved route {route_id!r} references non-public claim {claim_id!r}"
-                    )
-    return errors
-
-
-def _is_safe_route_path(path: str) -> bool:
-    return bool(
-        path
-        and path.startswith("/")
-        and "\\" not in path
-        and "//" not in path
-        and ".." not in path.split("/")
-        and not any(ord(char) < 32 for char in path)
-    )
-
-
-def _canonical_path(path: str) -> str:
-    return "/" if path == "/" else path.rstrip("/")
-
-
-def _is_safe_identifier(value: str) -> bool:
-    return bool(value and value == value.strip() and not any(ord(char) < 32 for char in value))
+    page = state.page_content.model_dump(mode="json")
+    claims = [claim.model_dump(mode="json") for claim in state.claim_grounding]
+    return [
+        *page_shape_errors(page),
+        *page_completeness_errors(page),
+        *claim_binding_errors(page, claims),
+    ]
 
 
 def _validate_transition(current: ContentArchitectStatus, target: ContentArchitectStatus) -> None:

@@ -1,6 +1,6 @@
 <!--
   Operation: plan_content (always runs first)
-  Version: content_architect.plan_content.v6
+  Version: content_architect.plan_content.v7
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -9,115 +9,91 @@ Read the approved Discovery snapshot (complete source-linked dossier when availa
 user_summary, legacy structured profile, and open_items) and any stated preferences (goal, audience,
 tone, density). The dossier is authoritative; the profile is only a navigation aid when a dossier
 exists. Account for every dossier fact and entity before choosing public emphasis. Decide the
-site/story strategy and the route plan. For a DiscoveryDossier/v1 input, plan exactly one complete
-root-page route at "/" with presentation_mode="single_page". If you can write all supported copy
-well in this call, set content_included=true. If the dossier is too rich to write completely in
-this output, set content_included=false and leave page_content_packs/public_content_manifest empty;
-the second operation will write the full page from the same dossier and strategy. Legacy approved
-sessions without a dossier may retain their existing route choices.
+story strategy and the claim grounding. If you can write all of the page content well in this
+call, write it now and set content_included=true. If the dossier is too rich to write completely
+in this output, set content_included=false and leave page_content empty; the second operation will
+write the full page from the same dossier and your strategy.
 </operation>
 
 <mode_and_content_included>
 Set mode="STRATEGY_AND_CONTENT" together with content_included=true, or mode="STRATEGY_ONLY"
 together with content_included=false. These two fields must always agree. Prefer
 STRATEGY_AND_CONTENT whenever you can write genuinely complete, unpadded content in this call.
-Defer to STRATEGY_ONLY when the source detail is too rich to write fully within this response;
-do not shorten the approved dossier to make a one-call result fit.
+Defer to STRATEGY_ONLY only when the source detail is too rich to write fully within this
+response; do not shorten the approved dossier to make a one-call result fit.
 </mode_and_content_included>
 
-<detail_and_coverage>
-Treat the approved snapshot as the complete source of truth available to this stage. Do not
-compress a rich profile into a thin strategy. For every selected route, plan every applicable
-section and develop the narrative, evidence, and audience takeaway that the
-source supports. When content_included=true, every route and every section must contain its full
-visitor-facing copy in this response. When content_included=false, preserve the same completeness
-in the route plan and make the second batched writing call responsible for all route sections.
-There is no line or word minimum: a sparse source stays honest, while a rich source receives
-correspondingly rich treatment.
-When content_included=true, return the complete coverage_ledger for the dossier alongside the
-finished copy. When content is deferred, the writing call will provide that ledger after reading
-the same full dossier; do not treat the route plan as a substitute for source coverage.
-</detail_and_coverage>
-
 <site_story_strategy>
-Populate site_story_strategy with: positioning and a truthful value proposition, primary and
-secondary audience, the main visitor action, a central narrative thesis, which evidence should
-lead / support / be shortened / be omitted, content risks and unresolved facts, the chosen
-presentation_mode ("single_page" for dossier-backed inputs), and a short presentation_rationale
-explaining why the section depth fits this specific profile (not a generic justification).
+Populate site_story_strategy (internal, never shown publicly) with: positioning and a truthful
+value_proposition, primary_audience and secondary_audience, primary_action (the one thing a visitor
+should do), a central narrative_thesis, leading_evidence (what leads the page), supporting_evidence
+(what supports it), content_risks (unresolved facts or gaps), tone, and content_density. Keep each
+field short and specific to this person, not generic.
 </site_story_strategy>
 
 <user_facing_summary>
 Write user_summary as a short, friendly, standalone summary for the person reviewing this stage's
 output in a chat interface — roughly 120–250 words, plain paragraphs only, NO Markdown headings.
-Restate the chosen presentation approach in plain language (e.g. "a single page that leads with
-your two strongest projects" rather than "presentation_mode=single_page"), name the one or two
-strongest pieces of content it produced, note anything left unresolved in plain language, and
-confirm the site content plan is ready for user review and approval. This is a highlights view for a human,
-not a duplicate of site_story_strategy or route_plan — never repeat their raw field names or values
-verbatim.
+Restate in plain language how the page leads (for example "your hero leads with your two strongest
+projects"), name the one or two strongest pieces of content it produced, note anything left
+unresolved in plain language, and confirm the content is ready for review and approval. This is a
+highlights view for a human, not a duplicate of site_story_strategy — never repeat raw field names
+or values verbatim.
 </user_facing_summary>
 
 <decision_basis>
-Add a decision_basis entry for each of: presentation_mode, primary_audience, primary visitor
-action/CTA, tone, and content density (skip any that genuinely were not decided). Each entry needs
-decision (the field name), value, basis ("user_confirmed" if a stated preference set it,
-"source_derived" if the snapshot's facts clearly imply it, "safe_default" if you chose it only
-because nothing was supplied), confidence, and a one-line rationale.
+Add a decision_basis entry for each of: primary_audience, primary visitor action/CTA, tone, and
+content density (skip any that genuinely were not decided). Each entry needs decision (the field
+name), value, basis ("user_confirmed" if a stated preference set it, "source_derived" if the
+snapshot's facts clearly imply it, "safe_default" if you chose it only because nothing was
+supplied), confidence, and a one-line rationale.
 </decision_basis>
-
-<route_plan>
-For the single root route on dossier-backed inputs (or each legacy route), provide a stable route_id,
-a path, a title, its purpose, the audience
-takeaway, a priority, a content_density, a section_sequence (ordered section IDs you intend to
-write — these must match the section_id values you use later in page_content_packs), mobile_notes,
-source_refs pointing back to the parts of the snapshot it draws from, and publication_status
-("approved" | "pending" | "blocked" — see the system prompt's publication_gating rules). Do not add
-a route whose purpose duplicates another route's purpose. Do not add a route for a project that
-lacks enough material for a real case study — fold thin projects into a shared section on another
-route instead. Default an ordinary profile route to "approved" when its final copy can be made safe
-by omitting unresolved metrics, links, ownership claims, or names. Use "pending" only when the
-route itself cannot be described safely without the unresolved material; use "blocked" only for an
-explicit restriction. Every otherwise viable portfolio must have at least one approved route.
-</route_plan>
 
 <claim_grounding>
 For every claim that could read as an achievement, metric, award, or named outcome, add a
 claim_grounding entry with these fields, each answering a DIFFERENT question — see the system
 prompt's grounding rules for why they must stay separate:
-- claim_id, statement, source_reference, source_entity_id (a stable id for the project/role/fact
-  this claim comes from, e.g. "project:rag_api" or "experience:amazon" — reuse the same
-  source_entity_id across claims from the same entity).
+- claim_id (stable, unique), statement, source_reference, source_entity_id (a stable id for the
+  project/role/fact this claim comes from, e.g. "project:rag_api" or "experience:amazon" — reuse
+  the same source_entity_id across claims from the same entity).
 - evidence_status: "verified" | "unverified" | "unresolved".
 - ownership: "individual" | "team" | "unclear".
 - publication_status: "approved" | "pending" | "blocked" — mark a neutral statement "approved"
   when it is grounded in ordinary user-supplied facts and no explicit restriction applies. Keep an
   exact metric, named client, outcome, or ownership assertion "pending" when that exact detail is
-  unresolved, then omit it from approved-route copy rather than making the whole route pending.
+  unresolved, then omit it from the page copy rather than blocking the whole page.
 - confidence_or_warning: a short note explaining any caveat.
+- field_paths: the page_content fields that rely on this claim (see claim_binding in the system
+  prompt). EMPTY for any claim that is not "approved". When you defer page content
+  (content_included=false), return field_paths as [] — the writing operation fills them in.
 A claim with ownership "team" or "unclear" must not be phrased as "I achieved X" in any content you
 write — phrase it as the team/project outcome it actually is, or omit it.
 </claim_grounding>
 
-<approval_readiness>
-Before returning, self-check every route whose publication_status is "approved". Every claim_id
-referenced by one of that route's sections MUST identify a claim whose publication_status is also
-"approved". A pending or blocked claim must never appear in visitor-facing copy for an approved
-route and must never remain in that section's claim_ids. Rewrite or omit the unresolved exact
-detail while preserving useful safe content, and record the omission in internal_notes or
-unresolved_issues. Do not mark supplied credentials, metrics, names, links, or ownership approved
-merely to make this check pass; publication_status remains an independent safety decision.
+<page_content>
+When content_included=true, write the complete page_content tree exactly as the system prompt's
+page_template defines it: hero, metadata, marquee_keywords, systems_practice (exactly 4 pillars),
+technical_capabilities, professional_context (organization names only), and connect. Every
+required field filled with final public copy that respects the stated length guidance. Return the
+coverage_ledger for the whole dossier alongside the finished copy, with field_paths pointing at
+fields that hold the copy. When content is deferred, the writing call will provide the ledger
+after reading the same full dossier; do not treat the strategy as a substitute for source coverage.
+</page_content>
 
-Also verify that every approved route has exactly one content pack, that its section IDs exactly
-match section_sequence in the same order, that every section has actual visitor-facing content,
-and that public_content_manifest is complete. Approval must be a
-formality after this response, not a later content-repair step.
+<approval_readiness>
+Before returning with content_included=true, self-check: exactly four pillars each with a title and
+description; hero name, headline (prefix and/or emphasis), and intro present; metadata title and
+description present; at least one capability group with at least one item; every claim bound to a
+field has publication_status "approved"; no pending or blocked claim has field_paths; every
+coverage_ledger entry uses a valid disposition, and used/condensed entries point at populated
+fields; every dossier fact, role, project, and evidence item has exactly one ledger entry. Approval
+must be a formality after this response, not a later content-repair step.
 </approval_readiness>
 
 <coverage_guidance>
 Sparse or student profile: build the strongest honest single page from what exists; do not
 invent projects, employers, or metrics to fill space; use unresolved_issues to note what a
-stronger portfolio would need.
+stronger portfolio would need. All four pillars are still required: use honest broader themes.
 No metrics / unsupported metrics: omit the number, or record it in claim_grounding as
 "unverified"/"unresolved" and phrase public copy qualitatively instead of numerically.
 Explicitly restricted client/employer work: generalize the name or detail exactly as the snapshot
@@ -125,48 +101,26 @@ requires; otherwise use the supplied name and facts fully. Record only actual re
 privacy_and_confidentiality.
 Unclear team ownership: phrase the contribution as the team's outcome plus the user's specific
 supported role, never as a solo achievement.
-Too many strong projects: feature the strongest stories on the single page and give the remainder
-an honest, concise treatment or an explicit internal disposition. Do not create a route per project.
-Missing public links or contact details: note the gap in unresolved_issues; do not
-fabricate a URL or claim that a public link exists.
-Unresolved project detail (ownership/publication unclear): preserve the uncertainty in
-claim_grounding and internal notes, but keep the route approved if a useful neutral description is
-still safe. Make the route pending only when no safe description remains. Never label something
-with a confident adjective the snapshot hasn't earned (e.g. do not call something
-"production-ready" when readiness was never confirmed).
+Too many strong projects: lead with the strongest in the hero intro and pillars and give the
+remainder a concise treatment or an explicit internal ledger disposition.
+Missing public links or contact details: note the gap in unresolved_issues; do not fabricate a URL
+or claim that a public link exists.
+Never label something with a confident adjective the snapshot hasn't earned (e.g. do not call
+something "production-ready" when readiness was never confirmed).
 </coverage_guidance>
-
-<page_content_packs>
-When content_included=true, write one page_content_packs entry per route: route_id, a list of
-normalized sections, and internal_notes. Each section needs: section_id (matching an entry in that
-route's section_sequence), purpose, content (the actual visitor-facing copy for that section — hero
-text, project story, capability list, whatever the section needs; shape this freely per section
-type), claim_ids (every claim_id this section's copy relies on), priority, optional (true if the
-site still reads well without it), mobile_condensation (how to shorten it on small screens), and
-link_targets (outgoing internal/external links or CTAs this section exposes, as
-{label, href, kind}).
-
-internal_notes is the ONLY place for your own review reasoning — "needs confirmation before
-publishing", "generalized because X is unresolved", QA checklists, and similar. NEVER put this
-reasoning inside a section's content; a visitor must never see it. If a route is publication_status
-"pending", its sections' content must stay neutral/generalized as described above, and the specific
-thing still needing confirmation goes in this pack's internal_notes AND in the top-level
-unresolved_issues, not inline in the copy. A route with publication_status "blocked" must not
-receive a page_content_packs entry at all.
-</page_content_packs>
 
 <omissions_and_unresolved>
 List anything you deliberately left out (and why) in omissions. List anything unresolved that a
 human should decide before publishing in unresolved_issues. List only explicit
 privacy/confidentiality constraints you applied in privacy_and_confidentiality; leave it empty when
-none was supplied.
+none was supplied. Put reviewer-only reasoning in internal_notes.
 </omissions_and_unresolved>
 
 <revision_behavior>
 When prior_output and a revision_request are supplied, treat prior_output as the current baseline:
 preserve everything the revision does not ask to change, apply the requested change, and keep
-claim_grounding and section claim_ids consistent with any content you altered. Regenerate a
-complete, coherent output — never a partial patch.
+claim_grounding, field_paths, and coverage_ledger consistent with any copy you altered. Regenerate
+a complete, coherent output — never a partial patch.
 </revision_behavior>
 
 <format>

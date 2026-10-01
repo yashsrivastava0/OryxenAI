@@ -24,14 +24,14 @@ describe("persisted final agent output", () => {
   it("keeps Content Architect artifacts exact when the server provides them", () => {
     const content = finalAgentOutput("content_architect", {
       agent_output: {
-        route_plan: [{ route_id: "home" }],
-        page_content_packs: [{ route_id: "home" }],
+        page_content: { hero: { name: "Priya" } },
+        coverage_ledger: [{ source_id: "fact/1" }],
         custom: { score: 0.8 },
       },
     });
     expect(content).toEqual({
-      route_plan: [{ route_id: "home" }],
-      page_content_packs: [{ route_id: "home" }],
+      page_content: { hero: { name: "Priya" } },
+      coverage_ledger: [{ source_id: "fact/1" }],
       custom: { score: 0.8 },
     });
   });

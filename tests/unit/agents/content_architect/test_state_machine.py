@@ -11,14 +11,14 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectSourceRef,
     ContentArchitectState,
     ContentArchitectStatus,
+    ContentStoryStrategy,
     DecisionRecord,
-    PageContentPack,
+    PortfolioPageContent,
     PublicationStatus,
-    RoutePlanEntry,
 )
 from oryxenai.agents.content_architect.state import (
+    ContentNotPublishableError,
     InvalidTransitionError,
-    NoPublishableRoutesError,
     PublicScopeIncompleteError,
     apply_approval,
     apply_build_result,
@@ -28,49 +28,17 @@ from oryxenai.agents.content_architect.state import (
     apply_start,
     is_valid_transition,
 )
+from tests.unit.agents.content_architect.helpers import valid_page
 
 
 def _source_ref() -> ContentArchitectSourceRef:
     return ContentArchitectSourceRef(discovery_brief_hash="hash1", discovery_session_revision=1)
 
 
-def _public_review_state(*, include_pending: bool = False) -> ContentArchitectState:
-    routes = [
-        RoutePlanEntry(
-            route_id="home",
-            path="/",
-            title="Home",
-            purpose="Present the professional profile.",
-            section_sequence=["hero"],
-            publication_status=PublicationStatus.APPROVED,
-        )
-    ]
-    if include_pending:
-        routes.append(
-            RoutePlanEntry(
-                route_id="secret",
-                path="/secret",
-                title="Restricted work",
-                purpose="Review-only material.",
-                publication_status=PublicationStatus.PENDING,
-            )
-        )
+def _public_review_state() -> ContentArchitectState:
     return ContentArchitectState(
         status=ContentArchitectStatus.CONTENT_REVIEW,
-        route_plan=routes,
-        page_content_packs=[
-            PageContentPack(
-                route_id="home",
-                sections=[
-                    {
-                        "section_id": "hero",
-                        "purpose": "Establish the positioning.",
-                        "content": {"headline": "Grounded portfolio"},
-                    }
-                ],
-            )
-        ],
-        public_content_manifest={"nav": [{"label": "Home", "target": "home"}]},
+        page_content=PortfolioPageContent.model_validate(valid_page()),
     )
 
 
@@ -197,11 +165,10 @@ class TestFlowTransitions:
             version="content_architect.plan_content.v1",
             run_id="run-1",
             user_summary="We're presenting you as a backend-focused engineer.",
-            site_story_strategy={"positioning": "x"},
-            decision_basis=[DecisionRecord(decision="presentation_mode", value="single_page")],
-            route_plan=[RoutePlanEntry(route_id="home", path="/", purpose="p")],
-            page_content_packs=[PageContentPack(route_id="home")],
-            public_content_manifest={"nav": []},
+            site_story_strategy=ContentStoryStrategy(positioning="x"),
+            decision_basis=[DecisionRecord(decision="tone", value="plain")],
+            page_content=PortfolioPageContent.model_validate(valid_page()),
+            internal_notes={"review": "confirm client name"},
             claim_grounding=[ClaimGrounding(claim_id="c1", statement="s")],
             omissions=[],
             unresolved_issues=["no metrics"],
@@ -211,9 +178,10 @@ class TestFlowTransitions:
             memory_update={"new": "value"},
         )
         assert result.status == ContentArchitectStatus.CONTENT_REVIEW
-        assert result.route_plan[0].route_id == "home"
-        assert result.decision_basis[0].decision == "presentation_mode"
-        assert result.page_content_packs[0].route_id == "home"
+        assert result.page_content.hero.name == "Mock User"
+        assert result.decision_basis[0].decision == "tone"
+        assert result.site_story_strategy.positioning == "x"
+        assert result.internal_notes == {"review": "confirm client name"}
         assert result.unresolved_issues == ["no metrics"]
         assert result.memory["old"] == "kept"
         assert result.memory["new"] == "value"
@@ -225,82 +193,57 @@ class TestFlowTransitions:
         assert approved.status == ContentArchitectStatus.APPROVED
         assert approved.approved is not None
         assert approved.approved.content_hash == "abc123"
-        assert approved.route_plan[0].publication_status == PublicationStatus.APPROVED
 
-    def test_approval_rejected_when_no_publishable_routes(self):
-        state = ContentArchitectState(
-            status=ContentArchitectStatus.CONTENT_REVIEW,
-            route_plan=[
-                RoutePlanEntry(
-                    route_id="home", path="/", publication_status=PublicationStatus.PENDING
-                ),
-                RoutePlanEntry(
-                    route_id="about", path="/about", publication_status=PublicationStatus.BLOCKED
-                ),
-            ],
-        )
-        with pytest.raises(NoPublishableRoutesError) as exc_info:
+    def test_approval_rejected_when_page_content_empty(self):
+        state = ContentArchitectState(status=ContentArchitectStatus.CONTENT_REVIEW)
+        with pytest.raises(ContentNotPublishableError):
             apply_approval(state, "abc123")
-        assert exc_info.value.route_count == 2
-        assert exc_info.value.route_statuses == {"home": "pending", "about": "blocked"}
 
-    def test_approval_rejected_when_route_plan_empty(self):
-        state = ContentArchitectState(status=ContentArchitectStatus.CONTENT_REVIEW, route_plan=[])
-        with pytest.raises(NoPublishableRoutesError) as exc_info:
-            apply_approval(state, "abc123")
-        assert exc_info.value.route_count == 0
-        assert exc_info.value.route_statuses == {}
-
-    def test_approval_allows_mixed_approved_and_pending(self):
-        state = _public_review_state(include_pending=True)
+    def test_approval_allows_pending_claim_that_is_not_bound_to_the_page(self):
+        state = _public_review_state()
+        state.claim_grounding = [
+            ClaimGrounding(claim_id="c-pending", publication_status=PublicationStatus.PENDING)
+        ]
         approved = apply_approval(state, "abc123")
-        assert approved.status == ContentArchitectStatus.APPROVED
-        # The gating invariant is preserved: the pending route is NOT promoted.
-        statuses = {route.route_id: route.publication_status for route in approved.route_plan}
-        assert statuses == {
-            "home": PublicationStatus.APPROVED,
-            "secret": PublicationStatus.PENDING,
-        }
+        # The gating invariant is preserved: the pending claim is NOT promoted.
+        assert approved.claim_grounding[0].publication_status == PublicationStatus.PENDING
+
+    @pytest.mark.parametrize("count", [3, 5])
+    def test_approval_rejects_wrong_pillar_count(self, count):
+        state = _public_review_state()
+        pillars = state.page_content.systems_practice.pillars
+        state.page_content.systems_practice.pillars = (pillars * 2)[:count]
+        with pytest.raises(PublicScopeIncompleteError) as exc_info:
+            apply_approval(state, "abc123")
+        assert any("exactly 4" in error for error in exc_info.value.errors)
 
     def test_approval_rejects_incomplete_public_scope(self):
         state = _public_review_state()
-        state.page_content_packs[0].sections[0].content = {}
+        state.page_content.hero.intro = ""
         with pytest.raises(PublicScopeIncompleteError) as exc_info:
             apply_approval(state, "abc123")
-        assert exc_info.value.route_ids == ["home"]
-        assert any("has no content" in error for error in exc_info.value.errors)
+        assert any("hero.intro" in error for error in exc_info.value.errors)
 
-    def test_approval_rejects_paths_that_collide_after_pack_normalization(self):
+    def test_approval_rejects_non_public_claim_bound_to_a_field(self):
         state = _public_review_state()
-        state.route_plan.append(
-            RoutePlanEntry(
-                route_id="about",
-                path="/",
-                title="About",
-                purpose="Provide concise context.",
-                section_sequence=["about"],
-                publication_status=PublicationStatus.APPROVED,
+        state.claim_grounding = [
+            ClaimGrounding(
+                claim_id="c1",
+                publication_status=PublicationStatus.PENDING,
+                field_paths=["hero.intro"],
             )
-        )
-        state.page_content_packs.append(
-            PageContentPack(
-                route_id="about",
-                sections=[
-                    {
-                        "section_id": "about",
-                        "purpose": "Provide concise context.",
-                        "content": {"body": "Grounded detail."},
-                    }
-                ],
-            )
-        )
-        state.route_plan[1].path = "/home/"
-        state.route_plan[0].path = "/home"
-
+        ]
         with pytest.raises(PublicScopeIncompleteError) as exc_info:
             apply_approval(state, "abc123")
+        assert any("'c1'" in error for error in exc_info.value.errors)
 
-        assert any("collides" in error for error in exc_info.value.errors)
+    def test_approval_rejects_internal_review_keys_in_page_copy(self):
+        state = _public_review_state()
+        dumped = state.page_content.model_dump()
+        dumped["hero"]["status_note"] = "x"
+        # The typed model drops stray keys, so approval is not blocked by them.
+        assert "status_note" not in PortfolioPageContent.model_validate(dumped).hero.model_dump()
+        apply_approval(state, "abc123")
 
     def test_needs_attention_records_error(self):
         state = apply_needs_attention(
@@ -319,11 +262,10 @@ class TestInvalidTransitionErrors:
                 version="v1",
                 run_id="r",
                 user_summary="",
-                site_story_strategy={},
+                site_story_strategy=ContentStoryStrategy(),
                 decision_basis=[],
-                route_plan=[],
-                page_content_packs=[],
-                public_content_manifest={},
+                page_content=PortfolioPageContent(),
+                internal_notes={},
                 claim_grounding=[],
                 omissions=[],
                 unresolved_issues=[],

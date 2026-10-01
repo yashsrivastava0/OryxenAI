@@ -1,16 +1,17 @@
-"""Content Architect agent — turns an approved Discovery result into final,
-grounded portfolio content and a site/route architecture.
+"""Content Architect agent — turns an approved Discovery result into the final,
+grounded copy for the one pinned single-page portfolio template.
 
 Runs as a single durable job (`operation == "build"`) whose agent makes up to
 three sequential model calls, adaptively:
-  1. plan_content        (always): site strategy + route plan + grounding,
-                          optionally with full content inlined already.
-  2. write_pages         (only if stage 1 deferred content): batched final
-                          content for every route in one call.
-  3. integrate_content   (only if reconciliation or approval-readiness repair
-                          is warranted): consistency/safety pass.
+  1. plan_content        (always): story strategy + grounding, optionally with
+                          the full page content inlined already.
+  2. write_pages         (only if stage 1 deferred content): the complete page
+                          content tree in one call.
+  3. integrate_content   (only if the writer flagged inconsistency, or the
+                          approval-readiness gate found a repairable defect):
+                          consistency/safety pass.
 
-Never more than 3 model calls, never one call per page/section. The output
+Never more than 3 model calls, never one call per section. The output
 contract and deterministic approval-readiness gate are enforced before review.
 """
 
@@ -18,13 +19,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import ValidationError
+
+from oryxenai.agents.content_architect.page_content import (
+    claim_binding_errors,
+    coverage_errors,
+    page_completeness_errors,
+    page_shape_errors,
+)
 from oryxenai.agents.content_architect.prompt_builder import build_instructions
 from oryxenai.agents.content_architect.schemas import (
+    ClaimGrounding,
     ContentArchitectOutput,
-    ContentArchitectState,
-    PublicationStatus,
+    ContentCoverageEntry,
+    ContentStoryStrategy,
+    PortfolioPageContent,
 )
-from oryxenai.agents.content_architect.state import public_scope_errors
 from oryxenai.agents.content_architect.validators import validate_stage_output
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
 from oryxenai.agents.shared.model_cache import (
@@ -33,11 +43,8 @@ from oryxenai.agents.shared.model_cache import (
     prompt_cache_context,
 )
 from oryxenai.core.logging import get_logger
-from oryxenai.core.settings import get_settings
 
 logger = get_logger("oryxenai.agents.content_architect")
-
-_INTEGRATION_ROUTE_THRESHOLD = 2
 
 
 class ContentArchitectModelOutputError(Exception):
@@ -67,7 +74,6 @@ class ContentArchitectAgent(Agent):
         if model_client is None:
             raise ValueError("ContentArchitectAgent requires a model client")
         self._model_client = model_client
-        self._config = get_settings().content_architect
         self._profile_name = profile_name
         self._result_cache = result_cache
         self._profile_fingerprint = profile_fingerprint
@@ -108,7 +114,6 @@ class ContentArchitectAgent(Agent):
         user_summary = str(parsed_plan.get("user_summary", "") or "")
         site_story_strategy = dict(parsed_plan.get("site_story_strategy") or {})
         decision_basis = list(parsed_plan.get("decision_basis") or [])
-        route_plan = list(parsed_plan.get("route_plan") or [])
         claim_grounding = list(parsed_plan.get("claim_grounding") or [])
         coverage_ledger = list(parsed_plan.get("coverage_ledger") or [])
         omissions = list(parsed_plan.get("omissions") or [])
@@ -116,17 +121,27 @@ class ContentArchitectAgent(Agent):
         privacy_and_confidentiality = list(parsed_plan.get("privacy_and_confidentiality") or [])
         warnings = list(parsed_plan.get("warnings") or [])
         memory_update = dict(parsed_plan.get("memory_update") or {})
-        page_content_packs = list(parsed_plan.get("page_content_packs") or [])
-        public_content_manifest = dict(parsed_plan.get("public_content_manifest") or {})
+        internal_notes = dict(parsed_plan.get("internal_notes") or {})
+        page_content = dict(parsed_plan.get("page_content") or {})
 
         content_included = bool(parsed_plan.get("content_included", False))
         integration_needed = bool(parsed_plan.get("integration_needed", False))
+
+        def absorb(parsed: dict[str, Any]) -> None:
+            """Fold a later stage's refreshed page/claims/ledger into the working copy."""
+            nonlocal page_content, claim_grounding, coverage_ledger, internal_notes
+            page_content = dict(parsed.get("page_content") or page_content)
+            claim_grounding = list(parsed.get("claim_grounding") or claim_grounding)
+            coverage_ledger = list(parsed.get("coverage_ledger") or coverage_ledger)
+            internal_notes = {**internal_notes, **dict(parsed.get("internal_notes") or {})}
+            warnings.extend(parsed.get("warnings") or [])
+            decision_basis.extend(parsed.get("decision_basis") or [])
+            memory_update.update(parsed.get("memory_update") or {})
 
         # ── Stage 2: write_pages (only if stage 1 deferred content) ─────
         if not content_included:
             pages_packet = {
                 "site_story_strategy": site_story_strategy,
-                "route_plan": route_plan,
                 "claim_grounding": claim_grounding,
                 "dossier": intake.get("dossier", {}),
                 "profile": intake.get("profile", {}),
@@ -137,32 +152,20 @@ class ContentArchitectAgent(Agent):
                 "write_pages",
                 pages_packet,
                 context=context,
-                known_route_plan=route_plan,
                 known_claim_grounding=claim_grounding,
             )
             stages_run.append("write_pages")
             stages_meta.append(meta_pages)
-
-            page_content_packs = list(parsed_pages.get("page_content_packs") or [])
-            public_content_manifest = dict(parsed_pages.get("public_content_manifest") or {})
-            coverage_ledger = list(parsed_pages.get("coverage_ledger") or coverage_ledger)
-            warnings.extend(parsed_pages.get("warnings") or [])
-            decision_basis.extend(parsed_pages.get("decision_basis") or [])
-            memory_update.update(parsed_pages.get("memory_update") or {})
+            absorb(parsed_pages)
             integration_needed = integration_needed or bool(
                 parsed_pages.get("integration_needed", False)
             )
 
-        if len(route_plan) > _INTEGRATION_ROUTE_THRESHOLD:
-            integration_needed = True
-
         # ── Stage 3: integrate_content (only if warranted) ──────────────
         if integration_needed:
             integrate_packet = {
-                "route_plan": route_plan,
+                "page_content": page_content,
                 "claim_grounding": claim_grounding,
-                "page_content_packs": page_content_packs,
-                "public_content_manifest": public_content_manifest,
                 "coverage_ledger": coverage_ledger,
                 "dossier": intake.get("dossier", {}),
             }
@@ -170,111 +173,76 @@ class ContentArchitectAgent(Agent):
                 "integrate_content",
                 integrate_packet,
                 context=context,
-                known_route_plan=route_plan,
                 known_claim_grounding=claim_grounding,
             )
             stages_run.append("integrate_content")
             stages_meta.append(meta_integrate)
-
-            page_content_packs = list(
-                parsed_integrate.get("page_content_packs") or page_content_packs
-            )
-            public_content_manifest = dict(
-                parsed_integrate.get("public_content_manifest") or public_content_manifest
-            )
-            coverage_ledger = list(parsed_integrate.get("coverage_ledger") or coverage_ledger)
-            warnings.extend(parsed_integrate.get("warnings") or [])
-            decision_basis.extend(parsed_integrate.get("decision_basis") or [])
-            memory_update.update(parsed_integrate.get("memory_update") or {})
-
-        max_routes = self._config.max_routes
-        if len(route_plan) > max_routes:
-            raise ContentArchitectModelOutputError(
-                "build",
-                [
-                    "Approved content route scope exceeds the configured page ceiling; "
-                    "the route scope was not truncated."
-                ],
-            )
-        if len(page_content_packs) > max_routes:
-            raise ContentArchitectModelOutputError(
-                "build",
-                [
-                    "Approved content packs exceed the configured page ceiling; "
-                    "the content scope was not truncated."
-                ],
-            )
+            absorb(parsed_integrate)
 
         # Approval must be a formality after review, never the first place we
         # discover that public content contradicts its own publication gates.
         # Use one of the existing three bounded calls as a corrective
         # integration pass when capacity remains; otherwise fail before the
         # unapprovable output can be presented as ready for review.
+        dossier = intake.get("dossier", {})
         readiness_errors = _approval_readiness_errors(
-            route_plan=route_plan,
+            page_content=page_content,
             claim_grounding=claim_grounding,
-            page_content_packs=page_content_packs,
-            public_content_manifest=public_content_manifest,
             coverage_ledger=coverage_ledger,
-            dossier=intake.get("dossier", {}),
-            site_story_strategy=site_story_strategy,
+            dossier=dossier,
         )
         if readiness_errors and len(stages_run) < 3:
             repair_packet = {
-                "route_plan": route_plan,
+                "page_content": page_content,
                 "claim_grounding": claim_grounding,
-                "page_content_packs": page_content_packs,
-                "public_content_manifest": public_content_manifest,
                 "coverage_ledger": coverage_ledger,
                 "approval_readiness_errors": readiness_errors,
-                "dossier": intake.get("dossier", {}),
+                "dossier": dossier,
             }
             parsed_repair, version, meta_repair = await self._call_stage(
                 "integrate_content",
                 repair_packet,
                 context=context,
-                known_route_plan=route_plan,
                 known_claim_grounding=claim_grounding,
             )
             stages_run.append("integrate_content")
             stages_meta.append(meta_repair)
-            page_content_packs = list(parsed_repair.get("page_content_packs") or page_content_packs)
-            public_content_manifest = dict(
-                parsed_repair.get("public_content_manifest") or public_content_manifest
-            )
-            coverage_ledger = list(parsed_repair.get("coverage_ledger") or coverage_ledger)
-            warnings.extend(parsed_repair.get("warnings") or [])
-            decision_basis.extend(parsed_repair.get("decision_basis") or [])
-            memory_update.update(parsed_repair.get("memory_update") or {})
+            absorb(parsed_repair)
             readiness_errors = _approval_readiness_errors(
-                route_plan=route_plan,
+                page_content=page_content,
                 claim_grounding=claim_grounding,
-                page_content_packs=page_content_packs,
-                public_content_manifest=public_content_manifest,
                 coverage_ledger=coverage_ledger,
-                dossier=intake.get("dossier", {}),
-                site_story_strategy=site_story_strategy,
+                dossier=dossier,
             )
         if readiness_errors:
             raise ContentArchitectModelOutputError("approval_readiness", readiness_errors)
 
+        try:
+            normalized_strategy = ContentStoryStrategy.model_validate(site_story_strategy)
+            normalized_page = PortfolioPageContent.model_validate(page_content)
+            normalized_claims = [ClaimGrounding.model_validate(c) for c in claim_grounding]
+            normalized_ledger = [ContentCoverageEntry.model_validate(e) for e in coverage_ledger]
+        except ValidationError as exc:
+            raise ContentArchitectModelOutputError(
+                "build", [f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()[:5]]
+            ) from exc
+
         logger.info(
-            "content_architect build stages=%s routes=%d pages=%d",
+            "content_architect build stages=%s pillars=%d groups=%d",
             stages_run,
-            len(route_plan),
-            len(page_content_packs),
+            len(normalized_page.systems_practice.pillars),
+            len(normalized_page.technical_capabilities.groups),
         )
 
         return AgentResult(
             output={
                 "user_summary": user_summary,
-                "site_story_strategy": site_story_strategy,
+                "site_story_strategy": normalized_strategy.model_dump(mode="json"),
                 "decision_basis": decision_basis,
-                "route_plan": route_plan,
-                "claim_grounding": claim_grounding,
-                "coverage_ledger": coverage_ledger,
-                "page_content_packs": page_content_packs,
-                "public_content_manifest": public_content_manifest,
+                "page_content": normalized_page.model_dump(mode="json"),
+                "claim_grounding": [c.model_dump(mode="json") for c in normalized_claims],
+                "coverage_ledger": [e.model_dump(mode="json") for e in normalized_ledger],
+                "internal_notes": internal_notes,
                 "omissions": omissions,
                 "unresolved_issues": unresolved_issues,
                 "privacy_and_confidentiality": privacy_and_confidentiality,
@@ -292,7 +260,6 @@ class ContentArchitectAgent(Agent):
         source_packet: dict[str, Any],
         *,
         context: AgentContext,
-        known_route_plan: list[dict[str, Any]] | None = None,
         known_claim_grounding: list[dict[str, Any]] | None = None,
     ) -> tuple[dict[str, Any], str, dict[str, Any]]:
         """Run one model call, validate its output, and return (parsed, version, metadata)."""
@@ -305,7 +272,6 @@ class ContentArchitectAgent(Agent):
             validation = validate_stage_output(
                 parsed,
                 operation,
-                known_route_plan=known_route_plan,
                 known_claim_grounding=known_claim_grounding,
             )
             if not validation.is_valid:
@@ -345,101 +311,18 @@ class ContentArchitectAgent(Agent):
 
 def _approval_readiness_errors(
     *,
-    route_plan: list[dict[str, Any]],
+    page_content: dict[str, Any],
     claim_grounding: list[dict[str, Any]],
-    page_content_packs: list[dict[str, Any]],
-    public_content_manifest: dict[str, Any],
     coverage_ledger: list[dict[str, Any]] | None = None,
     dossier: dict[str, Any] | None = None,
-    site_story_strategy: dict[str, Any] | None = None,
 ) -> list[str]:
-    state = ContentArchitectState.model_validate(
-        {
-            "route_plan": route_plan,
-            "claim_grounding": claim_grounding,
-            "page_content_packs": page_content_packs,
-            "public_content_manifest": public_content_manifest,
-        }
-    )
-    public_routes = [
-        route
-        for route in state.route_plan
-        if route.publication_status == PublicationStatus.APPROVED
+    """Deterministic gate mirroring what approval will enforce later."""
+    return [
+        *page_shape_errors(page_content),
+        *page_completeness_errors(page_content),
+        *claim_binding_errors(page_content, claim_grounding),
+        *coverage_errors(dossier or {}, coverage_ledger or [], page_content),
     ]
-    if not public_routes:
-        return ["At least one route must be approved for publication"]
-    errors = public_scope_errors(state, public_routes) + _coverage_errors(
-        dossier or {}, coverage_ledger or [], route_plan, page_content_packs
-    )
-    if (dossier or {}).get("contract_version") == "DiscoveryDossier/v1":
-        if len(route_plan) != 1 or route_plan[0].get("path") not in {"/", "/index.html"}:
-            errors.append("Current portfolio target requires one complete root-page route")
-        if (site_story_strategy or {}).get("presentation_mode") != "single_page":
-            errors.append("Current portfolio target requires single_page presentation_mode")
-    return errors
-
-
-def _coverage_errors(
-    dossier: dict[str, Any],
-    ledger: list[dict[str, Any]],
-    route_plan: list[dict[str, Any]],
-    page_content_packs: list[dict[str, Any]],
-) -> list[str]:
-    """Require a disposition for every fact/entity in a new Discovery dossier."""
-    if dossier.get("contract_version") != "DiscoveryDossier/v1":
-        return []  # Existing approved sessions may predate dossier production.
-    expected = {
-        f"{kind}/{item['id']}"
-        for field, kind in (
-            ("facts", "fact"),
-            ("roles", "role"),
-            ("projects", "project"),
-            ("other_evidence", "evidence"),
-        )
-        for item in dossier.get(field, [])
-        if isinstance(item, dict) and item.get("id")
-    }
-    approved_routes = {
-        route.get("route_id")
-        for route in route_plan
-        if route.get("publication_status", "approved") == "approved"
-    }
-    public_refs = {
-        f"{pack.get('route_id')}#{section.get('section_id')}"
-        for pack in page_content_packs
-        if pack.get("route_id") in approved_routes
-        for section in pack.get("sections", [])
-        if isinstance(section, dict) and section.get("section_id")
-    }
-    public_refs.add("manifest")
-    errors: list[str] = []
-    seen: set[str] = set()
-    for index, entry in enumerate(ledger):
-        if not isinstance(entry, dict):
-            errors.append(f"Coverage ledger entry {index} is not an object")
-            continue
-        source_id = str(entry.get("source_id", "") or "")
-        disposition = entry.get("disposition")
-        refs = entry.get("public_refs", [])
-        if not isinstance(refs, list) or any(not isinstance(ref, str) for ref in refs):
-            errors.append(f"Coverage ledger {source_id!r} has invalid public_refs")
-            refs = []
-        if source_id not in expected:
-            errors.append(f"Coverage ledger has unknown source_id {source_id!r}")
-        if source_id in seen:
-            errors.append(f"Coverage ledger repeats source_id {source_id!r}")
-        seen.add(source_id)
-        if disposition not in {"published", "condensed", "internal", "restricted", "unresolved"}:
-            errors.append(f"Coverage ledger {source_id!r} has invalid disposition")
-        elif disposition in {"published", "condensed"}:
-            if not refs or set(refs) - public_refs:
-                errors.append(f"Coverage ledger {source_id!r} needs valid public_refs")
-        elif refs or not str(entry.get("reason", "") or "").strip():
-            errors.append(f"Coverage ledger {source_id!r} needs a reason and no public_refs")
-    missing = sorted(expected - seen)
-    if missing:
-        errors.append(f"Coverage ledger is missing dossier items: {', '.join(missing[:10])}")
-    return errors
 
 
 def _parsed_output(result: Any) -> dict[str, Any]:

@@ -1,186 +1,217 @@
 {
-  "site_story_strategy": {
-    "positioning": "New graduate with hands-on project experience, honest about scope.",
-    "value_proposition": "Solid fundamentals demonstrated through two small, clearly-scoped projects.",
-    "primary_audience": "Junior/entry-level hiring managers",
-    "secondary_audience": "",
-    "primary_action": "Contact for an entry-level interview",
-    "narrative_thesis": "A focused, honest first portfolio: what Sam built and specifically contributed, without inflating scope.",
-    "leading_evidence": [
-      "Campus Event Finder"
-    ],
-    "supporting_evidence": [
-      "Habit Tracker"
-    ],
-    "shortened_or_omitted": [],
-    "content_risks": [
-      "No metrics available for either project — public copy must stay qualitative."
-    ],
-    "presentation_mode": "single_page",
-    "presentation_rationale": "Two small projects and no work history do not justify separate routes; one honest page reads stronger than a padded multi-page site."
-  },
-  "decision_basis": [
-    {
-      "decision": "presentation_mode",
-      "value": "single_page",
-      "basis": "source_derived",
-      "confidence": "high",
-      "rationale": "Two small projects and no work history do not support separate routes."
-    },
-    {
-      "decision": "primary_audience",
-      "value": "Junior/entry-level hiring managers",
-      "basis": "safe_default",
-      "confidence": "medium",
-      "rationale": "No audience preference was supplied; inferred from the entry-level career stage."
-    }
-  ],
-  "route_plan": [
-    {
-      "route_id": "home",
-      "path": "/",
-      "title": "Sam Okafor — Computer Science Graduate",
-      "purpose": "Single-page portfolio home",
-      "audience_takeaway": "Sam has hands-on project experience and clear, honest contributions.",
-      "priority": "primary",
-      "content_density": "light",
-      "section_sequence": [
-        "hero",
-        "about",
-        "projects",
-        "contact"
-      ],
-      "mobile_notes": "",
-      "source_refs": [
-        "profile.projects",
-        "profile.education[0]"
-      ],
-      "publication_status": "approved"
-    }
-  ],
-  "page_content_packs": [
-    {
-      "route_id": "home",
-      "sections": [
-        {
-          "section_id": "hero",
-          "purpose": "Introduce Sam.",
-          "content": {
-            "eyebrow": "Computer Science Graduate",
-            "headline": "Building things, one project at a time.",
-            "cta": "Get in touch"
-          },
-          "claim_ids": [],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": [
-            {
-              "label": "Get in touch",
-              "href": "#contact",
-              "kind": "anchor"
-            }
-          ]
-        },
-        {
-          "section_id": "about",
-          "purpose": "Summarize background.",
-          "content": {
-            "text": "Sam recently graduated with a B.S. in Computer Science and has built two small projects — a group course project and a personal side project."
-          },
-          "claim_ids": [],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": []
-        },
-        {
-          "section_id": "projects",
-          "purpose": "Describe both projects with scoped, honest contribution.",
-          "content": {
-            "items": [
-              {
-                "title": "Campus Event Finder",
-                "text": "A course group project. Sam built the search and filtering feature. Team scope beyond that is unclear and is not claimed here."
-              },
-              {
-                "title": "Habit Tracker",
-                "text": "A personal habit-tracking app, designed and built solo. Not yet deployed publicly."
-              }
-            ]
-          },
-          "claim_ids": [
-            "claim_campus_event_finder_contribution",
-            "claim_habit_tracker_solo"
-          ],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": []
-        },
-        {
-          "section_id": "contact",
-          "purpose": "Closing CTA.",
-          "content": {
-            "text": "Looking for a first developer role — happy to talk."
-          },
-          "claim_ids": [],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": []
-        }
-      ],
-      "internal_notes": {
-        "campus_event_finder_scope": "Team scope beyond Sam's stated search/filtering feature has not been confirmed; do not expand this claim without new grounding."
-      }
-    }
-  ],
-  "public_content_manifest": {
-    "nav": [
-      {
-        "label": "Home",
-        "target": "home"
-      }
-    ],
-    "contact_cta": "Looking for a first developer role — happy to talk."
-  },
-  "claim_grounding": [
-    {
-      "claim_id": "claim_campus_event_finder_contribution",
-      "statement": "Sam built the search and filtering feature of Campus Event Finder.",
-      "source_reference": "profile.projects[0].contribution",
-      "source_entity_id": "project:campus-event-finder",
-      "evidence_status": "unverified",
-      "ownership": "unclear",
-      "publication_status": "pending",
-      "confidence_or_warning": "Team scope of the group project is unclear; phrased as Sam's specific feature only, not the whole project."
-    },
-    {
-      "claim_id": "claim_habit_tracker_solo",
-      "statement": "Habit Tracker was designed and built solo by Sam.",
-      "source_reference": "profile.projects[1].contribution",
-      "source_entity_id": "project:habit-tracker",
-      "evidence_status": "verified",
-      "ownership": "individual",
-      "publication_status": "approved",
-      "confidence_or_warning": ""
-    }
-  ],
-  "omissions": [
-    "No employer/work history section — none exists yet."
-  ],
-  "unresolved_issues": [
-    "No metrics available for either project; public copy stays qualitative rather than inventing numbers.",
-    "Exact team scope of Campus Event Finder is unclear beyond Sam's stated feature."
-  ],
-  "privacy_and_confidentiality": [],
-  "warnings": [
-    "Campus Event Finder's contribution claim is pending — team scope is unconfirmed."
-  ],
-  "memory_update": {},
   "mode": "STRATEGY_AND_CONTENT",
   "content_included": true,
   "integration_needed": false,
-  "user_summary": "Sam's plan stays concise and grounded in the available evidence: a student profile, a group course project, and a personal habit-tracking app. It makes the internship goal clear without adding metrics, work experience, or unsupported project outcomes. The course project's team context remains distinct from Sam's individual contribution, and the public copy uses neutral wording where team scope is unclear. The result gives Sam a useful starting point without padding a sparse profile with generic claims. The available material is enough to review the positioning, project descriptions, open details, and contact path together. The site content is ready for Sam to review and approve."
+  "user_summary": "Your page presents you honestly as a student with a team course project and a clear goal: a backend internship. Four focus areas keep the layout full without claiming experience you haven't described.",
+  "site_story_strategy": {
+    "positioning": "Motivated student building backend fundamentals.",
+    "value_proposition": "Solid foundations and a clear learning trajectory.",
+    "primary_audience": "Internship recruiters and engineering managers",
+    "secondary_audience": "",
+    "primary_action": "View GitHub",
+    "narrative_thesis": "Early-career, honest about scope, eager to ship.",
+    "leading_evidence": [
+      "Course project"
+    ],
+    "supporting_evidence": [
+      "Skills"
+    ],
+    "content_risks": [
+      "Personal contribution to the catalog app is unclear."
+    ],
+    "tone": "earnest, plain",
+    "content_density": "light"
+  },
+  "decision_basis": [
+    {
+      "decision": "primary_action",
+      "value": "View GitHub",
+      "basis": "safe_default",
+      "confidence": "high",
+      "rationale": "Only a GitHub link was supplied."
+    }
+  ],
+  "page_content": {
+    "hero": {
+      "name": "Arjun Mehta",
+      "eyebrow_primary": "Computer Science Student",
+      "eyebrow_secondary": "Backend internships",
+      "headline_prefix": "Learning to build backend software that",
+      "headline_emphasis": "works reliably.",
+      "intro": "Computer science student at State University, graduating in 2027. Comfortable with Python, Java, and SQL, and looking for a backend internship where I can keep learning by shipping.",
+      "location": "Pune, India",
+      "primary_cta_label": "See my focus areas",
+      "secondary_cta_label": "View my GitHub"
+    },
+    "metadata": {
+      "title": "Arjun Mehta — Computer Science Student",
+      "description": "Computer science student at State University learning backend development with Python, Java, and SQL. Seeking backend internships."
+    },
+    "marquee_keywords": [
+      "Python",
+      "Java",
+      "SQL"
+    ],
+    "systems_practice": {
+      "eyebrow": "Focus areas",
+      "heading": "Backend fundamentals, practiced in projects.",
+      "intro": "Where my time goes right now.",
+      "pillars": [
+        {
+          "title": "Backend fundamentals",
+          "description": "Building a foundation in Python, Java, and SQL through coursework."
+        },
+        {
+          "title": "Team projects",
+          "description": "Contributed to a three-person course project: a library catalog app."
+        },
+        {
+          "title": "Data and search",
+          "description": "Working with SQL and learning how catalog search is built."
+        },
+        {
+          "title": "Next step",
+          "description": "Looking for a backend internship to learn from production systems."
+        }
+      ]
+    },
+    "technical_capabilities": {
+      "eyebrow": "Toolkit",
+      "heading": "What I work with.",
+      "intro": "Languages and tools from my coursework.",
+      "groups": [
+        {
+          "heading": "Languages",
+          "items": [
+            "Python",
+            "Java"
+          ]
+        },
+        {
+          "heading": "Data",
+          "items": [
+            "SQL"
+          ]
+        }
+      ]
+    },
+    "professional_context": {
+      "eyebrow": "Background",
+      "heading": "Where I'm studying.",
+      "intro": "Currently completing a B.Sc. in Computer Science.",
+      "organizations": [
+        "State University"
+      ]
+    },
+    "connect": {
+      "eyebrow": "Connect",
+      "heading": "See the code.",
+      "intro": "My projects live on GitHub.",
+      "destinations": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/arjunmehta-dev",
+          "featured": true
+        }
+      ]
+    }
+  },
+  "claim_grounding": [
+    {
+      "claim_id": "claim_team_project",
+      "statement": "Contributed to a three-person course project building a library catalog app.",
+      "source_reference": "fact/g2",
+      "source_entity_id": "project:p1",
+      "evidence_status": "verified",
+      "ownership": "team",
+      "publication_status": "approved",
+      "confidence_or_warning": "",
+      "field_paths": [
+        "systems_practice.pillars[1].description"
+      ]
+    },
+    {
+      "claim_id": "claim_catalog_search",
+      "statement": "Built the catalog search.",
+      "source_reference": "fact/g5",
+      "source_entity_id": "project:p1",
+      "evidence_status": "unresolved",
+      "ownership": "unclear",
+      "publication_status": "pending",
+      "confidence_or_warning": "Personal contribution is unclear; omitted from public copy.",
+      "field_paths": []
+    }
+  ],
+  "coverage_ledger": [
+    {
+      "source_id": "fact/g1",
+      "disposition": "used",
+      "field_paths": [
+        "hero.intro",
+        "professional_context.organizations[0]"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/g2",
+      "disposition": "used",
+      "field_paths": [
+        "systems_practice.pillars[1].description"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/g3",
+      "disposition": "used",
+      "field_paths": [
+        "technical_capabilities.groups[0].items[0]",
+        "technical_capabilities.groups[0].items[1]",
+        "technical_capabilities.groups[1].items[0]"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/g4",
+      "disposition": "used",
+      "field_paths": [
+        "hero.intro",
+        "systems_practice.pillars[3].description"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/g5",
+      "disposition": "unresolved",
+      "field_paths": [],
+      "reason": "Arjun's personal share of the catalog search is unclear, so it is not claimed."
+    },
+    {
+      "source_id": "project/p1",
+      "disposition": "condensed",
+      "field_paths": [
+        "systems_practice.pillars[1].title"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "evidence/e1",
+      "disposition": "used",
+      "field_paths": [
+        "professional_context.organizations[0]"
+      ],
+      "reason": ""
+    }
+  ],
+  "internal_notes": {},
+  "omissions": [
+    "Catalog search ownership claim"
+  ],
+  "unresolved_issues": [
+    "No employers or work experience were supplied.",
+    "No metrics were supplied for the course project.",
+    "No LinkedIn or email link was supplied."
+  ],
+  "privacy_and_confidentiality": [],
+  "warnings": [],
+  "memory_update": {}
 }

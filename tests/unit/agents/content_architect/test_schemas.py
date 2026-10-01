@@ -12,17 +12,20 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectPreferences,
     ContentArchitectState,
     ContentArchitectStatus,
+    ContentCoverageEntry,
     ContentPlanMode,
-    ContentSection,
+    ContentStoryStrategy,
+    CoverageDisposition,
     DecisionBasis,
     DecisionRecord,
     EvidenceStatus,
+    HeroContent,
     Ownership,
-    PageContentPack,
-    PresentationMode,
+    PortfolioPageContent,
     PublicationStatus,
-    RoutePlanEntry,
+    SystemsPracticeContent,
 )
+from tests.unit.agents.content_architect.helpers import valid_page
 
 
 class TestContentArchitectIntake:
@@ -66,30 +69,19 @@ class TestContentArchitectPreferences:
         assert prefs.extra_pref == "x"
 
 
-class TestRoutePlanEntry:
-    def test_minimal_route(self):
-        route = RoutePlanEntry(route_id="home", path="/", purpose="Home page")
-        assert route.title == ""
-        assert route.section_sequence == []
-        assert route.publication_status == PublicationStatus.APPROVED
-
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            RoutePlanEntry(route_id="home", path="/", unknown="bad")
-
-    def test_publication_status_can_be_pending_or_blocked(self):
-        pending = RoutePlanEntry(route_id="r", path="/r", purpose="p", publication_status="pending")
-        blocked = RoutePlanEntry(route_id="r", path="/r", purpose="p", publication_status="blocked")
-        assert pending.publication_status == PublicationStatus.PENDING
-        assert blocked.publication_status == PublicationStatus.BLOCKED
-
-
 class TestClaimGrounding:
     def test_defaults(self):
         claim = ClaimGrounding(claim_id="c1", statement="x")
         assert claim.evidence_status == EvidenceStatus.UNRESOLVED
         assert claim.ownership == Ownership.UNCLEAR
         assert claim.publication_status == PublicationStatus.PENDING
+        assert claim.field_paths == []
+
+    def test_field_paths_round_trip(self):
+        claim = ClaimGrounding(claim_id="c1", field_paths=["hero.intro"])
+        assert ClaimGrounding.model_validate(claim.model_dump(mode="json")).field_paths == [
+            "hero.intro"
+        ]
 
     def test_extra_fields_rejected(self):
         with pytest.raises(PydanticValidationError):
@@ -127,46 +119,69 @@ class TestContentPlanMode:
         assert ContentPlanMode.INTEGRATED.value == "INTEGRATED"
 
 
-class TestPresentationMode:
-    def test_three_modes(self):
-        assert {m.value for m in PresentationMode} == {"single_page", "hybrid", "multi_page"}
-
-
 class TestPublicationStatus:
     def test_three_statuses(self):
         assert {m.value for m in PublicationStatus} == {"approved", "pending", "blocked"}
 
 
-class TestContentSection:
-    def test_minimal_section(self):
-        section = ContentSection(section_id="hero", purpose="Intro")
-        assert section.content == {}
-        assert section.claim_ids == []
-        assert section.optional is False
+class TestCoverageDisposition:
+    def test_six_dispositions(self):
+        assert {m.value for m in CoverageDisposition} == {
+            "used",
+            "condensed",
+            "retained_internally",
+            "excluded_by_restriction",
+            "excluded_editorially",
+            "unresolved",
+        }
 
-    def test_extra_fields_rejected(self):
-        with pytest.raises(PydanticValidationError):
-            ContentSection(section_id="hero", unknown="bad")
+    def test_entry_defaults_and_round_trip(self):
+        entry = ContentCoverageEntry(source_id="fact/1", disposition="used", field_paths=["a.b"])
+        assert ContentCoverageEntry.model_validate(entry.model_dump(mode="json")) == entry
 
-
-class TestPageContentPack:
-    def test_minimal_pack(self):
-        pack = PageContentPack(route_id="home")
-        assert pack.sections == []
-        assert pack.internal_notes == {}
-
-    def test_sections_and_internal_notes_are_separate(self):
-        pack = PageContentPack(
-            route_id="home",
-            sections=[ContentSection(section_id="hero", content={"text": "hi"})],
-            internal_notes={"needs_confirmation": "ownership"},
+    def test_entry_loads_rows_saved_with_the_old_public_refs_key(self):
+        entry = ContentCoverageEntry.model_validate(
+            {"source_id": "fact/1", "disposition": "published", "public_refs": ["home#hero"]}
         )
-        assert pack.sections[0].content == {"text": "hi"}
-        assert pack.internal_notes["needs_confirmation"] == "ownership"
+        assert entry.field_paths == []
 
-    def test_extra_fields_rejected(self):
+
+class TestPortfolioPageContent:
+    def test_empty_page_defaults(self):
+        page = PortfolioPageContent()
+        assert page.hero.name == ""
+        assert page.systems_practice.pillars == []
+        assert page.marquee_keywords == []
+
+    def test_pillar_count_is_a_validator_rule_not_a_schema_rule(self):
+        assert len(SystemsPracticeContent(pillars=[]).pillars) == 0
+
+    def test_valid_page_round_trips(self):
+        page = PortfolioPageContent.model_validate(valid_page())
+        assert page.hero.headline_emphasis == "stay up."
+        assert len(page.systems_practice.pillars) == 4
+        assert page.connect.destinations[0].featured is True
+        assert PortfolioPageContent.model_validate(page.model_dump(mode="json")) == page
+
+    def test_stray_keys_are_ignored(self):
+        assert not hasattr(HeroContent.model_validate({"name": "A", "bogus": 1}), "bogus")
+
+    def test_wrong_types_rejected(self):
         with pytest.raises(PydanticValidationError):
-            PageContentPack(route_id="home", unknown="bad")
+            HeroContent.model_validate({"name": 5})
+
+
+class TestContentStoryStrategy:
+    def test_defaults(self):
+        strategy = ContentStoryStrategy()
+        assert strategy.positioning == ""
+        assert strategy.leading_evidence == []
+
+    def test_legacy_free_form_strategy_still_loads(self):
+        strategy = ContentStoryStrategy.model_validate(
+            {"positioning": "x", "presentation_mode": "single_page", "presentation_rationale": "y"}
+        )
+        assert strategy.positioning == "x"
 
 
 class TestDecisionRecord:
@@ -183,9 +198,9 @@ class TestContentArchitectOutput:
     def test_minimal_output(self):
         output = ContentArchitectOutput(mode=ContentPlanMode.STRATEGY_ONLY)
         assert output.content_included is False
-        assert output.route_plan == []
-        assert output.page_content_packs == []
+        assert output.page_content == PortfolioPageContent()
         assert output.decision_basis == []
+        assert output.internal_notes == {}
 
     def test_mode_required(self):
         with pytest.raises(PydanticValidationError):
@@ -195,25 +210,21 @@ class TestContentArchitectOutput:
         with pytest.raises(PydanticValidationError):
             ContentArchitectOutput(mode=ContentPlanMode.STRATEGY_ONLY, unknown="bad")
 
+    def test_legacy_route_fields_are_rejected(self):
+        with pytest.raises(PydanticValidationError):
+            ContentArchitectOutput(mode=ContentPlanMode.STRATEGY_ONLY, route_plan=[])
+
     def test_full_output_shape(self):
         output = ContentArchitectOutput(
             mode=ContentPlanMode.STRATEGY_AND_CONTENT,
             content_included=True,
-            site_story_strategy={"positioning": "x"},
-            decision_basis=[DecisionRecord(decision="presentation_mode", value="single_page")],
-            route_plan=[RoutePlanEntry(route_id="home", path="/", purpose="p")],
-            claim_grounding=[ClaimGrounding(claim_id="c1", statement="s")],
-            page_content_packs=[
-                PageContentPack(
-                    route_id="home",
-                    sections=[ContentSection(section_id="hero", claim_ids=["c1"])],
-                )
-            ],
-            public_content_manifest={"nav": []},
+            site_story_strategy=ContentStoryStrategy(positioning="x"),
+            decision_basis=[DecisionRecord(decision="tone", value="plain")],
+            page_content=PortfolioPageContent.model_validate(valid_page()),
+            claim_grounding=[ClaimGrounding(claim_id="c1", field_paths=["hero.intro"])],
         )
-        assert output.route_plan[0].route_id == "home"
-        assert output.page_content_packs[0].route_id == "home"
-        assert output.page_content_packs[0].sections[0].claim_ids == ["c1"]
+        assert output.page_content.hero.name == "Mock User"
+        assert output.claim_grounding[0].field_paths == ["hero.intro"]
 
 
 class TestContentArchitectState:
@@ -222,20 +233,34 @@ class TestContentArchitectState:
         assert state.status == ContentArchitectStatus.NOT_STARTED
         assert state.max_attempts == 3
         assert state.approved is None
-        assert state.route_plan == []
+        assert state.page_content == PortfolioPageContent()
         assert state.decision_basis == []
 
     def test_unknown_saved_fields_are_ignored(self):
         state = ContentArchitectState(status=ContentArchitectStatus.NOT_STARTED, unknown="bad")
         assert "unknown" not in state.model_dump()
 
+    def test_state_saved_with_the_route_schema_still_loads(self):
+        state = ContentArchitectState.model_validate(
+            {
+                "status": "content_review",
+                "route_plan": [{"route_id": "home", "path": "/"}],
+                "page_content_packs": [{"route_id": "home"}],
+                "public_content_manifest": {"nav": []},
+                "site_story_strategy": {"positioning": "x", "presentation_mode": "single_page"},
+                "coverage_ledger": [{"source_id": "fact/1", "public_refs": []}],
+            }
+        )
+        assert state.status == ContentArchitectStatus.CONTENT_REVIEW
+        assert state.page_content == PortfolioPageContent()
+
     def test_round_trips_through_json(self):
         state = ContentArchitectState(
             status=ContentArchitectStatus.CONTENT_REVIEW,
-            route_plan=[RoutePlanEntry(route_id="home", path="/", purpose="p")],
+            page_content=PortfolioPageContent.model_validate(valid_page()),
             claim_grounding=[ClaimGrounding(claim_id="c1", statement="s")],
-            page_content_packs=[PageContentPack(route_id="home")],
             decision_basis=[DecisionRecord(decision="d", value="v")],
+            internal_notes={"note": "x"},
         )
         dumped = state.model_dump(mode="json")
         restored = ContentArchitectState.model_validate(dumped)
