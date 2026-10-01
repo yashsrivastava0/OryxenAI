@@ -159,6 +159,31 @@ function StageFixture() {
       />
     );
   }
+  if (fixture === "discovery-attention") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery({
+          status: "needs_attention",
+          latest_error: {
+            code: "MODEL_OUTPUT_INVALID",
+            message: "The model returned output that did not satisfy the required structure.",
+            provider_label: "Experiential Labs",
+            operation_label: "build_or_revise_brief",
+            support_reference: "model-a3d7ea9e7071",
+            retryable: false,
+          },
+        })}
+        history={[]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={noop as never}
+        onGenerateBriefNow={noop}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
+  }
   if (fixture === "discovery-review") {
     return (
       <DiscoveryStage
