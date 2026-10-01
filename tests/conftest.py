@@ -363,6 +363,60 @@ def mock_model_client() -> _MockModelClient:
 
 # ── Test-only deterministic Content Architect model client ─────────────────
 
+_CA_PAGE_CONTENT: dict[str, Any] = {
+    "hero": {
+        "name": "Mock User",
+        "eyebrow_primary": "Backend Engineer",
+        "eyebrow_secondary": "",
+        "headline_prefix": "Building backend systems that",
+        "headline_emphasis": "stay up.",
+        "intro": "Software engineer focused on durable job systems and reliable services.",
+        "location": "Remote",
+        "primary_cta_label": "Explore the work",
+        "secondary_cta_label": "View links",
+    },
+    "metadata": {
+        "title": "Mock User — Backend Engineer",
+        "description": "Backend engineer focused on durable systems and reliable services.",
+    },
+    "marquee_keywords": ["Python", "PostgreSQL", "Queues"],
+    "systems_practice": {
+        "eyebrow": "Practice",
+        "heading": "Durable systems, built carefully.",
+        "intro": "A focused backend practice.",
+        "pillars": [
+            {"title": "Reliability", "description": "Retry-safe job lifecycles."},
+            {"title": "Queues", "description": "Durable background processing."},
+            {"title": "Data", "description": "Relational modeling in PostgreSQL."},
+            {"title": "Operations", "description": "Observable, deployable services."},
+        ],
+    },
+    "technical_capabilities": {
+        "eyebrow": "Capabilities",
+        "heading": "Tools of the trade.",
+        "intro": "Technologies from the supplied profile.",
+        "groups": [
+            {"heading": "Backend", "items": ["Python", "FastAPI"]},
+            {"heading": "Data", "items": ["PostgreSQL"]},
+        ],
+    },
+    "professional_context": {
+        "eyebrow": "Context",
+        "heading": "Where the work happened.",
+        "intro": "Organizations named in the profile.",
+        "organizations": ["Example Corp"],
+    },
+    "connect": {
+        "eyebrow": "Connect",
+        "heading": "Let's talk.",
+        "intro": "Reach out through the channels below.",
+        "destinations": [
+            {"label": "GitHub", "url": "https://github.com/example", "featured": True},
+            {"label": "LinkedIn", "url": "https://linkedin.com/in/example", "featured": False},
+        ],
+    },
+}
+
 _CA_PLAN_PAYLOAD: dict[str, Any] = {
     "mode": "STRATEGY_AND_CONTENT",
     "content_included": True,
@@ -372,29 +426,14 @@ _CA_PLAN_PAYLOAD: dict[str, Any] = {
         "primary_audience": "Hiring managers for backend roles",
         "primary_action": "Contact for an interview",
         "narrative_thesis": "Reliability-minded engineering, told through one real project.",
-        "presentation_mode": "single_page",
-        "presentation_rationale": "One strong project and a focused profile fit one page.",
     },
     "decision_basis": [
         {
-            "decision": "presentation_mode",
-            "value": "single_page",
+            "decision": "primary_action",
+            "value": "Contact for an interview",
             "basis": "source_derived",
             "confidence": "high",
-            "rationale": "Only one well-documented project exists in the snapshot.",
-        }
-    ],
-    "route_plan": [
-        {
-            "route_id": "home",
-            "path": "/",
-            "title": "Mock User — Backend Engineer",
-            "purpose": "Single-page portfolio home",
-            "audience_takeaway": "Can ship and operate backend systems reliably.",
-            "priority": "primary",
-            "content_density": "medium",
-            "section_sequence": ["hero", "about", "project", "contact"],
-            "publication_status": "approved",
+            "rationale": "The snapshot targets backend roles.",
         }
     ],
     "claim_grounding": [
@@ -406,48 +445,10 @@ _CA_PLAN_PAYLOAD: dict[str, Any] = {
             "evidence_status": "verified",
             "ownership": "individual",
             "publication_status": "approved",
+            "field_paths": ["systems_practice.pillars[0].description"],
         }
     ],
-    "page_content_packs": [
-        {
-            "route_id": "home",
-            "sections": [
-                {
-                    "section_id": "hero",
-                    "purpose": "Introduce the positioning.",
-                    "content": {"headline": "Backend systems that stay up."},
-                    "claim_ids": [],
-                    "priority": "primary",
-                },
-                {
-                    "section_id": "about",
-                    "purpose": "Summarize the professional focus.",
-                    "content": {"summary": "Backend-focused software engineer."},
-                    "claim_ids": [],
-                    "priority": "secondary",
-                },
-                {
-                    "section_id": "project",
-                    "purpose": "Feature the strongest project.",
-                    "content": {"title": "QueueGuard", "summary": "A durable job system."},
-                    "claim_ids": ["claim_queueguard"],
-                    "priority": "primary",
-                },
-                {
-                    "section_id": "contact",
-                    "purpose": "Offer a safe closing action.",
-                    "content": {"cta": "Get in touch."},
-                    "claim_ids": [],
-                    "priority": "secondary",
-                },
-            ],
-            "internal_notes": {},
-        }
-    ],
-    "public_content_manifest": {
-        "nav": [{"label": "Home", "target": "home"}],
-        "contact_cta": "Get in touch",
-    },
+    "page_content": _CA_PAGE_CONTENT,
     "unresolved_issues": ["no metrics supplied"],
     "memory_update": {},
 }
@@ -503,8 +504,8 @@ class _ContentArchitectMockModelClient:
             parsed["coverage_ledger"] = [
                 {
                     "source_id": f"{kind}/{item['id']}",
-                    "disposition": "internal",
-                    "public_refs": [],
+                    "disposition": "retained_internally",
+                    "field_paths": [],
                     "reason": "Fixture keeps this source item in the reviewed dossier.",
                 }
                 for field, kind in (

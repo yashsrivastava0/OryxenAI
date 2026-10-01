@@ -465,12 +465,6 @@ class DiscoveryConfig(BaseModel):
     max_answer_chars: int = 10000
 
 
-class ContentArchitectConfig(BaseModel):
-    """Content Architect agent output limits from [content_architect] in config/app.toml."""
-
-    max_routes: int = 12
-
-
 class ArtifactStorageConfig(BaseModel):
     """Non-secret S3-compatible artifact storage settings."""
 
@@ -732,7 +726,6 @@ class Settings(BaseSettings):
     models: ModelConfig = Field(default_factory=ModelConfig)
     model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
-    content_architect: ContentArchitectConfig = Field(default_factory=ContentArchitectConfig)
     archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
     preview_gateway: PreviewGatewayConfig = Field(default_factory=PreviewGatewayConfig)
     artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
@@ -777,8 +770,6 @@ class Settings(BaseSettings):
             self.model_cache = ModelCacheConfig(**app_data["model_cache"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
-        if "content_architect" in app_data:
-            self.content_architect = ContentArchitectConfig(**app_data["content_architect"])
         if "archive_storage" in app_data:
             self.archive_storage = ArchiveStorageConfig(**app_data["archive_storage"])
         if "preview_gateway" in app_data:

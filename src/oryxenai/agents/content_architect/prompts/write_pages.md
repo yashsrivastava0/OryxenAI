@@ -1,89 +1,67 @@
 <!--
   Operation: write_pages (only runs when plan_content set content_included=false)
-  Version: content_architect.write_pages.v5
+  Version: content_architect.write_pages.v6
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
 <operation>
-You are given the site_story_strategy, route_plan, and claim_grounding already decided by the
-planning step, plus the same approved Discovery dossier when available. Recheck the complete
-source-linked facts, restrictions, and open items while writing; a route-plan summary cannot be
-the sole factual source for a section. Write the complete visitor-facing content for EVERY route in route_plan whose
-publication_status is NOT "blocked", in this single response — final public content for approved
-routes and neutral review drafts for pending routes. Never ask for another call per page or per
-section, and never leave a route's content incomplete. Return one coverage_ledger disposition for
-every dossier fact, role, project, and other evidence item. Set mode="PAGES_READY".
+You are given the site_story_strategy and claim_grounding already decided by the planning step,
+plus the same approved Discovery dossier when available. Recheck the complete source-linked facts,
+restrictions, and open items while writing; the strategy summary cannot be the sole factual source
+for any field. Write the complete page_content tree in this single response, exactly as the system
+prompt's page_template defines it, and return one coverage_ledger entry for every dossier fact,
+role, project, and other evidence item. Set mode="PAGES_READY".
 </operation>
 
 <do_not_redecide>
-Do not change the presentation_mode, do not add or remove routes, and do not invent new claims or
-change any route's or claim's publication_status. Reuse the strategy and route_plan exactly as
-given. If you notice a genuine problem with the plan, note it in warnings instead of silently
-deviating from it.
+Reuse the strategy and the claims' evidence_status, ownership, and publication_status exactly as
+given; do not invent new claims or promote a claim's publication_status. If you notice a genuine
+problem with the plan, note it in warnings instead of silently deviating from it.
 </do_not_redecide>
 
-<page_content_packs>
-For each route in route_plan with publication_status "approved" or "pending", produce one entry in
-page_content_packs: route_id, a list of normalized sections matching that route's section_sequence,
-and internal_notes. Each section needs section_id, purpose, content (the actual visitor-facing
-copy — hero eyebrow/headline/summary/CTA, about narrative, project/work-sample stories, experience
-summaries, capability/skill grouping, achievements/education treatment, contact/closing CTA,
-captions and link text — whichever apply), claim_ids (every claim_id the section's copy relies on),
-priority, optional, mobile_condensation, and link_targets. Skip any route whose publication_status
-is "blocked" entirely — it must not appear in page_content_packs at all.
+<page_content>
+Write every field of hero, metadata, marquee_keywords, systems_practice (exactly 4 pillars),
+technical_capabilities, professional_context (organization names only — no roles, dates, or
+descriptions), and connect, respecting the system prompt's length guidance. Use only claims
+present in claim_grounding; do not introduce a new unsupported metric or achievement while writing.
+A claim with ownership "team" or "unclear" must read as the team/project outcome it is, never as a
+first-person solo achievement.
 
-For a "pending" route, keep its sections' content neutral and generalized exactly as the planning
-step scoped it (neutral title, no confident/unverified adjectives, no asserted ownership beyond
-what claim_grounding supports) — do not "fill in" the still-unresolved specifics yourself.
+Return claim_grounding as the COMPLETE list (same claim_ids as given, unchanged statuses) with
+field_paths filled in: every "approved" claim lists the page_content fields that rely on it, using
+the system prompt's path syntax; every "pending" or "blocked" claim keeps field_paths [] and its
+exact detail must not appear in any field — omit it or write a safe neutral statement.
 
-Use only claims present in claim_grounding; do not introduce a new unsupported metric or
-achievement while writing content. A claim with ownership "team" or "unclear" must read as the
-team/project outcome it is, never as a first-person solo achievement.
+Give each pillar and capability group only what the material supports — do not stretch a thin area
+into a long description. A sparse profile still gets four pillars: use honest broader themes drawn
+from what exists, never invented specialties.
+</page_content>
 
-For every approved route, each claim_id used by a section MUST point to a claim whose
-publication_status is "approved". If a claim is pending or blocked, omit or safely generalize the
-exact detail in visitor-facing copy and remove that claim_id from the public section; preserve the
-reason only in internal_notes/unresolved_issues. Never promote a claim's publication_status just
-to make the content pass this check.
+<coverage_ledger_rule>
+Return the coverage_ledger for the entire dossier: one entry per fact, role, project, and evidence
+item, using the six dispositions from the system prompt. used/condensed entries list the
+field_paths that hold the copy; every other disposition has an empty field_paths and a concrete
+reason.
+</coverage_ledger_rule>
 
-Give each project or work-sample story only the structure the material actually supports — do not
-force every project into the same case-study template. A well-documented project may cover
-context/problem, the user's specific contribution, key decisions, technology, and a supported
-outcome; a thin one may honestly be a single strong paragraph.
-
-internal_notes is the ONLY place for your own review reasoning (confirmation needed, why something
-was generalized, QA checklists). Never put this reasoning inside a section's content field — a
-visitor must never see it.
 <detail_rule>
-Return the complete content set, including every applicable visitor-facing field for every route and
-section. Preserve all grounded detail from the route plan and claim grounding. A section may be
+Return the complete content set. Preserve all grounded detail the page can hold. A field may be
 short only when the supplied facts genuinely provide no more material; never shorten a rich section
-into a label, summary, or placeholder to save output space.
+into a label or placeholder to save output space.
 </detail_rule>
 
-</page_content_packs>
-
-<public_content_manifest>
-Populate public_content_manifest with the shared, cross-route public content: the navigation label
-set, the hero content (if not already fully covered per-route), the about narrative, the
-capability/skill grouping, achievements/education treatment shared across routes, and the closing
-contact/CTA copy and shared captions/link text. Do not duplicate content already fully expressed
-inside a specific page_content_packs entry. This is the approved public projection: do not reference
-or summarize a route or claim whose publication_status is "pending" or "blocked".
-</public_content_manifest>
-
 <integration_signal>
-Set integration_needed=true if, while writing multiple routes, you notice inconsistent terminology,
-repeated phrasing across routes, or navigation labels that do not read as one coherent site —
-the integrate_content operation should run afterward. Otherwise leave it false.
+Set integration_needed=true only if, after writing, you notice inconsistent terminology, repeated
+phrasing across sections, or a section label that does not read as part of one coherent page — the
+integrate_content operation should then run. Otherwise leave it false.
 </integration_signal>
 
 <approval_readiness>
-Before returning, verify that every approved route has exactly one complete content pack, section
-IDs exactly match its section_sequence in order, every section contains real visitor-facing copy,
-no approved-route section references a pending/blocked claim, and
-public_content_manifest is populated. The output must be immediately approvable
-without another content-writing step.
+Before returning, verify: exactly four pillars with titles and descriptions; hero name, headline,
+and intro present; metadata title and description present; at least one capability group with at
+least one item; every claim bound to a field is approved; no pending or blocked claim has
+field_paths; every dossier item has exactly one ledger entry with a valid disposition. The output
+must be immediately approvable without another content-writing step.
 </approval_readiness>
 
 <format>

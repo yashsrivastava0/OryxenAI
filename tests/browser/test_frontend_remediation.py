@@ -77,8 +77,8 @@ def test_required_viewports_keep_stage_actions_visible(
     page = browser_page
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=content-review", wait_until="networkidle")
-    assert page.get_by_role("heading", name="Three routes. A stronger story ahead.").is_visible()
-    assert page.get_by_role("button", name="Approve content").is_visible()
+    assert page.get_by_role("heading", name="Your portfolio page content").is_visible()
+    assert page.get_by_role("button", name="Approve content plan").is_visible()
     assert_no_horizontal_overflow(page)
 
 

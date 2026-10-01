@@ -126,11 +126,6 @@ max_token_bytes = 8192
 max_questions = 3
 max_answer_chars = 10000
 
-[content_architect]
-# Content Architect agent output limits. Input snapshot is never re-validated
-# for business content — only shape/limits are enforced here.
-max_routes = 12                # route_plan / page_content_packs truncated to this, never rejected
-
 [artifact_storage]
 # Existing packed-object coordinates retained for privacy cleanup of records
 # created by earlier releases. Credentials remain in .env or the hosting

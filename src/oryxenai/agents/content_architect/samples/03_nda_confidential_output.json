@@ -1,185 +1,250 @@
 {
-  "site_story_strategy": {
-    "positioning": "Freelance product designer/developer trusted with confidential, high-stakes client work.",
-    "value_proposition": "Owns both design and implementation on client engagements, including regulated/sensitive domains.",
-    "primary_audience": "Startup founders and product leads hiring freelance designers",
-    "secondary_audience": "",
-    "primary_action": "Book an intro call",
-    "narrative_thesis": "Discretion and range: confidential client work described by problem and role, never by name or unshared numbers.",
-    "leading_evidence": [
-      "Fintech onboarding redesign"
-    ],
-    "supporting_evidence": [
-      "Healthcare intake system"
-    ],
-    "shortened_or_omitted": [
-      "Client company names — generalized per NDA."
-    ],
-    "content_risks": [
-      "No outcome metrics were ever shared with Jordan for either engagement."
-    ],
-    "presentation_mode": "single_page",
-    "presentation_rationale": "Two engagements, both NDA-restricted to problem/role level, fit comfortably on one page without needing dedicated case-study routes."
-  },
-  "decision_basis": [
-    {
-      "decision": "presentation_mode",
-      "value": "single_page",
-      "basis": "source_derived",
-      "confidence": "high",
-      "rationale": "Both engagements are NDA-restricted to problem/role level, which fits comfortably on one page."
-    },
-    {
-      "decision": "primary_action",
-      "value": "Book an intro call",
-      "basis": "safe_default",
-      "confidence": "medium",
-      "rationale": "No explicit CTA preference was supplied; a freelance-oriented default was chosen."
-    }
-  ],
-  "route_plan": [
-    {
-      "route_id": "home",
-      "path": "/",
-      "title": "Jordan Reyes — Product Designer & Developer",
-      "purpose": "Single-page portfolio home",
-      "audience_takeaway": "Jordan handles confidential, end-to-end product work responsibly.",
-      "priority": "primary",
-      "content_density": "medium",
-      "section_sequence": [
-        "hero",
-        "about",
-        "engagements",
-        "contact"
-      ],
-      "mobile_notes": "",
-      "source_refs": [
-        "profile.projects"
-      ],
-      "publication_status": "approved"
-    }
-  ],
-  "page_content_packs": [
-    {
-      "route_id": "home",
-      "sections": [
-        {
-          "section_id": "hero",
-          "purpose": "Introduce Jordan.",
-          "content": {
-            "eyebrow": "Freelance Product Designer & Developer",
-            "headline": "Design and code, trusted with confidential work.",
-            "cta": "Book an intro call"
-          },
-          "claim_ids": [],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": [
-            {
-              "label": "Book an intro call",
-              "href": "#contact",
-              "kind": "anchor"
-            }
-          ]
-        },
-        {
-          "section_id": "about",
-          "purpose": "Summarize professional identity.",
-          "content": {
-            "text": "Jordan is a freelance product designer and developer who owns both design and frontend implementation on client engagements, several of which are confidential."
-          },
-          "claim_ids": [],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": []
-        },
-        {
-          "section_id": "engagements",
-          "purpose": "Describe both confidential engagements at problem/role level.",
-          "content": {
-            "items": [
-              {
-                "title": "Fintech onboarding redesign (confidential client)",
-                "text": "Led the redesign of an onboarding flow for a Series B fintech startup, owning both design and frontend implementation on a team of four. Client name withheld under NDA; no usage metrics were shared with Jordan."
-              },
-              {
-                "title": "Healthcare intake system (confidential client)",
-                "text": "Sole developer on a patient-intake form system for a healthcare client. Client name and outcome data withheld under NDA."
-              }
-            ]
-          },
-          "claim_ids": [
-            "claim_fintech_ownership",
-            "claim_healthcare_sole_dev"
-          ],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": []
-        },
-        {
-          "section_id": "contact",
-          "purpose": "Closing CTA.",
-          "content": {
-            "text": "Available for new freelance engagements — let's talk."
-          },
-          "claim_ids": [],
-          "priority": "primary",
-          "optional": false,
-          "mobile_condensation": "",
-          "link_targets": []
-        }
-      ],
-      "internal_notes": {}
-    }
-  ],
-  "public_content_manifest": {
-    "nav": [
-      {
-        "label": "Home",
-        "target": "home"
-      }
-    ],
-    "contact_cta": "Available for new freelance engagements — let's talk."
-  },
-  "claim_grounding": [
-    {
-      "claim_id": "claim_fintech_ownership",
-      "statement": "Jordan owned design and frontend implementation for the fintech onboarding redesign.",
-      "source_reference": "profile.projects[0].contribution",
-      "source_entity_id": "project:fintech-onboarding",
-      "evidence_status": "verified",
-      "ownership": "individual",
-      "publication_status": "approved",
-      "confidence_or_warning": "This describes only Jordan's specific design+frontend role; the redesign's overall business outcome was a team effort on a team of four, not solely attributable to Jordan."
-    },
-    {
-      "claim_id": "claim_healthcare_sole_dev",
-      "statement": "Jordan was the sole developer on the healthcare intake system.",
-      "source_reference": "profile.projects[1].contribution",
-      "source_entity_id": "project:healthcare-intake",
-      "evidence_status": "verified",
-      "ownership": "individual",
-      "publication_status": "approved",
-      "confidence_or_warning": ""
-    }
-  ],
-  "omissions": [
-    "Client company names — withheld per NDA, generalized to industry only."
-  ],
-  "unresolved_issues": [
-    "No outcome metrics exist for either engagement; public copy stays qualitative."
-  ],
-  "privacy_and_confidentiality": [
-    "Both client company names are withheld under NDA and generalized to 'a Series B fintech startup' / 'a healthcare client'.",
-    "Client contact details are never published."
-  ],
-  "warnings": [],
-  "memory_update": {},
   "mode": "STRATEGY_AND_CONTENT",
   "content_included": true,
   "integration_needed": false,
-  "user_summary": "This plan positions Jordan as a freelance product designer and developer, with concise project summaries that preserve the supplied scope while respecting the NDA. The fintech and healthcare client names remain generalized, and the copy avoids outcome metrics that were not shared. The content emphasizes Jordan's supported work across product design and frontend implementation, while separating individual responsibilities from team outcomes. A public contact action appears only where the approved profile supports it. The available material is enough to review the wording, routes, claims, and privacy choices together. It avoids requesting information that is unnecessary to understand the current project summaries. The site content is ready for Jordan to review and approve."
+  "user_summary": "Your page describes the fraud-detection work generically, without the client's name or the loss figure, exactly as your restriction asks. The rest of your background is used in full.",
+  "site_story_strategy": {
+    "positioning": "Data engineer who makes pipelines and data quality dependable.",
+    "value_proposition": "Streaming and quality engineering with a production mindset.",
+    "primary_audience": "Hiring managers for data engineering roles",
+    "secondary_audience": "",
+    "primary_action": "Connect on LinkedIn",
+    "narrative_thesis": "Dependable data, from streaming pipelines to quality checks.",
+    "leading_evidence": [
+      "Streaming pipeline"
+    ],
+    "supporting_evidence": [
+      "Data-quality framework"
+    ],
+    "content_risks": [
+      "The client project is restricted; copy stays generic."
+    ],
+    "tone": "professional, concise",
+    "content_density": "medium"
+  },
+  "decision_basis": [
+    {
+      "decision": "primary_action",
+      "value": "Connect on LinkedIn",
+      "basis": "source_derived",
+      "confidence": "high",
+      "rationale": "LinkedIn is the fullest supplied profile."
+    }
+  ],
+  "page_content": {
+    "hero": {
+      "name": "Maya Okafor",
+      "eyebrow_primary": "Data Engineer",
+      "eyebrow_secondary": "Streaming and data quality",
+      "headline_prefix": "Data pipelines you can",
+      "headline_emphasis": "trust in production.",
+      "intro": "Data engineer at Helix Analytics building streaming pipelines and the data-quality framework that keeps analysts' numbers honest. Works with Spark, Kafka, dbt, and Airflow.",
+      "location": "Lagos, Nigeria",
+      "primary_cta_label": "See the work",
+      "secondary_cta_label": "Find me online"
+    },
+    "metadata": {
+      "title": "Maya Okafor — Data Engineer",
+      "description": "Data engineer building streaming pipelines and data-quality tooling with Spark, Kafka, dbt, and Airflow. Based in Lagos, Nigeria."
+    },
+    "marquee_keywords": [
+      "Spark",
+      "Kafka",
+      "dbt",
+      "Airflow",
+      "Python"
+    ],
+    "systems_practice": {
+      "eyebrow": "Practice",
+      "heading": "Pipelines and quality, end to end.",
+      "intro": "The areas of data engineering I work in day to day.",
+      "pillars": [
+        {
+          "title": "Streaming pipelines",
+          "description": "Built a streaming fraud-detection pipeline for a financial-services client."
+        },
+        {
+          "title": "Data quality",
+          "description": "Maintain Helix Analytics' internal data-quality framework in Python and dbt."
+        },
+        {
+          "title": "Orchestration",
+          "description": "Schedule and monitor batch workloads with Airflow."
+        },
+        {
+          "title": "Real-time data",
+          "description": "Process event streams with Spark and Kafka."
+        }
+      ]
+    },
+    "technical_capabilities": {
+      "eyebrow": "Toolkit",
+      "heading": "Tools I use.",
+      "intro": "The data stack behind my work.",
+      "groups": [
+        {
+          "heading": "Processing",
+          "items": [
+            "Spark",
+            "Kafka"
+          ]
+        },
+        {
+          "heading": "Transformation and orchestration",
+          "items": [
+            "dbt",
+            "Airflow",
+            "Python"
+          ]
+        }
+      ]
+    },
+    "professional_context": {
+      "eyebrow": "Background",
+      "heading": "Where the work happened.",
+      "intro": "Data engineering for analytics teams and one confidential client engagement.",
+      "organizations": [
+        "Helix Analytics",
+        "A confidential financial-services client"
+      ]
+    },
+    "connect": {
+      "eyebrow": "Connect",
+      "heading": "Let's talk data.",
+      "intro": "Find my code and background below.",
+      "destinations": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/mayaokafor",
+          "featured": true
+        },
+        {
+          "label": "LinkedIn",
+          "url": "https://linkedin.com/in/mayaokafor",
+          "featured": true
+        }
+      ]
+    }
+  },
+  "claim_grounding": [
+    {
+      "claim_id": "claim_pipeline",
+      "statement": "Built a streaming fraud-detection pipeline for a financial-services client.",
+      "source_reference": "fact/n2",
+      "source_entity_id": "project:p1",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": "Client unnamed per restriction x1.",
+      "field_paths": [
+        "systems_practice.pillars[0].description"
+      ]
+    },
+    {
+      "claim_id": "claim_fraud_reduction",
+      "statement": "The pipeline cut fraud losses by 18%.",
+      "source_reference": "fact/n3",
+      "source_entity_id": "project:p1",
+      "evidence_status": "verified",
+      "ownership": "team",
+      "publication_status": "blocked",
+      "confidence_or_warning": "Restriction x1 forbids publishing the figure.",
+      "field_paths": []
+    },
+    {
+      "claim_id": "claim_quality_framework",
+      "statement": "Maintains the internal data-quality framework in Python and dbt.",
+      "source_reference": "fact/n4",
+      "source_entity_id": "project:p2",
+      "evidence_status": "verified",
+      "ownership": "individual",
+      "publication_status": "approved",
+      "confidence_or_warning": "",
+      "field_paths": [
+        "systems_practice.pillars[1].description"
+      ]
+    }
+  ],
+  "coverage_ledger": [
+    {
+      "source_id": "fact/n1",
+      "disposition": "used",
+      "field_paths": [
+        "hero.eyebrow_primary",
+        "professional_context.organizations[0]"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/n2",
+      "disposition": "condensed",
+      "field_paths": [
+        "systems_practice.pillars[0].description",
+        "professional_context.organizations[1]"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/n3",
+      "disposition": "excluded_by_restriction",
+      "field_paths": [],
+      "reason": "Restriction x1: do not publish the fraud-loss figure."
+    },
+    {
+      "source_id": "fact/n4",
+      "disposition": "used",
+      "field_paths": [
+        "systems_practice.pillars[1].description"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "fact/n5",
+      "disposition": "used",
+      "field_paths": [
+        "technical_capabilities.groups[0].items[0]",
+        "technical_capabilities.groups[0].items[1]",
+        "technical_capabilities.groups[1].items[0]",
+        "technical_capabilities.groups[1].items[1]"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "role/r1",
+      "disposition": "used",
+      "field_paths": [
+        "professional_context.organizations[0]"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "project/p1",
+      "disposition": "condensed",
+      "field_paths": [
+        "systems_practice.pillars[0].title"
+      ],
+      "reason": ""
+    },
+    {
+      "source_id": "project/p2",
+      "disposition": "used",
+      "field_paths": [
+        "systems_practice.pillars[1].title"
+      ],
+      "reason": ""
+    }
+  ],
+  "internal_notes": {},
+  "omissions": [
+    "Client name",
+    "Fraud-loss reduction figure"
+  ],
+  "unresolved_issues": [
+    "No contact email was supplied."
+  ],
+  "privacy_and_confidentiality": [
+    "Client identity and the fraud-loss figure are withheld per restriction x1."
+  ],
+  "warnings": [],
+  "memory_update": {}
 }

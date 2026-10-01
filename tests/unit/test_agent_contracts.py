@@ -120,8 +120,7 @@ async def test_content_architect_agent_deterministic_output():
         },
     )
     result = await agent.run(ctx)
-    assert "route_plan" in result.output
-    assert "page_content_packs" in result.output
+    assert "page_content" in result.output
     assert "claim_grounding" in result.output
     assert result.output["stages_run"] == ["plan_content"]
 
@@ -155,4 +154,4 @@ def test_content_architect_schema_validation():
         mode=ContentPlanMode.STRATEGY_ONLY,
         site_story_strategy={"positioning": "x"},
     )
-    assert output.site_story_strategy["positioning"] == "x"
+    assert output.site_story_strategy.positioning == "x"

@@ -12,8 +12,8 @@ describe("active-stage contract parity", () => {
     expect(adaptDiscovery(approved).state).toBe("complete");
   });
 
-  it("preserves Content Architect routes and approval", () => {
-    expect(adaptContentArchitect(contentFixtureReview, true).routePlan.length).toBeGreaterThan(0);
+  it("preserves Content Architect page content and approval", () => {
+    expect(adaptContentArchitect(contentFixtureReview, true).pageContent.systemsPractice.pillars.length).toBe(4);
     expect(adaptContentArchitect(contentFixtureApproved, true).state).toBe("complete");
   });
 

@@ -18,9 +18,9 @@ from oryxenai.agents.content_architect.agent import ContentArchitectModelOutputE
 from oryxenai.agents.content_architect.schemas import (
     ClaimGrounding,
     ContentCoverageEntry,
+    ContentStoryStrategy,
     DecisionRecord,
-    PageContentPack,
-    RoutePlanEntry,
+    PortfolioPageContent,
 )
 from oryxenai.agents.content_architect.state import (
     apply_build_result,
@@ -297,16 +297,13 @@ async def _apply_result(
             ContentCoverageEntry.model_validate(item)
             for item in (output.get("coverage_ledger") or [])
         ]
-        route_plan = [
-            RoutePlanEntry.model_validate(item) for item in (output.get("route_plan") or [])
-        ]
         claim_grounding = [
             ClaimGrounding.model_validate(item) for item in (output.get("claim_grounding") or [])
         ]
-        page_content_packs = [
-            PageContentPack.model_validate(item)
-            for item in (output.get("page_content_packs") or [])
-        ]
+        page_content = PortfolioPageContent.model_validate(output.get("page_content") or {})
+        site_story_strategy = ContentStoryStrategy.model_validate(
+            output.get("site_story_strategy") or {}
+        )
         decision_basis = [
             DecisionRecord.model_validate(item) for item in (output.get("decision_basis") or [])
         ]
@@ -315,11 +312,10 @@ async def _apply_result(
             version=result.prompt_version,
             run_id=str(run_id),
             user_summary=output.get("user_summary", "") or "",
-            site_story_strategy=output.get("site_story_strategy", {}) or {},
+            site_story_strategy=site_story_strategy,
             decision_basis=decision_basis,
-            route_plan=route_plan,
-            page_content_packs=page_content_packs,
-            public_content_manifest=output.get("public_content_manifest", {}) or {},
+            page_content=page_content,
+            internal_notes=output.get("internal_notes", {}) or {},
             claim_grounding=claim_grounding,
             coverage_ledger=coverage_ledger,
             omissions=output.get("omissions", []) or [],

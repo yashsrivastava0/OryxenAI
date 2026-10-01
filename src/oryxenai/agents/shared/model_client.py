@@ -63,17 +63,25 @@ def _mock_structured_result(
     Any other model falls back to an empty instance.
     """
     from oryxenai.agents.content_architect.schemas import (
+        CapabilityGroup,
         ClaimGrounding,
+        ConnectContent,
+        ConnectDestination,
         ContentArchitectOutput,
         ContentPlanMode,
-        ContentSection,
+        ContentStoryStrategy,
         DecisionBasis,
         DecisionRecord,
         EvidenceStatus,
+        HeroContent,
         Ownership,
-        PageContentPack,
+        PageMetadata,
+        PortfolioPageContent,
+        ProfessionalContextContent,
         PublicationStatus,
-        RoutePlanEntry,
+        SystemsPracticeContent,
+        SystemsPracticePillar,
+        TechnicalCapabilitiesContent,
     )
     from oryxenai.agents.discovery.schemas import (
         BriefOutput,
@@ -170,36 +178,75 @@ def _mock_structured_result(
             mode=ContentPlanMode.STRATEGY_AND_CONTENT,
             content_included=True,
             integration_needed=False,
-            site_story_strategy={
-                "positioning": "Backend engineer who ships durable systems.",
-                "primary_audience": "Hiring managers for backend/platform roles",
-                "primary_action": "Contact for an interview",
-                "narrative_thesis": "Reliability-minded engineering, told through one real project.",
-                "presentation_mode": "single_page",
-                "presentation_rationale": "One strong project and a focused profile fit one page.",
-            },
+            site_story_strategy=ContentStoryStrategy(
+                positioning="Backend engineer who ships durable systems.",
+                primary_audience="Hiring managers for backend/platform roles",
+                primary_action="Contact for an interview",
+                narrative_thesis="Reliability-minded engineering, told through one real project.",
+            ),
             decision_basis=[
                 DecisionRecord(
-                    decision="presentation_mode",
-                    value="single_page",
+                    decision="primary_action",
+                    value="Contact for an interview",
                     basis=DecisionBasis.SOURCE_DERIVED,
                     confidence="high",
-                    rationale="Only one well-documented project exists in the snapshot.",
+                    rationale="The snapshot targets backend roles.",
                 )
             ],
-            route_plan=[
-                RoutePlanEntry(
-                    route_id="home",
-                    path="/",
+            page_content=PortfolioPageContent(
+                hero=HeroContent(
+                    name="Mock User",
+                    eyebrow_primary="Backend Engineer",
+                    headline_prefix="Building backend systems that",
+                    headline_emphasis="stay up.",
+                    intro="Software engineer focused on durable job systems and reliable services.",
+                    location="Remote",
+                    primary_cta_label="Explore the work",
+                    secondary_cta_label="View links",
+                ),
+                metadata=PageMetadata(
                     title="Mock User — Backend Engineer",
-                    purpose="Single-page portfolio home",
-                    audience_takeaway="Can ship and operate backend systems reliably.",
-                    priority="primary",
-                    content_density="medium",
-                    section_sequence=["hero", "about", "project", "contact"],
-                    publication_status=PublicationStatus.APPROVED,
-                )
-            ],
+                    description="Backend engineer focused on durable systems.",
+                ),
+                marquee_keywords=["Python", "PostgreSQL", "Queues"],
+                systems_practice=SystemsPracticeContent(
+                    eyebrow="Practice",
+                    heading="Durable systems, built carefully.",
+                    intro="A focused backend practice.",
+                    pillars=[
+                        SystemsPracticePillar(
+                            title=title, description=f"{title} placeholder description."
+                        )
+                        for title in ("Reliability", "Queues", "Data", "Operations")
+                    ],
+                ),
+                technical_capabilities=TechnicalCapabilitiesContent(
+                    eyebrow="Capabilities",
+                    heading="Tools of the trade.",
+                    intro="Technologies from the supplied profile.",
+                    groups=[
+                        CapabilityGroup(heading="Backend", items=["Python", "FastAPI"]),
+                        CapabilityGroup(heading="Data", items=["PostgreSQL"]),
+                    ],
+                ),
+                professional_context=ProfessionalContextContent(
+                    eyebrow="Context",
+                    heading="Where the work happened.",
+                    intro="Organizations named in the profile.",
+                    organizations=["Example Corp"],
+                ),
+                connect=ConnectContent(
+                    eyebrow="Connect",
+                    heading="Let's talk.",
+                    intro="Reach out through the channels below.",
+                    destinations=[
+                        ConnectDestination(
+                            label="GitHub", url="https://github.com/example", featured=True
+                        ),
+                        ConnectDestination(label="LinkedIn", url="https://linkedin.com/in/example"),
+                    ],
+                ),
+            ),
             claim_grounding=[
                 ClaimGrounding(
                     claim_id="claim_queueguard",
@@ -209,48 +256,9 @@ def _mock_structured_result(
                     evidence_status=EvidenceStatus.VERIFIED,
                     ownership=Ownership.INDIVIDUAL,
                     publication_status=PublicationStatus.APPROVED,
+                    field_paths=["systems_practice.pillars[1].description"],
                 )
             ],
-            page_content_packs=[
-                PageContentPack(
-                    route_id="home",
-                    sections=[
-                        ContentSection(
-                            section_id="hero",
-                            purpose="Introduce the positioning.",
-                            content={"headline": "Backend systems that stay up."},
-                            claim_ids=[],
-                            priority="primary",
-                        ),
-                        ContentSection(
-                            section_id="about",
-                            purpose="Summarize the professional focus.",
-                            content={"summary": "Software engineering focused on durable systems."},
-                            claim_ids=[],
-                            priority="secondary",
-                        ),
-                        ContentSection(
-                            section_id="project",
-                            purpose="Feature the strongest project.",
-                            content={"title": "QueueGuard", "summary": "A durable job system."},
-                            claim_ids=["claim_queueguard"],
-                            priority="primary",
-                        ),
-                        ContentSection(
-                            section_id="contact",
-                            purpose="Offer a closing action.",
-                            content={"cta": "Get in touch."},
-                            claim_ids=[],
-                            priority="secondary",
-                        ),
-                    ],
-                    internal_notes={},
-                )
-            ],
-            public_content_manifest={
-                "nav": [{"label": "Home", "target": "home"}],
-                "contact_cta": "Get in touch",
-            },
             unresolved_issues=["no metrics supplied"],
             memory_update={},
         )

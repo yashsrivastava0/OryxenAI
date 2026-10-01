@@ -144,7 +144,7 @@ async def _mutate_discovery_brief_hash(client, sid: str, new_hash: str) -> None:
         await db.commit()
 
 
-async def _remove_public_content_sections(client, sid: str) -> None:
+async def _remove_public_pillar(client, sid: str) -> None:
     """Simulate a corrupt/incomplete review state without bypassing the API boundary."""
     from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 
@@ -154,10 +154,11 @@ async def _remove_public_content_sections(client, sid: str) -> None:
         session = await repo.get_by_id(UUID(sid))
         new_state = dict(session.current_state)
         new_state["content_architect"] = dict(new_state["content_architect"])
-        packs = list(new_state["content_architect"]["page_content_packs"])
-        packs[0] = dict(packs[0])
-        packs[0]["sections"] = []
-        new_state["content_architect"]["page_content_packs"] = packs
+        page = dict(new_state["content_architect"]["page_content"])
+        systems = dict(page["systems_practice"])
+        systems["pillars"] = systems["pillars"][:3]
+        page["systems_practice"] = systems
+        new_state["content_architect"]["page_content"] = page
         await repo.update_state(UUID(sid), new_state, session.revision)
         await db.commit()
 
@@ -182,8 +183,10 @@ class TestFullHttpFlow:
         review = await _build_content(client, sid)
         assert review["content_architect"]["status"] == "content_review"
         assert review["content_architect"]["site_story_strategy"]
-        assert review["content_architect"]["route_plan"]
-        assert review["content_architect"]["page_content_packs"]
+        page = review["content_architect"]["page_content"]
+        assert page["hero"]["name"]
+        assert len(page["systems_practice"]["pillars"]) == 4
+        assert "route_plan" not in review["content_architect"]
         assert review["content_architect"]["intake"]["dossier"]["facts"]
         assert review["content_architect"]["coverage_ledger"]
         assert review["content_architect"]["stages_run"] == ["plan_content"]
@@ -197,15 +200,14 @@ class TestFullHttpFlow:
     async def test_approval_returns_actionable_error_for_incomplete_public_scope(self, client):
         sid = await _approve_discovery(client)
         await _build_content(client, sid)
-        await _remove_public_content_sections(client, sid)
+        await _remove_public_pillar(client, sid)
 
         resp = await client.post(f"/api/v1/sessions/{sid}/content-architect/approve")
 
         assert resp.status_code == 409
         error = resp.json()["error"]
         assert error["code"] == "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"
-        assert error["details"]["approved_route_ids"]
-        assert any("no public sections" in item for item in error["details"]["errors"])
+        assert any("exactly 4" in item for item in error["details"]["errors"])
 
     async def test_approval_rejects_missing_dossier_coverage(self, client):
         sid = await _approve_discovery(client)
