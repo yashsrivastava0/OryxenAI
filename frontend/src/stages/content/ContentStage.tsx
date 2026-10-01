@@ -5,7 +5,6 @@ import { CONTENT_CARD_PREFIX, cardIdForPath } from "../../data/content-paths";
 import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ContentCoverageInspector } from "../../components/ContentCoverageInspector";
-import { PortfolioPreview } from "../../components/PortfolioPreview";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 
@@ -108,8 +107,6 @@ export function ContentStage({
   );
 }
 
-type ReviewTab = "review" | "preview";
-
 function ContentReviewSurface({
   view,
   canMutate,
@@ -121,7 +118,6 @@ function ContentReviewSurface({
   onApproveAndContinue: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
 }) {
-  const [tab, setTab] = useState<ReviewTab>("review");
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const highlightTimer = useRef<number | undefined>(undefined);
   const isApproved = view.state === "complete";
@@ -146,10 +142,6 @@ function ContentReviewSurface({
     `${extra} ${highlightedId === id ? "is-highlighted" : ""}`.trim();
 
   const pillarCount = page.systemsPractice.pillars.length;
-  const tabs: Array<[ReviewTab, string]> = [
-    ["review", "Review content"],
-    ["preview", "Live preview"],
-  ];
 
   return (
     <ArtifactSurface
@@ -169,23 +161,6 @@ function ContentReviewSurface({
       onApproveAndContinue={empty ? undefined : onApproveAndContinue}
       onRevise={onRevise}
     >
-      <div className="content-tabs" role="tablist" aria-label="Content views">
-        {tabs.map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`content-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls={`content-panel-${id}`}
-            className={`content-tab ${tab === id ? "is-selected" : ""}`}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {empty && (
         <p className="content-empty-note" role="note">
           This content has no page copy. It was likely created by an earlier version of Content
@@ -193,17 +168,7 @@ function ContentReviewSurface({
         </p>
       )}
 
-      {tab === "preview" ? (
-        <div role="tabpanel" id="content-panel-preview" aria-labelledby="content-tab-preview">
-          {empty ? null : <PortfolioPreview page={page} />}
-        </div>
-      ) : (
-        <div
-          className="content-review-layout"
-          role="tabpanel"
-          id="content-panel-review"
-          aria-labelledby="content-tab-review"
-        >
+      <div className="content-review-layout">
           <div className="content-review-main">
             {view.userSummary && (
               <section className="content-summary" aria-label="Summary">
@@ -390,7 +355,6 @@ function ContentReviewSurface({
             onSelectPath={selectPath}
           />
         </div>
-      )}
     </ArtifactSurface>
   );
 }

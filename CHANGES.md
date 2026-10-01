@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-01 21:55 +05:30 — Claude Code (Anthropic) — [pending] — Preview removed from Content Architect
+
+Per the operator, previewing belongs only to the Code Generator. Removed the Live preview tab, the browser-side component and template-substitution helper (with its tests) and their styles from the Content review, which now shows the structured copy and the evidence and coverage inspector only. Moved the pinned `index.html` and `styles.css` fixture out of the served frontend folder into `docs/pinned-theme/` for the future Code Generator, so the app no longer serves it. Content Architect's output contract is unchanged (D-121 narrows D-118). Verified with the frontend typecheck and unit tests, lint, types, the full Python suite and a rebuilt bundle. No push or deployment.
+
 ### 2026-10-01 21:30 +05:30 — Claude Code (Anthropic) — [ae83099] — Discovery screens restored and verified in the browser
 
 Found by driving the signed-in local app: a September stylesheet rewrite (1029296) had dropped the rules for 53 classes that the Discovery working card, question card, ready card and error panel still use, so those screens rendered as unstyled text. Restored them from the last good stylesheet (mapping one missing colour token), stopped the approve and step labels from wrapping or doubling their arrow, scrolled the progress card into view after a revision, and showed plain operation names in the error panel instead of internal keys. Added an error-state fixture to the browser harness. Verified end to end in the real UI with a large resume: brief, revision applied, approval, then Content Architect review with the cost restriction held; the local API and worker were restarted on the new code. No push or deployment.

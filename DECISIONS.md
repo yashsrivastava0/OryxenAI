@@ -24,6 +24,16 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-121 — Preview belongs to the Code Generator, not Content Architect
+
+- **Date & Time:** 2026-10-01 21:55 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-and-implemented-locally
+- **Context:** D-118 added a client-side, unverified "Live preview" tab to the Content Architect review, filling the pinned template with page copy in the browser. The operator directed that previewing happens only in the Code Generator.
+- **Decision:** The Content Architect review shows the structured copy and the evidence and coverage inspector only. The preview component, its template-substitution helper, and the tab were removed. The pinned `index.html` and `styles.css` fixture moved from the served frontend `public/` folder to `docs/pinned-theme/` as reference input for the Code Generator and is no longer served by the app. Previewing returns with the Code Generator, which previews the verified bundle (D-116).
+- **Rejected alternatives:** Keep the quick preview as a labelled draft; add a deterministic preview inside Content Architect.
+- **Trade-off:** Until the Code Generator exists, reviewers judge the copy as structured fields rather than as a rendered page.
+- **Consequence:** Narrows the last sentence of D-118. Content Architect's output contract is unchanged. The Code Generator, verified preview, and deployment remain unbuilt.
+
 ## D-120 — Compact Discovery draft with bounded same-route recovery
 
 - **Date & Time:** 2026-10-01 16:25 +05:30 — Codex (OpenAI)
