@@ -12,6 +12,10 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-10-01 13:05 +05:30 — Claude Code (Anthropic) — [2bdc7f8] — Content Architect output, prompts, validators, review UI
+
+Replaced the generic route and page-pack output with one typed page content tree that mirrors the pinned portfolio template, and rewrote the prompts around its real regions (exactly four pillars, organization names only, finished copy sized to each slot). Claims and a six-way dossier coverage ledger now bind to page field paths, with one shared rule module behind the validators, readiness gate, approval, and service (D-118). The review stage now shows structured section cards, an evidence and coverage inspector, and a client-side live preview of the pinned design in place of the mocked route panel. Verified with the full Python and frontend suites, lint, type checks, build, a browser render, and three live model runs (strong, sparse, and NDA samples) that each passed in one call. No push or deployment.
+
 ### 2026-10-01 10:40 +05:30 — Codex (OpenAI) — [4e20499] — single-provider active agent routing
 
 Removed alternate-provider fallbacks and optional model selection from the active Discovery and Content Architect routes (D-117). Fresh retries now snapshot the current routing policy, so saved answers remain usable after configuration changes. Reused the existing ignored local credential file without exposing or changing secrets; verified gateway access, a privacy-free live preflight, and an authenticated Discovery retry that reached detailed brief review through the configured primary. No push or deployment.

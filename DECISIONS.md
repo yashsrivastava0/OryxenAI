@@ -24,6 +24,16 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-118 — Typed single-page content tree for the pinned template
+
+- **Date & Time:** 2026-10-01 13:05 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-and-implemented-locally
+- **Context:** Content Architect still modeled a generic multi-route site that the code already forced to one page, and its prompts asked for project, experience, and education content the one pinned template (`docs/HTML and CSS/`) has no slot for.
+- **Decision:** Content Architect returns a typed `page_content` tree matching the template region for region, including exactly four systems-practice pillars and name-only organizations. Claims and the six-way coverage ledger (`used`, `condensed`, `retained_internally`, `excluded_by_restriction`, `excluded_editorially`, `unresolved`) bind to field paths. Template rules live in the shared system prompt and one rule module; completeness is repaired by the existing single bounded integration call rather than rejected per model call. Organizations, links, and marquee keywords may be empty rather than invented. The review stage adds a client-side, unverified preview of the pinned HTML and CSS.
+- **Rejected alternatives:** A generic theme-agnostic block model, which adds a translation layer with no second theme to justify it; sending raw CSS to the model; hard-failing a run on a wrong pillar count before the repair call.
+- **Trade-off:** Sessions saved with the route-based shape load with an empty page and must be re-run, and `CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES` became `CONTENT_ARCHITECT_PAGE_NOT_PUBLISHABLE`. Supporting a second stylesheet later needs a new content contract.
+- **Consequence:** Implemented locally in `2bdc7f8`, narrowing D-116's Content Architect handoff to this shape. The Code Generator, verified preview, and deployment remain unbuilt.
+
 ## D-117 — Single-provider routing for active agent operations
 
 - **Date & Time:** 2026-10-01 10:40 +05:30 — Codex (OpenAI)
