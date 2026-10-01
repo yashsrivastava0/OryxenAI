@@ -207,6 +207,9 @@ class ContentArchitectService:
         self._check_discovery_not_stale(discovery, state)
 
         prior_output = self._authoritative_output(state)
+        from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+        policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
         intake_payload = state.intake.model_dump(mode="json")
         prefs_payload = state.preferences.model_dump(mode="json")
         key = self._idempotency_key(
@@ -230,6 +233,8 @@ class ContentArchitectService:
                 "prior_output": prior_output,
                 "revision_request": revision_request,
                 "model_profile": state.model_profile,
+                "input_classification": "personal",
+                "routing_policy_snapshot": policy_snapshot,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -249,6 +254,8 @@ class ContentArchitectService:
         )
 
         running = apply_revision_requested(state, str(run.id), str(job.id), revision_request)
+        running.routing_policy_version = str(policy_snapshot["version"])
+        running.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
         running.attempt = 0
         updated = await self._repository.save_content_architect_state(
             session_id, running, session.revision

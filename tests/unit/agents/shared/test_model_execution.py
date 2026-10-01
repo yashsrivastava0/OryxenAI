@@ -47,10 +47,37 @@ class _FailingClient(_FakeClient):
         raise self.error
 
 
+def _runtime_with_legacy_fallbacks() -> ModelRuntime:
+    """Exercise generic fallback mechanics without changing active routes."""
+    config = get_settings().models.model_copy(deep=True)
+    for engine, operation, profiles in (
+        (
+            "discovery",
+            "understand_and_question",
+            ["gemini_flash_lite_1", "gemini_flash_lite_2", "gemini_flash_lite_3"],
+        ),
+        (
+            "discovery",
+            "build_or_revise_brief",
+            ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3"],
+        ),
+        (
+            "content_architect",
+            "plan_content",
+            ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3"],
+        ),
+    ):
+        route = config.routing.operation_profiles[engine][operation]
+        route.fallback_profiles = profiles
+        route.allow_gemini = True
+        route.allow_personal_gemini_fallback = True
+        route.recovery_allowance = 1
+    return ModelRuntime(config)
+
+
 @pytest.mark.asyncio
 async def test_capacity_rejection_uses_one_shared_fallback_without_provider_call() -> None:
-    settings = get_settings()
-    runtime = ModelRuntime(settings.models)
+    runtime = _runtime_with_legacy_fallbacks()
     ledger = ModelUsageLedger()
     primary = _FakeClient()
     fallback = _FakeClient()
@@ -176,8 +203,7 @@ async def test_usage_settlement_failure_is_terminal_after_provider_response() ->
 
 @pytest.mark.asyncio
 async def test_primary_auth_failure_uses_gemini_fallback_for_personal_input() -> None:
-    settings = get_settings()
-    runtime = ModelRuntime(settings.models)
+    runtime = _runtime_with_legacy_fallbacks()
     ledger = ModelUsageLedger()
     primary = _FailingClient(ProviderAuthError())
     fallback = _FakeClient()
@@ -215,8 +241,7 @@ async def test_primary_auth_failure_uses_gemini_fallback_for_personal_input() ->
 
 @pytest.mark.asyncio
 async def test_primary_structural_failure_uses_gemini_fallback_before_returning_error() -> None:
-    settings = get_settings()
-    runtime = ModelRuntime(settings.models)
+    runtime = _runtime_with_legacy_fallbacks()
     ledger = ModelUsageLedger()
     primary = _FakeClient(
         StructuredModelResult(parsed_output={"ok": False}, model="fake", finish_reason="stop")
@@ -256,8 +281,7 @@ async def test_primary_structural_failure_uses_gemini_fallback_before_returning_
 
 @pytest.mark.asyncio
 async def test_both_provider_structural_failures_return_model_output_error() -> None:
-    settings = get_settings()
-    runtime = ModelRuntime(settings.models)
+    runtime = _runtime_with_legacy_fallbacks()
     ledger = ModelUsageLedger()
     primary = _FakeClient(
         StructuredModelResult(parsed_output={"ok": False}, model="fake", finish_reason="stop")
@@ -299,7 +323,7 @@ async def test_both_provider_structural_failures_return_model_output_error() -> 
 
 @pytest.mark.asyncio
 async def test_exhausted_provider_attempts_keep_original_failure_terminal() -> None:
-    runtime = ModelRuntime(get_settings().models)
+    runtime = _runtime_with_legacy_fallbacks()
     ledger = ModelUsageLedger()
     primary = _FailingClient(ProviderConnectionError())
     fallback = _FailingClient(ProviderConnectionError())
@@ -333,8 +357,7 @@ async def test_exhausted_provider_attempts_keep_original_failure_terminal() -> N
 
 @pytest.mark.asyncio
 async def test_primary_configuration_failure_uses_gemini_fallback() -> None:
-    settings = get_settings()
-    runtime = ModelRuntime(settings.models)
+    runtime = _runtime_with_legacy_fallbacks()
     ledger = ModelUsageLedger()
     fallback = _FakeClient()
 

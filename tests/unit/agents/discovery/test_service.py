@@ -133,8 +133,8 @@ class TestModelProfileSelection:
 
     def test_selection_cannot_change_after_start(self):
         service = self._service()
-        selectable = service._settings.models.routing.selectable_profiles
-        assert selectable
+        selectable = ["discovery_opencode_go"]
+        service._settings.models.routing.selectable_profiles = selectable
         with pytest.raises(DiscoveryOperationError) as exc_info:
             service._resolve_model_profile(selectable[0], "different-profile")
         assert exc_info.value.code == "MODEL_PROFILE_LOCKED"

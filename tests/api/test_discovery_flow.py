@@ -242,6 +242,7 @@ class TestFullHttpFlow:
             assert session is not None
             state = await repo.get_discovery_state(UUID(sid))
             state.status = DiscoveryStatus.QUESTIONS_QUEUED
+            state.routing_policy_fingerprint = "superseded-policy"
             await repo.save_discovery_state(UUID(sid), state, session.revision)
             job = await db.get(BackgroundJob, UUID(state.operation_a.job_id))
             assert job is not None
@@ -256,6 +257,15 @@ class TestFullHttpFlow:
         )
         assert retry.status_code == 200, retry.text
         assert retry.json()["discovery"]["status"] == "brief_running"
+        assert retry.json()["discovery"]["routing_policy_fingerprint"] != "superseded-policy"
+        async with client._transport.app.state.sessionmaker() as db:
+            repo = DiscoveryRepository(db)
+            run = await repo.get_run(UUID(retry.json()["discovery"]["brief"]["run_id"]))
+            assert run is not None
+            assert (
+                run.input_payload["routing_policy_snapshot"]["fingerprint"]
+                == retry.json()["discovery"]["routing_policy_fingerprint"]
+            )
         await _run_worker_job(client, retry.json()["discovery"]["brief"]["job_id"])
         review = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         assert review["discovery"]["status"] == "brief_review"
