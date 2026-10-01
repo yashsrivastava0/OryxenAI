@@ -1,70 +1,177 @@
 {
   "operation": "build",
   "intake": {
-    "approved_brief_title": "Portfolio Discovery Brief — Jordan Reyes",
-    "user_summary": "Jordan has strong client work but almost everything is under NDA. The brief generalizes client names and avoids any metric Jordan was never given.",
+    "approved_brief_title": "Portfolio Discovery Brief — Maya Okafor",
+    "user_summary": "Data engineer with one NDA-restricted client project.",
     "profile": {
-      "name": "Jordan Reyes",
-      "current_title": "Freelance Product Designer & Developer",
-      "location": "Remote",
-      "links": [
+      "name": "Maya Okafor",
+      "current_title": "Data Engineer",
+      "location": "Lagos, Nigeria"
+    },
+    "dossier": {
+      "contract_version": "DiscoveryDossier/v1",
+      "id": "dossier-maya",
+      "intent": {
+        "goal": "Data engineering roles",
+        "audience": "Hiring managers",
+        "visitor_action": "Get in touch",
+        "language": "en",
+        "preferences": [],
+        "basis": {},
+        "basis_refs": {}
+      },
+      "subject": {
+        "name": "Maya Okafor",
+        "current_title": "Data Engineer",
+        "location": "Lagos, Nigeria",
+        "links": [
+          {
+            "label": "GitHub",
+            "url": "https://github.com/mayaokafor"
+          },
+          {
+            "label": "LinkedIn",
+            "url": "https://linkedin.com/in/mayaokafor"
+          }
+        ],
+        "source_refs": []
+      },
+      "facts": [
         {
-          "label": "GitHub",
-          "url": "https://github.com/jordanreyes"
-        }
-      ],
-      "experience": [],
-      "education": [],
-      "projects": [
-        {
-          "name": "Fintech onboarding redesign (NDA)",
-          "summary": "Redesigned the onboarding flow for a Series B fintech startup.",
-          "contribution": "Owned design and frontend implementation; team of 4.",
-          "tech": [
-            "Figma",
-            "React",
-            "TypeScript"
-          ],
-          "link": ""
+          "id": "n1",
+          "category": "role",
+          "statement": "Data Engineer at Helix Analytics since 2020.",
+          "original_wording": "Data Engineer at Helix Analytics since 2020.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
         },
         {
-          "name": "Healthcare intake system (NDA)",
-          "summary": "Built a patient-intake form system for a healthcare client.",
-          "contribution": "Sole developer on the intake system.",
-          "tech": [
-            "React",
-            "Node.js"
-          ],
-          "link": ""
+          "id": "n2",
+          "category": "contribution",
+          "statement": "Built a streaming fraud-detection pipeline for a financial-services client.",
+          "original_wording": "Built a streaming fraud-detection pipeline for a financial-services client.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "n3",
+          "category": "outcome",
+          "statement": "The pipeline cut fraud losses by 18% for the client.",
+          "original_wording": "The pipeline cut fraud losses by 18% for the client.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "team",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "n4",
+          "category": "contribution",
+          "statement": "Maintains Helix's internal data-quality framework in Python and dbt.",
+          "original_wording": "Maintains Helix's internal data-quality framework in Python and dbt.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "n5",
+          "category": "skills",
+          "statement": "Works with Spark, Kafka, dbt, and Airflow.",
+          "original_wording": "Works with Spark, Kafka, dbt, and Airflow.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
         }
       ],
-      "skills": [
-        "Product Design",
-        "React",
-        "TypeScript",
-        "Node.js"
+      "roles": [
+        {
+          "id": "r1",
+          "organization": "Helix Analytics",
+          "role": "Data Engineer",
+          "dates": "2020-present",
+          "details": [
+            "Streaming pipelines",
+            "Data quality"
+          ],
+          "fact_ids": [
+            "n1",
+            "n4"
+          ],
+          "source_refs": []
+        }
       ],
-      "spoken_languages": [
-        "English",
-        "Spanish"
+      "projects": [
+        {
+          "id": "p1",
+          "name": "Fraud-detection pipeline",
+          "problem": "Detect fraud in streaming transactions.",
+          "personal_contribution": "Built the streaming pipeline.",
+          "team_contribution": "Client team consumed the output.",
+          "approach": [],
+          "tools": [
+            "Spark",
+            "Kafka"
+          ],
+          "outcomes": [
+            "Cut fraud losses by 18%"
+          ],
+          "links": [],
+          "fact_ids": [
+            "n2",
+            "n3"
+          ],
+          "source_refs": []
+        },
+        {
+          "id": "p2",
+          "name": "Data-quality framework",
+          "problem": "Catch bad data before it reaches analysts.",
+          "personal_contribution": "Maintains the framework.",
+          "team_contribution": "",
+          "approach": [],
+          "tools": [
+            "Python",
+            "dbt",
+            "Airflow"
+          ],
+          "outcomes": [],
+          "links": [],
+          "fact_ids": [
+            "n4"
+          ],
+          "source_refs": []
+        }
       ],
-      "private_omitted": [
-        "client company names",
-        "client contact details"
-      ]
+      "other_evidence": [],
+      "open_items": [],
+      "user_choices": [],
+      "restrictions": [
+        {
+          "id": "x1",
+          "scope": "project/p1",
+          "instruction": "Do not name the client or publish the fraud-loss figure; describe the work generically.",
+          "disposition": "generalize",
+          "source_refs": []
+        }
+      ],
+      "source_coverage": [],
+      "question_events": [],
+      "lineage": {
+        "version": 1,
+        "schema_version": "DiscoveryDossier/v1"
+      }
     },
-    "open_items": [
-      "no outcome metrics for either engagement — none were shared with Jordan under the NDA"
-    ],
-    "discovery_brief_hash": "sha256:example-nda-confidential",
-    "discovery_session_revision": 3
+    "open_items": []
   },
-  "preferences": {
-    "goal": "Attract new freelance product-design clients",
-    "audience": "Startup founders and product leads hiring freelance designers",
-    "tone": "professional, discreet",
-    "density": "medium"
-  },
-  "prior_output": {},
-  "revision_request": ""
+  "preferences": {}
 }

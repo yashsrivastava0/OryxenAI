@@ -1,206 +1,172 @@
 # Content Architect Agent
 
-Content Architect is the second OryxenAI workflow. It converts an **approved**
-Discovery result into grounded, publish-ready portfolio content and justified
-site/route architecture. Its complete public copy is ready for user review and
-approval.
+Content Architect is the second and final active OryxenAI workflow stage. It
+converts an **approved** Discovery result into the complete, grounded,
+person-specific copy for **one fixed single-page portfolio template** (the
+pinned `index.html` + `styles.css` pair). Its output is reviewed and approved
+by the user, then serves as the only person-specific input of a future Code
+Generator that writes `index.html` against that same template. This agent
+never writes HTML or CSS.
 
 ## Responsibilities
 
-- Decide professional positioning, narrative thesis, and the section order
-  for one single-page portfolio when the approved Discovery dossier is present.
-- Produce final public copy for every justified route: nav labels, hero,
-  about, project/work-sample stories, experience summaries, capability
-  grouping, achievements/education treatment, contact/closing CTA.
+- Decide positioning, the story the page tells, and the primary visitor action.
+- Write every visitor-facing field of the page content tree (below), final
+  and plain text, sized for the template's slots.
 - Carry claim-level grounding (source, evidence status, individual vs team
-  ownership, publication status) for every important claim, and gate
-  publication so unresolved material never reaches finished public copy.
-- Produce a complete, grounded content plan and public content projection for user review.
-- Record a disposition for each dossier fact, role, project, and other evidence
-  item, with a public destination or a concrete reason for keeping it internal.
-- Record why major site-strategy decisions (audience, presentation mode, CTA, tone, and density)
-  were made, so user-confirmed preferences remain distinct from safe defaults.
+  ownership, publication status) and bind each approved claim to the exact
+  page fields that rely on it.
+- Record one disposition for every dossier fact, role, project, and other
+  evidence item (`used`, `condensed`, `retained_internally`,
+  `excluded_by_restriction`, `excluded_editorially`, `unresolved`).
+- Record why major content decisions (audience, CTA, tone, density) were made.
 - Stop after producing content; never invoke another agent.
 
 ## Non-responsibilities
 
-Content Architect must NOT:
-
-- Re-interview the user or repeat Discovery.
-- Change facts the user already approved in Discovery.
-- Invent employers, dates, metrics, awards, testimonials, links, or outcomes.
-- Generate React, CSS, SVG, or any portfolio code.
-- Perform external research or crawl links.
+Content Architect must NOT re-interview the user, change approved Discovery
+facts, invent employers, dates, metrics, awards, testimonials, links, or
+outcomes, generate HTML/CSS/React/SVG, or research anything outside the
+snapshot.
 
 ## Input: the approved Discovery dossier
 
-Content Architect receives a snapshot of the approved `DiscoveryDossier/v1`,
-including all source-linked facts, entities, restrictions, question history,
-and open items. It also receives the brief title, short summary, structured
-profile, approval hash, and session revision. The raw pasted text and freeform
-brief Markdown stay upstream. The dossier is the factual source for planning
-and every writing call; the profile helps navigate it and supports older
-approved sessions without a dossier. Optional user preferences may be supplied
-at start.
+A snapshot of the approved `DiscoveryDossier/v1` (all source-linked facts,
+entities, restrictions, question history, open items), plus the brief title,
+summary, structured profile, approval hash, and session revision. The raw
+pasted text and Markdown brief stay upstream. The raw `styles.css` is **not**
+sent: the template's slots, counts, and length limits are written into
+`prompts/system.md` (`<page_template>`) instead.
+
+## The page content tree (`PortfolioPageContent`)
+
+One typed object whose regions mirror the pinned template one-to-one
+(`schemas.py`; vocabulary shared with the frontend adapter):
+
+| Region | Fields |
+| --- | --- |
+| `hero` | `name`, `eyebrow_primary`, `eyebrow_secondary`, `headline_prefix`, `headline_emphasis`, `intro`, `location`, `primary_cta_label`, `secondary_cta_label` |
+| `metadata` | `title`, `description` |
+| `marquee_keywords` | decorative keyword ticker (one list; duplicated into the DOM by the template consumer) |
+| `systems_practice` | `eyebrow` (also the nav label), `heading`, `intro`, **exactly 4** `pillars` (`title`, `description`) |
+| `technical_capabilities` | `eyebrow`, `heading`, `intro`, `groups[]` (`heading`, `items[]`) |
+| `professional_context` | `eyebrow`, `heading`, `intro`, `organizations[]` — **names only** (the template has no slot for roles or dates) |
+| `connect` | `eyebrow`, `heading`, `intro`, `destinations[]` (`label`, `url`, `featured`) |
+
+Deliberately not modeled: hrefs other than `connect.destinations[].url`
+(nav and hero CTAs use template-fixed anchors), numeric indexes, the
+`preview` line of a capability group, and the monogram — the template consumer
+derives those from the fields above so they can never drift. The template has
+no projects, experience, education, or metrics section; that material is
+folded into pillars, the hero intro, and capability groups. Multi-theme
+support is deferred until a second stylesheet exists.
+
+Model output extras are dropped (`extra="ignore"`) instead of failing a
+finished run; internal-review key leakage is still rejected.
 
 ## The adaptive bounded workflow
 
-Content Architect runs as **one durable job** (`content_architect.build`).
-Its agent makes up to three sequential model calls internally, never one
-call per page or section:
+One durable job (`content_architect.build`); its agent makes up to three
+sequential model calls, never one per section:
 
-1. **`plan_content`** (always runs) — decides the site/story strategy and
-   route plan, and either writes the FULL final content in this same call
-   (`content_included=true`) or defers it (`content_included=false`) when the
-   dossier is too rich for one response.
-2. **`write_pages`** (only if stage 1 deferred) — writes final content for
-   every remaining route in one batched call.
-3. **`integrate_content`** (only if warranted) — a bounded reconciliation or
-   repair pass for consistency and approval readiness; never adds a claim or
-   route.
+1. **`plan_content`** (always) — story strategy and claim grounding, and
+   either the FULL page content in the same call (`content_included=true`) or
+   a deferral (`content_included=false`) when the dossier is too rich.
+2. **`write_pages`** (only if deferred) — the complete page content tree,
+   refreshed claim `field_paths`, and the full coverage ledger.
+3. **`integrate_content`** (only if the writer flagged inconsistency, or as
+   the single bounded repair pass when the deterministic readiness check finds
+   a defect and call budget remains) — never adds a claim or promotes a
+   publication status.
 
-All three operations share one output contract, `ContentArchitectOutput`,
-discriminated by a `mode` field. This mirrors how Discovery's own
-`QuestionSetOutput` already varies required fields by `mode` within one
-schema.
+All three share one output contract, `ContentArchitectOutput`, discriminated
+by `mode`. After the last call, `agent.py::_approval_readiness_errors` runs
+the same checks approval will later enforce; unrepaired defects fail the run
+(`MODEL_OUTPUT_INVALID`) rather than reaching review.
 
 ## Flow
 
-1. `POST /api/v1/sessions/{id}/content-architect/start` requires Discovery to
-   be `approved`. It snapshots the complete dossier and approval hash, then
-   enqueues `content_architect.build`.
-2. The worker runs the build (1–3 model calls as above) and moves the state
-   to `content_review`.
-3. `POST .../content-architect/revise` re-runs the build with a
-   natural-language `revision_request` and the current authoritative content
-   as `prior_output` (allowed only while under review).
-4. `POST .../content-architect/approve` checks that the Discovery source is
-   still approved and that source coverage and page structure are complete,
-   then hashes the reviewed content and marks the run `approved` (terminal).
+1. `POST /api/v1/sessions/{id}/content-architect/start` requires Discovery
+   `approved`, snapshots the dossier and approval hash, enqueues the build.
+2. The worker runs the build and moves the state to `content_review`.
+3. `POST .../revise` re-runs the build with a natural-language
+   `revision_request` and the current content as `prior_output`.
+4. `POST .../approve` re-checks Discovery staleness, page completeness,
+   claim binding, and dossier coverage, hashes the content, and marks the run
+   `approved` (terminal).
 
-## Claim grounding and publication gating
+## Rules enforced in code (`page_content.py`)
 
-Every claim carries three **independent** fields — never blended into one:
+Pure functions over plain dicts, shared by the validators, the agent's
+readiness gate, the state machine, and the service:
 
-- `evidence_status` (`verified` | `unverified` | `unresolved`) — is the
-  statement itself backed by the source?
-- `ownership` (`individual` | `team` | `unclear`) — whose contribution is it?
-- `publication_status` (`approved` | `pending` | `blocked`) — has it cleared
-  review to appear in finished public copy? An approved Discovery snapshot
-  authorizes neutral, factual wording for ordinary supplied profile facts;
-  missing metrics, contact permission, individual ownership, scale, or a
-  separate project permission are reasons to omit or generalize the detail,
-  not to block the whole route. Explicit privacy, NDA, confidentiality, or
-  do-not-publish restrictions remain blocking.
+- **Shape** (`validators.py`, per model call): wrong JSON types, internal-review
+  key names (`status_note`, `evidence_status`, `publication_check`, ...) inside
+  page copy, and a `blocked` claim bound to any field are hard rejects — both
+  were observed leaking through in real live-model output despite prompt
+  instructions.
+- **Completeness** (readiness gate + approval): hero name/headline/intro,
+  metadata title/description, section eyebrow+heading, **exactly four
+  pillars** each with title and description, at least one capability group
+  with items, and `https://`/`http://`/`mailto:` destination URLs.
+  Organizations, destinations, and marquee keywords may be empty — an invented
+  entry is worse than an empty list. Completeness is repairable by the one
+  bounded `integrate_content` call, which is why it is not a per-call
+  validator.
+- **Claim binding**: `claim_grounding[].field_paths` uses dotted/bracket paths
+  (`hero.intro`, `systems_practice.pillars[0].description`,
+  `connect.destinations[1].label`). An `approved` claim's paths must point at
+  populated copy; a `pending` or `blocked` claim has no paths.
+- **Coverage**: for a dossier-backed run, every fact/role/project/evidence id
+  (`fact/<id>`, `role/<id>`, ...) has exactly one ledger entry with a valid
+  disposition. `used`/`condensed` entries carry populated `field_paths`; every
+  other disposition carries a reason and no paths.
 
-Routes carry the same `publication_status`. `blocked` material can never be
-referenced from `page_content_packs`/`public_content_manifest` — this is
-enforced structurally in `validators.py` (a hard reject, not just a prompt
-instruction), because a real model was observed to leak an unresolved
-project into public output as a confidently-titled route despite prompt
-instructions saying not to. `pending` material is review-only: it can remain
-in the Content Architect review output, but it is excluded from the
-public content projection.
-
-Approval is an admission gate, not only a top-level hash stamp. At least one
-route must be `approved`; every approved route must have a safe unique path,
-title and purpose, exactly one non-empty content pack whose section sequence
-matches the route plan, and only approved claim references. The public manifest
-must also be present. A failure returns an actionable 409 so the operator can
-request a revision before approving incomplete content.
-
-For a dossier-backed run, approval additionally requires one root-page route,
-`single_page` presentation mode, and one coverage disposition for every fact,
-role, project, and other evidence item. Public dispositions reference an
-existing section or the manifest; internal, restricted, and unresolved items
-carry a reason. Legacy approved sessions without a dossier retain the older
-route behavior.
-
-## Sections, not loose blocks
-
-Each `page_content_packs` entry is `{route_id, sections, internal_notes}`.
-Each `sections[]` entry is machine-addressable: `section_id`, `purpose`,
-`content` (the actual visitor-facing copy — free-form per section type),
-`claim_ids` (every claim the section's copy relies on — validated against
-`claim_grounding`, and a section can never cite a `blocked` claim),
-`priority`, `optional`, `mobile_condensation`, and `link_targets`. This gives
-revisions and user review an unambiguous page structure instead of loosely
-related, unlabeled blocks.
-
-`internal_notes` is the *only* place review/QA reasoning may live ("needs
-confirmation before publishing", generalization rationale). It must never
-leak into a section's `content` — `validators.py` scans section content for
-a small set of internal-review key names (`status_note`, `evidence_status`,
-`publication_check`, ...) as a structural backstop, since this too was
-observed leaking through despite prompt instructions.
-
-## Decision provenance
-
-`decision_basis` records why each major site-strategy decision (presentation
-mode, primary audience, primary CTA, tone, density) was made: `user_confirmed`
-(a stated preference set it), `source_derived` (the snapshot's facts imply
-it), or `safe_default` (nothing was supplied, so a reasonable default was
-chosen). This helps the user distinguish confirmed preferences from choices
-that remain open to revision.
+`evidence_status`, `ownership`, and `publication_status` stay three
+independent fields on each claim. An approved Discovery snapshot authorizes
+neutral, factual wording for ordinary supplied facts; missing metrics or
+unclear ownership are reasons to omit or generalize a detail, not to block the
+page. Explicit privacy, NDA, or do-not-publish restrictions remain blocking.
 
 ## Staleness
 
-Every `start`/`revise` call — and the job handler again, immediately before
-persisting a successful build — compares the live Discovery brief's approval
-hash against the hash snapshotted when this Content Architect run began. If
-Discovery has since been re-approved with different content, the operation
-is rejected with `CONTENT_ARCHITECT_STALE_SOURCE` rather than silently
-building on outdated facts.
+Every `start`/`revise`/`approve` call — and the job handler again immediately
+before persisting a successful build — compares the live Discovery approval
+hash with the snapshot. A mismatch is rejected with
+`CONTENT_ARCHITECT_STALE_SOURCE`.
 
 ## State machine
 
 Five statuses: `not_started, build_running, content_review, approved,
-needs_attention`. Deliberately simpler than Discovery's own machine —
-there's no separate queued/running pair or per-stage status, because one job
-kind covers the whole adaptive workflow (see `state.py` for why this is an
-intentional simplification, not an oversight).
+needs_attention`. One job kind covers the whole adaptive workflow, so there is
+no per-stage status (an intentional simplification; see `state.py`).
 
-## Output contract
-
-Only the transport envelope is validated (`validators.py`), never the
-content's prose: `mode` matches the operation and is consistent with
-`content_included`; every `route_plan` entry has a unique, non-empty
-`route_id`/`path`/`purpose`; every `claim_grounding` entry has a unique,
-non-empty `claim_id`, and a `verified` claim must carry a `source_reference`;
-`page_content_packs`/`public_content_manifest` are required non-empty
-exactly when the operation is supposed to produce them; every
-`page_content_packs` section has a pack-unique `section_id` and only cites
-`claim_ids` that exist and are not `blocked`; no `blocked` route/claim is
-referenced from public output. The configured route ceiling is an
-admission boundary: an over-ceiling route plan or content-pack set is
-rejected rather than silently truncated, because truncation would make the
-approved public scope incomplete.
-
-A model output that fails the contract raises
-`ContentArchitectModelOutputError` (surfaced as `MODEL_OUTPUT_INVALID`,
-terminal for that run). Truly unexpected exceptions surface as
-`MODEL_OPERATION_FAILED` (not retryable). Eligible pre-send failures can
-use the worker's retry policy; after a model call, the
-original failure reaches `needs_attention` without an unproductive redelivery.
+Approval error codes: `CONTENT_ARCHITECT_PAGE_NOT_PUBLISHABLE` (no page
+content), `CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE` (incomplete or unsafe
+page), `CONTENT_ARCHITECT_COVERAGE_INCOMPLETE`,
+`CONTENT_ARCHITECT_STALE_SOURCE`, `CONTENT_ARCHITECT_DISCOVERY_NOT_APPROVED`.
+Sessions saved with the earlier route-based schema still load but show an empty
+page; run Content Architect again for them.
 
 ## Prompts
 
-Four prompt files. The system prompt is loaded first, then the operation
-prompt with the shared output JSON schema injected and the raw source packet
-appended as untrusted CDATA:
-
-- `prompts/system.md`
-- `prompts/plan_content.md`
-- `prompts/write_pages.md`
-- `prompts/integrate_content.md`
+`prompts/system.md` (shared, carries the page template, claim-binding, and
+coverage rules — only one operation file loads per call, so a rule a validator
+enforces must live here or in that operation file, never as a cross-reference),
+then `plan_content.md`, `write_pages.md`, `integrate_content.md`, each with the
+shared JSON schema injected and the source packet appended as untrusted data.
+`samples/` holds three input/output pairs (strong, sparse, NDA-restricted);
+`tests/unit/agents/content_architect/test_samples.py` keeps them valid.
 
 ## Model integration
 
-There is no demo mode for the durable worker path. It always builds the live
-provider adapter for the `[profiles.content_architect]` profile in
-`config/models.toml`; missing configuration raises a controlled
-`ProviderConfigError`. The mock-runs dev harness uses the deterministic
-`MockModelClient` fallback so it never makes network calls.
+Provider, model, and routing come from `config/models.toml`:
+`[routing.engine_profiles]` and the per-operation
+`[routing.operation_profiles.content_architect.*]` entries resolve the live
+profile (the same single provider as Discovery). The static
+`[profiles.content_architect]` block is not consulted for live routing while
+those entries exist. The mock-runs dev harness uses the deterministic
+`MockModelClient`, so it never makes network calls.
 
 ## HTTP surface
 
@@ -210,3 +176,4 @@ provider adapter for the `[profiles.content_architect]` profile in
 | POST | `/api/v1/sessions/{id}/content-architect/start` | Snapshot approved Discovery, enqueue build (202) |
 | POST | `/api/v1/sessions/{id}/content-architect/revise` | Natural-language content revision (202) |
 | POST | `/api/v1/sessions/{id}/content-architect/approve` | Approve the reviewed content |
+| POST | `/api/v1/sessions/{id}/content-architect/stop` | Cancel the running build |

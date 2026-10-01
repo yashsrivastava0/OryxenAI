@@ -1,9 +1,13 @@
-import { useState } from "preact/hooks";
-import type { ContentViewModel } from "../../data/adapters/content";
+import { useEffect, useRef, useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
+import { pageContentIsEmpty, type ContentViewModel } from "../../data/adapters/content";
+import { CONTENT_CARD_PREFIX, cardIdForPath } from "../../data/content-paths";
+import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { AttentionPanel } from "../../components/AttentionPanel";
+import { ContentCoverageInspector } from "../../components/ContentCoverageInspector";
+import { PortfolioPreview } from "../../components/PortfolioPreview";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
-import { ActionDock } from "../../components/ActionDock";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
@@ -31,7 +35,7 @@ export function ContentStage({
         <p className="eyebrow">Stage 02 / Content Architect</p>
         <h2 className="locked-title">Stage Locked</h2>
         <p className="locked-desc">
-          Content Architect requires an approved portfolio brief from Discovery before building your site architecture and page copy.
+          Content Architect requires an approved portfolio brief from Discovery before writing your page copy.
         </p>
       </div>
     );
@@ -43,7 +47,7 @@ export function ContentStage({
         <p className="eyebrow">Stage 02 / Content Architect</p>
         <h1 className="available-title">Ready to structure portfolio content</h1>
         <p className="available-desc">
-          Content Architect will consume your approved brief to define the site's route structure, positioning statements, and detailed section copy.
+          Content Architect will consume your approved brief to write the finished copy for every section of your one-page portfolio.
         </p>
         <div className="available-actions">
           <button
@@ -92,293 +96,338 @@ export function ContentStage({
     );
   }
 
-  // review or complete matching 04-content-route-review.png
   return (
     <div className="content-stage-view">
-      <ContentReviewPanel
+      <ContentReviewSurface
         view={view}
         canMutate={canMutate}
         onApproveAndContinue={onApproveAndContinue}
         onRevise={onRevise}
-        inFlight={inFlight}
       />
     </div>
   );
 }
 
-function ContentReviewPanel({
+type ReviewTab = "review" | "preview";
+
+function ContentReviewSurface({
   view,
   canMutate,
   onApproveAndContinue,
   onRevise,
-  inFlight = false,
 }: {
   view: ContentViewModel;
   canMutate: boolean;
   onApproveAndContinue: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
-  inFlight?: boolean;
 }) {
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
-  const [showRevisionComposer, setShowRevisionComposer] = useState(false);
-  const [revisionText, setRevisionText] = useState("");
-  const [revisionInFlight, setRevisionInFlight] = useState(false);
-
+  const [tab, setTab] = useState<ReviewTab>("review");
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const highlightTimer = useRef<number | undefined>(undefined);
   const isApproved = view.state === "complete";
-  const routes = view.routePlan.length > 0
-    ? view.routePlan
-    : [
-        {
-          routeId: "route_a",
-          path: "/",
-          title: "The Builder's Advantage",
-          purpose: "A confident, evidence-led narrative that shows how you turn complexity into real-world outcomes.",
-        },
-        {
-          routeId: "route_b",
-          path: "/work",
-          title: "From Insight to Impact",
-          purpose: "A thought-led narrative that connects ideas to measurable change.",
-        },
-        {
-          routeId: "route_c",
-          path: "/about",
-          title: "A More Human Future",
-          purpose: "A people-first story about systems, creativity, and what comes next.",
-        },
-      ];
+  const page = view.pageContent;
+  const empty = pageContentIsEmpty(page);
 
-  const activeRouteId = selectedRouteId || routes[0]?.routeId || "route_a";
-  const activeRoute = routes.find((r) => r.routeId === activeRouteId) ?? routes[0]!;
+  useEffect(() => () => window.clearTimeout(highlightTimer.current), []);
 
-  // Resolve content packs / sections for the active route
-  const activePack = view.pageContentPacks.find((p) => p.routeId === activeRoute.routeId);
-  const sections = (activePack && activePack.sections.length > 0)
-    ? activePack.sections
-    : [
-        {
-          id: "sec_01",
-          role: "OPENING",
-          heading: "A clearer tomorrow",
-          body: "Set the stage with the problem, your point of view, and why it matters now.",
-        },
-        {
-          id: "sec_02",
-          role: "APPROACH",
-          heading: "Principles in practice",
-          body: "Show how you work — from framing to execution — with a focus on repeatable methods.",
-        },
-        {
-          id: "sec_03",
-          role: "PROOF",
-          heading: "Work that moves things",
-          body: "Highlight 2–3 representative projects that demonstrate breadth and depth.",
-        },
-        {
-          id: "sec_04",
-          role: "WHAT'S NEXT",
-          heading: "Bigger, together",
-          body: "Close with your outlook and an invitation to collaborate.",
-        },
-      ];
-
-  const handleSendRevision = async () => {
-    if (!revisionText.trim() || revisionInFlight) return;
-    setRevisionInFlight(true);
-    try {
-      await onRevise(revisionText.trim());
-      setRevisionText("");
-      setShowRevisionComposer(false);
-    } finally {
-      setRevisionInFlight(false);
-    }
+  const selectPath = (path: string) => {
+    const ids = new Set(
+      Array.from(document.querySelectorAll(`[id^="${CONTENT_CARD_PREFIX}"]`)).map((el) => el.id),
+    );
+    const id = cardIdForPath(path, ids);
+    if (!id) return;
+    document.getElementById(id)?.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightedId(id);
+    window.clearTimeout(highlightTimer.current);
+    highlightTimer.current = window.setTimeout(() => setHighlightedId(null), 2200);
   };
 
+  const cardClass = (id: string, extra = "") =>
+    `${extra} ${highlightedId === id ? "is-highlighted" : ""}`.trim();
+
+  const pillarCount = page.systemsPractice.pillars.length;
+  const tabs: Array<[ReviewTab, string]> = [
+    ["review", "Review content"],
+    ["preview", "Live preview"],
+  ];
+
   return (
-    <div className="content-route-review-canvas" aria-labelledby="content-review-heading">
-      {/* Header section with heading, lede, and quote callout */}
-      <div className="content-review-header-row">
-        <div className="content-review-titles">
-          <p className="eyebrow">CONTENT REVIEW</p>
-          <h1 id="content-review-heading" className="content-review-title">
-            Three routes. A stronger story ahead.
-          </h1>
-          <p className="content-review-subtitle">
-            Same foundation, three distinct angles. Review the options below, explore the full structure,
-            and choose the route that best advances your portfolio goals.
-          </p>
-        </div>
-
-        <div className="content-review-quote-callout" aria-hidden="true">
-          <p className="quote-text">A focused narrative turns work into opportunity.</p>
-          <div className="quote-divider" />
-          <p className="quote-subtext">GOOD CONTENT DOES MORE THAN INFORM. IT OPENS DOORS.</p>
-        </div>
+    <ArtifactSurface
+      title="Your portfolio page content"
+      artifactTypeName="content plan"
+      statusBadge={isApproved ? "Approved" : "Ready for review"}
+      isApproved={isApproved}
+      canMutate={canMutate}
+      warnings={view.warnings}
+      metadata={[
+        { label: "Pillars", value: String(pillarCount) },
+        { label: "Capability groups", value: String(page.technicalCapabilities.groups.length) },
+        { label: "Links", value: String(page.connect.destinations.length) },
+        { label: "Claims checked", value: String(view.claimGrounding.length) },
+      ]}
+      finalJsonOutput={view.agentOutput}
+      onApproveAndContinue={empty ? undefined : onApproveAndContinue}
+      onRevise={onRevise}
+    >
+      <div className="content-tabs" role="tablist" aria-label="Content views">
+        {tabs.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            id={`content-tab-${id}`}
+            aria-selected={tab === id}
+            aria-controls={`content-panel-${id}`}
+            className={`content-tab ${tab === id ? "is-selected" : ""}`}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* Horizontal Route Tabs Strip matching 04-content-route-review.png */}
-      <div className="route-tabs-strip" role="tablist" aria-label="Portfolio content routes">
-        {routes.map((route, idx) => {
-          const isSelected = route.routeId === activeRouteId;
-          const letter = String.fromCharCode(65 + idx); // A, B, C...
-          return (
-            <button
-              key={route.routeId}
-              type="button"
-              role="tab"
-              aria-selected={isSelected}
-              className={`route-tab-button ${isSelected ? "is-selected" : ""}`}
-              onClick={() => setSelectedRouteId(route.routeId)}
-            >
-              <span className="route-tab-letter">Route {letter}</span>
-              <span className="route-tab-title">{route.title || `Route ${letter}`}</span>
-              <span className="route-tab-arrow" aria-hidden="true">›</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Selected Route Box matching 04-content-route-review.png */}
-      <div className="selected-route-card" role="tabpanel" aria-labelledby={`route-tab-${activeRoute.routeId}`}>
-        <div className="selected-route-header">
-          <div className="selected-route-titles">
-            <span className="eyebrow">SELECTED ROUTE</span>
-            <h2 className="selected-route-name">{activeRoute.title || "The Builder's Advantage"}</h2>
-            <p className="selected-route-desc">
-              {activeRoute.purpose || "A confident, evidence-led narrative that shows how you turn complexity into real-world outcomes."}
-            </p>
-          </div>
-
-          <div className="route-role-callout">
-            <span className="eyebrow">ROUTE ROLE</span>
-            <p className="route-role-text">
-              Positions you as a pragmatic builder who connects strategy, execution, and impact.
-            </p>
-          </div>
-        </div>
-
-        {/* 4 Section Cards in horizontal grid */}
-        <div className="route-sections-grid">
-          {sections.map((rawSection, idx) => {
-            const section = rawSection as Record<string, any>;
-            const ordinal = String(idx + 1).padStart(2, "0");
-            const heading = section.heading || section.content?.heading || section.content?.title || section.purpose || section.sectionId || `Section ${idx + 1}`;
-            const body = section.body || section.content?.body || section.content?.summary || section.content?.copy || section.purpose || "";
-            const role = section.role || (section.priority ? `${String(section.priority).toUpperCase()} · ${section.purpose}` : `0${idx + 1}`);
-            const key = section.id || section.sectionId || idx;
-            return (
-              <div key={key} className="section-card">
-                <div className="section-card-meta">
-                  <span className="section-ordinal">{ordinal}</span>
-                  <span className="section-role">{role}</span>
-                </div>
-                <h3 className="section-heading">{heading}</h3>
-                <p className="section-body">{body}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Collapsed Alternative Routes below matching 04-content-route-review.png */}
-      <div className="alternative-routes-container">
-        {routes
-          .filter((r) => r.routeId !== activeRouteId)
-          .map((altRoute) => {
-            const routeIndex = routes.findIndex((r) => r.routeId === altRoute.routeId);
-            const letter = String.fromCharCode(65 + routeIndex);
-            return (
-              <div
-                key={altRoute.routeId}
-                className="collapsed-route-strip"
-                onClick={() => setSelectedRouteId(altRoute.routeId)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    setSelectedRouteId(altRoute.routeId);
-                  }
-                }}
-              >
-                <div className="collapsed-route-left">
-                  <strong className="collapsed-route-letter">Route {letter}</strong>
-                  <span className="collapsed-route-title">{altRoute.title}</span>
-                </div>
-                <div className="collapsed-route-right">
-                  <span className="collapsed-route-purpose">{altRoute.purpose}</span>
-                  <span className="collapsed-route-chevron" aria-hidden="true">▾</span>
-                </div>
-              </div>
-            );
-          })}
-      </div>
-
-      {/* Revision Box when requested */}
-      {!isApproved && showRevisionComposer && (
-        <div className="inline-revision-box">
-          <div className="revision-box-header">
-            <label htmlFor="content-revision-input">
-              <strong>Suggest adjustments to content architecture</strong>
-            </label>
-            <p>Request changes to route positioning, section emphasis, or specific copy angles.</p>
-          </div>
-          <textarea
-            id="content-revision-input"
-            className="revision-textarea"
-            rows={4}
-            placeholder="e.g., Focus more on enterprise transformation and reduce tactical design details..."
-            value={revisionText}
-            onInput={(e) => setRevisionText((e.target as HTMLTextAreaElement).value)}
-            disabled={revisionInFlight}
-          />
-          <div className="revision-box-actions">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setShowRevisionComposer(false);
-                setRevisionText("");
-              }}
-              disabled={revisionInFlight}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-primary btn-cobalt"
-              onClick={handleSendRevision}
-              disabled={revisionInFlight || !revisionText.trim()}
-            >
-              {revisionInFlight ? "Updating content…" : "Send revision"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {isApproved && (
-        <p className="approval-committed-note" role="status">
-          Your content plan is approved and ready.
+      {empty && (
+        <p className="content-empty-note" role="note">
+          This content has no page copy. It was likely created by an earlier version of Content
+          Architect. Use Revise to regenerate it.
         </p>
       )}
 
-      {/* ActionDock matching 04-content-route-review.png */}
-      <ActionDock
-        note={
-          <div className="content-dock-status">
-            <span className="dock-routes-count">1 route selected</span>
-            <span className="dock-status-sep">|</span>
-            <span className="dock-review-label">Review complete</span>
+      {tab === "preview" ? (
+        <div role="tabpanel" id="content-panel-preview" aria-labelledby="content-tab-preview">
+          {empty ? null : <PortfolioPreview page={page} />}
+        </div>
+      ) : (
+        <div
+          className="content-review-layout"
+          role="tabpanel"
+          id="content-panel-review"
+          aria-labelledby="content-tab-review"
+        >
+          <div className="content-review-main">
+            {view.userSummary && (
+              <section className="content-summary" aria-label="Summary">
+                <p className="eyebrow">SUMMARY</p>
+                {view.userSummary.split(/\n{2,}/).map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </section>
+            )}
+
+            {!empty && (
+              <>
+                <FieldCard
+                  id="content-card-hero"
+                  className={cardClass("content-card-hero")}
+                  eyebrow="HERO"
+                  title={page.hero.name || "Hero"}
+                >
+                  <FieldList
+                    rows={[
+                      ["Role", [page.hero.eyebrowPrimary, page.hero.eyebrowSecondary].filter(Boolean).join(" · ")],
+                      ["Headline", `${page.hero.headlinePrefix} ${page.hero.headlineEmphasis}`.trim()],
+                      ["Introduction", page.hero.intro],
+                      ["Location", page.hero.location],
+                      ["Primary button", page.hero.primaryCtaLabel],
+                      ["Secondary link", page.hero.secondaryCtaLabel],
+                    ]}
+                  />
+                </FieldCard>
+
+                <FieldCard
+                  id="content-card-metadata"
+                  className={cardClass("content-card-metadata")}
+                  eyebrow="PAGE METADATA"
+                  title={page.metadataTitle || "Browser title"}
+                >
+                  <FieldList rows={[["Description", page.metadataDescription]]} />
+                </FieldCard>
+
+                {page.marqueeKeywords.length > 0 && (
+                  <FieldCard
+                    id="content-card-marquee_keywords"
+                    className={cardClass("content-card-marquee_keywords")}
+                    eyebrow="KEYWORD TICKER"
+                    title="Scrolling keywords"
+                  >
+                    <ul className="content-chip-list">
+                      {page.marqueeKeywords.map((word, index) => (
+                        <li key={index} className="content-chip">{word}</li>
+                      ))}
+                    </ul>
+                  </FieldCard>
+                )}
+
+                <FieldCard
+                  id="content-card-systems_practice"
+                  className={cardClass("content-card-systems_practice")}
+                  eyebrow={`SECTION 01 · ${page.systemsPractice.eyebrow || "SYSTEMS PRACTICE"}`}
+                  title={page.systemsPractice.heading || "Pillars"}
+                >
+                  {page.systemsPractice.intro && (
+                    <p className="content-card-intro">{page.systemsPractice.intro}</p>
+                  )}
+                  {pillarCount !== 4 && (
+                    <p className="content-card-warning" role="alert">
+                      The page layout needs exactly four pillars; this content has {pillarCount}.
+                    </p>
+                  )}
+                  <ol className="content-pillar-grid">
+                    {page.systemsPractice.pillars.map((pillar, index) => {
+                      const id = `content-card-systems_practice.pillars.${index}`;
+                      return (
+                        <li key={index} id={id} className={`content-pillar-card ${cardClass(id)}`}>
+                          <span className="content-pillar-index">{String(index + 1).padStart(2, "0")}</span>
+                          <h4>{pillar.title}</h4>
+                          <p>{pillar.description}</p>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </FieldCard>
+
+                <FieldCard
+                  id="content-card-technical_capabilities"
+                  className={cardClass("content-card-technical_capabilities")}
+                  eyebrow={`SECTION 02 · ${page.technicalCapabilities.eyebrow || "TECHNICAL CAPABILITIES"}`}
+                  title={page.technicalCapabilities.heading || "Capabilities"}
+                >
+                  {page.technicalCapabilities.intro && (
+                    <p className="content-card-intro">{page.technicalCapabilities.intro}</p>
+                  )}
+                  <div className="content-capability-groups">
+                    {page.technicalCapabilities.groups.map((group, index) => {
+                      const id = `content-card-technical_capabilities.groups.${index}`;
+                      return (
+                        <div key={index} id={id} className={`content-capability-group ${cardClass(id)}`}>
+                          <h4>{group.heading}</h4>
+                          <ul className="content-chip-list">
+                            {group.items.map((item, itemIndex) => (
+                              <li key={itemIndex} className="content-chip">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </FieldCard>
+
+                <FieldCard
+                  id="content-card-professional_context"
+                  className={cardClass("content-card-professional_context")}
+                  eyebrow={`SECTION 03 · ${page.professionalContext.eyebrow || "PROFESSIONAL CONTEXT"}`}
+                  title={page.professionalContext.heading || "Context"}
+                >
+                  {page.professionalContext.intro && (
+                    <p className="content-card-intro">{page.professionalContext.intro}</p>
+                  )}
+                  {page.professionalContext.organizations.length > 0 ? (
+                    <ul className="content-chip-list">
+                      {page.professionalContext.organizations.map((org, index) => {
+                        const id = `content-card-professional_context.organizations.${index}`;
+                        return (
+                          <li key={index} id={id} className={`content-chip content-org-chip ${cardClass(id)}`}>
+                            {org}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="content-card-muted">No organizations were named in the profile.</p>
+                  )}
+                </FieldCard>
+
+                <FieldCard
+                  id="content-card-connect"
+                  className={cardClass("content-card-connect")}
+                  eyebrow={`SECTION 04 · ${page.connect.eyebrow || "CONNECT"}`}
+                  title={page.connect.heading || "Connect"}
+                >
+                  {page.connect.intro && <p className="content-card-intro">{page.connect.intro}</p>}
+                  {page.connect.destinations.length > 0 ? (
+                    <ul className="content-destination-list">
+                      {page.connect.destinations.map((destination, index) => {
+                        const id = `content-card-connect.destinations.${index}`;
+                        return (
+                          <li key={index} id={id} className={`content-destination-item ${cardClass(id)}`}>
+                            <span className="content-destination-label">{destination.label}</span>
+                            <span className="content-destination-url">{destination.url}</span>
+                            {destination.featured && (
+                              <span className="content-badge content-badge--featured">Featured</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="content-card-muted">No public links were supplied.</p>
+                  )}
+                </FieldCard>
+              </>
+            )}
+
+            {view.decisionBasis.length > 0 && (
+              <details className="content-decisions">
+                <summary>How these choices were made</summary>
+                <ul>
+                  {view.decisionBasis.map((decision, index) => (
+                    <li key={index}>
+                      <strong>{decision.decision.replaceAll("_", " ")}:</strong> {decision.value}{" "}
+                      <span className="content-badge">{decision.basis.replaceAll("_", " ")}</span>
+                      {decision.rationale && <p>{decision.rationale}</p>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
-        }
-        secondaryLabel={!isApproved ? "Revise" : undefined}
-        onSecondary={!isApproved ? () => setShowRevisionComposer(true) : undefined}
-        primaryLabel={!isApproved ? "Approve content" : undefined}
-        onPrimary={!isApproved ? onApproveAndContinue : undefined}
-        disabled={!canMutate || inFlight}
-        busy={inFlight}
-        busyLabel="Approving content…"
-      />
-    </div>
+
+          <ContentCoverageInspector
+            claims={view.claimGrounding}
+            coverage={view.coverageLedger}
+            unresolvedIssues={view.unresolvedIssues}
+            omissions={view.omissions}
+            onSelectPath={selectPath}
+          />
+        </div>
+      )}
+    </ArtifactSurface>
+  );
+}
+
+function FieldCard({
+  id,
+  className,
+  eyebrow,
+  title,
+  children,
+}: {
+  id: string;
+  className: string;
+  eyebrow: string;
+  title: string;
+  children: ComponentChildren;
+}) {
+  return (
+    <section id={id} className={`content-section-card ${className}`}>
+      <p className="eyebrow">{eyebrow}</p>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function FieldList({ rows }: { rows: Array<[string, string]> }) {
+  const visible = rows.filter(([, value]) => value.trim());
+  if (!visible.length) return null;
+  return (
+    <dl className="content-field-list">
+      {visible.map(([label, value]) => (
+        <div key={label} className="content-field-row">
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }

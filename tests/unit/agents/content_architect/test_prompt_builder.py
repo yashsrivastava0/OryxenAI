@@ -26,7 +26,7 @@ class TestBuildInstructions:
 
     def test_write_pages_returns_full_tuple(self):
         system, task, version, _manifest = build_instructions(
-            "write_pages", {"route_plan": [], "claim_grounding": []}
+            "write_pages", {"claim_grounding": []}
         )
         assert system
         assert task
@@ -34,7 +34,7 @@ class TestBuildInstructions:
 
     def test_integrate_content_returns_full_tuple(self):
         system, task, version, _manifest = build_instructions(
-            "integrate_content", {"page_content_packs": []}
+            "integrate_content", {"page_content": {}}
         )
         assert system
         assert task
@@ -47,8 +47,10 @@ class TestBuildInstructions:
     def test_schema_injected_into_task(self):
         _, task, _, _ = build_instructions("plan_content", {"approved_brief_title": "x"})
         assert "Output JSON schema" in task
-        assert "route_plan" in task
+        assert "page_content" in task
         assert "claim_grounding" in task
+        assert "route_plan" not in task
+        assert "page_content_packs" not in task
 
     def test_dynamic_input_is_left_out_of_stable_task(self):
         _, task, _, _ = build_instructions("plan_content", {"approved_brief_title": "]] inside"})
@@ -81,12 +83,32 @@ class TestBuildInstructions:
         assert "re-interview" in system
 
     def test_source_use_and_detail_guidance_is_explicit(self):
-        system, task, _version, _manifest = build_instructions(
+        system, _task, _version, _manifest = build_instructions(
             "plan_content", {"approved_brief_title": "x"}
         )
-        assert "Use those facts fully in strategy and public copy" in system
-        assert "complete, reviewable content plan" in system
-        assert "There is no line or word minimum" in task
+        assert "Use those facts fully" in system
+        assert "Write finished copy, not placeholders" in system
+
+
+class TestTemplateRulesReachEveryOperation:
+    """Only one operation file loads per call, so shared rules live in system.md."""
+
+    @pytest.mark.parametrize("operation", ["plan_content", "write_pages", "integrate_content"])
+    def test_page_template_contract_is_in_every_call(self, operation):
+        system, _task, _version, _manifest = build_instructions(operation, {})
+        assert "<page_template>" in system
+        assert "EXACTLY 4 entries" in system
+        assert "organization NAMES ONLY" in system
+        assert "<claim_binding>" in system
+        assert "<coverage_ledger>" in system
+
+    def test_prompts_no_longer_describe_routes_or_unrenderable_sections(self):
+        for operation in ("plan_content", "write_pages", "integrate_content"):
+            system, task, _version, _manifest = build_instructions(operation, {})
+            text = system + task
+            assert "page_content_packs" not in text
+            assert "public_content_manifest" not in text
+            assert "work-sample stories" not in text
 
 
 class TestPromptVersion:

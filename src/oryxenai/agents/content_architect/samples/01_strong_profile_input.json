@@ -2,97 +2,253 @@
   "operation": "build",
   "intake": {
     "approved_brief_title": "Portfolio Discovery Brief — Priya Nandan",
-    "user_summary": "Priya is a senior backend engineer with three well-documented, high-impact projects. The brief is ready for content development.",
+    "user_summary": "Senior backend engineer with three well-documented, high-impact projects.",
     "profile": {
       "name": "Priya Nandan",
       "current_title": "Senior Backend Engineer",
-      "location": "Bengaluru, India",
-      "links": [
+      "location": "Bengaluru, India"
+    },
+    "dossier": {
+      "contract_version": "DiscoveryDossier/v1",
+      "id": "dossier-priya",
+      "intent": {
+        "goal": "Senior backend roles",
+        "audience": "Hiring managers",
+        "visitor_action": "Get in touch",
+        "language": "en",
+        "preferences": [],
+        "basis": {},
+        "basis_refs": {}
+      },
+      "subject": {
+        "name": "Priya Nandan",
+        "current_title": "Senior Backend Engineer",
+        "location": "Bengaluru, India",
+        "links": [
+          {
+            "label": "GitHub",
+            "url": "https://github.com/priyanandan"
+          },
+          {
+            "label": "LinkedIn",
+            "url": "https://linkedin.com/in/priyanandan"
+          }
+        ],
+        "source_refs": []
+      },
+      "facts": [
         {
-          "label": "GitHub",
-          "url": "https://github.com/priyanandan"
+          "id": "f1",
+          "category": "role",
+          "statement": "Senior Backend Engineer at Northstar Systems since 2021.",
+          "original_wording": "Senior Backend Engineer at Northstar Systems since 2021.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
         },
         {
-          "label": "LinkedIn",
-          "url": "https://linkedin.com/in/priyanandan"
+          "id": "f2",
+          "category": "outcome",
+          "statement": "QueueGuard is adopted by 40+ services.",
+          "original_wording": "QueueGuard is adopted by 40+ services.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "team",
+          "status": "user_confirmed",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "f3",
+          "category": "contribution",
+          "statement": "Sole designer of QueueGuard's retry/backoff and stale-job recovery model.",
+          "original_wording": "Sole designer of QueueGuard's retry/backoff and stale-job recovery model.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "f4",
+          "category": "leadership",
+          "statement": "Led the platform reliability working group.",
+          "original_wording": "Led the platform reliability working group.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "f5",
+          "category": "contribution",
+          "statement": "Built LatencyLens, which traces request latency across services with OpenTelemetry.",
+          "original_wording": "Built LatencyLens, which traces request latency across services with OpenTelemetry.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "f6",
+          "category": "contribution",
+          "statement": "Created Migrate-Safe for rolling out schema changes without downtime.",
+          "original_wording": "Created Migrate-Safe for rolling out schema changes without downtime.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "f7",
+          "category": "education",
+          "statement": "B.Tech in Computer Science, IIT Bombay, 2015-2019.",
+          "original_wording": "B.Tech in Computer Science, IIT Bombay, 2015-2019.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
+        },
+        {
+          "id": "f8",
+          "category": "location",
+          "statement": "Based in Bengaluru, India.",
+          "original_wording": "Based in Bengaluru, India.",
+          "source_refs": [],
+          "qualifiers": [],
+          "ownership": "individual",
+          "status": "source_asserted",
+          "supersedes_ref": ""
         }
       ],
-      "experience": [
+      "roles": [
         {
+          "id": "r1",
           "organization": "Northstar Systems",
           "role": "Senior Backend Engineer",
           "dates": "2021-present",
-          "highlights": [
-            "Designed QueueGuard, a durable job queue adopted by 40+ services",
-            "Led the platform reliability working group"
-          ]
-        }
-      ],
-      "education": [
+          "details": [
+            "Platform reliability"
+          ],
+          "fact_ids": [
+            "f1",
+            "f4"
+          ],
+          "source_refs": []
+        },
         {
-          "institution": "IIT Bombay",
-          "credential": "B.Tech, Computer Science",
-          "dates": "2015-2019"
+          "id": "r2",
+          "organization": "Cobalt Labs",
+          "role": "Backend Engineer",
+          "dates": "2019-2021",
+          "details": [
+            "Migration and latency tooling"
+          ],
+          "fact_ids": [
+            "f5",
+            "f6"
+          ],
+          "source_refs": []
         }
       ],
       "projects": [
         {
+          "id": "p1",
           "name": "QueueGuard",
-          "summary": "Durable PostgreSQL-backed background job system.",
-          "contribution": "Sole designer of the retry/backoff and stale-job recovery model.",
-          "tech": [
+          "problem": "Background jobs lost work on worker crashes.",
+          "personal_contribution": "Designed retry, backoff, and stale-job recovery.",
+          "team_contribution": "Adopted by 40+ services.",
+          "approach": [],
+          "tools": [
             "Python",
             "PostgreSQL",
-            "FastAPI"
+            "asyncio"
           ],
-          "link": "https://github.com/priyanandan/queueguard"
+          "outcomes": [
+            "Adopted by 40+ services"
+          ],
+          "links": [],
+          "fact_ids": [
+            "f2",
+            "f3"
+          ],
+          "source_refs": []
         },
         {
+          "id": "p2",
           "name": "LatencyLens",
-          "summary": "Tracing pipeline for API latency debugging.",
-          "contribution": "Built the sampling and aggregation core.",
-          "tech": [
+          "problem": "Teams could not see where request time went.",
+          "personal_contribution": "Built the tracing pipeline.",
+          "team_contribution": "",
+          "approach": [],
+          "tools": [
             "Go",
-            "ClickHouse"
+            "OpenTelemetry",
+            "Grafana"
           ],
-          "link": "https://github.com/priyanandan/latencylens"
+          "outcomes": [],
+          "links": [],
+          "fact_ids": [
+            "f5"
+          ],
+          "source_refs": []
         },
         {
+          "id": "p3",
           "name": "Migrate-Safe",
-          "summary": "Zero-downtime schema migration tool.",
-          "contribution": "Sole author, adopted company-wide.",
-          "tech": [
+          "problem": "Schema changes risked downtime.",
+          "personal_contribution": "Created the rollout tooling.",
+          "team_contribution": "",
+          "approach": [],
+          "tools": [
             "Python",
+            "Alembic",
             "PostgreSQL"
           ],
-          "link": "https://github.com/priyanandan/migrate-safe"
+          "outcomes": [],
+          "links": [],
+          "fact_ids": [
+            "f6"
+          ],
+          "source_refs": []
         }
       ],
-      "skills": [
-        "Python",
-        "Go",
-        "PostgreSQL",
-        "Distributed Systems",
-        "FastAPI"
+      "other_evidence": [
+        {
+          "id": "e1",
+          "category": "education",
+          "title": "IIT Bombay",
+          "detail": "B.Tech in Computer Science, 2015-2019.",
+          "fact_ids": [
+            "f7"
+          ],
+          "source_refs": []
+        },
+        {
+          "id": "e2",
+          "category": "talk",
+          "title": "Meetup talk",
+          "detail": "Gave a local meetup talk on job queue design.",
+          "fact_ids": [],
+          "source_refs": []
+        }
       ],
-      "spoken_languages": [
-        "English",
-        "Hindi"
-      ],
-      "private_omitted": [
-        "phone number"
-      ]
+      "open_items": [],
+      "user_choices": [],
+      "restrictions": [],
+      "source_coverage": [],
+      "question_events": [],
+      "lineage": {
+        "version": 1,
+        "schema_version": "DiscoveryDossier/v1"
+      }
     },
-    "open_items": [],
-    "discovery_brief_hash": "sha256:example-strong-profile",
-    "discovery_session_revision": 4
+    "open_items": []
   },
-  "preferences": {
-    "goal": "Land a staff backend engineer role",
-    "audience": "Engineering hiring managers and staff-level interviewers",
-    "tone": "confident, technical, precise",
-    "density": "detailed"
-  },
-  "prior_output": {},
-  "revision_request": ""
+  "preferences": {}
 }

@@ -45,7 +45,7 @@ function stageDisplayName(stage: JourneyStageId): string {
 function stagePurposeText(stage: JourneyStageId): string {
   switch (stage) {
     case "discover": return "Capture your goal, audience, key message and any reference material.";
-    case "content": return "Define routes, narrative positioning, and section copy.";
+    case "content": return "Write the finished copy for every section of your page.";
     default: return "Creative portfolio studio.";
   }
 }
@@ -655,7 +655,7 @@ export function AppShell({
         completedOperation = "repair";
         result = await api.reviseContentArchitect(
           state.sessionId,
-          "Resolve every deterministic public-scope approval error. Preserve valid content and the approved route plan. Every approved route must contain complete visitor-facing copy and may reference only claims whose publication_status is approved. Safely rewrite or omit pending or blocked exact details instead of changing their publication status.",
+          "Resolve every deterministic approval error. Preserve valid content. The page must have exactly four pillars, every required field filled with complete visitor-facing copy, and claims bound to page fields only when their publication_status is approved. Safely rewrite or omit pending or blocked exact details instead of changing their publication status.",
         );
       }
       if (operation === "start") clearIdempotencyKey(state.sessionId, action);

@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
+from oryxenai.agents.content_architect.page_content import coverage_errors
 from oryxenai.agents.content_architect.schemas import (
     ContentArchitectIntake,
     ContentArchitectPreferences,
@@ -24,7 +25,7 @@ from oryxenai.agents.content_architect.schemas import (
     ContentArchitectStatus,
 )
 from oryxenai.agents.content_architect.state import (
-    NoPublishableRoutesError,
+    ContentNotPublishableError,
     PublicScopeIncompleteError,
     apply_approval,
     apply_needs_attention,
@@ -278,53 +279,33 @@ class ContentArchitectService:
         if state.status is ContentArchitectStatus.APPROVED:
             return await self.get_content_architect_state(session_id)
 
-        from oryxenai.agents.content_architect.agent import _coverage_errors
-
-        packs_payload = [pack.model_dump(mode="json") for pack in state.page_content_packs]
-        route_payload = [route.model_dump(mode="json") for route in state.route_plan]
+        page_payload = state.page_content.model_dump(mode="json")
         coverage_payload = [entry.model_dump(mode="json") for entry in state.coverage_ledger]
-        coverage_errors = _coverage_errors(
-            state.intake.dossier, coverage_payload, route_payload, packs_payload
-        )
-        if state.intake.dossier.get("contract_version") == "DiscoveryDossier/v1":
-            if len(state.route_plan) != 1 or state.route_plan[0].path not in {"/", "/index.html"}:
-                coverage_errors.append("Portfolio content needs one complete root-page route")
-            if state.site_story_strategy.get("presentation_mode") != "single_page":
-                coverage_errors.append("Portfolio content needs single_page presentation_mode")
-        if coverage_errors:
-            raise ContentArchitectOperationError(
-                "CONTENT_ARCHITECT_COVERAGE_INCOMPLETE",
-                "Cannot approve incomplete source coverage or page structure; revise the content.",
-                details={"errors": coverage_errors},
-            )
         content_hash = _content_hash(
-            packs_payload,
-            state.public_content_manifest,
-            route_plan=route_payload,
+            page_payload,
             claim_grounding=[claim.model_dump(mode="json") for claim in state.claim_grounding],
             coverage_ledger=coverage_payload,
         )
         try:
             approved = apply_approval(state, content_hash)
-        except NoPublishableRoutesError as exc:
+        except ContentNotPublishableError as exc:
             raise ContentArchitectOperationError(
-                "CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES",
-                "Cannot approve: no publishable routes. Revise/re-run Content "
-                "Architect so at least one route has publication_status 'approved'.",
-                details={
-                    "route_count": exc.route_count,
-                    "route_statuses": exc.route_statuses,
-                },
+                "CONTENT_ARCHITECT_PAGE_NOT_PUBLISHABLE",
+                "Cannot approve: there is no page content. Revise/re-run Content Architect.",
             ) from exc
         except PublicScopeIncompleteError as exc:
             raise ContentArchitectOperationError(
                 "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE",
                 str(exc),
-                details={
-                    "approved_route_ids": exc.route_ids,
-                    "errors": exc.errors,
-                },
+                details={"errors": exc.errors},
             ) from exc
+        errors = coverage_errors(state.intake.dossier, coverage_payload, page_payload)
+        if errors:
+            raise ContentArchitectOperationError(
+                "CONTENT_ARCHITECT_COVERAGE_INCOMPLETE",
+                "Cannot approve incomplete source coverage; revise the content.",
+                details={"errors": errors},
+            )
         updated = await self._repository.save_content_architect_state(
             session_id, approved, session.revision
         )
@@ -398,13 +379,10 @@ class ContentArchitectService:
 
     def _authoritative_output(self, state: ContentArchitectState) -> dict[str, Any]:
         return {
-            "site_story_strategy": state.site_story_strategy,
+            "site_story_strategy": state.site_story_strategy.model_dump(mode="json"),
             "decision_basis": [d.model_dump(mode="json") for d in state.decision_basis],
-            "route_plan": [route.model_dump(mode="json") for route in state.route_plan],
-            "page_content_packs": [
-                pack.model_dump(mode="json") for pack in state.page_content_packs
-            ],
-            "public_content_manifest": state.public_content_manifest,
+            "page_content": state.page_content.model_dump(mode="json"),
+            "internal_notes": state.internal_notes,
             "claim_grounding": [claim.model_dump(mode="json") for claim in state.claim_grounding],
             "coverage_ledger": [entry.model_dump(mode="json") for entry in state.coverage_ledger],
         }
@@ -493,18 +471,14 @@ def _intake_from_discovery(
 
 
 def _content_hash(
-    page_content_packs: Any,
-    public_content_manifest: Any,
+    page_content: Any,
     *,
-    route_plan: Any = None,
     claim_grounding: Any = None,
     coverage_ledger: Any = None,
 ) -> str:
     combined = json.dumps(
         {
-            "page_content_packs": page_content_packs,
-            "public_content_manifest": public_content_manifest,
-            "route_plan": route_plan,
+            "page_content": page_content,
             "claim_grounding": claim_grounding,
             "coverage_ledger": coverage_ledger,
         },

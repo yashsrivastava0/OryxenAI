@@ -4,6 +4,11 @@ Only the OUTPUT contract is validated (envelope shape, not business content).
 Input is the approved Discovery dossier when available, with the legacy
 profile/summary retained for older sessions, plus optional user preferences.
 No model-specific imports.
+
+The page content tree mirrors the one pinned portfolio template
+(docs/HTML and CSS/index.html + styles.css) region for region, so the
+downstream HTML step can place every field without guessing. Multi-theme
+support is deliberately deferred until a second stylesheet exists.
 """
 
 from __future__ import annotations
@@ -31,12 +36,6 @@ class ContentPlanMode(StrEnum):
     INTEGRATED = "INTEGRATED"
 
 
-class PresentationMode(StrEnum):
-    SINGLE_PAGE = "single_page"
-    HYBRID = "hybrid"
-    MULTI_PAGE = "multi_page"
-
-
 class EvidenceStatus(StrEnum):
     """Whether a claim's factual content is backed by the source — evidence
     strength ONLY. Who it belongs to is a separate question; see Ownership.
@@ -54,10 +53,10 @@ class Ownership(StrEnum):
 
 
 class PublicationStatus(StrEnum):
-    """Whether a route or claim has cleared review to appear in public output.
+    """Whether a claim has cleared review to appear in public page content.
 
-    PENDING material must never enter page_content_packs/public_content_manifest.
-    BLOCKED material must never be referenced from public output at all — this
+    PENDING claims must never be reachable from a populated page field.
+    BLOCKED claims must never be referenced from public output at all — this
     is enforced structurally in validators.py, not left to prompt discipline
     alone, because a real model can still slip and needs a hard backstop.
     """
@@ -68,14 +67,25 @@ class PublicationStatus(StrEnum):
 
 
 class DecisionBasis(StrEnum):
-    """Provenance of a major site-strategy decision (audience, presentation
-    mode, primary CTA, ...) so downstream stages know what may be preserved
-    automatically versus what remains open to revision.
+    """Provenance of a major content-strategy decision (audience, primary CTA,
+    tone, ...) so downstream stages know what may be preserved automatically
+    versus what remains open to revision.
     """
 
     USER_CONFIRMED = "user_confirmed"
     SOURCE_DERIVED = "source_derived"
     SAFE_DEFAULT = "safe_default"
+
+
+class CoverageDisposition(StrEnum):
+    """What happened to one Discovery fact/entity on the way to the page."""
+
+    USED = "used"
+    CONDENSED = "condensed"
+    RETAINED_INTERNALLY = "retained_internally"
+    EXCLUDED_BY_RESTRICTION = "excluded_by_restriction"
+    EXCLUDED_EDITORIALLY = "excluded_editorially"
+    UNRESOLVED = "unresolved"
 
 
 # ── Input (approved Discovery snapshot) ────────────────────────────────────
@@ -112,25 +122,124 @@ class ContentArchitectPreferences(BaseModel):
     density: str = ""
 
 
-# ── Output: shared per-stage contract ───────────────────────────────────────
+# ── Output: the single page, region by region ───────────────────────────────
+# Stray keys from a model are dropped (extra="ignore") rather than failing a
+# finished run; internal-review key leakage is still rejected in validators.py.
 
 
-class RoutePlanEntry(BaseModel):
-    """One route/page in the site architecture. Stable IDs matter downstream."""
+class HeroContent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
 
-    model_config = ConfigDict(extra="forbid")
+    name: str = ""
+    eyebrow_primary: str = ""
+    eyebrow_secondary: str = ""
+    headline_prefix: str = ""
+    headline_emphasis: str = ""
+    intro: str = ""
+    location: str = ""
+    primary_cta_label: str = ""
+    secondary_cta_label: str = ""
 
-    route_id: str = ""
-    path: str = ""
+
+class PageMetadata(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     title: str = ""
-    purpose: str = ""
-    audience_takeaway: str = ""
-    priority: str = ""
+    description: str = ""
+
+
+class SystemsPracticePillar(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = ""
+    description: str = ""
+
+
+class SystemsPracticeContent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    eyebrow: str = ""
+    heading: str = ""
+    intro: str = ""
+    pillars: list[SystemsPracticePillar] = Field(default_factory=list)
+
+
+class CapabilityGroup(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    heading: str = ""
+    items: list[str] = Field(default_factory=list)
+
+
+class TechnicalCapabilitiesContent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    eyebrow: str = ""
+    heading: str = ""
+    intro: str = ""
+    groups: list[CapabilityGroup] = Field(default_factory=list)
+
+
+class ProfessionalContextContent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    eyebrow: str = ""
+    heading: str = ""
+    intro: str = ""
+    organizations: list[str] = Field(default_factory=list)
+
+
+class ConnectDestination(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    label: str = ""
+    url: str = ""
+    featured: bool = False
+
+
+class ConnectContent(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    eyebrow: str = ""
+    heading: str = ""
+    intro: str = ""
+    destinations: list[ConnectDestination] = Field(default_factory=list)
+
+
+class PortfolioPageContent(BaseModel):
+    """Every visitor-facing string of the one pinned portfolio template."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    hero: HeroContent = Field(default_factory=HeroContent)
+    metadata: PageMetadata = Field(default_factory=PageMetadata)
+    marquee_keywords: list[str] = Field(default_factory=list)
+    systems_practice: SystemsPracticeContent = Field(default_factory=SystemsPracticeContent)
+    technical_capabilities: TechnicalCapabilitiesContent = Field(
+        default_factory=TechnicalCapabilitiesContent
+    )
+    professional_context: ProfessionalContextContent = Field(
+        default_factory=ProfessionalContextContent
+    )
+    connect: ConnectContent = Field(default_factory=ConnectContent)
+
+
+class ContentStoryStrategy(BaseModel):
+    """Editorial reasoning behind the page. Never rendered publicly."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    positioning: str = ""
+    value_proposition: str = ""
+    primary_audience: str = ""
+    secondary_audience: str = ""
+    primary_action: str = ""
+    narrative_thesis: str = ""
+    leading_evidence: list[str] = Field(default_factory=list)
+    supporting_evidence: list[str] = Field(default_factory=list)
+    content_risks: list[str] = Field(default_factory=list)
+    tone: str = ""
     content_density: str = ""
-    section_sequence: list[str] = Field(default_factory=list)
-    mobile_notes: str = ""
-    source_refs: list[str] = Field(default_factory=list)
-    publication_status: PublicationStatus = PublicationStatus.APPROVED
 
 
 class ClaimGrounding(BaseModel):
@@ -142,6 +251,10 @@ class ClaimGrounding(BaseModel):
     for publication (publication_status=pending). Collapsing these into one
     field is how "team_outcome" ended up living inside evidence_status in an
     earlier version of this schema; keep them separate.
+
+    `field_paths` lists the page fields whose copy relies on this claim, using
+    the dotted/bracket syntax of page_content.resolve_field_path, e.g.
+    "hero.headline_emphasis" or "systems_practice.pillars[0].description".
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -154,50 +267,11 @@ class ClaimGrounding(BaseModel):
     ownership: Ownership = Ownership.UNCLEAR
     publication_status: PublicationStatus = PublicationStatus.PENDING
     confidence_or_warning: str = ""
-
-
-class ContentSection(BaseModel):
-    """One machine-addressable section within a page's content pack.
-
-    The section CONTAINER is structured (stable ID, purpose, which claims it
-    relies on, priority/optionality, mobile handling, outgoing links) so the
-    revisions have an unambiguous page structure to work from. The section's own `content` stays
-    a flexible dict — content shape varies too much per section type to force
-    one rigid template, same reasoning as Discovery keeping brief_markdown
-    free text instead of a rigid schema.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    section_id: str = ""
-    purpose: str = ""
-    content: dict[str, Any] = Field(default_factory=dict)
-    claim_ids: list[str] = Field(default_factory=list)
-    priority: str = ""
-    optional: bool = False
-    mobile_condensation: str = ""
-    link_targets: list[dict[str, Any]] = Field(default_factory=list)
-
-
-class PageContentPack(BaseModel):
-    """Final content for one route, as normalized sections.
-
-    `internal_notes` is the ONLY place review/QA annotations may live (status
-    caveats, "needs confirmation" notes, publication checklists). Visitors
-    only ever see `sections` — internal_notes must never be duplicated inside
-    a section's `content`; validators.py checks for common internal-note key
-    names leaking into content as a structural backstop.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    route_id: str = ""
-    sections: list[ContentSection] = Field(default_factory=list)
-    internal_notes: dict[str, Any] = Field(default_factory=dict)
+    field_paths: list[str] = Field(default_factory=list)
 
 
 class DecisionRecord(BaseModel):
-    """Provenance for one major site-strategy decision."""
+    """Provenance for one major content-strategy decision."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -209,13 +283,17 @@ class DecisionRecord(BaseModel):
 
 
 class ContentCoverageEntry(BaseModel):
-    """Editorial disposition of one source-linked Discovery fact or entity."""
+    """Editorial disposition of one source-linked Discovery fact or entity.
 
-    model_config = ConfigDict(extra="forbid")
+    `disposition` stays a plain string (values: CoverageDisposition) so rows
+    persisted before the six-way taxonomy still load; agent.py validates it.
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     source_id: str = ""
     disposition: str = ""
-    public_refs: list[str] = Field(default_factory=list)
+    field_paths: list[str] = Field(default_factory=list)
     reason: str = ""
 
 
@@ -224,10 +302,6 @@ class ContentArchitectOutput(BaseModel):
 
     `mode` discriminates which operation produced it; validators.py enforces
     operation-specific required-field rules on top of this shared shape.
-    `site_story_strategy` and `public_content_manifest` are deliberately NOT
-    force-fit into rigid nested models — content shape varies too much per
-    project/page. `page_content_packs` and `claim_grounding`/`route_plan` ARE
-    structured because they need stable IDs and unambiguous page structure.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -236,13 +310,12 @@ class ContentArchitectOutput(BaseModel):
     content_included: bool = False
     integration_needed: bool = False
     user_summary: str = ""
-    site_story_strategy: dict[str, Any] = Field(default_factory=dict)
+    site_story_strategy: ContentStoryStrategy = Field(default_factory=ContentStoryStrategy)
     decision_basis: list[DecisionRecord] = Field(default_factory=list)
-    route_plan: list[RoutePlanEntry] = Field(default_factory=list)
+    page_content: PortfolioPageContent = Field(default_factory=PortfolioPageContent)
     claim_grounding: list[ClaimGrounding] = Field(default_factory=list)
     coverage_ledger: list[ContentCoverageEntry] = Field(default_factory=list)
-    page_content_packs: list[PageContentPack] = Field(default_factory=list)
-    public_content_manifest: dict[str, Any] = Field(default_factory=dict)
+    internal_notes: dict[str, Any] = Field(default_factory=dict)
     omissions: list[str] = Field(default_factory=list)
     unresolved_issues: list[str] = Field(default_factory=list)
     privacy_and_confidentiality: list[str] = Field(default_factory=list)
@@ -285,7 +358,7 @@ class ContentArchitectState(BaseModel):
     """
 
     # Ignore fields from older persisted output contracts. The response model
-    # below remains strict, so new model results cannot reintroduce removed
+    # above remains strict, so new model results cannot reintroduce removed
     # fields while historical JSONB rows continue to load safely.
     model_config = ConfigDict(extra="ignore")
 
@@ -300,13 +373,12 @@ class ContentArchitectState(BaseModel):
     run_id: str = ""
     job_id: str = ""
     user_summary: str = ""
-    site_story_strategy: dict[str, Any] = Field(default_factory=dict)
+    site_story_strategy: ContentStoryStrategy = Field(default_factory=ContentStoryStrategy)
     decision_basis: list[DecisionRecord] = Field(default_factory=list)
-    route_plan: list[RoutePlanEntry] = Field(default_factory=list)
-    page_content_packs: list[PageContentPack] = Field(default_factory=list)
-    public_content_manifest: dict[str, Any] = Field(default_factory=dict)
+    page_content: PortfolioPageContent = Field(default_factory=PortfolioPageContent)
     claim_grounding: list[ClaimGrounding] = Field(default_factory=list)
     coverage_ledger: list[ContentCoverageEntry] = Field(default_factory=list)
+    internal_notes: dict[str, Any] = Field(default_factory=dict)
     omissions: list[str] = Field(default_factory=list)
     unresolved_issues: list[str] = Field(default_factory=list)
     privacy_and_confidentiality: list[str] = Field(default_factory=list)

@@ -120,7 +120,9 @@ async def test_full_worker_flow_single_page(db_session, monkeypatch) -> None:
     assert review["content_architect"]["status"] == "content_review"
     assert review["content_architect"]["stages_run"] == ["plan_content"]
     assert review["content_architect"]["unresolved_issues"] == ["no metrics supplied"]
-    assert review["content_architect"]["route_plan"][0]["route_id"] == "home"
+    page = review["content_architect"]["page_content"]
+    assert page["hero"]["name"] == "Mock User"
+    assert len(page["systems_practice"]["pillars"]) == 4
 
     approved = await service.approve(session_id)
     assert approved["content_architect"]["status"] == "approved"

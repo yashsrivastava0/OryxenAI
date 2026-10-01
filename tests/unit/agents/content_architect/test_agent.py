@@ -15,6 +15,13 @@ from oryxenai.agents.content_architect.agent import (
 from oryxenai.agents.discovery.schemas import StructuredModelResult
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
+from tests.unit.agents.content_architect.helpers import (
+    claim,
+    integrate_payload,
+    pages_payload,
+    plan_payload,
+    valid_page,
+)
 
 
 class _FakeModelClient:
@@ -41,69 +48,6 @@ class _FakeModelClient:
         )
 
 
-def _route(route_id: str, *, publication_status: str = "approved") -> dict[str, Any]:
-    return {
-        "route_id": route_id,
-        "path": f"/{route_id}",
-        "title": f"Route {route_id}",
-        "purpose": "p",
-        "section_sequence": ["hero"],
-        "publication_status": publication_status,
-    }
-
-
-def _pack(route_id: str, *, claim_ids: list[str] | None = None) -> dict[str, Any]:
-    return {
-        "route_id": route_id,
-        "sections": [
-            {
-                "section_id": "hero",
-                "purpose": "p",
-                "content": {"text": "x"},
-                "claim_ids": claim_ids or [],
-            }
-        ],
-        "internal_notes": {},
-    }
-
-
-def _plan_payload(
-    *, content_included: bool, route_count: int = 1, integration_needed: bool = False
-) -> dict[str, Any]:
-    routes = [_route(f"r{i}") for i in range(route_count)]
-    payload: dict[str, Any] = {
-        "mode": "STRATEGY_AND_CONTENT" if content_included else "STRATEGY_ONLY",
-        "content_included": content_included,
-        "integration_needed": integration_needed,
-        "site_story_strategy": {"positioning": "x"},
-        "route_plan": routes,
-        "claim_grounding": [],
-    }
-    if content_included:
-        payload["page_content_packs"] = [_pack(r["route_id"]) for r in routes]
-        payload["public_content_manifest"] = {"nav": []}
-    return payload
-
-
-def _pages_payload(route_count: int, *, integration_needed: bool = False) -> dict[str, Any]:
-    return {
-        "mode": "PAGES_READY",
-        "content_included": False,
-        "integration_needed": integration_needed,
-        "page_content_packs": [_pack(f"r{i}") for i in range(route_count)],
-        "public_content_manifest": {"nav": []},
-    }
-
-
-def _integrate_payload(route_count: int) -> dict[str, Any]:
-    return {
-        "mode": "INTEGRATED",
-        "content_included": False,
-        "page_content_packs": [_pack(f"r{i}") for i in range(route_count)],
-        "public_content_manifest": {"nav": []},
-    }
-
-
 def _context() -> Any:
     return build_context(
         portfolio_session_id=uuid4(),
@@ -120,14 +64,14 @@ def _context() -> Any:
 
 
 async def test_single_page_stops_after_one_call():
-    client = _FakeModelClient({"plan_content": _plan_payload(content_included=True, route_count=1)})
+    client = _FakeModelClient({"plan_content": plan_payload()})
     agent = ContentArchitectAgent(model_client=client)
 
     result = await agent.run(_context())
 
     assert client.calls == ["plan_content"]
     assert result.output["stages_run"] == ["plan_content"]
-    assert result.output["page_content_packs"]
+    assert len(result.output["page_content"]["systems_practice"]["pillars"]) == 4
 
 
 async def test_full_dossier_reaches_planning_and_deferred_writing():
@@ -138,48 +82,60 @@ async def test_full_dossier_reaches_planning_and_deferred_writing():
     }
     client = _FakeModelClient(
         {
-            "plan_content": _plan_payload(content_included=False),
-            "write_pages": _pages_payload(route_count=1),
+            "plan_content": plan_payload(content_included=False),
+            "write_pages": pages_payload(),
         }
     )
     agent = ContentArchitectAgent(model_client=client)
     context = _context()
     context.agent_input["intake"]["dossier"] = dossier
 
-    await agent.run(context)
+    result = await agent.run(context)
 
     assert client.calls == ["plan_content", "write_pages"]
+    assert result.output["stages_run"] == ["plan_content", "write_pages"]
     assert all(packet["dossier"] == dossier for packet in client.packets)
 
 
-def test_dossier_backed_content_requires_one_page_and_complete_coverage():
+async def test_writer_refreshes_claim_field_paths():
+    plan = plan_payload(content_included=False)
+    plan["claim_grounding"] = [claim("claim:a")]
+    pages = pages_payload()
+    pages["claim_grounding"] = [
+        claim("claim:a", field_paths=["systems_practice.pillars[0].description"])
+    ]
+    client = _FakeModelClient({"plan_content": plan, "write_pages": pages})
+    agent = ContentArchitectAgent(model_client=client)
+
+    result = await agent.run(_context())
+
+    assert result.output["claim_grounding"][0]["field_paths"] == [
+        "systems_practice.pillars[0].description"
+    ]
+
+
+def test_dossier_backed_content_requires_complete_coverage():
     dossier = {
         "contract_version": "DiscoveryDossier/v1",
         "facts": [{"id": "fact:last"}],
         "projects": [{"id": "project:last"}],
     }
-    route = _route("home")
-    route["path"] = "/"
-    pack = _pack("home")
     valid_ledger = [
         {
             "source_id": "fact/fact:last",
-            "disposition": "published",
-            "public_refs": ["home#hero"],
+            "disposition": "used",
+            "field_paths": ["hero.intro"],
         },
         {
             "source_id": "project/project:last",
-            "disposition": "internal",
+            "disposition": "retained_internally",
             "reason": "The source lacks enough project context for public copy.",
         },
     ]
-    kwargs = {
-        "route_plan": [route],
+    kwargs: dict[str, Any] = {
+        "page_content": valid_page(),
         "claim_grounding": [],
-        "page_content_packs": [pack],
-        "public_content_manifest": {"nav": []},
         "dossier": dossier,
-        "site_story_strategy": {"presentation_mode": "single_page"},
     }
 
     assert not _approval_readiness_errors(**kwargs, coverage_ledger=valid_ledger)
@@ -187,55 +143,18 @@ def test_dossier_backed_content_requires_one_page_and_complete_coverage():
         "missing dossier items" in error
         for error in _approval_readiness_errors(**kwargs, coverage_ledger=valid_ledger[:1])
     )
+    legacy = [{**valid_ledger[0], "disposition": "published"}, valid_ledger[1]]
     assert any(
-        "one complete root-page route" in error
-        for error in _approval_readiness_errors(
-            **{**kwargs, "route_plan": [_route("home")]}, coverage_ledger=valid_ledger
-        )
+        "invalid disposition" in error
+        for error in _approval_readiness_errors(**kwargs, coverage_ledger=legacy)
     )
 
 
-async def test_multi_page_calls_write_pages_when_content_deferred():
+async def test_integration_pass_runs_when_explicitly_flagged():
     client = _FakeModelClient(
         {
-            "plan_content": _plan_payload(content_included=False, route_count=2),
-            "write_pages": _pages_payload(route_count=2),
-        }
-    )
-    agent = ContentArchitectAgent(model_client=client)
-
-    result = await agent.run(_context())
-
-    assert client.calls == ["plan_content", "write_pages"]
-    assert result.output["stages_run"] == ["plan_content", "write_pages"]
-    assert len(result.output["page_content_packs"]) == 2
-
-
-async def test_integration_pass_runs_when_route_count_exceeds_threshold():
-    client = _FakeModelClient(
-        {
-            "plan_content": _plan_payload(content_included=False, route_count=3),
-            "write_pages": _pages_payload(route_count=3),
-            "integrate_content": _integrate_payload(route_count=3),
-        }
-    )
-    agent = ContentArchitectAgent(model_client=client)
-
-    result = await agent.run(_context())
-
-    assert client.calls == ["plan_content", "write_pages", "integrate_content"]
-    assert result.output["stages_run"] == ["plan_content", "write_pages", "integrate_content"]
-    assert len(result.output["route_plan"]) == 3
-    assert len(result.output["page_content_packs"]) == 3
-
-
-async def test_integration_pass_runs_when_explicitly_flagged_even_for_small_route_count():
-    client = _FakeModelClient(
-        {
-            "plan_content": _plan_payload(
-                content_included=True, route_count=1, integration_needed=True
-            ),
-            "integrate_content": _integrate_payload(route_count=1),
+            "plan_content": plan_payload(integration_needed=True),
+            "integrate_content": integrate_payload(),
         }
     )
     agent = ContentArchitectAgent(model_client=client)
@@ -253,43 +172,47 @@ async def test_invalid_model_output_raises_content_architect_error():
         await agent.run(_context())
 
 
-async def test_pending_claim_in_approved_route_gets_one_bounded_corrective_pass():
-    plan = _plan_payload(content_included=True)
+async def test_wrong_pillar_count_gets_one_bounded_corrective_pass():
+    short = valid_page()
+    short["systems_practice"]["pillars"] = short["systems_practice"]["pillars"][:3]
+    plan = plan_payload()
+    plan["page_content"] = short
+    client = _FakeModelClient({"plan_content": plan, "integrate_content": integrate_payload()})
+    agent = ContentArchitectAgent(model_client=client)
+
+    result = await agent.run(_context())
+
+    assert client.calls == ["plan_content", "integrate_content"]
+    assert len(result.output["page_content"]["systems_practice"]["pillars"]) == 4
+
+
+async def test_pending_claim_bound_to_public_field_gets_one_bounded_corrective_pass():
+    plan = plan_payload()
     plan["claim_grounding"] = [
-        {
-            "claim_id": "claim:credentials",
-            "statement": "A supplied credential",
-            "source_reference": "profile.education",
-            "evidence_status": "verified",
-            "publication_status": "pending",
-        }
+        claim(
+            "claim:credentials",
+            publication_status="pending",
+            field_paths=["hero.intro"],
+        )
     ]
-    plan["page_content_packs"][0] = _pack("r0", claim_ids=["claim:credentials"])
-    repaired = _integrate_payload(1)
+    repaired = integrate_payload()
+    repaired["claim_grounding"] = [claim("claim:credentials", publication_status="pending")]
     client = _FakeModelClient({"plan_content": plan, "integrate_content": repaired})
     agent = ContentArchitectAgent(model_client=client)
 
     result = await agent.run(_context())
 
     assert client.calls == ["plan_content", "integrate_content"]
-    assert result.output["stages_run"] == ["plan_content", "integrate_content"]
-    assert result.output["page_content_packs"][0]["sections"][0]["claim_ids"] == []
+    assert result.output["claim_grounding"][0]["field_paths"] == []
 
 
 async def test_unresolved_public_scope_never_reaches_review_output():
-    plan = _plan_payload(content_included=True)
+    plan = plan_payload()
     plan["claim_grounding"] = [
-        {
-            "claim_id": "claim:credentials",
-            "statement": "A supplied credential",
-            "source_reference": "profile.education",
-            "evidence_status": "verified",
-            "publication_status": "pending",
-        }
+        claim("claim:credentials", publication_status="pending", field_paths=["hero.intro"])
     ]
-    plan["page_content_packs"][0] = _pack("r0", claim_ids=["claim:credentials"])
-    still_invalid = _integrate_payload(1)
-    still_invalid["page_content_packs"][0] = _pack("r0", claim_ids=["claim:credentials"])
+    still_invalid = integrate_payload()
+    still_invalid["claim_grounding"] = plan["claim_grounding"]
     client = _FakeModelClient({"plan_content": plan, "integrate_content": still_invalid})
     agent = ContentArchitectAgent(model_client=client)
 
@@ -299,14 +222,16 @@ async def test_unresolved_public_scope_never_reaches_review_output():
     assert client.calls == ["plan_content", "integrate_content"]
 
 
-async def test_blocked_route_referenced_in_content_pack_is_rejected():
-    """A blocked route must never surface in page_content_packs (hard reject).
+async def test_blocked_claim_bound_to_public_field_is_rejected():
+    """A blocked claim must never be reachable from page copy (hard reject).
 
-    Regression guard for a real live-model failure: an unresolved project
-    got a public route and a confident title despite being unverified.
+    Regression guard for a real live-model failure: an unresolved item got
+    public copy despite an explicit restriction.
     """
-    payload = _plan_payload(content_included=True, route_count=1)
-    payload["route_plan"][0]["publication_status"] = "blocked"
+    payload = plan_payload()
+    payload["claim_grounding"] = [
+        claim("claim:nda", publication_status="blocked", field_paths=["hero.intro"])
+    ]
     client = _FakeModelClient({"plan_content": payload})
     agent = ContentArchitectAgent(model_client=client)
 
@@ -314,17 +239,10 @@ async def test_blocked_route_referenced_in_content_pack_is_rejected():
         await agent.run(_context())
 
 
-async def test_internal_note_key_leaked_into_content_is_rejected():
-    """Internal review notes must live in internal_notes, never in content.
-
-    Regression guard for a real live-model failure: status_note/
-    evidence_status/publication_check fields appeared inside visitor-facing
-    public_content blocks.
-    """
-    payload = _plan_payload(content_included=True, route_count=1)
-    payload["page_content_packs"][0]["sections"][0]["content"]["status_note"] = (
-        "Ownership pending confirmation."
-    )
+async def test_internal_note_key_leaked_into_page_content_is_rejected():
+    """Internal review notes must live in internal_notes, never in page copy."""
+    payload = plan_payload()
+    payload["page_content"]["hero"]["status_note"] = "Ownership pending confirmation."
     client = _FakeModelClient({"plan_content": payload})
     agent = ContentArchitectAgent(model_client=client)
 
@@ -332,13 +250,12 @@ async def test_internal_note_key_leaked_into_content_is_rejected():
         await agent.run(_context())
 
 
-async def test_route_plan_over_configured_max_is_rejected_without_truncation():
-    """A public route plan cannot silently lose content at the configured ceiling."""
-    client = _FakeModelClient({"plan_content": _plan_payload(content_included=True, route_count=2)})
+async def test_stray_page_keys_are_dropped_not_fatal():
+    payload = plan_payload()
+    payload["page_content"]["hero"]["tagline_note"] = "ignored"
+    client = _FakeModelClient({"plan_content": payload})
     agent = ContentArchitectAgent(model_client=client)
-    agent._config.max_routes = 1
 
-    with pytest.raises(ContentArchitectModelOutputError, match="not truncated"):
-        await agent.run(_context())
+    result = await agent.run(_context())
 
-    assert client.calls == ["plan_content"]
+    assert "tagline_note" not in result.output["page_content"]["hero"]
