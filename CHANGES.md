@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-01 17:50 +05:30 — Claude Code (Anthropic) with Codex (OpenAI) — [c756896] — Discovery speed, reliability, multi-user lane
+
+Traced slow and failing Discovery to a very large span-linked dossier the model had to emit exactly, no recovery after a validator miss or gateway error, and one global model lane that queued every user. The model now writes a compact draft and the server builds and repairs the stored dossier (D-120); Discovery routes to GPT-6 Luna with one same-route recovery, streaming, and tighter timeouts; the model lane holds configurable concurrent jobs (migration 0026) and parallel first reservations no longer collide in the usage ledger. Fixed a redelivery revision check, revision-retry text loss, and the question and brief working copy in the UI. Verified live through the real worker with three and four concurrent users (question calls 4-7 s, briefs 24-49 s, all approved), a realistic resume kept every role, project and restriction, and the full Python and frontend suites, lint, types and build passed. No push or deployment; the VM needs its production overlay re-rendered and the migration applied on the next release.
+
 ### 2026-10-01 14:05 +05:30 — Antigravity (Google) — [f8d7bfc] — AGENTS.md, README.md context and documentation overhaul
 
 Modernized AGENTS.md with machine-readable metadata, timestamp (2026-10-01), and an agent fast-track cheatsheet matrix optimized for Claude Code, OpenAI Codex CLI, and Antigravity. Redesigned and beautified README.md with 2026 developer aesthetics, Shields.io badges, a Mermaid sequence workflow, clean API matrices, and interactive details blocks. Verified ruff linting, formatting, and mypy type checks. No push or deployment.
