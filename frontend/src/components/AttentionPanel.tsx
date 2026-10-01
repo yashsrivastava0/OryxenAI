@@ -13,6 +13,25 @@ export interface AttentionPanelProps {
   inFlight?: boolean;
 }
 
+const OPERATION_NAMES: Record<string, string> = {
+  understand_and_question: "Preparing your questions",
+  prepare_questions: "Preparing your questions",
+  build_or_revise_brief: "Writing your brief",
+  build_brief: "Writing your brief",
+  "content_architect.build": "Writing your page content",
+  plan_content: "Planning your page content",
+  write_pages: "Writing your page content",
+  integrate_content: "Completing your page content",
+};
+
+function friendlyOperation(label?: string): string | undefined {
+  if (!label) return undefined;
+  return (
+    OPERATION_NAMES[label] ??
+    label.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())
+  );
+}
+
 export function AttentionPanel({
   title = "This stage needs attention",
   summary,
@@ -24,9 +43,7 @@ export function AttentionPanel({
   errorDetails,
   inFlight = false,
 }: AttentionPanelProps) {
-  const operationName = errorDetails?.operationLabel
-    ?.replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const operationName = friendlyOperation(errorDetails?.operationLabel);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 

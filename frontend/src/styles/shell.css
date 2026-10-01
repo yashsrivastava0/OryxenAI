@@ -2314,3 +2314,383 @@ button:disabled, textarea:disabled, input:disabled {
     text-align: right;
   }
 }
+
+/* Discovery working, question, ready and attention surfaces.
+   Restored: commit 1029296 rewrote this file and dropped these rules while the
+   components kept using the class names, leaving those screens unstyled. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.journey-step.current .journey-node,
+.journey-button.active .journey-node {
+  background: var(--signal);
+  border-color: var(--signal);
+  box-shadow: 0 0 0 4px var(--canvas), 0 2px 10px rgba(49, 87, 231, 0.3);
+}
+
+.journey-step.current .journey-ordinal,
+.journey-button.active .journey-ordinal {
+  color: #ffffff;
+}
+
+.journey-step.current .journey-label,
+.journey-button.active .journey-label {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.journey-button:hover:not(.active) .journey-node {
+  border-color: var(--rule-focus);
+  background: #ffffff;
+}
+
+.journey-button:hover:not(.active) .journey-label {
+  color: var(--signal);
+}
+
+.discovery-workbench-card {
+  position: relative;
+  width: 100%;
+  background: var(--paper-elevated);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sheet);
+  box-shadow: 0 4px 20px rgba(23, 26, 25, 0.05), 0 1px 3px rgba(23, 26, 25, 0.03);
+  text-align: left;
+  overflow: hidden;
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.discovery-workbench-card.is-focused {
+  border-color: var(--rule-active);
+  box-shadow: 0 8px 30px rgba(23, 26, 25, 0.08), 0 1px 3px rgba(23, 26, 25, 0.04);
+}
+
+.workbench-sweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 100%;
+  background: var(--signal);
+  opacity: 0.8;
+  transform: translateX(-100%);
+  animation: sweep-once 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.workbench-sweep.active-sweep {
+  animation: sweep-loop 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@keyframes sweep-once {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(800%); opacity: 0; }
+}
+
+@keyframes sweep-loop {
+  0% { transform: translateX(-100%); opacity: 0.8; }
+  50% { transform: translateX(500%); opacity: 0.8; }
+  100% { transform: translateX(1100%); opacity: 0; }
+}
+
+.workbench-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.4rem 0.8rem;
+  border-bottom: 1px solid var(--rule-subtle);
+  background: #ffffff;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.chip-ready {
+  background: var(--signal-subtle);
+  color: var(--signal);
+}
+
+.chip-ready .status-dot {
+  background: var(--signal);
+}
+
+.chip-active {
+  background: #eef2ff;
+  color: #2447ca;
+}
+
+.chip-active .status-dot {
+  background: #2447ca;
+}
+
+.chip-notice .status-dot {
+  background: var(--positive);
+}
+
+.status-dot.pulsing {
+  animation: oxa-quiet-pulse 1.4s ease-in-out infinite;
+}
+
+.workbench-textarea {
+  width: 100%;
+  min-height: 8.5rem;
+  padding: 1rem 1.15rem;
+  font-size: 0.96rem;
+  line-height: 1.62;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-field);
+  resize: vertical;
+  transition: border-color var(--duration-fast), background var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.workbench-textarea:focus {
+  background: #ffffff;
+  border-color: var(--rule-focus);
+  outline: 2px solid var(--signal-glow);
+}
+
+.workbench-textarea::placeholder {
+  color: var(--graphite-dim);
+  opacity: 0.85;
+}
+
+@keyframes disclosure-expand {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.working-workbench-card {
+  max-width: 54rem;
+  margin-inline: auto;
+  animation: proof-enter var(--motion-surface-change) var(--ease-snappy) both;
+}
+
+.working-body {
+  padding: 2.2rem 2rem 2rem;
+  background: #ffffff;
+}
+
+.working-headline {
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2.5vw, 1.85rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin-bottom: 1.75rem;
+  text-wrap: balance;
+}
+
+.living-draft-activity-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.1rem 1.4rem;
+  background: var(--paper);
+  border: 1px solid var(--rule-subtle);
+  border-radius: var(--radius-control);
+  margin-bottom: 1.75rem;
+}
+
+.activity-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--graphite);
+}
+
+.step-point {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.step-done {
+  color: var(--positive);
+}
+
+.step-done .step-point {
+  background: var(--positive-subtle);
+  color: var(--positive);
+}
+
+.step-running {
+  color: var(--signal);
+  font-weight: 600;
+}
+
+.step-running .step-point {
+  background: var(--signal-subtle);
+  color: var(--signal);
+  animation: oxa-quiet-pulse 1.4s infinite;
+}
+
+.step-pending .step-point {
+  color: var(--graphite-dim);
+}
+
+.activity-connector {
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+.activity-connector.active {
+  background: var(--signal);
+}
+
+.working-note, .stalled-callout {
+  color: var(--graphite);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.stalled-callout {
+  padding: 1rem 1.25rem;
+  background: var(--attention-subtle);
+  border-left: 3px solid var(--attention);
+  border-radius: 0 var(--radius-field) var(--radius-field) 0;
+}
+
+@keyframes question-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ready-for-brief-card {
+  animation: proof-enter var(--motion-surface-change) var(--ease-snappy) both;
+}
+
+.ready-body {
+  padding: 2.2rem 2rem 2rem;
+  background: #ffffff;
+}
+
+.ready-headline {
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2.5vw, 1.85rem);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+}
+
+.ready-thesis {
+  font-size: 0.96rem;
+  color: var(--graphite);
+  line-height: 1.6;
+  max-width: 58ch;
+  margin-bottom: 1.5rem;
+}
+
+.start-error, .question-error, .revision-error, .artifact-error {
+  margin: 1rem 0 0;
+  padding: .75rem 1rem;
+  color: var(--critical);
+  background: var(--critical-subtle);
+  border-left: 3px solid var(--critical);
+  border-radius: 0 var(--radius-field) var(--radius-field) 0;
+}
+
+@keyframes proof-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes oxa-activity-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+@keyframes artifact-reading { to { transform: scaleX(1); } }
+
+.attention-panel { max-width: 52rem; padding: 2rem; background: var(--attention-subtle); border-top: 3px solid var(--attention); }
+
+.attention-header { display: flex; gap: .8rem; align-items: center; }
+
+.attention-icon { display: grid; width: 1.5rem; height: 1.5rem; place-items: center; color: var(--attention); font: var(--type-label); border: 1px solid currentColor; }
+
+.attention-title { margin: 0; font: var(--type-h3); }
+
+.attention-summary { margin-top: 1rem; }
+
+.attention-preserved { color: var(--graphite); }
+
+.attention-attribution,
+.attention-retry-after,
+.attention-reference {
+  color: var(--graphite);
+  font-size: .78rem;
+  letter-spacing: .01em;
+  margin: .45rem 0 0;
+}
+
+.attention-reference { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: .72rem; }
+
+.attention-retry-error { color: var(--critical); }
+
+.attention-actions { margin-top: 1.3rem; }
+
+.attention-technical { margin-top: 1.5rem; }
+
+.attention-technical pre { overflow: auto; }
+
+@keyframes oxa-loading-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@media (max-height: 840px) and (min-width: 901px) {
+  .workbench-header { padding-block: 0.65rem 0.55rem; }
+  .workbench-textarea { min-height: 8rem; }
+}
+
+@media (max-height: 740px) and (min-width: 901px) {
+  .workbench-textarea { min-height: 6.5rem; }
+}
+
+@media (max-width: 640px) {
+  .workbench-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench-sweep, .workbench-sweep.active-sweep { display: none; }
+}
+
+/* Dock actions never wrap their labels onto several lines. */
+.action-dock-buttons .btn-primary,
+.action-dock-buttons .btn-secondary,
+.dock-primary-wrapper {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dock-step-tag,
+.dock-step-name {
+  white-space: nowrap;
+}

@@ -50,6 +50,8 @@ export function ConversationSurface({
 
   useEffect(() => {
     if (!isWorking) return;
+    // A revision is sent from the bottom of a long brief; bring the progress card into view.
+    if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: "smooth" });
     setNowMs(Date.now());
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
