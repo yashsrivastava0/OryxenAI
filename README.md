@@ -1,301 +1,309 @@
+<div align="center">
+
 # OryxenAI
 
-OryxenAI is a portfolio-planning product with two active, explicit stages:
-Discovery and Content Architect. The active workflow ends after the user
-approves the content plan. The product does not currently create or serve a
-finished portfolio site.
+### Intelligent Multi-Stage Portfolio Planning Engine
 
-> AI coding tools should read AGENTS.md first. It is the canonical current
-> project context. See docs/project-status.md for release and acceptance
-> status, CHANGES.md for append-only change history, and DECISIONS.md for
-> recorded architectural decisions.
+*Transform raw user intent into an approved Discovery brief and an architectural Content blueprint.*
 
-## Current purpose
+[![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-05998b?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Preact](https://img.shields.io/badge/Preact-TypeScript-673AB7?style=for-the-badge&logo=preact&logoColor=white)](https://preactjs.com/)
+[![Vite](https://img.shields.io/badge/Vite-Bundler-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 
-Capture a user's intent, produce a reviewed Discovery brief, then produce a
-reviewed Content Architect plan. Starting either stage is an explicit API
-action; approval does not automatically start another stage.
+[![Ruff](https://img.shields.io/badge/Linter-Ruff-E68B00?style=flat-square&logo=ruff&logoColor=white)](https://astral.sh/ruff)
+[![Mypy](https://img.shields.io/badge/Types-Mypy%20Strict-2962FF?style=flat-square)](https://mypy-lang.org/)
+[![Docker](https://img.shields.io/badge/Containers-Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Open AGENTS.md](https://img.shields.io/badge/Standard-AGENTS.md-00C853?style=flat-square)](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md)
 
-## Architecture summary
+<br/>
 
-- Backend: FastAPI, Pydantic, SQLAlchemy async, and Alembic.
-- Database: PostgreSQL, with JSONB for session state and job payloads.
-- Product frontend: Preact, TypeScript, and Vite, served by FastAPI.
-- Durable work: PostgreSQL-backed jobs executed by a separate worker.
-- Model access: provider-neutral ModelClient with profiles in
-  config/models.toml.
-- Configuration: secrets in .env; non-secret settings in config/.
-- Docker: app, migration, worker, PostgreSQL, and HTTPS reverse proxy.
+[Quickstart](#quickstart) • [Architecture](#system-architecture) • [API Routes](#api-reference) • [Verification](#quality-gate--testing) • [AI Agent Context](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md)
 
-## Repository map
+</div>
 
-    src/oryxenai/
-      main.py
-      agents/discovery/
-      agents/content_architect/
-      agents/shared/
-      api/routes/
-      auth/
-      db/
-      jobs/
-      web/
-    frontend/
-    config/
-    migrations/
-    scripts/
-    tests/
-    docs/
+---
 
-## Prerequisites
+> [!NOTE]
+> **Canonical AI Context:** AI coding assistants (Claude Code, OpenAI Codex, Google Antigravity, Cursor) must read [`AGENTS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md) first. For historical decisions, see [`DECISIONS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/DECISIONS.md); for append-only change logs, see [`CHANGES.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/CHANGES.md).
 
-- Python 3.13 and uv.
-- PostgreSQL for native development and database-backed tests.
-- Docker Desktop for Compose mode.
-- Node.js/npm only when building or checking the product frontend.
+---
 
-For startup, credentials, and troubleshooting, use the development runbook at
-docs/run/run.md. The remaining setup sections here are a quick reference.
+## Overview
 
-## Environment setup
+**OryxenAI** is an authenticated, asynchronous portfolio-planning engine with two explicit, reviewable stages:
 
-### Secrets (`.env`)
+```
+┌─────────────────────────────────┐       ┌─────────────────────────────────┐
+│       Stage 1: Discovery        │  ──►  │    Stage 2: Content Architect   │  ──►  Workflow
+│ Intake ➔ Adaptive Q&A ➔ Approval│       │ Plan ➔ Write ➔ Integrate ➔ Plan │       Complete
+└─────────────────────────────────┘       └─────────────────────────────────┘
+```
 
-The root `.env` contains **secrets only** — database password and optional API keys.
-Create it from `.env.example` only if it does not already exist, then fill in
-the values needed on this machine:
+1. **Stage 1 (Discovery):** Captures user intent, resumes, or project materials, conducts targeted adaptive questions, and produces a structured markdown brief requiring explicit approval.
+2. **Stage 2 (Content Architect):** Consumes the approved Discovery dossier and produces a multi-page content architecture, site map, and content plan requiring final user sign-off.
+3. **Workflow Boundary:** The active product and API flow strictly ends after content approval. OryxenAI does not serve or generate a live portfolio website.
+
+---
+
+## Core Capabilities
+
+| Capability | Technical Design |
+| :--- | :--- |
+| **Durable PostgreSQL Queue** | Zero Redis or Celery dependencies. Background jobs run via PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` with automatic lease reclamation and exponential backoff retry. |
+| **Optimistic Concurrency** | Aggregate session state in `portfolio_sessions.current_state` (JSONB) uses monotonically increasing `revision` counters to prevent stale worker results from overwriting newer user changes. |
+| **Provider-Neutral Model Engine** | Model execution is routed through an abstracted `ModelClient` configured via [`config/models.toml`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/config/models.toml) supporting Anthropic Claude, OpenAI, and deterministic offline mock fixtures. |
+| **Owner-Scoped Security** | Strict authorization boundaries guarantee tenants only access their own portfolio sessions, while administrative identities retain auditing and archival cleanup capabilities. |
+| **Immutable Run Ledgers** | Every agent operation records complete input envelopes, `state_before`, model execution metrics, `state_after`, and error states in the append-only `agent_runs` table. |
+
+---
+
+## System Architecture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User / Client (Preact UI)
+    participant API as FastAPI Gateway
+    participant DB as PostgreSQL (JSONB & Queue)
+    participant Worker as Background Worker
+    participant LLM as Model Provider (via ModelClient)
+
+    User->>API: 1. Submit Intake or Answers (REST API)
+    API->>DB: 2. Save Session State & Enqueue Job (background_jobs)
+    API-->>User: 3. Return 202 Accepted + Session State
+
+    Worker->>DB: 4. Poll & Claim Job (SKIP LOCKED)
+    Worker->>LLM: 5. Execute Prompt Workflow (Discovery / Content Architect)
+    LLM-->>Worker: 6. Structured Output Envelope
+    Worker->>DB: 7. Atomic Commit: Update Run Status & Session (Verify Revision)
+
+    User->>API: 8. Poll State / SSE Notification
+    API-->>User: 9. Deliver Updated Brief / Content Plan for Review
+    User->>API: 10. Explicit Approval Action
+```
+
+---
+
+## Repository Structure
+
+```text
+src/oryxenai/
+├── api/routes/          # REST endpoints (health, identity, sessions, discovery, content)
+├── agents/
+│   ├── shared/          # ModelClient boundary, agent registry, executor contracts
+│   ├── discovery/       # Stage 1: Intake parsing, adaptive questions, brief generation
+│   └── content_architect/ # Stage 2: Planning, page drafting, and content integration
+├── auth/                # Supabase / Argon2 identity, tenant entitlements, worker fencing
+├── core/                # Application configuration (TOML), logging, lifespans
+├── db/                  # SQLAlchemy 2.0 Async engine, models, and repositories
+├── jobs/                # Durable queue worker, heartbeat recovery, handler registry
+├── web/                 # FastAPI product web shell and static asset delivery
+└── storage/             # Archival cleanup and retention interfaces
+frontend/                # Authenticated Preact + TypeScript + Vite product client
+config/                  # Committed non-secret TOML settings (app.toml, models.toml)
+migrations/              # Alembic database schema migrations
+scripts/                 # Cross-platform development and deployment automation
+tests/                   # Unit, API, integration, and worker test suites
+```
+
+---
+
+## Quickstart
+
+### Prerequisites
+* **Python 3.13+** and [`uv`](https://docs.astral.sh/uv/) installed
+* **PostgreSQL 16+** (Native or Docker)
+* **Node.js 20+** & npm (only required when building the frontend client)
+* **Docker Desktop** (optional, for Compose mode)
+
+### 1. Configuration & Secrets
+
+Secrets reside strictly in the git-ignored root `.env` file. Non-secret application configuration lives under [`config/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/config/).
 
 ```powershell
-PS > if (-not (Test-Path .env)) { Copy-Item .env.example .env }
-# Edit .env: set POSTGRES_PASSWORD (and optionally API keys)
+# Copy template placeholders
+Copy-Item .env.example .env
+
+# Edit .env to set your database password (and optional provider API keys)
 ```
 
-Non-secret configuration (app name, host, port, DB host/port, model profiles) lives in
-committed files under `config/`:
+> [!TIP]
+> Standard test suites and local development use the deterministic mock model client. No paid API keys are required to build or test the platform.
 
-- `config/app.toml` — `[app]` and `[database]` settings
-- `config/models.toml` — provider-neutral model profiles and logical engine
-  routing (see `[routing.engine_profiles]` and `[profiles.*]`)
+---
 
-## Windows PowerShell setup
+### 2. Running Locally
 
-    uv python install 3.13
-    uv sync --frozen
-    .\scripts\run-native.ps1 align-db
-    .\scripts\run-native.ps1 migrate
-    .\scripts\run-native.ps1 dev
-
-The native development command starts the API and worker. Open
-http://127.0.0.1:8000/app and follow the configured authentication mode.
-For separate terminals, run run-native.ps1 api and run-native.ps1 worker.
-
-## Linux/macOS setup
-
-    uv python install 3.13
-    uv sync --frozen
-    chmod +x scripts/run-native.sh
-    ./scripts/run-native.sh align-db
-    ./scripts/run-native.sh migrate
-    ./scripts/run-native.sh dev
-
-The native development command starts the API and worker. Open
-http://127.0.0.1:8000/app and follow the configured authentication mode.
-For separate terminals, run run-native.sh api and run-native.sh worker.
-
-## Direct local startup
-
-Use scripts/run-native.ps1 or scripts/run-native.sh so the API and worker
-load the same configuration overlay. The full PostgreSQL setup and service
-details are in docs/run/run.md.
-
-## Docker Compose startup
-
-    docker compose up --build -d
-    docker compose ps
-
-The stack starts PostgreSQL, runs migrations once, then starts the API and
-durable worker. The app is available on port 8000; PostgreSQL is published
-on host port 5544. See docs/run/run.md for configuration and safe shutdown.
-## Migration commands
+#### Option A: Windows PowerShell (Native)
 
 ```powershell
-# Apply migrations
-uv run alembic upgrade head
+# 1. Install dependencies & initialize virtualenv
+.\scripts\bootstrap.ps1
 
-# Create a new migration (after modifying models)
-uv run alembic revision --autogenerate -m "Description"
+# 2. Align local database and apply migrations
+.\scripts\run-native.ps1 align-db
+.\scripts\run-native.ps1 migrate
 
-# Downgrade one revision
-uv run alembic downgrade -1
-
-# Inspect current revision
-uv run alembic current
-
-# Inspect migration history
-uv run alembic history --verbose
+# 3. Start API and background worker concurrently
+.\scripts\run-native.ps1 dev
 ```
 
-## Test commands
+*The product workspace is served at **http://127.0.0.1:8000/app**.*
 
+#### Option B: Linux / macOS (Native)
+
+```bash
+# 1. Install dependencies
+uv python install 3.13
+uv sync --frozen
+
+# 2. Make scripts executable and launch
+chmod +x scripts/*.sh
+./scripts/run-native.sh align-db
+./scripts/run-native.sh migrate
+./scripts/run-native.sh dev
+```
+
+#### Option C: Docker Compose
+
+```bash
+# Spin up PostgreSQL, run one-shot migrations, and start API + Worker
+docker compose up --build -d
+
+# Inspect running services
+docker compose ps
+```
+
+*API runs on host port `8000`. PostgreSQL is mapped to host port `5544` (container `5432`).*
+
+---
+
+## API Reference
+
+The interactive OpenAPI schema is served at `/docs` in development mode.
+
+| Method | Path | Scope | Purpose |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/health/live` | Public | Process liveness probe |
+| `GET` | `/health/ready` | Public | Database and dependency readiness check |
+| `GET` | `/api/v1/me` | Authenticated | Resolve authenticated identity and tenant roles |
+| `PUT` | `/api/v1/me/username` | Authenticated | Claim or update onboarding username |
+| `GET` | `/api/v1/agents` | Authenticated | List registered agent capabilities |
+| `POST` | `/api/v1/sessions` | Authenticated | Initialize an owner-scoped portfolio session |
+| `GET` | `/api/v1/sessions` | Authenticated | List owned portfolio sessions |
+| `GET` | `/api/v1/sessions/{id}` | Authenticated | Retrieve current session state and revision |
+| `GET` | `/api/v1/sessions/{id}/runs` | Authenticated | List execution history and runs for session |
+| `POST` | `/api/v1/sessions/{id}/runs/mock` | Admin | Execute deterministic mock run for development |
+| `GET` | `/api/v1/sessions/{id}/discovery` | Authenticated | Fetch active Discovery state and brief |
+| `POST` | `/api/v1/sessions/{id}/discovery/start` | Authenticated | Ingest intake materials and enqueue Discovery |
+| `PUT` | `/api/v1/sessions/{id}/discovery/answers` | Authenticated | Submit answers to adaptive interview questions |
+| `POST` | `/api/v1/sessions/{id}/discovery/revise` | Authenticated | Request targeted revisions to the Discovery brief |
+| `POST` | `/api/v1/sessions/{id}/discovery/approve` | Authenticated | Explicitly approve Discovery brief (locks stage) |
+| `GET` | `/api/v1/sessions/{id}/content-architect` | Authenticated | Fetch active Content Architect plan |
+| `POST` | `/api/v1/sessions/{id}/content-architect/start` | Authenticated | Start Content Architect from approved Discovery |
+| `POST` | `/api/v1/sessions/{id}/content-architect/revise` | Authenticated | Request revision on content plan |
+| `POST` | `/api/v1/sessions/{id}/content-architect/approve` | Authenticated | Explicitly approve content plan (end of workflow) |
+
+---
+
+## Quality Gate & Testing
+
+OryxenAI enforces strict linting, type-checking, and test isolation.
+
+### One-Command Sanity Suite
 ```powershell
-# All tests (requires PostgreSQL for integration tests)
-uv run pytest
-
-# Unit tests only (fast, no DB)
-uv run pytest tests/unit
-
-# API tests
-uv run pytest tests/api
-
-# Integration tests (require PostgreSQL)
-uv run pytest tests/integration
-
-# Verbose
-uv run pytest -v
+.\scripts\check.ps1    # Runs ruff check, ruff format check, and mypy
+.\scripts\test.ps1     # Runs all pytest suites against test DB
+.\scripts\doctor.ps1   # Validates database connectivity and configuration
 ```
 
-## Lint, format, and type-check commands
+### Granular Commands
+```bash
+# Code Quality & Typing
+uv run ruff check .               # Linting
+uv run ruff format .              # Code formatting
+uv run mypy src                   # Static typing
 
-```powershell
-uv run ruff check .           # lint
-uv run ruff check --fix .     # lint + autofix
-uv run ruff format .           # format
-uv run ruff format --check .  # format check (CI)
-uv run mypy src                # type check
+# Test Suites
+uv run pytest tests/unit          # Pure unit tests (no DB required, < 2s)
+uv run pytest tests/api           # HTTP endpoint contract tests
+uv run pytest tests/integration   # PostgreSQL repository tests (uses oryxenai_test)
+uv run pytest tests/worker        # Queue claim, retry, and worker lifecycle tests
+
+# Database Migrations
+uv run alembic upgrade head       # Apply pending migrations
+uv run alembic current            # Inspect current database revision
 ```
 
-## Product and API routes
+---
 
-The product workspace is served at http://127.0.0.1:8000/app after sign-in
-when authentication is enabled. The API schema is available at /docs in
-development.
+## Technical In-Depth & Operations
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /health/live | Process liveness |
-| GET | /health/ready | Dependency readiness |
-| GET | /api/v1/me | Resolve the authenticated local identity |
-| PUT | /api/v1/me/username | Claim the onboarding username |
-| GET | /api/v1/agents | List active registered agents |
-| POST | /api/v1/sessions | Create an owned portfolio session |
-| GET | /api/v1/sessions | List owned sessions |
-| GET | /api/v1/sessions/{id} | Get session and projected current state |
-| GET | /api/v1/sessions/{id}/runs | List active-workflow runs |
-| POST | /api/v1/sessions/{id}/runs/mock | Run an administrator-only development mock |
-| GET | /api/v1/sessions/{id}/discovery | Read Discovery state |
-| POST | /api/v1/sessions/{id}/discovery/start | Store intake and enqueue Discovery |
-| PUT | /api/v1/sessions/{id}/discovery/answers | Save answers and continue Discovery |
-| POST | /api/v1/sessions/{id}/discovery/revise | Revise the Discovery brief |
-| POST | /api/v1/sessions/{id}/discovery/approve | Approve the Discovery brief |
-| GET | /api/v1/sessions/{id}/content-architect | Read Content Architect state |
-| POST | /api/v1/sessions/{id}/content-architect/start | Start from approved Discovery |
-| POST | /api/v1/sessions/{id}/content-architect/revise | Revise the content plan |
-| POST | /api/v1/sessions/{id}/content-architect/approve | Approve the content plan |
+<details>
+<summary><strong>Optimistic Session Revision & Concurrency Details</strong></summary>
 
-Errors use a structured envelope containing a stable code, safe message, and
-request ID. The route implementations and stage READMEs are the source of
-truth when this table drifts.
-## How mock agent runs work
+<br/>
 
-1. The API validates the session and agent key.
-2. The executor checks for an idempotent existing run (if a key was supplied).
-3. A new `agent_runs` row is created with `state_before` (the session's current state).
-4. The deterministic mock agent loads its checked-in `samples/output.json`, validates
-   it against its response schema, and returns an `AgentResult`.
-5. The output is merged into the session's `current_state` under
-   `agents.<key>.{latestRunId, output}`.
-6. The session's `revision` is incremented (optimistic update).
-7. The run is marked `succeeded` with `output_payload` and `state_after`.
-8. On any failure, the run is marked `failed` with a safe structured `error_payload`;
-   the session state is not changed.
+OryxenAI stores the current aggregate product state inside `portfolio_sessions.current_state` (PostgreSQL `JSONB`). To prevent race conditions between asynchronous worker completions and real-time user edits:
 
-## How agent outputs and state are stored
+1. Every write operation checks the session's integer `revision` column.
+2. Background workers capture `revision` when a job is claimed.
+3. Upon task completion, the worker writes the result only if `revision == expected_revision`.
+4. If a user updated state while the agent was running, the worker's result is flagged as stale and archived into `agent_runs` without overwriting newer user work.
+</details>
 
-- **Current aggregate state:** `portfolio_sessions.current_state` (JSONB) — the merged
-  session state; Content Architect consumes only the approved Discovery snapshot.
-- **Immutable run history:** `agent_runs` (append-oriented) — each run records input,
-  `state_before`, output, `state_after`, status, error, timing, agent identity, and
-  idempotency key.
-- **Transaction:** The executor updates both tables inside a single transaction so a
-  successful output and the updated session state cannot diverge.
+<details>
+<summary><strong>Extending with Future Agents</strong></summary>
 
-Discovery stores its intake, answers, memory, and brief directly as JSONB on
-`portfolio_sessions.current_state["discovery"]`. Its API and worker service use
-optimistic session revisions so late model results are retained as stale history
-instead of replacing newer user work. See `src/oryxenai/agents/discovery/README.md`
-for the complete flow.
+<br/>
 
-## How to add a future agent
+To register a new agent in the system:
+1. Define the agent enum in `src/oryxenai/agents/shared/contracts.py` (`AgentKey`).
+2. Create package `src/oryxenai/agents/<agent_name>/` containing:
+   - `agent.py`: Conforming to `Agent` protocol (`async def run(context) -> AgentResult`).
+   - `schemas.py`: Input/output Pydantic schemas.
+   - `prompts/`: Versioned Markdown prompt templates.
+   - `samples/`: Deterministic mock `input.json` and `output.json`.
+3. Register the agent inside `default_registry()` in `src/oryxenai/agents/shared/registry.py`.
+4. All automated tests for the agent must reside under `tests/` (never inside the agent source directory).
+</details>
 
-1. Add a new member to `AgentKey` in `src/oryxenai/agents/shared/contracts.py`.
-2. Create a directory under `src/oryxenai/agents/<new_agent>/` with:
-   - `__init__.py`, `agent.py`, `schemas.py`, `README.md`
-   - `prompts/system.md`, `prompts/task.md`
-   - `samples/input.json`, `samples/output.json`
-3. Implement `agent.py` conforming to the `Agent` protocol: `async def run(context) -> AgentResult`.
-4. Register the agent in `default_registry()` in `src/oryxenai/agents/shared/registry.py`.
-5. **Do not place test files inside the agent directory.** All tests live under `tests/`.
+<details>
+<summary><strong>Troubleshooting Guide</strong></summary>
 
-## Troubleshooting
+<br/>
 
-### Database connection refused
+### Database Connection Refused
+* Verify PostgreSQL is active: `docker compose ps` or local service status.
+* Check host port: Docker maps host `5544` &rarr; container `5432` to avoid local PostgreSQL port collisions. Ensure `config/app.toml` matches your target host port.
 
-- Verify PostgreSQL is running: `docker compose ps`
-- Verify the port: the Docker container maps host **5544** → container **5432**
-  (a non-default host port, to avoid conflicts with other local/Docker
-  Postgres instances — see `compose.yaml`)
-- Verify `POSTGRES_PASSWORD` is set in `.env` and matches the Docker container
-- Check `config/app.toml` `[database] port` matches `compose.yaml`'s host port
+### Port `5432` or `8000` Collision
+* In native development mode, if local PostgreSQL is already bound to `5432`, set overrides in `.env` without modifying committed TOML:
+  ```ini
+  DB_HOST_OVERRIDE=127.0.0.1
+  DB_PORT_OVERRIDE=5545
+  ```
 
-### Port conflict (8000 or 5544)
+### Missing Model Credentials
+* The application and worker start cleanly without real provider API keys. Standard mock runs and unit/integration tests operate fully offline.
+* For live model executions, populate the environment variable specified in [`config/models.toml`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/config/models.toml) (e.g., `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
+</details>
 
-- App port 8000: change `APP_PORT` in `config/app.toml` or `--port` flag
-- DB port 5544: pick another free host port and update it in both
-  `compose.yaml` (`ports:`) and `config/app.toml` (`[database] port`) —
-  they must match
+---
 
-### Native mode: PostgreSQL port `5432` is already taken
+## Ecosystem & Documentation Index
 
-This happens when another local PostgreSQL install (not this project's) is
-already listening on `5432` — common on Windows when a system-wide
-PostgreSQL service auto-starts. **Don't edit the committed
-`config/app.native.toml`** (that changes the default for every native
-developer). Instead, add these two lines to your own `.env` (already
-git-ignored, so this stays machine-local):
+* [`AGENTS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md) — Canonical instructions for Claude Code, OpenAI Codex CLI, and Antigravity.
+* [`DECISIONS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/DECISIONS.md) — Architecture decision records and rejected alternatives.
+* [`CHANGES.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/CHANGES.md) — Append-only chronological release and change history.
+* [`docs/architecture.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/architecture.md) — Architectural rationale and design principles.
+* [`docs/run/run.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/run/run.md) — Operational runbook for production and local environments.
+* [`docs/deployment/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/deployment/) — Infrastructure, Docker Compose, and Azure VM operations.
 
-```
-DB_HOST_OVERRIDE=127.0.0.1
-DB_PORT_OVERRIDE=5545
-```
+---
 
-Set `DB_PORT_OVERRIDE` to whatever free port your own local PostgreSQL
-instance actually listens on. These two settings take priority over
-`config/app.native.toml`'s `[database]` block for every native script
-(`align-db`, `migrate`, `api`, `worker`, `dev`) — no script or TOML edit
-needed. Leave both blank/unset to use the plain default (`5432`).
-
-### `.env` is accidentally missing
-
-- The app will still start for unit/API tests that don't need PostgreSQL
-- Integration tests will be skipped automatically
-- For full functionality, copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`
-
-### Model credentials are absent
-
-- The app and worker still start without model credentials
-- A real Discovery job fails safely with a controlled configuration error
-- Normal tests use the deterministic fake client and require no model credential
-- Set the environment variable named by the active profile's `api_key_env` for
-  real model runs. The committed default is Anthropic; change routing/profile
-  configuration to add or assign another provider without changing agents.
-
-### Development UI is disabled
-
-- Set `enable_dev_ui = true` in `config/app.toml` `[app]` section
-
-### Postgres host port already in use
-
-- The committed default host port (`compose.yaml` + `config/app.toml`
-  `[database] port`) may collide with another project's Postgres container
-  on a shared dev machine. Pick a free host port, update both files to
-  match (container-internal port stays `5432`), and re-run
-  `docker compose up postgres -d`.
+<div align="center">
+  <sub>Built with Python 3.13, FastAPI, PostgreSQL, and Modern Agentic Design Principles.</sub>
+</div>
