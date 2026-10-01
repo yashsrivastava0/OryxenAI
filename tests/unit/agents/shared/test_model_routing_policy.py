@@ -39,25 +39,26 @@ def test_active_routes_use_only_experiential_luna() -> None:
 
 
 @pytest.mark.parametrize(
-    ("engine", "operation"),
+    ("engine", "operation", "profile", "model"),
     [
-        ("discovery", "understand_and_question"),
-        ("discovery", "build_or_revise_brief"),
-        ("content_architect", "plan_content"),
-        ("content_architect", "write_pages"),
-        ("content_architect", "integrate_content"),
+        ("discovery", "understand_and_question", "experiential_luna", "gpt-5.6-luna"),
+        ("discovery", "build_or_revise_brief", "experiential_luna", "gpt-5.6-luna"),
+        ("content_architect", "plan_content", "experiential_luna_6", "gpt-6-luna"),
+        ("content_architect", "write_pages", "experiential_luna_6", "gpt-6-luna"),
+        ("content_architect", "integrate_content", "experiential_luna_6", "gpt-6-luna"),
     ],
 )
 def test_all_active_personal_operations_keep_experiential_as_primary(
-    engine: str, operation: str
+    engine: str, operation: str, profile: str, model: str
 ) -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
     names = router.operation_profile_names(engine, operation, input_classification="personal")
     assert names
     assert settings.models.get_profile(names[0]).provider == "experiential"
-    assert settings.models.get_profile(names[0]).model == "gpt-5.6-luna"
-    assert names == ("experiential_luna",)
+    assert settings.models.get_profile(names[0]).model == model
+    assert names == (profile,)
+    assert settings.models.get_profile(names[0]).api_key_env == "EXPLABS_API_KEY"
     route = settings.models.routing.operation_route(engine, operation)
     assert route is not None
     assert route.fallback_profiles == []
@@ -65,7 +66,7 @@ def test_all_active_personal_operations_keep_experiential_as_primary(
     assert all(settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in names)
 
 
-def test_unknown_input_also_uses_only_experiential_luna() -> None:
+def test_unknown_input_also_uses_only_the_configured_experiential_profile() -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
 
@@ -75,7 +76,7 @@ def test_unknown_input_also_uses_only_experiential_luna() -> None:
         input_classification="unknown",
     )
 
-    assert names == ("experiential_luna",)
+    assert names == ("experiential_luna_6",)
 
 
 def test_capacity_registry_uses_remaining_capacity_and_cooldown() -> None:
