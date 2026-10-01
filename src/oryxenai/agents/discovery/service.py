@@ -113,9 +113,7 @@ class DiscoveryService:
             return await self.get_discovery_state(session_id)
 
         resolved_profile = self._resolve_model_profile(model_profile, state.model_profile)
-        from oryxenai.agents.shared.model_runtime import get_model_runtime
-
-        policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
+        policy_snapshot = self._current_routing_policy_snapshot()
 
         submitted = DiscoveryIntake(
             message=message,
@@ -345,6 +343,11 @@ class DiscoveryService:
 
         operation = ""
         if complete:
+            # A fresh user action may follow a routing change. Snapshot the
+            # route used by this new job rather than replaying the old one.
+            policy_snapshot = self._current_routing_policy_snapshot()
+            next_state.routing_policy_version = str(policy_snapshot["version"])
+            next_state.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
             answered_ids = {answer.question_id for answer in answers if answer.question_id}
             for event in next_state.question_events:
                 if event.status == "pending" and event.question_id not in answered_ids:
@@ -492,6 +495,7 @@ class DiscoveryService:
             raise DiscoveryOperationError(
                 "DISCOVERY_NOT_READY", "revision_request is required.", status_code=409
             )
+        policy_snapshot = self._current_routing_policy_snapshot()
 
         key = self._idempotency_key(
             session_id,
@@ -526,10 +530,7 @@ class DiscoveryService:
                 "revision_request": revision_request,
                 "model_profile": state.model_profile,
                 "input_classification": "personal",
-                "routing_policy_snapshot": {
-                    "version": state.routing_policy_version,
-                    "fingerprint": state.routing_policy_fingerprint,
-                },
+                "routing_policy_snapshot": policy_snapshot,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,
@@ -549,6 +550,8 @@ class DiscoveryService:
         )
 
         running = apply_brief_running(state, str(run.id), str(job.id))
+        running.routing_policy_version = str(policy_snapshot["version"])
+        running.routing_policy_fingerprint = str(policy_snapshot["fingerprint"])
         running.attempt = 0
         updated = await self._repository.save_discovery_state(session_id, running, session.revision)
         if updated is None:
@@ -690,6 +693,11 @@ class DiscoveryService:
                 status_code=409,
             )
         return requested
+
+    def _current_routing_policy_snapshot(self) -> dict[str, Any]:
+        from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+        return get_model_runtime(self._settings.models).router.policy_snapshot()
 
     async def _require_session(self, session_id: UUID) -> Any:
         session = await self._repository.get_session(session_id)

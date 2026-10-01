@@ -12,7 +12,7 @@ from oryxenai.agents.shared.providers.errors import (
 from oryxenai.core.settings import get_settings
 
 
-def test_active_routes_keep_experiential_primary_and_allow_gemini_recovery() -> None:
+def test_active_routes_use_only_experiential_luna() -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
 
@@ -23,11 +23,15 @@ def test_active_routes_keep_experiential_primary_and_allow_gemini_recovery() -> 
         "discovery", "understand_and_question", input_classification="sanitized"
     )
 
-    assert personal[0] == "experiential_luna"
+    assert personal == ("experiential_luna",)
+    assert sanitized == ("experiential_luna",)
     assert settings.models.get_profile(personal[0]).api_key_env == "EXPLABS_API_KEY"
-    assert sanitized[0] == "experiential_luna"
-    assert any(settings.models.get_profile(name).provider == "gemini" for name in personal[1:])
-    assert any(settings.models.get_profile(name).provider == "gemini" for name in sanitized[1:])
+    assert settings.models.routing.selectable_profiles == []
+    assert all(
+        not source.enabled
+        for source in settings.models.routing.capacity.sources.values()
+        if source.provider == "gemini"
+    )
     assert all(
         settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY"
         for name in (*personal, *sanitized)
@@ -53,11 +57,15 @@ def test_all_active_personal_operations_keep_experiential_as_primary(
     assert names
     assert settings.models.get_profile(names[0]).provider == "experiential"
     assert settings.models.get_profile(names[0]).model == "gpt-5.6-luna"
-    assert all(settings.models.get_profile(name).provider == "gemini" for name in names[1:])
+    assert names == ("experiential_luna",)
+    route = settings.models.routing.operation_route(engine, operation)
+    assert route is not None
+    assert route.fallback_profiles == []
+    assert route.recovery_allowance == 0
     assert all(settings.models.get_profile(name).api_key_env != "OPENAI_API_KEY" for name in names)
 
 
-def test_unknown_input_also_has_only_gemini_fallbacks() -> None:
+def test_unknown_input_also_uses_only_experiential_luna() -> None:
     settings = get_settings()
     router = ModelRouter(settings.models)
 
@@ -67,8 +75,7 @@ def test_unknown_input_also_has_only_gemini_fallbacks() -> None:
         input_classification="unknown",
     )
 
-    assert names[0] == "experiential_luna"
-    assert all(settings.models.get_profile(name).provider == "gemini" for name in names[1:])
+    assert names == ("experiential_luna",)
 
 
 def test_capacity_registry_uses_remaining_capacity_and_cooldown() -> None:

@@ -17,17 +17,17 @@
 # must NOT require edits to agent implementations or business logic.
 
 [routing]
-fallback_profile = "default"
+fallback_profile = "experiential_luna"
 # Add a profile name here when it should become a safe UI/API selection.
-selectable_profiles = ["discovery_opencode_go"]
+selectable_profiles = []
 
 [routing.engine_profiles]
 discovery = "experiential_luna"
 content_architect = "experiential_luna"
 
 [routing.policy]
-version = "active_agent_routes_v1"
-# Retained agent operations use bounded configured primary/fallback routes.
+version = "active_agent_routes_v2"
+# Active agent operations use the configured Experiential Luna route only.
 input_policy = "personal_luna_only"
 utilization_ceiling = 0.8
 wallet_spend_enabled = false
@@ -54,7 +54,7 @@ api_key_env = "GEMINI_API_KEY1"
 base_url_env = ""
 project_scope = "GEMINI_1"
 quota_group = "GEMINI_1"
-enabled = true
+enabled = false
 input_policy = "sanitized"
 
 [routing.capacity.sources.GEMINI_2]
@@ -64,7 +64,7 @@ api_key_env = "GEMINI_API_KEY2"
 base_url_env = ""
 project_scope = "GEMINI_2"
 quota_group = "GEMINI_2"
-enabled = true
+enabled = false
 input_policy = "sanitized"
 
 [routing.capacity.sources.GEMINI_3]
@@ -74,7 +74,7 @@ api_key_env = "GEMINI_API_KEY3"
 base_url_env = ""
 project_scope = "GEMINI_3"
 quota_group = "GEMINI_3"
-enabled = true
+enabled = false
 input_policy = "sanitized"
 
 [routing.capacity]
@@ -84,11 +84,11 @@ unresolved_attempt_ttl_seconds = 3600
 
 [routing.operation_profiles.discovery.understand_and_question]
 primary_profile = "experiential_luna"
-fallback_profiles = ["gemini_flash_lite_1", "gemini_flash_lite_2", "gemini_flash_lite_3", "experiential_luna"]
-allow_gemini = true
-allow_personal_gemini_fallback = true
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
 normal_calls = 1
-recovery_allowance = 1
+recovery_allowance = 0
 max_output_tokens = 4096
 input_limit_tokens = 1000000
 timeout_seconds = 180
@@ -96,11 +96,11 @@ reasoning_effort = "low"
 
 [routing.operation_profiles.discovery.build_or_revise_brief]
 primary_profile = "experiential_luna"
-fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
-allow_gemini = true
-allow_personal_gemini_fallback = true
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
 normal_calls = 1
-recovery_allowance = 1
+recovery_allowance = 0
 max_output_tokens = 24000
 input_limit_tokens = 1000000
 timeout_seconds = 180
@@ -108,11 +108,11 @@ reasoning_effort = "medium"
 
 [routing.operation_profiles.content_architect.plan_content]
 primary_profile = "experiential_luna"
-fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
-allow_gemini = true
-allow_personal_gemini_fallback = true
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
 normal_calls = 3
-recovery_allowance = 1
+recovery_allowance = 0
 max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
@@ -120,11 +120,11 @@ reasoning_effort = "medium"
 
 [routing.operation_profiles.content_architect.write_pages]
 primary_profile = "experiential_luna"
-fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
-allow_gemini = true
-allow_personal_gemini_fallback = true
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
 normal_calls = 3
-recovery_allowance = 1
+recovery_allowance = 0
 max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
@@ -132,11 +132,11 @@ reasoning_effort = "medium"
 
 [routing.operation_profiles.content_architect.integrate_content]
 primary_profile = "experiential_luna"
-fallback_profiles = ["gemini_flash_1", "gemini_flash_2", "gemini_flash_3", "experiential_luna"]
-allow_gemini = true
-allow_personal_gemini_fallback = true
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
 normal_calls = 3
-recovery_allowance = 1
+recovery_allowance = 0
 max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
@@ -269,11 +269,8 @@ supports_prompt_cache_key = false
 supports_prompt_cache_options = false
 supports_prompt_cache_breakpoint = false
 
-# Gemini Free Tier profiles carry a sanitized default policy. The retained
-# Discovery and Content Architect operation routes explicitly widen that
-# profile to an approved fallback after their configured primary fails. The
-# three aliases are separate configured capacity sources; quota limits are
-# observed at runtime and are never hardcoded in agent code.
+# Inactive Gemini profiles remain available as configuration examples; active
+# Discovery and Content Architect routes do not select them.
 [profiles.gemini_flash_lite_1]
 provider = "gemini"
 model = "gemini-3.5-flash-lite"
