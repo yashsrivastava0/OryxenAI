@@ -1,1 +1,10 @@
 *.sh text eol=lf
+
+# Theme data files are hash-pinned (themes/*/v*/manifest.json): store and check them out byte-exact.
+src/oryxenai/themes/**/*.css -text
+src/oryxenai/themes/**/*.html -text
+src/oryxenai/themes/**/*.json -text
+src/oryxenai/themes/**/*.svg -text
+src/oryxenai/themes/**/*.md -text
+src/oryxenai/themes/**/*.txt -text
+src/oryxenai/themes/**/*.woff2 binary

@@ -1,0 +1,130 @@
+<a class="skip-link" href="#home">Skip to main content</a>
+<div class="reading-progress" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<nav class="site-nav" aria-label="Portfolio sections">
+  <div class="site-nav__inner">
+    <a class="wordmark" href="#home">
+      <span class="wordmark__monogram" aria-hidden="true">{{ d.monogram }}</span>
+      <span class="wordmark__name">{{ hero.name }}</span>
+    </a>
+    <ul class="site-nav__links">
+{% for item in d.nav %}
+      <li><a href="#{{ item.id }}"><span class="site-nav__index" aria-hidden="true">{{ item.index }}</span><span>{{ item.label }}</span></a></li>
+{% endfor %}
+    </ul>
+  </div>
+</nav>
+<main>
+  <header class="hero" id="home" tabindex="-1">
+    <div class="container hero__grid">
+      <div class="hero__copy">
+{% if eyebrow %}
+        <p class="eyebrow hero__eyebrow">{{ eyebrow[0] }}{% if eyebrow|length > 1 %} <span aria-hidden="true">·</span> {{ eyebrow[1] }}{% endif %}</p>
+{% endif %}
+        <h1>{{ hero.name }}</h1>
+{% if headline_prefix or headline_emphasis %}
+        <p class="hero__headline">{{ headline_prefix }}{% if headline_prefix and headline_emphasis %} {% endif %}{% if headline_emphasis %}<em>{{ headline_emphasis }}</em>{% endif %}</p>
+{% endif %}
+        <p class="hero__intro">{{ hero.intro }}</p>
+{% if hero.location %}
+        <p class="hero__location"><span class="eyebrow">Location</span><span>{{ hero.location }}</span></p>
+{% endif %}
+{% if hero.primary_cta_label or hero.secondary_cta_label %}
+        <div class="hero__actions">
+{% if hero.primary_cta_label %}
+          <a class="button button--primary" href="#systems-practice"><span class="button__label">{{ hero.primary_cta_label }}</span><span class="button__arrow" aria-hidden="true">↓</span></a>
+{% endif %}
+{% if hero.secondary_cta_label %}
+          <a class="text-link" href="#connect">{{ hero.secondary_cta_label }} <span aria-hidden="true">↗</span></a>
+{% endif %}
+        </div>
+{% endif %}
+      </div>
+      <figure class="hero__visual" aria-hidden="true">
+        <img src="{{ d.hero_asset }}" width="800" height="1200" alt="" decoding="async" fetchpriority="high">
+        <span class="hero__badge" aria-hidden="true">{{ d.monogram }}</span>
+      </figure>
+    </div>
+    <div class="hero__scroll-cue" aria-hidden="true"><span class="hero__scroll-cue-line"></span><span>Scroll</span></div>
+  </header>
+{% if d.marquee %}
+  <div class="marquee" aria-hidden="true"><div class="marquee__track">
+{% for _ in range(2) %}
+    <ul class="marquee__list">{% for item in d.marquee["items"] %}<li>{{ item }}</li>{% endfor %}</ul>
+{% endfor %}
+  </div></div>
+{% endif %}
+  <section class="scene scene--systems" id="systems-practice" tabindex="-1" aria-labelledby="systems-title">
+    <div class="container">
+      <div class="section-heading section-heading--wide">
+        <p class="eyebrow">{{ systems.eyebrow }}</p>
+        <h2 id="systems-title">{{ systems.heading }}</h2>
+{% if systems.intro %}
+        <p class="section-heading__intro">{{ systems.intro }}</p>
+{% endif %}
+      </div>
+      <ul class="pillar-grid">
+{% for pillar in d.pillars %}
+        <li class="pillar" data-index="{{ pillar.index }}"><span class="pillar__index" aria-hidden="true">{{ pillar.index }}</span><h3>{{ pillar.title }}</h3><p>{{ pillar.description }}</p></li>
+{% endfor %}
+      </ul>
+    </div>
+  </section>
+  <section class="scene scene--capabilities" id="technical-capabilities" tabindex="-1" aria-labelledby="capabilities-title">
+    <div class="container">
+      <div class="section-heading section-heading--wide">
+        <p class="eyebrow">{{ capabilities.eyebrow }}</p>
+        <h2 id="capabilities-title">{{ capabilities.heading }}</h2>
+{% if capabilities.intro %}
+        <p class="section-heading__intro">{{ capabilities.intro }}</p>
+{% endif %}
+      </div>
+      <div class="inventory-grid">
+{% for group in d.groups %}
+        <details class="capability-group"{% if group.open %} open{% endif %}>
+          <summary><span class="capability-group__content"><span class="capability-group__heading"><span class="capability-group__index" aria-hidden="true">{{ group.index }}</span><span>{{ group.heading }}</span></span></span><span class="disclosure-icon" aria-hidden="true"></span></summary>
+          <ul class="capability-list">{% for item in group["items"] %}<li>{{ item }}</li>{% endfor %}</ul>
+        </details>
+{% endfor %}
+      </div>
+    </div>
+  </section>
+  <section class="scene scene--context" id="professional-context" tabindex="-1" aria-labelledby="context-title">
+    <div class="container context-layout">
+      <div class="section-heading">
+        <p class="eyebrow">{{ context.eyebrow }}</p>
+        <h2 id="context-title">{{ context.heading }}</h2>
+      </div>
+      <div class="context-content">
+{% if context.intro %}
+        <p class="context-content__intro">{{ context.intro }}</p>
+{% endif %}
+{% if d.organizations %}
+        <ul class="organization-list">{% for organization in d.organizations %}<li>{{ organization }}</li>{% endfor %}</ul>
+{% endif %}
+      </div>
+    </div>
+  </section>
+  <section class="scene scene--connect" id="connect" tabindex="-1" aria-labelledby="connect-title">
+    <div class="container connect-layout">
+      <div class="connect-copy">
+        <p class="eyebrow">{{ connect.eyebrow }}</p>
+        <h2 id="connect-title">{{ connect.heading }}</h2>
+{% if connect.intro %}
+        <p>{{ connect.intro }}</p>
+{% endif %}
+      </div>
+{% if d.destinations %}
+      <ul class="destination-list">
+{% for destination in d.destinations %}
+        <li{% if destination.featured %} class="destination-list__featured"{% endif %}><a href="{{ destination.url }}"{% if destination.new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}><span>{{ destination.label }}</span><span class="destination-arrow" aria-hidden="true">↗</span></a></li>
+{% endfor %}
+      </ul>
+{% endif %}
+    </div>
+  </section>
+</main>
+<footer class="site-footer"><div class="container site-footer__inner">
+  <p>{{ hero.name }}{% if hero.location %} <span aria-hidden="true">·</span> {{ hero.location }}{% endif %}</p>
+  <a href="#home">Back to top <span aria-hidden="true">↑</span></a>
+</div></footer>
