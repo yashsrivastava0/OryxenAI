@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-119 — Content Architect routes through GPT-6 Luna
+
+- **Date & Time:** 2026-10-01 14:30 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-and-implemented-locally
+- **Context:** The operator asked for Content Architect to use the EXP Labs GPT-6 Luna model while Discovery keeps its current model.
+- **Decision:** `config/models.toml` gains an `experiential_luna_6` profile (same gateway and credential variable), and only the Content Architect engine route and its three operation routes select it. Policy version moved to `active_agent_routes_v3`. D-117's single-provider rule is unchanged.
+- **Trade-off:** Roughly twice the latency of the previous profile on the same input. Profile pricing is a placeholder copied from the existing profile.
+- **Consequence:** Implemented locally in `f5e5d14`; no deployment or external promotion was performed.
+
 ## D-118 — Typed single-page content tree for the pinned template
 
 - **Date & Time:** 2026-10-01 13:05 +05:30 — Claude Code (Anthropic)
