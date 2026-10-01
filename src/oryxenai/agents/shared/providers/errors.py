@@ -44,6 +44,9 @@ _SAFE_FAILURE_MESSAGES = {
     "PROVIDER_CONTENT_FILTER_ERROR": "The model provider refused the request safely.",
     "PROVIDER_HTTP_ERROR": "The configured model provider returned an unexpected response.",
     "MODEL_OUTPUT_INVALID": "The model returned output that did not satisfy the required structure.",
+    "MODEL_JSON_INVALID": "The model returned unreadable data. Try the operation again.",
+    "MODEL_EMPTY_OUTPUT": "The model returned no content. Try the operation again.",
+    "MODEL_OUTPUT_TRUNCATED": "The model response was cut short. Try the operation again.",
     "MODEL_CACHE_WAIT_TIMEOUT": "Another model operation is still producing this result; retry safely.",
     "MODEL_CAPACITY_UNAVAILABLE": "No eligible free model capacity is available for this operation.",
     "MODEL_INPUT_POLICY_BLOCKED": "This operation requires a provider approved for the supplied input.",
@@ -575,4 +578,9 @@ def safe_operation_failure(
     }
     if isinstance(retry_after, (int, float)) and retry_after >= 0:
         payload["retry_after_seconds"] = float(retry_after)
+    categories = details.get("validation_categories")
+    if isinstance(categories, list):
+        payload["validation_categories"] = [
+            category for category in categories[:5] if category in {"empty_brief", "invalid_shape"}
+        ]
     return payload

@@ -158,6 +158,7 @@ class JobRepository:
         *,
         allowed_job_kinds: Collection[str] | None = None,
         foreground_job_kinds: Collection[str] | None = None,
+        model_lane_concurrency: int = 4,
     ) -> list[BackgroundJob]:
         """Atomically claim up to `batch_size` due jobs via CTE + SKIP LOCKED."""
         if allowed_job_kinds is not None and not allowed_job_kinds:
@@ -187,35 +188,24 @@ class JobRepository:
                   AND job.attempt < job.max_attempts
                   {kind_filter}
                   AND (
-                    job.execution_lane IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1 FROM background_jobs AS running
-                        WHERE running.status = 'running'
-                          AND running.execution_lane = job.execution_lane
+                    job.execution_lane IS NULL OR (
+                      (SELECT count(*) FROM background_jobs AS running
+                       WHERE running.status = 'running'
+                         AND running.execution_lane = job.execution_lane)
+                      +
+                      (SELECT count(*) FROM background_jobs AS earlier
+                       WHERE earlier.status = 'queued'
+                         AND earlier.execution_lane = job.execution_lane
+                         AND earlier.available_at <= :now
+                         AND (
+                           {earlier_foreground_rank} < {foreground_rank}
+                           OR ({earlier_foreground_rank} = {foreground_rank}
+                               AND (earlier.priority > job.priority
+                                    OR (earlier.priority = job.priority
+                                        AND (earlier.created_at, earlier.id)
+                                            < (job.created_at, job.id)))))
+                      ) < :lane_limit
                     )
-                  )
-                  AND (
-                    job.execution_lane IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1 FROM background_jobs AS earlier
-                        WHERE earlier.status = 'queued'
-                          AND earlier.execution_lane = job.execution_lane
-                          AND earlier.available_at <= :now
-                          AND (
-                              {earlier_foreground_rank} < {foreground_rank}
-                              OR (
-                                  {earlier_foreground_rank} = {foreground_rank}
-                                  AND (
-                                      earlier.priority > job.priority
-                                      OR (
-                                          earlier.priority = job.priority
-                                          AND (earlier.created_at, earlier.id)
-                                              < (job.created_at, job.id)
-                                      )
-                                  )
-                              )
-                          )
-                      )
                   )
                 ORDER BY {foreground_order}job.priority DESC, job.created_at ASC
                 LIMIT :limit
@@ -235,6 +225,9 @@ class JobRepository:
             raw = raw.bindparams(bindparam("foreground_job_kinds", expanding=True))
         for attempt in range(3):
             try:
+                await self._session.execute(
+                    sa_text("SELECT pg_advisory_xact_lock(hashtext('oryxenai-model-lane'))")
+                )
                 result = await self._session.execute(
                     raw,
                     {
@@ -242,6 +235,7 @@ class JobRepository:
                         "newst": JobStatus.RUNNING.value,
                         "now": now,
                         "limit": batch_size,
+                        "lane_limit": max(1, model_lane_concurrency),
                         "w": worker_instance,
                         **(
                             {"allowed_job_kinds": list(allowed_job_kinds)}
@@ -271,6 +265,7 @@ class JobRepository:
         exclude_job_ids: set[UUID] | None = None,
         allowed_job_kinds: Collection[str] | None = None,
         foreground_job_kinds: Collection[str] | None = None,
+        model_lane_concurrency: int = 4,
     ) -> list[BackgroundJob]:
         """Recover expired jobs not already active in this worker process.
 
@@ -303,25 +298,19 @@ class JobRepository:
                   {kind_filter}
                   AND job.id NOT IN :exclude_job_ids
                   AND (
-                    job.execution_lane IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1 FROM background_jobs AS running
-                        WHERE running.status = 'running'
-                          AND running.execution_lane = job.execution_lane
-                          AND running.id <> job.id
-                    )
-                  )
-                  AND (
-                        job.execution_lane IS NULL
-                        OR NOT EXISTS (
-                          SELECT 1 FROM background_jobs AS earlier_stale
-                          WHERE earlier_stale.status = 'running'
-                            AND earlier_stale.heartbeat_at <= :cutoff
-                          AND earlier_stale.execution_lane = job.execution_lane
-                          AND earlier_stale.id <> job.id
-                          AND (earlier_stale.created_at, earlier_stale.id)
-                              < (job.created_at, job.id)
-                    )
+                    job.execution_lane IS NULL OR (
+                      (SELECT count(*) FROM background_jobs AS running
+                       WHERE running.status = 'running'
+                         AND running.heartbeat_at > :cutoff
+                         AND running.execution_lane = job.execution_lane)
+                      +
+                      (SELECT count(*) FROM background_jobs AS earlier_stale
+                       WHERE earlier_stale.status = 'running'
+                         AND earlier_stale.heartbeat_at <= :cutoff
+                         AND earlier_stale.execution_lane = job.execution_lane
+                         AND (earlier_stale.created_at, earlier_stale.id)
+                             < (job.created_at, job.id))
+                      ) < :lane_limit
                   )
                 ORDER BY {foreground_order}job.created_at ASC
                 LIMIT :limit
@@ -345,12 +334,16 @@ class JobRepository:
             raw = raw.bindparams(bindparam("allowed_job_kinds", expanding=True))
         if foreground_job_kinds is not None:
             raw = raw.bindparams(bindparam("foreground_job_kinds", expanding=True))
+        await self._session.execute(
+            sa_text("SELECT pg_advisory_xact_lock(hashtext('oryxenai-model-lane'))")
+        )
         result = await self._session.execute(
             raw,
             {
                 "status": JobStatus.RUNNING.value,
                 "cutoff": cutoff,
                 "limit": batch_size,
+                "lane_limit": max(1, model_lane_concurrency),
                 "w": worker_instance,
                 "now": datetime.now(UTC),
                 "exclude_job_ids": list(exclude_job_ids or set()),
@@ -431,28 +424,6 @@ class JobRepository:
                   AND job.attempt < job.max_attempts
                   {kind_filter}
                   AND job.id NOT IN :exclude_job_ids
-                  AND (
-                    job.execution_lane IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1 FROM background_jobs AS running
-                        WHERE running.status = :running_status
-                          AND running.execution_lane = job.execution_lane
-                          AND running.id <> job.id
-                          AND running.heartbeat_at > :cutoff
-                    )
-                  )
-                  AND (
-                    job.execution_lane IS NULL
-                    OR NOT EXISTS (
-                        SELECT 1 FROM background_jobs AS earlier_stale
-                        WHERE earlier_stale.status = :running_status
-                          AND earlier_stale.heartbeat_at <= :cutoff
-                          AND earlier_stale.execution_lane = job.execution_lane
-                          AND earlier_stale.id <> job.id
-                          AND (earlier_stale.created_at, earlier_stale.id)
-                              < (job.created_at, job.id)
-                    )
-                  )
                 ORDER BY {foreground_order}job.created_at ASC
                 LIMIT :limit
                 FOR UPDATE SKIP LOCKED

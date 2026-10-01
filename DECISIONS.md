@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-120 — Compact Discovery draft with bounded same-route recovery
+
+- **Date & Time:** 2026-10-01 16:25 +05:30 — Codex (OpenAI)
+- **Status:** decided-implemented-locally
+- **Context:** Discovery brief generation was slow and frequently failed because the model had to emit a large span-linked dossier and every missing link rejected the whole response. One global running model lane also queued unrelated users.
+- **Decision:** The model emits a compact, lenient draft; the server builds the stored `DiscoveryDossier/v1`, repairs IDs and links, and derives the compatibility profile. New dossiers retain source-document hashes but leave span coverage empty and identify provenance as `brief_derived`. Only absent usable Markdown or a non-object output is a hard contract failure. Discovery uses the configured route with one same-profile recovery attempt, streamed responses where supported, and configurable model-lane concurrency. `READY_FOR_BRIEF` queues the brief within Discovery in the worker transaction; approval remains explicit before Content Architect.
+- **Rejected alternatives:** Keep strict span-by-span model output and use more retries; add another provider; split the brief into parallel calls before measuring the compact version.
+- **Consequence:** Supersedes D-116's span-linked Discovery dossier mechanics, D-117's no-retry trade-off for Discovery, and D-119's assumption that Discovery stays on its previous model. Existing dossiers and approval hashes remain readable. New briefs have less excerpt-level provenance, while Content Architect still receives IDs and complete structured context. The gateway route and lane size remain configuration choices; deployment is separate.
+
 ## D-119 — Content Architect routes through GPT-6 Luna
 
 - **Date & Time:** 2026-10-01 14:30 +05:30 — Claude Code (Anthropic)

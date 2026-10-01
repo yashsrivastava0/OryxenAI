@@ -24,6 +24,9 @@ export function AttentionPanel({
   errorDetails,
   inFlight = false,
 }: AttentionPanelProps) {
+  const operationName = errorDetails?.operationLabel
+    ?.replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 
@@ -53,7 +56,7 @@ export function AttentionPanel({
         <p className="attention-attribution">
           {errorDetails.providerLabel ? `Provider: ${errorDetails.providerLabel}` : null}
           {errorDetails.providerLabel && errorDetails.operationLabel ? " · " : null}
-          {errorDetails.operationLabel ? `Operation: ${errorDetails.operationLabel}` : null}
+          {operationName ? `Operation: ${operationName}` : null}
         </p>
       ) : null}
       {errorDetails?.retryAfterSeconds !== undefined ? (

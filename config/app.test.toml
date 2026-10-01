@@ -47,6 +47,7 @@ polling_interval = 0.25    # faster polling for test speed
 heartbeat_interval = 5.0
 claim_batch_size = 10
 concurrency = 2
+model_lane_concurrency = 2
 shutdown_grace = 3.0
 
 [worker.job]

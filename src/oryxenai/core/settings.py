@@ -135,10 +135,11 @@ class PoolConfig(BaseModel):
 class WorkerConfig(BaseModel):
     """Worker process settings from [worker]."""
 
-    polling_interval: float = 2.0
+    polling_interval: float = 0.5
     heartbeat_interval: float = 30.0
     claim_batch_size: int = 5
     concurrency: int = 2
+    model_lane_concurrency: int = 4
     shutdown_grace: float = 10.0
 
 
@@ -463,6 +464,7 @@ class DiscoveryConfig(BaseModel):
     max_questions: int = 8
     max_projects: int = 8
     max_answer_chars: int = 10000
+    max_input_chars: int = 200000
 
 
 class ArtifactStorageConfig(BaseModel):

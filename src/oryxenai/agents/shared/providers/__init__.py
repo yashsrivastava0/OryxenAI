@@ -1,60 +1,38 @@
-"""Provider adapters for model clients.
+"""Provider adapters and errors, exported lazily to avoid import cycles."""
 
-Each provider adapter implements the ModelClient protocol. Use
-`build_adapter()` to create the correct adapter from a ModelProfile.
+from __future__ import annotations
 
-Adding a new provider:
-  1. Create a new module in this package (e.g. `anthropic.py`).
-  2. Extend `BaseProviderAdapter` and implement the abstract methods.
-  3. Add the provider name to `_ADAPTER_REGISTRY` in `factory.py`.
-  4. Add the new profile section to `config/models.toml`.
-"""
+from importlib import import_module
+from typing import Any
 
-from oryxenai.agents.shared.providers.anthropic import AnthropicAdapter
-from oryxenai.agents.shared.providers.base import BaseProviderAdapter
-from oryxenai.agents.shared.providers.errors import (
-    ProviderAuthError,
-    ProviderBadResponseError,
-    ProviderConfigError,
-    ProviderConnectionError,
-    ProviderContentFilterError,
-    ProviderCreditError,
-    ProviderError,
-    ProviderInvalidRequestError,
-    ProviderRateLimitError,
-    ProviderServerError,
-    ProviderTimeoutError,
-)
-from oryxenai.agents.shared.providers.factory import build_adapter, can_build
-from oryxenai.agents.shared.providers.opencode_go import (
-    OpenAICompatibleAdapter,
-    OpenCodeGoAdapter,
-)
-from oryxenai.agents.shared.providers.schema_compatibility import (
-    SchemaCompatibilityError,
-    ensure_schema_compatible,
-    schema_compatibility_issues,
-)
+_EXPORT_MODULES = {
+    "AnthropicAdapter": "anthropic",
+    "BaseProviderAdapter": "base",
+    "OpenAICompatibleAdapter": "opencode_go",
+    "OpenCodeGoAdapter": "opencode_go",
+    "ProviderAuthError": "errors",
+    "ProviderBadResponseError": "errors",
+    "ProviderConfigError": "errors",
+    "ProviderConnectionError": "errors",
+    "ProviderContentFilterError": "errors",
+    "ProviderCreditError": "errors",
+    "ProviderError": "errors",
+    "ProviderInvalidRequestError": "errors",
+    "ProviderRateLimitError": "errors",
+    "ProviderServerError": "errors",
+    "ProviderTimeoutError": "errors",
+    "SchemaCompatibilityError": "schema_compatibility",
+    "build_adapter": "factory",
+    "can_build": "factory",
+    "ensure_schema_compatible": "schema_compatibility",
+    "schema_compatibility_issues": "schema_compatibility",
+}
 
-__all__ = [
-    "AnthropicAdapter",
-    "BaseProviderAdapter",
-    "OpenAICompatibleAdapter",
-    "OpenCodeGoAdapter",
-    "ProviderAuthError",
-    "ProviderBadResponseError",
-    "ProviderConfigError",
-    "ProviderConnectionError",
-    "ProviderContentFilterError",
-    "ProviderCreditError",
-    "ProviderError",
-    "ProviderInvalidRequestError",
-    "ProviderRateLimitError",
-    "ProviderServerError",
-    "ProviderTimeoutError",
-    "SchemaCompatibilityError",
-    "build_adapter",
-    "can_build",
-    "ensure_schema_compatible",
-    "schema_compatibility_issues",
-]
+__all__ = list(_EXPORT_MODULES)
+
+
+def __getattr__(name: str) -> Any:
+    module = _EXPORT_MODULES.get(name)
+    if module is None:
+        raise AttributeError(name)
+    return getattr(import_module(f"{__name__}.{module}"), name)

@@ -1022,6 +1022,15 @@ button:disabled, textarea:disabled, input:disabled {
 }
 .discovery-brief-document > :first-child { margin-top: 0; }
 .discovery-brief-document > :last-child { margin-bottom: 0; }
+.discovery-previous-brief {
+  max-width: 72rem;
+  margin: 1.5rem auto 0;
+  padding: 1.5rem;
+  border: 1px solid var(--rule);
+  color: var(--ink-secondary);
+  line-height: 1.7;
+}
+.discovery-previous-brief.is-revising { opacity: 0.65; }
 .discovery-review-main .revision-trigger-area { margin-top: 1.25rem; }
 
 .discovery-evidence-inspector {

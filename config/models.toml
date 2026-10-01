@@ -22,11 +22,11 @@ fallback_profile = "experiential_luna"
 selectable_profiles = []
 
 [routing.engine_profiles]
-discovery = "experiential_luna"
+discovery = "experiential_luna_6"
 content_architect = "experiential_luna_6"
 
 [routing.policy]
-version = "active_agent_routes_v3"
+version = "active_agent_routes_v4"
 # Active agent operations use the configured Experiential Luna route only.
 input_policy = "personal_luna_only"
 utilization_ceiling = 0.8
@@ -83,28 +83,28 @@ reservation_ttl_seconds = 900
 unresolved_attempt_ttl_seconds = 3600
 
 [routing.operation_profiles.discovery.understand_and_question]
-primary_profile = "experiential_luna"
+primary_profile = "experiential_luna_6"
 fallback_profiles = []
 allow_gemini = false
 allow_personal_gemini_fallback = false
 normal_calls = 1
-recovery_allowance = 0
-max_output_tokens = 4096
+recovery_allowance = 1
+max_output_tokens = 2048
 input_limit_tokens = 1000000
-timeout_seconds = 180
+timeout_seconds = 75
 reasoning_effort = "low"
 
 [routing.operation_profiles.discovery.build_or_revise_brief]
-primary_profile = "experiential_luna"
+primary_profile = "experiential_luna_6"
 fallback_profiles = []
 allow_gemini = false
 allow_personal_gemini_fallback = false
 normal_calls = 1
-recovery_allowance = 0
-max_output_tokens = 24000
+recovery_allowance = 1
+max_output_tokens = 16000
 input_limit_tokens = 1000000
-timeout_seconds = 180
-reasoning_effort = "medium"
+timeout_seconds = 150
+reasoning_effort = "low"
 
 [routing.operation_profiles.content_architect.plan_content]
 primary_profile = "experiential_luna_6"
@@ -307,6 +307,7 @@ uses_max_completion_tokens = true
 supports_prompt_cache_key = false
 supports_prompt_cache_options = false
 supports_prompt_cache_breakpoint = false
+supports_streaming = true
 
 # Inactive Gemini profiles remain available as configuration examples; active
 # Discovery and Content Architect routes do not select them.

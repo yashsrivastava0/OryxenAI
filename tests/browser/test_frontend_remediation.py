@@ -114,6 +114,32 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
     assert_no_horizontal_overflow(page)
 
 
+def test_discovery_reveals_next_question_while_answer_saves(browser_page: object) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.evaluate("sessionStorage.clear()")
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-queued", wait_until="networkidle")
+    page.get_by_text("AlphaMesh-Core", exact=True).click()
+    page.get_by_role("button", name="Next question").click()
+    expect(page.get_by_text("What primary audience should this portfolio address?")).to_be_visible(
+        timeout=500
+    )
+
+
+def test_failed_answer_save_restores_question_and_selection(browser_page: object) -> None:
+    page = browser_page
+    page.evaluate("sessionStorage.clear()")
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-save-fails", wait_until="networkidle")
+    page.get_by_text("AlphaMesh-Core", exact=True).click()
+    page.get_by_role("button", name="Next question").click()
+    expect(page.get_by_text("What primary audience should this portfolio address?")).to_be_visible(
+        timeout=500
+    )
+    expect(page.get_by_text("Which project stories should lead your portfolio?")).to_be_visible()
+    expect(page.get_by_text("Save failed").first).to_be_visible()
+    assert page.locator('input[type="checkbox"]').first.is_checked()
+
+
 def test_developer_inspector_is_opt_in_and_drawer_is_accessible(browser_page: object) -> None:
     page = browser_page
     page.set_viewport_size({"width": 390, "height": 844})

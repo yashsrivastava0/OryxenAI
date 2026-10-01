@@ -188,11 +188,18 @@ class RoutedModelClient(ModelClient):
             estimated_input_tokens=max(1, len(str(input_payload)) // 4),
             input_classification=classification,
         )
+        route_policy = self._runtime.router.operation_route(self._engine, operation)
+        if (
+            self._engine == "discovery"
+            and len(names) == 1
+            and route_policy is not None
+            and route_policy.recovery_allowance > 0
+        ):
+            names = (*names, names[0])
         if not names:
             raise ProviderConfigError(
                 f"No eligible model route is configured for {self._engine}.{operation}."
             )
-        route_policy = self._runtime.router.operation_route(self._engine, operation)
         estimated_input_tokens = max(1, len(str(input_payload)) // 4)
         if (
             route_policy is not None
@@ -333,7 +340,14 @@ class RoutedModelClient(ModelClient):
                         # expose one safe, retryable contract failure so the
                         # next configured provider can be tried before this
                         # result is marked successful or cached.
-                        raise ModelOutputInvalidError() from exc
+                        invalid = ModelOutputInvalidError()
+                        errors = getattr(exc, "errors", ())
+                        if isinstance(errors, list):
+                            invalid.details["validation_categories"] = [
+                                "empty_brief" if "brief_markdown" in str(error) else "invalid_shape"
+                                for error in errors[:5]
+                            ]
+                        raise invalid from exc
             except Exception as exc:
                 last_error = exc
                 if isinstance(exc, ProviderError):
@@ -401,8 +415,11 @@ class RoutedModelClient(ModelClient):
         normal = 1
         if self._engine == "content_architect":
             normal = 3
-        route = self._runtime.router.operation_route(self._engine, "plan_content")
-        recovery = int(route.recovery_allowance) if route is not None else 1
+        first_operation = (
+            "understand_and_question" if self._engine == "discovery" else "plan_content"
+        )
+        route = self._runtime.router.operation_route(self._engine, first_operation)
+        recovery = int(route.recovery_allowance) if route is not None else 0
         return OperationBudget(
             normal_calls=normal,
             recovery_allowance=recovery,

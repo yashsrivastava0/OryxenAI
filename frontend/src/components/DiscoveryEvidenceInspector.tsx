@@ -43,7 +43,7 @@ export function DiscoveryEvidenceInspector({
 
   const sourceLinks = (refs: string[]) => {
     if (!refs.length) {
-      return <span className="discovery-evidence-unlinked">No source reference recorded</span>;
+      return coverageCount === 0 ? null : <span className="discovery-evidence-unlinked">No source reference recorded</span>;
     }
     return (
       <div className="discovery-source-links" aria-label="Source references">
@@ -80,7 +80,7 @@ export function DiscoveryEvidenceInspector({
       {dossier ? (
         <>
           <p className="discovery-inspector-summary">
-            {factCount} recorded {factCount === 1 ? "claim" : "claims"} · {coverageCount} source-span dispositions
+            {factCount} recorded {factCount === 1 ? "claim" : "claims"}{coverageCount > 0 ? ` · ${coverageCount} source-span dispositions` : ""}
           </p>
 
           {(dossier.intent.goal || dossier.intent.audience || dossier.intent.visitorAction || dossier.intent.language || dossier.intent.preferences.length > 0 || dossier.subject.name || dossier.subject.currentTitle || dossier.subject.location || dossier.subject.links.length > 0 || dossier.userChoices.length > 0) && (
@@ -196,7 +196,7 @@ export function DiscoveryEvidenceInspector({
             </section>
           )}
 
-          <section className="discovery-inspector-section" aria-labelledby="discovery-coverage-heading">
+          {coverageCount > 0 && <section className="discovery-inspector-section" aria-labelledby="discovery-coverage-heading">
             <h3 id="discovery-coverage-heading">Source coverage</h3>
             {sourceDocuments.length ? sourceDocuments.map((source) => (
               <div className="discovery-source-document" key={source.id}>
@@ -250,7 +250,7 @@ export function DiscoveryEvidenceInspector({
                 ))}
               </ul>
             )}
-          </section>
+          </section>}
 
           <section className="discovery-inspector-section" aria-labelledby="discovery-question-history-heading">
             <h3 id="discovery-question-history-heading">Clarification history</h3>

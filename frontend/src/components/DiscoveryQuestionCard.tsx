@@ -30,6 +30,8 @@ export function DiscoveryQuestionCard({
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const draftKey = `oryxenai.draft.${question.id}`;
+  const singleKey = `${draftKey}.single`;
+  const multiKey = `${draftKey}.multi`;
   const locked = disabled || inFlight;
   const questionOrdinalText = `Question ${String(ordinal).padStart(2, "0")} of ${String(total).padStart(2, "0")}`;
   const canSubmit = Boolean(
@@ -38,10 +40,16 @@ export function DiscoveryQuestionCard({
 
   useEffect(() => {
     setTextAnswer(safeSessionStorage.getItem(draftKey) ?? "");
-    setSelectedSingleOption(null);
-    setSelectedOptions([]);
+    setSelectedSingleOption(safeSessionStorage.getItem(singleKey));
+    const savedOptions = safeSessionStorage.getItem(multiKey);
+    try {
+      const parsed: unknown = JSON.parse(savedOptions ?? "[]");
+      setSelectedOptions(Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : []);
+    } catch {
+      setSelectedOptions([]);
+    }
     setError(null);
-  }, [draftKey]);
+  }, [draftKey, singleKey, multiKey]);
 
   const updateText = (value: string) => {
     setTextAnswer(value);
@@ -50,6 +58,8 @@ export function DiscoveryQuestionCard({
 
   const clearDraft = () => {
     safeSessionStorage.removeItem(draftKey);
+    safeSessionStorage.removeItem(singleKey);
+    safeSessionStorage.removeItem(multiKey);
     setTextAnswer("");
     setSelectedSingleOption(null);
     setSelectedOptions([]);
@@ -124,7 +134,10 @@ export function DiscoveryQuestionCard({
                       className="visually-hidden choice-input"
                       checked={selected}
                       disabled={locked}
-                      onChange={() => setSelectedSingleOption(option.id)}
+                      onChange={() => {
+                        setSelectedSingleOption(option.id);
+                        safeSessionStorage.setItem(singleKey, option.id);
+                      }}
                     />
                     <span className="choice-indicator choice-indicator--radio" aria-hidden="true">
                       {selected && <span className="choice-radio-dot" />}
@@ -154,7 +167,10 @@ export function DiscoveryQuestionCard({
                       className="visually-hidden choice-input"
                       checked={selected}
                       disabled={locked}
-                      onChange={() => setSelectedSingleOption(option.id)}
+                      onChange={() => {
+                        setSelectedSingleOption(option.id);
+                        safeSessionStorage.setItem(singleKey, option.id);
+                      }}
                     />
                     <span className="choice-indicator choice-indicator--radio" aria-hidden="true">
                       {selected && <span className="choice-radio-dot" />}
@@ -182,11 +198,13 @@ export function DiscoveryQuestionCard({
                       disabled={locked}
                       onChange={(event) => {
                         const checked = (event.target as HTMLInputElement).checked;
-                        setSelectedOptions((previous) =>
-                          checked
+                        setSelectedOptions((previous) => {
+                          const next = checked
                             ? [...previous, option.id]
-                            : previous.filter((id) => id !== option.id),
-                        );
+                            : previous.filter((id) => id !== option.id);
+                          safeSessionStorage.setItem(multiKey, JSON.stringify(next));
+                          return next;
+                        });
                       }}
                     />
                     <span className="choice-indicator choice-indicator--checkbox" aria-hidden="true">

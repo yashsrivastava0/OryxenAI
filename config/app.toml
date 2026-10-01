@@ -35,10 +35,11 @@ pool_recycle = 3600    # seconds before a connection is recycled (-1 = never)
 
 [worker]
 # Background job worker settings.
-polling_interval = 2.0        # seconds between poll cycles when idle
+polling_interval = 0.5        # seconds between poll cycles when idle
 heartbeat_interval = 30.0     # seconds between heartbeat writes
 claim_batch_size = 5           # max jobs claimed per poll
-concurrency = 2                # max concurrent handlers (1 = serial)
+concurrency = 4                # max concurrent handlers (1 = serial)
+model_lane_concurrency = 4    # concurrent model jobs across workers
 shutdown_grace = 10.0          # seconds to finish active jobs at shutdown
 
 [worker.job]
@@ -48,10 +49,10 @@ lease_duration = 120.0         # seconds before a claimed job is considered stal
 
 [worker.job.kind_timeouts]
 # The retained model-backed jobs have bounded call graphs.
-"discovery.understand_and_question" = 900.0
-"discovery.build_or_revise_brief" = 900.0
-"discovery.prepare_questions" = 900.0
-"discovery.build_brief" = 900.0
+"discovery.understand_and_question" = 210.0
+"discovery.build_or_revise_brief" = 360.0
+"discovery.prepare_questions" = 210.0
+"discovery.build_brief" = 360.0
 "content_architect.build" = 900.0
 
 [worker.retry]
@@ -122,9 +123,10 @@ http_timeout_seconds = 5.0
 max_token_bytes = 8192
 
 [discovery]
-# Discovery agent output limits. Input is never validated.
+# Generous admission limits protect model context and response times.
 max_questions = 3
 max_answer_chars = 10000
+max_input_chars = 200000
 
 [artifact_storage]
 # Existing packed-object coordinates retained for privacy cleanup of records

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Mapping, Sequence
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
@@ -283,7 +284,20 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
                     prompt_cache_ttl=prompt_cache_ttl,
                 ),
                 **extra,
+                **(
+                    {"stream": True, "stream_options": {"include_usage": True}}
+                    if self._capabilities.supports_streaming
+                    and isinstance(request_context, Mapping)
+                    and request_context.get("stream")
+                    else {}
+                ),
             )
+            if (
+                self._capabilities.supports_streaming
+                and isinstance(request_context, Mapping)
+                and request_context.get("stream")
+            ):
+                response = await _collect_stream(response)
         except Exception as exc:
             # OpenAI's strict schema dialect rejects otherwise valid JSON
             # Schema objects that model a dictionary (``additionalProperties``
@@ -381,7 +395,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             raise error
 
         try:
-            parsed_output: dict[str, Any] = json.loads(raw)
+            parsed_output: dict[str, Any] = _parse_json_object(raw)
         except json.JSONDecodeError as exc:
             error = ModelJsonInvalidError(f"Model returned invalid JSON: {exc!s}")
             _annotate_provider_error(error, usage_dict, response)
@@ -523,6 +537,7 @@ class OpenAICompatibleAdapter(BaseProviderAdapter):
             "key_order",
             "timeout_seconds",
             "max_output_tokens",
+            "stream",
         ):
             merged.pop(key, None)
         merged.pop("max_tokens", None)
@@ -722,6 +737,58 @@ def _scale_characters(characters: int, source_tokens: int, target_tokens: int) -
     if characters <= 0 or source_tokens <= 0:
         return characters if target_tokens else 0
     return max(0, round(characters * target_tokens / source_tokens))
+
+
+async def _collect_stream(stream: Any) -> Any:
+    """Collect final content and the optional usage trailer from a chat stream."""
+    parts: list[str] = []
+    usage: Any = None
+    response_id = ""
+    model = ""
+    finish_reason = "unknown"
+    async for chunk in stream:
+        response_id = response_id or str(getattr(chunk, "id", "") or "")
+        model = model or str(getattr(chunk, "model", "") or "")
+        chunk_usage = getattr(chunk, "usage", None)
+        if chunk_usage is not None:
+            usage = chunk_usage
+        for choice in getattr(chunk, "choices", []) or []:
+            delta = getattr(choice, "delta", None)
+            content = getattr(delta, "content", None)
+            if isinstance(content, str):
+                parts.append(content)
+            reason = getattr(choice, "finish_reason", None)
+            if reason:
+                finish_reason = str(reason)
+    return SimpleNamespace(
+        id=response_id,
+        model=model,
+        usage=usage,
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content="".join(parts)),
+                finish_reason=finish_reason,
+            )
+        ],
+    )
+
+
+def _parse_json_object(raw: str) -> Any:
+    """Accept a JSON object surrounded by a fence or short preamble."""
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as original:
+        decoder = json.JSONDecoder()
+        for index, character in enumerate(raw):
+            if character != "{":
+                continue
+            try:
+                value, _end = decoder.raw_decode(raw, index)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                return value
+        raise original
 
 
 def _normalize_openai_usage(response: Any, capabilities: ModelCapabilities) -> dict[str, Any]:
