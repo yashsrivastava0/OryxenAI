@@ -8,6 +8,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 Modernized AGENTS.md with machine-readable metadata, timestamp (2026-10-01), and an agent fast-track cheatsheet matrix optimized for Claude Code, OpenAI Codex CLI, and Antigravity. Redesigned and beautified README.md with 2026 developer aesthetics, Shields.io badges, a Mermaid sequence workflow, clean API matrices, and interactive details blocks. Verified ruff linting, formatting, and mypy type checks. No push or deployment.
 
+### 2026-10-01 14:30 +05:30 — Claude Code (Anthropic) — [f5e5d14] — Content Architect GPT-6 Luna route
+
+Added a dedicated `experiential_luna_6` profile (`gpt-6-luna`, same EXP Labs credential) and routed only Content Architect's engine and operation entries to it; Discovery stays on its existing profile (D-119). Verified through live runs of all three Content Architect samples, each valid in one call at roughly 47-63 seconds, with the NDA restriction held. Pricing for the new profile is copied from the existing one until real rates are supplied. No push or deployment.
+
 ### 2026-10-01 13:05 +05:30 — Claude Code (Anthropic) — [2bdc7f8] — Content Architect output, prompts, validators, review UI
 
 Replaced the generic route and page-pack output with one typed page content tree that mirrors the pinned portfolio template, and rewrote the prompts around its real regions (exactly four pillars, organization names only, finished copy sized to each slot). Claims and a six-way dossier coverage ledger now bind to page field paths, with one shared rule module behind the validators, readiness gate, approval, and service (D-118). The review stage now shows structured section cards, an evidence and coverage inspector, and a client-side live preview of the pinned design in place of the mocked route panel. Verified with the full Python and frontend suites, lint, type checks, build, a browser render, and three live model runs (strong, sparse, and NDA samples) that each passed in one call. No push or deployment.
