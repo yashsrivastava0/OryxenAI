@@ -249,6 +249,7 @@ async def test_primary_structural_failure_uses_gemini_fallback_before_returning_
     fallback = _FakeClient()
     runtime.resolve_profile_client = lambda name: {
         "experiential_luna": primary,
+        "experiential_luna_6": primary,
         "gemini_flash_1": fallback,
         "gemini_flash_2": fallback,
         "gemini_flash_3": fallback,
@@ -291,6 +292,7 @@ async def test_both_provider_structural_failures_return_model_output_error() -> 
     )
     runtime.resolve_profile_client = lambda name: {
         "experiential_luna": primary,
+        "experiential_luna_6": primary,
         "gemini_flash_1": fallback,
         "gemini_flash_2": fallback,
         "gemini_flash_3": fallback,
