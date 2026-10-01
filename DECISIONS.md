@@ -24,6 +24,15 @@ Architecture Decision Record (ADR) log of architectural choices, trade-offs, and
 
 ## Active Decisions
 
+## D-117 — Single-provider routing for active agent operations
+
+- **Date & Time:** 2026-10-01 10:40 +05:30 — Codex (OpenAI)
+- **Status:** decided-and-implemented-locally
+- **Context:** The active agent routes had one configured primary and cross-provider fallbacks. A transient primary failure caused a fallback attempt, leaving the UI to name the alternate provider in the final error. The operator directed that both active stages use one gateway only.
+- **Decision:** Discovery and Content Architect use only the primary profile configured in `config/models.toml` for every active operation. Alternate-provider fallbacks, their capacity observations, and optional profile selection are disabled. A new explicit retry or revision receives the current policy snapshot while already queued jobs retain their immutable snapshot.
+- **Trade-off:** A temporary gateway failure now surfaces directly and requires a user retry; saved source material and answers remain intact. The provider, model, endpoint, and credential variable stay in configuration.
+- **Consequence:** Implemented locally in `4e20499`; no deployment or external promotion was performed.
+
 ## D-116 — Complete agent handoffs with two approvals and AI-written HTML
 
 - **Date & Time:** 2026-09-29 16:13 +05:30 — Codex (OpenAI)

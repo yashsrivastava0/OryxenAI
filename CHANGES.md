@@ -12,6 +12,10 @@ Append-only record of major changes, commit hashes, and architectural rationale 
 
 ## Recent changes (Tier 1 — Uncompacted / Standard Detail)
 
+### 2026-10-01 10:40 +05:30 — Codex (OpenAI) — [4e20499] — single-provider active agent routing
+
+Removed alternate-provider fallbacks and optional model selection from the active Discovery and Content Architect routes (D-117). Fresh retries now snapshot the current routing policy, so saved answers remain usable after configuration changes. Reused the existing ignored local credential file without exposing or changing secrets; verified gateway access, a privacy-free live preflight, and an authenticated Discovery retry that reached detailed brief review through the configured primary. No push or deployment.
+
 ### 2026-09-30 23:30 +05:30 — Codex (OpenAI) — [1ecb98d] — Discovery answer flow and brief recovery
 
 Fixed the follow-up job revision mismatch that failed after answer submission, and recovered saved answers from older failed question jobs. A completed contextual question batch now prepares the brief directly. Simplified the interface to one question at a time with three suggested choices and an always-visible custom answer; corrected active-job display and repaired mechanical dossier links without inventing claims. Verified the authenticated local flow through detailed brief review, the full Python and frontend suites, build, lint, type checks, and database readiness. No push or deployment.
