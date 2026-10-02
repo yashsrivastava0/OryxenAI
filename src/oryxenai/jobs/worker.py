@@ -153,6 +153,7 @@ class Worker:
 
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         usage_task = asyncio.create_task(self._usage_reconciliation_loop())
+        retention_task = asyncio.create_task(self._retention_loop())
 
         try:
             await self._poll_loop()
@@ -160,10 +161,13 @@ class Worker:
             self._running = False
             heartbeat_task.cancel()
             usage_task.cancel()
+            retention_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
             with contextlib.suppress(asyncio.CancelledError):
                 await usage_task
+            with contextlib.suppress(asyncio.CancelledError):
+                await retention_task
             await self._shutdown()
             await close_model_runtime(self._settings.models)
             await engine.dispose()
@@ -223,6 +227,35 @@ class Worker:
             except Exception as exc:
                 logger.warning("model usage reconciliation failed error=%s", type(exc).__name__)
             await asyncio.sleep(interval)
+
+    async def _retention_loop(self) -> None:
+        """Periodically remove expired cache data and superseded page versions."""
+        retention = self._settings.retention
+        if not retention.enabled:
+            return
+
+        from oryxenai.jobs.retention import delete_expired_rows
+
+        while self._running:
+            try:
+                async with self._sessionmaker() as session:
+                    expired_cache, old_versions, old_legacy_runs = await delete_expired_rows(
+                        session,
+                        version_ttl_days=retention.completed_version_ttl_days,
+                        model_cache_ttl_days=retention.model_cache_ttl_days,
+                        batch_size=retention.batch_size,
+                    )
+                if expired_cache or old_versions or old_legacy_runs:
+                    logger.info(
+                        "retention sweep deleted cache_rows=%d superseded_versions=%d "
+                        "retired_generator_runs=%d",
+                        expired_cache,
+                        old_versions,
+                        old_legacy_runs,
+                    )
+            except Exception as exc:
+                logger.warning("retention sweep failed error=%s", type(exc).__name__)
+            await asyncio.sleep(retention.interval_seconds)
 
     # ── main poll loop ─────────────────────────────────────────────────────
 

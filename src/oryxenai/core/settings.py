@@ -574,6 +574,23 @@ class ModelCacheConfig(BaseModel):
         return value
 
 
+class RetentionConfig(BaseModel):
+    """Bounded cleanup policy for replaceable generated data."""
+
+    enabled: bool = False
+    interval_seconds: int = Field(default=86400, ge=60)
+    completed_version_ttl_days: int = Field(default=30, ge=1)
+    model_cache_ttl_days: int = Field(default=30, ge=1)
+    batch_size: int = Field(default=100, ge=1, le=1000)
+
+    @field_validator("enabled", mode="before")
+    @classmethod
+    def _coerce_enabled(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return value
+
+
 class ModelPricing(BaseModel):
     """Optional configured billing units for model-cost estimates.
 
@@ -783,6 +800,7 @@ class Settings(BaseSettings):
     auth: AuthConfig = Field(default_factory=AuthConfig)
     models: ModelConfig = Field(default_factory=ModelConfig)
     model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
+    retention: RetentionConfig = Field(default_factory=RetentionConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     code_generator: CodeGeneratorConfig = Field(default_factory=CodeGeneratorConfig)
     archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
@@ -836,6 +854,8 @@ class Settings(BaseSettings):
             self.auth = AuthConfig(**auth_data)
         if "model_cache" in app_data:
             self.model_cache = ModelCacheConfig(**app_data["model_cache"])
+        if "retention" in app_data:
+            self.retention = RetentionConfig(**app_data["retention"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
         if "code_generator" in app_data:
