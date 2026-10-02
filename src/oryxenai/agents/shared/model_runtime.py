@@ -34,6 +34,7 @@ _PREFLIGHT_TTL_SECONDS = 300.0
 _PREFLIGHT_OPERATIONS = {
     "discovery": "understand_and_question",
     "content_architect": "plan_content",
+    "code_generator": "generate_page",
 }
 _ACTIVE_ENGINES = frozenset(_PREFLIGHT_OPERATIONS)
 
@@ -481,6 +482,8 @@ def validate_pipeline_job_timeouts(settings: Any) -> None:
         "discovery.prepare_questions": ("discovery", 1, 60.0),
         "discovery.build_brief": ("discovery", 1, 60.0),
         "content_architect.build": ("content_architect", 3, 120.0),
+        # interpret_change + generate_page (browser verification fits the margin).
+        "code_generator.build": ("code_generator", 2, 120.0),
     }
     runtime = get_model_runtime(settings.models)
     for job_kind, (engine, call_count, margin) in budgets.items():

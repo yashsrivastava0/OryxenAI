@@ -20,6 +20,7 @@ from oryxenai.db.models.archived_output import (
 )
 from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.portfolio_session import PortfolioSession
+from oryxenai.db.models.site_version import PortfolioChatMessage, PortfolioSiteVersion
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
 
 
@@ -209,6 +210,19 @@ class PipelineResetService:
         )
         await self.db.execute(
             delete(ArchivedOutputRun).where(ArchivedOutputRun.portfolio_session_id == session_id)
+        )
+
+        # The session row survives an admin reset, so its generated pages and
+        # chat go explicitly (they would otherwise only cascade with the row).
+        await self.db.execute(
+            delete(PortfolioChatMessage).where(
+                PortfolioChatMessage.portfolio_session_id == session_id
+            )
+        )
+        await self.db.execute(
+            delete(PortfolioSiteVersion).where(
+                PortfolioSiteVersion.portfolio_session_id == session_id
+            )
         )
 
         session.current_state = {}

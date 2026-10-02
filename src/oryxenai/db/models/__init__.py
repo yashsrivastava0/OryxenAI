@@ -26,6 +26,7 @@ from oryxenai.db.models.model_usage import (
 )
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.models.service_heartbeat import ServiceHeartbeat
+from oryxenai.db.models.site_version import PortfolioChatMessage, PortfolioSiteVersion
 
 __all__ = [
     "AdminAuditEvent",
@@ -45,7 +46,9 @@ __all__ = [
     "ModelCapacityWindow",
     "ModelOperation",
     "ModelProviderObservation",
+    "PortfolioChatMessage",
     "PortfolioEntitlement",
     "PortfolioSession",
+    "PortfolioSiteVersion",
     "ServiceHeartbeat",
 ]

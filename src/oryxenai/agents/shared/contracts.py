@@ -21,6 +21,7 @@ class AgentKey(StrEnum):
 
     DISCOVERY = "discovery"
     CONTENT_ARCHITECT = "content_architect"
+    CODE_GENERATOR = "code_generator"
 
     @classmethod
     def from_string(cls, value: str) -> AgentKey:

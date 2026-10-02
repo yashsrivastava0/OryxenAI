@@ -48,10 +48,17 @@ _SAFE_BLOCKED_KEYS = frozenset(
     }
 )
 
+_PREVIEW_GRANT = re.compile(r"(/preview/g/)[^/\s?#\"']+")
+
 _SENSITIVE_ASSIGNMENT = re.compile(
     r"(?i)\b[A-Z][A-Z0-9_]*(?:PASSWORD|API[_-]?KEY|SECRET|TOKEN|CREDENTIALS?)"
     r"\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
 )
+
+
+def _redact_preview_grants(text: str) -> str:
+    """Preview grants live in the URL path; they must never reach a log line."""
+    return _PREVIEW_GRANT.sub(lambda match: match.group(1) + "[REDACTED]", text)
 
 
 def _is_sensitive_env_name(name: str) -> bool:
@@ -65,9 +72,10 @@ def _is_sensitive_env_name(name: str) -> bool:
 def redact_sensitive_text(value: str) -> str:
     """Remove environment-style assignments and configured secret values."""
 
+    redacted = _redact_preview_grants(str(value))
     redacted = _SENSITIVE_ASSIGNMENT.sub(
         lambda match: f"{match.group(0).split('=', 1)[0].rstrip()}=[REDACTED]",
-        str(value),
+        redacted,
     )
     secret_values = sorted(
         {
@@ -86,6 +94,17 @@ def redact_sensitive_text(value: str) -> str:
 def _is_safe_key(key: str) -> bool:
     lowered = key.lower()
     return not any(blocked in lowered for blocked in _SAFE_BLOCKED_KEYS)
+
+
+class _PreviewGrantFilter(logging.Filter):
+    """Hide preview grants in uvicorn's access log, which has its own formatter."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                _redact_preview_grants(arg) if isinstance(arg, str) else arg for arg in record.args
+            )
+        return True
 
 
 class _SafeFormatter(logging.Formatter):
@@ -125,6 +144,9 @@ def configure_logging(settings: Settings) -> None:
         "root": {"level": level, "handlers": ["console"]},
     }
     logging.config.dictConfig(config)
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(item, _PreviewGrantFilter) for item in access_logger.filters):
+        access_logger.addFilter(_PreviewGrantFilter())
 
 
 def get_logger(name: str) -> logging.Logger:
