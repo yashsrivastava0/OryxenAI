@@ -216,3 +216,49 @@ def test_dev_utilities_are_never_imported_by_runtime_code() -> None:
         if "code_generator.dev" in path.read_text(encoding="utf-8"):
             offenders.append(str(path.relative_to(root)))
     assert offenders == []
+
+
+# ── every known provider failure has page-builder copy ───────────────────────
+
+
+def test_every_stable_provider_failure_has_specific_copy_and_the_right_owner() -> None:
+    from oryxenai.agents.code_generator.diagnostics import _PROVIDER_COPY
+    from oryxenai.agents.shared.providers.errors import (
+        _SAFE_FAILURE_MESSAGES,
+        MODEL_PROVIDER_CREDIT_EXHAUSTED,
+    )
+
+    known = (set(_SAFE_FAILURE_MESSAGES) | {MODEL_PROVIDER_CREDIT_EXHAUSTED}) - {
+        "MODEL_CACHE_WAIT_TIMEOUT"  # the page builder never uses the shared result cache
+    }
+    assert known - set(_PROVIDER_COPY) == set()
+    for code, (summary, cause, owner, action) in _PROVIDER_COPY.items():
+        assert summary and cause and action and owner, code
+    assert _PROVIDER_COPY[MODEL_PROVIDER_CREDIT_EXHAUSTED][2] == "configuration"
+
+
+def test_a_credit_failure_is_reported_as_an_operator_problem_that_retrying_cannot_fix() -> None:
+    from oryxenai.agents.code_generator.diagnostics import failure_from_provider_error
+    from oryxenai.agents.shared.providers.errors import ProviderCreditError
+
+    envelope = failure_from_provider_error(ProviderCreditError("no credit"), stage="generate")
+    assert envelope.code == "MODEL_PROVIDER_CREDIT_EXHAUSTED"
+    assert (envelope.owner, envelope.retryable) == ("configuration", False)
+    assert "site operator" in envelope.action
+
+
+def test_truncation_and_filter_failures_name_the_right_owner() -> None:
+    from oryxenai.agents.code_generator.diagnostics import failure_from_provider_error
+    from oryxenai.agents.shared.providers.errors import (
+        ModelOutputTruncatedError,
+        ProviderContentFilterError,
+    )
+
+    truncated = failure_from_provider_error(ModelOutputTruncatedError(), stage="generate")
+    assert (truncated.code, truncated.owner, truncated.retryable) == (
+        "MODEL_OUTPUT_TRUNCATED",
+        "model_output",
+        True,
+    )
+    filtered = failure_from_provider_error(ProviderContentFilterError("blocked"), stage="generate")
+    assert filtered.code == "PROVIDER_CONTENT_FILTER_ERROR" and filtered.owner == "model_output"

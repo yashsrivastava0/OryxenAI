@@ -107,7 +107,11 @@ export function StudioStage({
         {view.lastError ? (
           <FailurePanel
             failure={view.lastError}
-            title="Your portfolio could not be built yet"
+            title={
+              view.lastError.code === "JOB_CANCELLED"
+                ? "The build was stopped"
+                : "Your portfolio could not be built yet"
+            }
             preservedNote="Your approved content is safe and unchanged. Nothing was published."
             retryLabel="Try building again"
             onRetry={onStart}

@@ -335,3 +335,28 @@ def test_a_second_tab_started_build_is_shown_as_building_not_restarted(browser_p
     expect(page.get_by_role("heading", name="Building your portfolio")).to_be_visible(timeout=8000)
     expect(page.locator("iframe.studio-frame.is-visible")).to_have_count(1, timeout=20000)
     assert "POST /code-generator/start" not in backend.log
+
+
+def test_the_fake_backend_speaks_the_real_envelope() -> None:
+    """No browser: the fake must carry the same keys the real API test pins."""
+    from tests.browser.studio_contract import (
+        ENVELOPE_KEYS,
+        FRONTEND_CHAT_KEYS,
+        FRONTEND_FAILURE_KEYS,
+        FRONTEND_IN_FLIGHT_KEYS,
+        FRONTEND_STATE_KEYS,
+        FRONTEND_VERSION_KEYS,
+    )
+
+    backend = FakeBackend({}, content="approved", studio="ready")
+    envelope = backend.studio_envelope()
+    assert set(envelope) == ENVELOPE_KEYS
+    assert set(envelope["code_generator"]) >= FRONTEND_STATE_KEYS
+    assert set(envelope["versions"][0]) >= FRONTEND_VERSION_KEYS
+    assert set(envelope["chat"][0]) >= FRONTEND_CHAT_KEYS
+    backend._begin("change", "x")
+    assert set(backend.studio_envelope()["code_generator"]["in_flight"]) >= FRONTEND_IN_FLIGHT_KEYS
+    backend.fail_next_build = True
+    for _ in range(4):
+        backend._advance()
+    assert set(backend.last_error or {}) >= FRONTEND_FAILURE_KEYS

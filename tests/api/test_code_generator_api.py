@@ -375,3 +375,53 @@ async def test_chat_message_flow_over_http_including_errors_and_restore(client) 
     assert "A short intro." not in (await client.get(fresh["url"])).text
     assert (await client.post(f"{base}/versions/{uuid4()}/restore")).status_code == 404
     assert (await client.post(f"{base}/versions/not-a-uuid/restore")).status_code in {400, 422}
+
+
+@pytest.mark.asyncio
+async def test_the_envelope_carries_everything_the_studio_frontend_reads(client) -> None:
+    """Pins the contract the Preact adapter and the browser fake backend rely on."""
+    from tests.browser.studio_contract import (
+        ENVELOPE_KEYS,
+        FRONTEND_CHAT_KEYS,
+        FRONTEND_IN_FLIGHT_KEYS,
+        FRONTEND_STATE_KEYS,
+        FRONTEND_VERSION_KEYS,
+        GRANT_KEYS,
+        STATE_KEYS,
+    )
+
+    session_id = await _create_session(client)
+    await _approve_content(client, session_id)
+    base = f"/api/v1/sessions/{session_id}/code-generator"
+    started = (await client.post(f"{base}/start")).json()
+    assert set(started) == ENVELOPE_KEYS
+    assert set(started["code_generator"]) == STATE_KEYS
+    in_flight = started["code_generator"]["in_flight"]
+    assert set(in_flight) >= FRONTEND_IN_FLIGHT_KEYS
+    assert in_flight["stage"] == "queued"
+
+    await _run_build(client, started)
+    ready = (await client.get(base)).json()
+    assert set(ready["code_generator"]) >= FRONTEND_STATE_KEYS
+    assert set(ready["versions"][0]) >= FRONTEND_VERSION_KEYS
+    assert set(ready["chat"][0]) >= FRONTEND_CHAT_KEYS
+    assert set((await client.get(f"{base}/preview-grant")).json()) == GRANT_KEYS
+
+
+@pytest.mark.asyncio
+async def test_a_failure_carries_every_field_the_failure_panel_shows(client) -> None:
+    from tests.browser.studio_contract import FRONTEND_FAILURE_KEYS
+
+    name = sample_content("01_strong_profile")["hero"]["name"]
+    previous = _MODEL.mutate
+    _MODEL.mutate = lambda body: body.replace(name, name + "!", 1)
+    try:
+        session_id = await _create_session(client)
+        await _approve_content(client, session_id)
+        base = f"/api/v1/sessions/{session_id}/code-generator"
+        await _run_build(client, (await client.post(f"{base}/start")).json())
+    finally:
+        _MODEL.mutate = previous
+    failed = (await client.get(base)).json()
+    assert set(failed["code_generator"]["last_error"]) >= FRONTEND_FAILURE_KEYS
+    assert set(failed["versions"][0]["error"]) >= FRONTEND_FAILURE_KEYS

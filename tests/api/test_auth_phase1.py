@@ -190,3 +190,7 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     csp = product.headers["content-security-policy"]
     assert "connect-src 'self' https://project.supabase.co wss://project.supabase.co" in csp
     assert "*" not in csp
+    # The Studio's sandboxed preview iframe is same-origin; nothing else may be framed,
+    # and the shell itself can never be framed.
+    assert "frame-src 'self'" in csp and "frame-ancestors 'none'" in csp
+    assert "unsafe-inline" not in csp  # Preact sets styles through the CSSOM, which CSP allows
