@@ -4,6 +4,15 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-03 — Codex (OpenAI) — deployment strategy v2
+
+Researched and documented the proposed Railway + Supabase deployment, current
+container topology, environment variables, authentication redirects, data
+migration, branch gates, cost trade-offs, and end-to-end acceptance runbook.
+Marked the Azure deployment index as historical and recorded D-126. No cloud
+services were provisioned; production data, DNS, protected branches, and
+platform deployment settings were left untouched.
+
 ### 2026-10-02 20:35 +05:30 — Codex (OpenAI) — Discovery PDF OCR and managed-container readiness
 
 Upgraded PDF intake to structure-aware Docling conversion with region OCR, locally bundled offline models, an editable transcript, and source-preserving Discovery handoff. Added managed-host PostgreSQL URL/origin configuration and Render/Railway service guidance; reset remains one sticky header action across stages (D-124, D-125). No remote deployment.
