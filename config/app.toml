@@ -128,6 +128,8 @@ max_token_bytes = 8192
 max_questions = 3
 max_answer_chars = 10000
 max_input_chars = 200000
+max_upload_bytes = 8388608
+max_pdf_pages = 40
 
 [code_generator]
 # Generated-portfolio pipeline (Studio). One build per session at a time.

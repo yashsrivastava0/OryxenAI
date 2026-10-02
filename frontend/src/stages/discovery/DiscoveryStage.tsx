@@ -5,6 +5,7 @@ import { ConversationSurface, type AnsweredTurn } from "../../components/Convers
 import { SafeMarkdown } from "../../components/SafeMarkdown";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { StartSurface } from "../../components/StartSurface";
+import type { ExtractedDocument } from "../../data/api-client";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { ActionDock } from "../../components/ActionDock";
 import { DiscoveryEvidenceInspector } from "../../components/DiscoveryEvidenceInspector";
@@ -13,7 +14,8 @@ export interface DiscoveryStageProps {
   view: DiscoveryViewModel | null;
   history: AnsweredTurn[];
   canMutate: boolean;
-  onStartDiscovery: (notes: string) => Promise<void>;
+  onStartDiscovery: (notes: string, attachment?: ExtractedDocument | null) => Promise<void>;
+  onExtractDocument: (file: File) => Promise<ExtractedDocument>;
   onSubmitAnswer: (answer: DiscoveryAnswerSubmission, isComplete: boolean) => Promise<void>;
   onContinueWithCurrentInformation: () => Promise<void>;
   onRetryDiscovery: () => Promise<void>;
@@ -29,6 +31,7 @@ export function DiscoveryStage({
   history,
   canMutate,
   onStartDiscovery,
+  onExtractDocument,
   onSubmitAnswer,
   onContinueWithCurrentInformation,
   onRetryDiscovery,
@@ -51,7 +54,7 @@ export function DiscoveryStage({
   }
 
   if (view.state === "available") {
-    return <StartSurface onStart={onStartDiscovery} disabled={!canMutate} />;
+    return <StartSurface onStart={onStartDiscovery} onExtractDocument={onExtractDocument} disabled={!canMutate} />;
   }
 
   if (view.state === "unsupported") {
@@ -79,6 +82,7 @@ export function DiscoveryStage({
     return (
       <StartSurface
         onStart={onStartDiscovery}
+        onExtractDocument={onExtractDocument}
         disabled={!canMutate}
         continuation
       />

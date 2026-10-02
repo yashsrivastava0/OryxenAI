@@ -13,9 +13,9 @@ from oryxenai.api.dependencies import (
     get_pipeline_user,
     get_session_repo,
     is_detached_pipeline,
-    require_admin,
     require_detached_pipeline_mode,
     require_onboarded_user,
+    require_pipeline_mutable,
     require_pipeline_session,
 )
 from oryxenai.api.errors import PipelineRestartCleanupError, SessionNotFoundError, ValidationError
@@ -157,7 +157,7 @@ async def restart_session(
 async def reset_session(
     request: Request,
     session_id: str,
-    admin: CurrentUser = Depends(require_admin),
+    access: PortfolioAccess = Depends(require_pipeline_mutable),
     db: AsyncSession = Depends(get_db_session),
 ) -> SessionResponse:
     try:
@@ -173,8 +173,19 @@ async def reset_session(
     )
     try:
         request_id = str(getattr(request.state, "request_id", ""))
+        actor = access.actor
         return _to_response(
-            await service.reset_admin_pipeline(sid, actor_id=admin.id, request_id=request_id)
+            await service.reset_pipeline(
+                sid,
+                actor_id=actor.id if actor is not None else None,
+                expected_owner_id=actor.id
+                if actor is not None and actor.role is AuthRole.USER
+                else None,
+                request_id=request_id,
+                audit_action="owner_pipeline_reset"
+                if actor is not None and actor.role is AuthRole.USER
+                else "admin_pipeline_reset",
+            )
         )
     except PipelineResetError as exc:
         raise PipelineRestartCleanupError() from exc
