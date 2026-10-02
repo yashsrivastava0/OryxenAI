@@ -1,11 +1,14 @@
 # OryxenAI deployment
 
 This document preserves the Version 1 Azure VM deployment architecture and
-runbooks. Its Azure recommendation is superseded by the
-[Version 2 Railway deployment strategy](./version-2/deployment-strategy.md),
-which keeps the app, worker, and PostgreSQL in one Railway project and retains
-Supabase Auth. Use Version 2 for a new migration; use the Azure instructions
-below only to inspect or maintain the existing deployment during rollback.
+runbooks. For the requested strict-free pilot, use the
+[Version 2 free-tier migration guide](./version-2/free-tier-migration-guide.md):
+one Render Free Docker web service plus the existing Supabase project for
+Google Auth and PostgreSQL. The separate
+[Railway paid production strategy](./version-2/deployment-strategy.md) remains
+the fallback if the free pilot cannot meet the app's background-job, OCR, or
+availability requirements. Use the Azure instructions below only to inspect
+and clean up the old OryxenAI workload after acceptance.
 
 ## Version 1 pre-deploy note — 2026-09-14 (historical)
 
@@ -15,16 +18,19 @@ had not yet been started. It predates the later deployment reported in the
 
 For the original Version 1 Azure options research, read the
 [deployment strategy pack](<../../doc/deployment strategy/README.md>). For the
-replacement, use the [Version 2 Railway strategy](./version-2/deployment-strategy.md).
+free pilot, use the [Version 2 free-tier guide](./version-2/free-tier-migration-guide.md).
 
 ## Consolidated deployment documents
 
-The Version 2 replacement guide is the current recommendation. The preserved
+The free-tier guide is the current pilot runbook. The paid Railway strategy
+documents the upgrade path if the free limits fail acceptance. The preserved
 Version 1 Azure runbooks are grouped into these documents:
 
-- [Version 2 Railway strategy](./version-2/deployment-strategy.md) — selected
-  target, service setup, Supabase changes, migration sequence, branch policy,
-  cost comparison, and end-to-end acceptance.
+- [Version 2 free-tier migration guide](./version-2/free-tier-migration-guide.md)
+  — selected pilot stack, exact Render/Supabase/Google settings, Azure data
+  export/import, browser-driven setup, acceptance, and 30-day retention.
+- [Version 2 paid Railway strategy](./version-2/deployment-strategy.md) —
+  paid always-on option if the free pilot fails its OCR, job, or uptime gates.
 - [Deployment guide](./deployment-guide.md) — research, setup, runbook,
   acceptance, and AI-assisted operations.
 - [CI/CD runbook](./ci-cd-runbook.md) — the self-hosted GitHub Actions runner
@@ -135,7 +141,7 @@ first year; renewal is not assumed to be free.
 
 The steps below apply only if maintaining the old Azure deployment or using
 it during rollback. For the replacement migration order, use the
-[Version 2 Railway strategy](./version-2/deployment-strategy.md).
+[Version 2 free-tier guide](./version-2/free-tier-migration-guide.md).
 
 For a new Azure VM wizard, use the historical
 [pre-provisioning checkpoint](./04-current-azure-deployment-status.md) and the

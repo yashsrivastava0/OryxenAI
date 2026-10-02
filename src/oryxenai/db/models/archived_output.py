@@ -6,8 +6,10 @@ not register jobs, expose routes, or execute portfolio generation workflows.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy import DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -22,6 +24,7 @@ class ArchivedOutputRun(Base):
     portfolio_session_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
     artifact_reference: Mapped[dict[str, object] | None] = mapped_column(JSONB)
     active_preview: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class ArchivedOutputAttempt(Base):
