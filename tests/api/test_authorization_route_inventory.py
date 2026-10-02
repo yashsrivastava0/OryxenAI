@@ -72,6 +72,11 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ("POST", "/api/v1/sessions/{session_id}/content-architect/stop"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/code-generator/start"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/code-generator/stop"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/code-generator/messages"): "portfolio_mutation",
+    (
+        "POST",
+        "/api/v1/sessions/{session_id}/code-generator/versions/{version_id}/restore",
+    ): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/restart"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/reset"): "admin_session_mutation",
     ("POST", "/api/v1/system/worker-probes"): "admin_system_mutation",
