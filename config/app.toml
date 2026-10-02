@@ -54,6 +54,7 @@ lease_duration = 120.0         # seconds before a claimed job is considered stal
 "discovery.prepare_questions" = 210.0
 "discovery.build_brief" = 360.0
 "content_architect.build" = 900.0
+"code_generator.build" = 600.0
 
 [worker.retry]
 # Retry scheduling for transient failures.
@@ -127,6 +128,27 @@ max_token_bytes = 8192
 max_questions = 3
 max_answer_chars = 10000
 max_input_chars = 200000
+
+[code_generator]
+# Generated-portfolio pipeline (Studio). One build per session at a time.
+theme_id = "editorial-forest/v1"
+max_body_bytes = 262144            # generated <body> markup limit
+max_versions_per_session = 40      # older ready versions are pruned beyond this
+max_instruction_chars = 1500       # one chat request
+max_changes_per_hour = 30          # chat edits per session per hour
+preview_grant_ttl_seconds = 1800   # signed preview URLs live this long
+chat_tail_messages = 60
+interpreter_history_messages = 8   # recent turns given to the change interpreter
+
+[code_generator.verification]
+# off | best_effort | required. best_effort verifies in headless Chromium when it
+# can launch; an unlaunchable browser is recorded in the receipt, never fatal.
+browser = "best_effort"
+viewports = [320, 390, 768, 1280]
+browser_channel = ""               # "chrome" on a developer machine with Chrome installed
+browser_executable = ""            # e.g. /usr/bin/chromium in a container image
+page_timeout_seconds = 20.0
+concurrency = 1
 
 [artifact_storage]
 # Existing packed-object coordinates retained for privacy cleanup of records

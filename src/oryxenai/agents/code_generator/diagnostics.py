@@ -240,6 +240,23 @@ def failure_from_validation(report: ValidationReport, *, reference: str = "") ->
     )
 
 
+def failure_from_verification(issues: Sequence[Issue], *, reference: str = "") -> FailureEnvelope:
+    """A real browser loaded the page and found a defect."""
+    errors = [issue for issue in issues if issue.is_error] or list(issues)
+    count = len(errors)
+    first = errors[0]
+    return failure_from_issues(
+        errors,
+        stage="verify",
+        code="PAGE_BROWSER_CHECK_FAILED",
+        summary=f"The page failed {count} browser check{'s' if count != 1 else ''}; first: {first.message}",
+        cause="A real browser loaded the page and found a problem such as a console error, a blocked or failed request, a missing font or a broken image.",
+        owner="browser",
+        action="Nothing was published and your last verified page is unchanged. Try again; if it repeats, copy the diagnostics for support.",
+        reference=reference,
+    )
+
+
 def failure_from_admission(issues: Sequence[Issue], *, reference: str = "") -> FailureEnvelope:
     count = len(issues)
     first = issues[0]

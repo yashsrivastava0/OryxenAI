@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from oryxenai.agents.shared.model_runtime import ModelRuntime
 
 
-_PIPELINE_ENGINES = frozenset({"discovery", "content_architect"})
+_PIPELINE_ENGINES = frozenset({"discovery", "content_architect", "code_generator"})
 
 
 class RoutedModelClient(ModelClient):
@@ -412,14 +412,12 @@ class RoutedModelClient(ModelClient):
         return None
 
     def _build_budget(self) -> OperationBudget:
-        normal = 1
-        if self._engine == "content_architect":
-            normal = 3
-        first_operation = (
-            "understand_and_question" if self._engine == "discovery" else "plan_content"
-        )
-        route = self._runtime.router.operation_route(self._engine, first_operation)
-        recovery = int(route.recovery_allowance) if route is not None else 0
+        # One shared budget covers every operation the engine may run in one
+        # invocation, so it is the largest allowance any configured operation
+        # route declares. (Discovery 1/1, Content Architect 3/0, Code Generator 2/0.)
+        routes = self._runtime.router.config.routing.operation_profiles.get(self._engine, {})
+        normal = max((int(route.normal_calls) for route in routes.values()), default=1)
+        recovery = max((int(route.recovery_allowance) for route in routes.values()), default=0)
         return OperationBudget(
             normal_calls=normal,
             recovery_allowance=recovery,

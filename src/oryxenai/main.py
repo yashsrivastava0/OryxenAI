@@ -13,6 +13,8 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
+from oryxenai.agents.code_generator.grants import PreviewGrantSigner
+from oryxenai.agents.code_generator.serving import DbBundleProvider, create_preview_router
 from oryxenai.agents.shared.model_runtime import close_model_runtime, get_model_runtime
 from oryxenai.api.errors import (
     AppError,
@@ -226,6 +228,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         secret_key=s.supabase_secret_key.get_secret_value(),
         timeout_seconds=s.auth.http_timeout_seconds,
     )
+    # Preview grants: an optional shared key lets several instances accept each
+    # other's grants; otherwise grants simply die with this process and the
+    # Studio asks for a fresh one.
+    grant_secret = s.preview_grant_secret.get_secret_value()
+    if grant_secret:
+        app.state.preview_signer = PreviewGrantSigner(grant_secret)
+    else:
+        app.state.preview_signer = PreviewGrantSigner.random()
+        logger.warning(
+            "PREVIEW_GRANT_SECRET is not set; using a per-process preview key "
+            "(set it to share previews across instances or restarts)"
+        )
+    app.state.preview_provider = DbBundleProvider(app.state.sessionmaker)
     # Account cleanup can remove older stored outputs without exposing an
     # output-serving or output-writing runtime.
     app.state.archive_storage = create_archive_storage(s)
@@ -249,6 +264,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(create_health_router())
     app.include_router(create_api_router(s))
     app.include_router(create_auth_web_router())
+    app.include_router(create_preview_router())
 
     # The authenticated product shell is always directly reachable.  The
     # explicit developer harness is conditionally registered inside this

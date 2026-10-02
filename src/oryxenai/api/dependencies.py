@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from oryxenai.agents.code_generator.service import CodeGeneratorService
 from oryxenai.agents.content_architect.service import ContentArchitectService
 from oryxenai.agents.discovery.service import DiscoveryService
 from oryxenai.agents.shared.executor import AgentExecutor
@@ -28,6 +29,7 @@ from oryxenai.db.repositories.agent_runs import AgentRunRepository
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionRepository
+from oryxenai.db.repositories.site_versions import SiteVersionRepository
 from oryxenai.db.session import reset_engine_cache  # noqa: F401 (re-export for tests)
 from oryxenai.jobs.service import JobService
 from oryxenai.runtime.mock_runner import MockRunner
@@ -334,4 +336,15 @@ def get_content_architect_service(
     """Build a Content Architect service bound to the request transaction."""
     return ContentArchitectService(
         ContentArchitectRepository(db), JobService(db, context), registry
+    )
+
+
+def get_code_generator_service(
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
+) -> CodeGeneratorService:
+    """Build a Code Generator service bound to the request transaction."""
+    return CodeGeneratorService(
+        SiteVersionRepository(db), JobService(db, context), request.app.state.preview_signer
     )

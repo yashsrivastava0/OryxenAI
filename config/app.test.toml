@@ -60,6 +60,11 @@ lease_duration = 5.0
 "discovery.prepare_questions" = 300.0
 "discovery.build_brief" = 300.0
 "content_architect.build" = 900.0
+"code_generator.build" = 900.0
+
+[code_generator.verification]
+# Tests never launch a browser unless they opt in explicitly.
+browser = "off"
 
 [worker.retry]
 max_attempts = 3
