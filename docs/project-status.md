@@ -6,16 +6,23 @@ separately under docs/deployment/.
 
 ## Active product contract
 
-OryxenAI currently supports an explicit two-stage portfolio-planning flow:
+OryxenAI currently supports an explicit three-stage portfolio flow:
 
 1. Discovery gathers intake and answers, produces a brief, and waits for
    explicit approval.
 2. Content Architect starts only from the approved brief, produces a content
    plan, and waits for explicit approval.
 
-The active workflow ends when the content plan is approved. The current
-product does not create, build, publish, or serve a portfolio site. Approval
-never automatically starts another stage.
+3. The Studio (Code Generator) starts only from an explicit action on the
+   approved content plan, builds one page from exactly that content, verifies
+   it, shows it in a live sandboxed preview, and applies chat changes to the
+   page's content as new restorable versions.
+
+The active workflow ends in the Studio. The product previews the generated page
+for its owner; it does not publish, export or host a portfolio site. Approval
+never automatically starts another stage: the product's single "Approve &
+generate my portfolio" click is an explicit user action, and no API endpoint
+chains stages.
 
 The stage registry and API router define what is active. Historical source
 folders, database records, artifacts, fixtures, and append-only project logs

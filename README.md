@@ -4,7 +4,7 @@
 
 ### Intelligent Multi-Stage Portfolio Planning Engine
 
-*Transform raw user intent into an approved Discovery brief and an architectural Content blueprint.*
+*Transform raw user intent into an approved Discovery brief, an approved content plan and a live, editable portfolio page.*
 
 [![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-05998b?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
@@ -32,18 +32,19 @@
 
 ## Overview
 
-**OryxenAI** is an authenticated, asynchronous portfolio-planning engine with two explicit, reviewable stages:
+**OryxenAI** is an authenticated, asynchronous portfolio engine with three explicit, reviewable stages:
 
 ```
-┌─────────────────────────────────┐       ┌─────────────────────────────────┐
-│       Stage 1: Discovery        │  ──►  │    Stage 2: Content Architect   │  ──►  Workflow
-│ Intake ➔ Adaptive Q&A ➔ Approval│       │ Plan ➔ Write ➔ Integrate ➔ Plan │       Complete
-└─────────────────────────────────┘       └─────────────────────────────────┘
+┌───────────────────────────┐   ┌───────────────────────────┐   ┌───────────────────────────┐
+│    Stage 1: Discovery     │ ► │ Stage 2: Content Architect│ ► │     Stage 3: Studio       │
+│ Intake ➔ Q&A ➔ Approval   │   │ Plan ➔ Write ➔ Approval   │   │ Build ➔ Preview ➔ Chat    │
+└───────────────────────────┘   └───────────────────────────┘   └───────────────────────────┘
 ```
 
 1. **Stage 1 (Discovery):** Captures user intent, resumes, or project materials, conducts targeted adaptive questions, and produces a structured markdown brief requiring explicit approval.
 2. **Stage 2 (Content Architect):** Consumes the approved Discovery dossier and produces a multi-page content architecture, site map, and content plan requiring final user sign-off.
-3. **Workflow Boundary:** The active product and API flow strictly ends after content approval. OryxenAI does not serve or generate a live portfolio website.
+3. **Stage 3 (Studio):** One click on the approved content plan builds the page (an AI-written `index.html` over a pinned, pre-built stylesheet), checks every word, link and section, and opens it in a live, sandboxed preview. A chat on the left changes the page's wording and content; every change is a new version you can restore.
+4. **Workflow Boundary:** Each stage starts only from an explicit user action. The generated page is previewed for its owner; OryxenAI does not publish or host it.
 
 ---
 
@@ -90,11 +91,13 @@ sequenceDiagram
 
 ```text
 src/oryxenai/
-├── api/routes/          # REST endpoints (health, identity, sessions, discovery, content)
+├── api/routes/          # REST endpoints (health, identity, sessions, discovery, content, studio)
 ├── agents/
 │   ├── shared/          # ModelClient boundary, agent registry, executor contracts
 │   ├── discovery/       # Stage 1: Intake parsing, adaptive questions, brief generation
-│   └── content_architect/ # Stage 2: Planning, page drafting, and content integration
+│   ├── content_architect/ # Stage 2: Planning, page drafting, and content integration
+│   └── code_generator/  # Stage 3: Studio page build, versions, chat edits, preview
+├── themes/              # Immutable pinned theme packages (stylesheet, fonts, markup contract)
 ├── auth/                # Supabase / Argon2 identity, tenant entitlements, worker fencing
 ├── core/                # Application configuration (TOML), logging, lifespans
 ├── db/                  # SQLAlchemy 2.0 Async engine, models, and repositories

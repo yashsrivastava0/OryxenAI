@@ -1,7 +1,8 @@
-# Frontend behavior specification — Discovery and Content Architect
+# Frontend behavior specification — Discovery, Content Architect and Studio
 
 This document describes the current authenticated Preact product workspace.
-The active user journey ends after Content Architect approval.
+The active user journey ends in the Studio, where the approved content
+becomes a live, editable portfolio page.
 
 ## 1. Product boundary
 
@@ -11,8 +12,25 @@ produces a reviewable brief. The user explicitly approves that brief before
 Content Architect can start. Content Architect produces a grounded content
 plan for review and approval.
 
-Approval does not start another operation automatically. Content Architect
-approval is the terminal step of the current product journey.
+Approval does not start another operation by itself. The Content Architect
+review's primary action is one explicit click, "Approve & generate my
+portfolio": the browser approves the plan, then calls the Studio start
+endpoint, then opens the Studio. If the approval is rerouted into a safety
+revision, no build starts. No API endpoint chains stages.
+
+The Studio (third journey stage) shows, from the server's state: locked until
+the plan is approved; an explicit Generate action if no build exists (also the
+recovery path when the automatic start after approval failed); full-page
+progress with plain stage names and Stop for the first build; an exact failure
+panel (what happened, where, why, what to do, reference, copy diagnostics) with
+a retry; and the workspace. The workspace has the change chat on the left
+(timeline, suggestions, versions with restore, composer) and the live preview
+on the right (desktop/tablet/mobile width, fit or 100%, reload, open in a new
+tab, two frames swapped on load so the current page stays until the next one
+has loaded). Narrow screens show one pane at a time behind Chat and Preview
+tabs. The preview iframe is sandboxed without `allow-same-origin` and
+`allow-scripts`. While a build runs the browser polls every two seconds; the
+composer is disabled and a Stop control is shown.
 
 ## 2. Session and state lifecycle
 
@@ -79,8 +97,10 @@ contract. Configuration in config/models.toml controls model routing.
 - Document intake is plain text; unsupported document formats must produce a
   visible error instead of silently dropping their content.
 - Progress uses polling and does not expose token-level model streaming.
-- The current product stops after approved content and does not render a
-  finished portfolio site.
+- The generated page is previewed for its owner only; there is no publish,
+  export or public hosting step.
+- Chat changes cover wording and content. Colors, layout, scripts and extra
+  themes are not available yet and the chat says so.
 - Migrations run before API and worker startup; API and worker remain separate
   processes.
 
@@ -89,4 +109,6 @@ contract. Configuration in config/models.toml controls model routing.
 - frontend/src/app/ and frontend/src/stages/ define the authenticated UI.
 - src/oryxenai/agents/discovery/ defines Discovery state and prompts.
 - src/oryxenai/agents/content_architect/ defines content review contracts.
+- src/oryxenai/agents/code_generator/ defines the Studio pipeline and API.
+- frontend/src/stages/studio/ and frontend/src/components/studio/ define the Studio UI.
 - src/oryxenai/api/projections.py filters session and run output.
