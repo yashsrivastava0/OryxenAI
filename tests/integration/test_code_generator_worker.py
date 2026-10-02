@@ -616,3 +616,27 @@ async def test_a_browser_finding_blocks_publication_with_the_exact_location(
     }
     assert state["code_generator"]["status"] == "needs_attention"
     assert state["code_generator"]["active_version_id"] == ""
+
+
+@pytest.mark.asyncio
+async def test_a_session_with_state_from_the_retired_generator_can_still_build(
+    db_session, monkeypatch
+) -> None:
+    """Existing sessions carry the old generator's state (status 'queued' and its own fields)."""
+    from tests.unit.agents.code_generator.test_admission_bundle_diagnostics import LEGACY_STATE
+
+    _use_client(monkeypatch, ReferenceModelClient())
+    session_id = await _new_session(db_session)
+    session = await db_session.get(PortfolioSession, session_id)
+    assert session is not None
+    session.current_state = {**session.current_state, "code_generator": dict(LEGACY_STATE)}
+    await db_session.commit()
+
+    service = _service(db_session)
+    before = await service.get_state(session_id)  # must not raise
+    assert before["code_generator"]["status"] == "not_started"
+    _started, result = await _start_and_run(db_session, session_id)
+    assert result["status"] == "succeeded"
+    after = await service.get_state(session_id)
+    assert after["code_generator"]["status"] == "ready"
+    assert "trace_id" not in after["code_generator"]  # the old fields were replaced, not merged

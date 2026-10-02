@@ -22,6 +22,16 @@ def _fields(value: object, model: type[Any]) -> dict[str, Any]:
     return {key: item for key, item in value.items() if key in model.model_fields}
 
 
+def _is_current_generator_state(raw: object) -> bool:
+    """True when ``raw`` is a valid (even if untouched) Studio state, not retired leftovers."""
+    return isinstance(raw, Mapping) and raw.get("status") in {
+        "not_started",
+        "build_running",
+        "ready",
+        "needs_attention",
+    }
+
+
 def project_session_state(value: object) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
@@ -38,9 +48,11 @@ def project_session_state(value: object) -> dict[str, Any]:
             if key in raw:
                 raw[key] = _fields(raw[key], model)
         projected["content_architect"] = raw
-    if "code_generator" in value:
+    # A state left by the retired generator is not this feature's state: drop it
+    # instead of presenting its old status and fields.
+    if "code_generator" in value and _is_current_generator_state(value["code_generator"]):
         raw_generator = _fields(value["code_generator"], CodeGeneratorState)
-        if "in_flight" in raw_generator and raw_generator["in_flight"] is not None:
+        if raw_generator.get("in_flight") is not None:
             raw_generator["in_flight"] = _fields(raw_generator["in_flight"], InFlightBuild)
         projected["code_generator"] = raw_generator
     raw_agents = value.get("agents")

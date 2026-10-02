@@ -16,7 +16,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
-from oryxenai.agents.code_generator.state import CodeGeneratorState
+from oryxenai.agents.code_generator.state import CodeGeneratorState, parse_code_generator_state
 from oryxenai.agents.content_architect.schemas import ContentArchitectState
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.models.portfolio_session import PortfolioSession
@@ -59,12 +59,7 @@ class SiteVersionRepository:
         session = await self._sessions.get_by_id(session_id)
         if session is None:
             raise LookupError("session_not_found")
-        raw = session.current_state.get("code_generator")
-        return (
-            CodeGeneratorState.model_validate(raw)
-            if isinstance(raw, dict)
-            else CodeGeneratorState()
-        )
+        return parse_code_generator_state(session.current_state.get("code_generator"))
 
     async def save_state(
         self, session_id: UUID, state: CodeGeneratorState, expected_revision: int
