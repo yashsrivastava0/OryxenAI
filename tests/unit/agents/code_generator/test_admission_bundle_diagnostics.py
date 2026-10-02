@@ -262,3 +262,50 @@ def test_truncation_and_filter_failures_name_the_right_owner() -> None:
     )
     filtered = failure_from_provider_error(ProviderContentFilterError("blocked"), stage="generate")
     assert filtered.code == "PROVIDER_CONTENT_FILTER_ERROR" and filtered.owner == "model_output"
+
+
+# ── state left behind by the retired generator ───────────────────────────────
+
+# The real shape found in existing sessions (trimmed): its own status vocabulary and fields.
+LEGACY_STATE = {
+    "stale": False,
+    "status": "queued",
+    "trace_id": "1c4a30d2f03e4c18bec5cf91656ac0f4",
+    "warnings": [],
+    "advisories": [],
+    "in_flight": "legacy-string-not-an-object",
+    "source_ref": {"brief_contract_hash": "f48a", "bound_session_revision": 27},
+}
+
+
+def test_a_state_from_the_retired_generator_reads_as_not_started() -> None:
+    from oryxenai.agents.code_generator.state import CodeGeneratorStatus, parse_code_generator_state
+
+    state = parse_code_generator_state(LEGACY_STATE)
+    assert state.status is CodeGeneratorStatus.NOT_STARTED and state.in_flight is None
+    for junk in (None, "queued", 7, [], {"status": 5}, {"status": "ready", "in_flight": "x"}):
+        assert parse_code_generator_state(junk).status is CodeGeneratorStatus.NOT_STARTED
+
+
+def test_a_valid_studio_state_still_round_trips() -> None:
+    from oryxenai.agents.code_generator.state import (
+        CodeGeneratorState,
+        CodeGeneratorStatus,
+        parse_code_generator_state,
+    )
+
+    original = CodeGeneratorState(
+        status=CodeGeneratorStatus.READY, active_version_id="v1", active_version_number=2
+    )
+    assert parse_code_generator_state(original.model_dump(mode="json")) == original
+
+
+def test_session_projections_drop_the_retired_state_but_keep_the_studio_state() -> None:
+    from oryxenai.agents.code_generator.state import CodeGeneratorState, CodeGeneratorStatus
+    from oryxenai.api.projections import project_session_state
+
+    assert "code_generator" not in project_session_state({"code_generator": LEGACY_STATE})
+    live = CodeGeneratorState(status=CodeGeneratorStatus.READY, active_version_id="v1")
+    projected = project_session_state({"code_generator": live.model_dump(mode="json")})
+    assert projected["code_generator"]["status"] == "ready"
+    assert projected["code_generator"]["active_version_id"] == "v1"
