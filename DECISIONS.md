@@ -1,3 +1,13 @@
+## D-126 — Railway Hobby as the recommended Version 2 hosting target
+
+- **Date & Time:** 2026-10-03 — Codex (OpenAI)
+- **Status:** decided-not-provisioned
+- **Context:** The app now runs as a containerized FastAPI/Preact service with a PostgreSQL-backed durable worker, Supabase authentication, and same-origin signed Studio previews. The earlier Azure VM deployment requires host, Compose, TLS, storage, and power automation. The operator asked for a simpler, beginner-friendly replacement that preserves the full DB-to-preview workflow.
+- **Decision:** Recommend one Railway Hobby project with three services: app/web from the root Dockerfile, one always-on worker from the same image, and PostgreSQL. Retain the existing Supabase project for Google Auth; keep the bundled frontend and same-origin preview on FastAPI; keep the PostgreSQL queue and page bundles in PostgreSQL. Use Singapore for Railway services, configure a database backup and external logical exports, and validate the complete workflow before cutover.
+- **Rejected alternatives:** Vercel frontend/API split (adds origin/routing/preview complexity and has no persistent worker); free-only deployment (not a dependable always-on DB/worker plan); adding Redis, object storage, a preview host, or a separate frontend host.
+- **Trade-off:** Railway Hobby is paid and usage-metered; it is simpler operationally but is not guaranteed to undercut Azure, especially while student credits remain. Railway's PostgreSQL service still requires operator-owned backups, restore drills, upgrades, and monitoring.
+- **Consequence:** Documented in `docs/deployment/version-2/deployment-strategy.md`. This records a hosting recommendation only: no service was provisioned, no data or DNS was changed, and no commit was deployed or promoted. Confirm live Azure state and measure Railway use before retiring the VM.
+
 ## D-122 — Studio: a one-shot, verified page build with sealed versions and a sandboxed same-origin preview
 
 - **Date & Time:** 2026-10-02 09:43 +05:30 — Claude Code (Anthropic)

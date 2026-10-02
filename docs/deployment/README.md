@@ -1,27 +1,30 @@
 # OryxenAI deployment
 
-This is the simplest deployment path for the current repository when the
-priority is that a first-time deployer can complete the pipeline and see the
-generated portfolio preview. It is designed for a very small demo, normally
-no more than two active normal users, rather than for a scalable public
-service.
+This document preserves the Version 1 Azure VM deployment architecture and
+runbooks. Its Azure recommendation is superseded by the
+[Version 2 Railway deployment strategy](./version-2/deployment-strategy.md),
+which keeps the app, worker, and PostgreSQL in one Railway project and retains
+Supabase Auth. Use Version 2 for a new migration; use the Azure instructions
+below only to inspect or maintain the existing deployment during rollback.
 
-## Current status — 2026-09-14
+## Version 1 pre-deploy note — 2026-09-14 (historical)
 
-The Azure VM and its network were provisioned, and SSH access was verified.
-The application has **not** been deployed to Azure: Docker, the repository,
-PostgreSQL, migrations, Caddy, the worker, and the preview gateway have not
-yet been started on the VM.
+This 2026-09-14 snapshot said the VM and network were provisioned and the app
+had not yet been started. It predates the later deployment reported in the
+2026-09-30 issue ledger, so it is historical evidence only.
 
-For the current beginner-facing GitHub, Azure, authentication, model-runtime,
-VM-storage, and deferred-domain readiness analysis, read the
-[deployment strategy pack](<../../doc/deployment strategy/README.md>) before
-using this historical deployment index.
+For the original Version 1 Azure options research, read the
+[deployment strategy pack](<../../doc/deployment strategy/README.md>). For the
+replacement, use the [Version 2 Railway strategy](./version-2/deployment-strategy.md).
 
 ## Consolidated deployment documents
 
-The canonical deployment material is grouped into these documents:
+The Version 2 replacement guide is the current recommendation. The preserved
+Version 1 Azure runbooks are grouped into these documents:
 
+- [Version 2 Railway strategy](./version-2/deployment-strategy.md) — selected
+  target, service setup, Supabase changes, migration sequence, branch policy,
+  cost comparison, and end-to-end acceptance.
 - [Deployment guide](./deployment-guide.md) — research, setup, runbook,
   acceptance, and AI-assisted operations.
 - [CI/CD runbook](./ci-cd-runbook.md) — the self-hosted GitHub Actions runner
@@ -44,14 +47,13 @@ The canonical deployment material is grouped into these documents:
 The numbered files below remain compatibility entry points for older links;
 their complete content is preserved in the two canonical documents.
 
-The repository now contains the guided production Compose path and
-`scripts/azure-deploy.sh`, but the shared development worktree is not clean.
-Select and record an exact reviewed Git commit before deploying. Read the
-[current project status](../project-status.md) first, then use the
-[live Azure checkpoint](./06-live-azure-vm-status.md) and
-[easy VM runbook](./02-azure-vm-runbook.md).
+The original Version 1 checkpoint pointed to the Compose path and
+scripts/azure-deploy.sh. Its working-tree and deployment status are stale.
+For Azure rollback, verify the live VM and database before using the
+[Azure checkpoint](./06-live-azure-vm-status.md) and
+[VM runbook](./02-azure-vm-runbook.md).
 
-## Recommended shape
+## Version 1 selected shape (historical)
 
 Run the repository's existing Docker topology on one Azure Linux VM. Keep the
 existing Supabase Google sign-in and store generated artifacts and preview
@@ -80,10 +82,11 @@ shared preview gateway, and Caddy as Compose services. The generated
 portfolio remains a static artifact; it does not get its own container or
 deployment.
 
-## Why this is the first deployment
+## Why Version 1 used the Azure VM (historical)
 
 - It uses the Compose topology already present in the repository.
-- The worker remains a real separate process, so durable jobs and long
+- The worker remains a real separate process, so durable jobs and long-running
+  model calls can continue while the API handles requests.
 - A VM provides persistent Docker volumes for PostgreSQL and worker state.
 - Supabase remains the existing authentication provider; no auth rewrite is
   needed.
@@ -96,7 +99,7 @@ deployment.
 - There is no Kubernetes, Redis, Celery, per-portfolio hosting, or separate
   provider for each internal process.
 
-## Preview expectation
+## Version 1 preview expectation (historical)
 
 The deployed preview is intentionally public by possession of its opaque URL.
 It is not an authenticated preview and it is not a public publishing system.
@@ -104,7 +107,7 @@ That matches the goal for this deployment: the user should be able to open the
 generated portfolio immediately from the application and from the direct
 preview URL.
 
-## External services
+## Version 1 external services (historical)
 
 The smallest practical setup has these accounts:
 
@@ -119,7 +122,7 @@ do not pay those provider invoices. The active logical profiles and their
 credential environment-variable names remain defined by
 [`config/models.toml`](../../config/models.toml) and [`.env.example`](../../.env.example).
 
-## Cost expectations
+## Version 1 cost expectations (historical)
 
 Azure can be close to zero out of pocket while the Student credit is active,
 but the VM is not a permanent free resource. The Azure account must remain
@@ -128,13 +131,17 @@ users. VM disk capacity, backups, and retention are the storage cost and
 reliability considerations. The Student Pack domain offer normally covers the
 first year; renewal is not assumed to be free.
 
-## Deployment order
+## Version 1 deployment order (historical)
+
+The steps below apply only if maintaining the old Azure deployment or using
+it during rollback. For the replacement migration order, use the
+[Version 2 Railway strategy](./version-2/deployment-strategy.md).
 
 For a new Azure VM wizard, use the historical
 [pre-provisioning checkpoint](./04-current-azure-deployment-status.md) and the
 [Chrome browser-agent setup prompt](./05-chrome-browser-agent-azure-setup-prompt.md).
-The wizard is already complete for the current VM, so do not restart it or
-create a duplicate resource group.
+The Version 1 note said the wizard was complete for that VM; verify live Azure
+state before acting and do not create duplicate resources during rollback.
 
 If the browser session has been lost or restarted, use the detailed [Chrome
 browser-agent Azure setup prompt](./05-chrome-browser-agent-azure-setup-prompt.md)
@@ -181,7 +188,7 @@ The old [`docs/github-student-pack-benefits.md`](../github-student-pack-benefits
 is background research, not the deployment source of truth. Offers and prices
 must be rechecked in the provider dashboards immediately before redemption.
 
-## Studio deployment notes
+## Current source Studio deployment notes
 
 - The Studio needs only the web process, the worker and PostgreSQL: bundles are
   stored in PostgreSQL and theme files ship inside the image, so no object store
