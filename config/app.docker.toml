@@ -17,6 +17,9 @@ browser = "off"
 # deployment-like overlay.
 enabled = false
 
+[discovery]
+ocr_artifacts_path = "/opt/docling-models"
+
 [database]
 host = "postgres"
 port = 5432

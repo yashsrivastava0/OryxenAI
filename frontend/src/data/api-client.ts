@@ -219,6 +219,8 @@ export interface ExtractedDocument {
   name: string;
   text: string;
   characters: number;
+  page_count: number | null;
+  warnings: string[];
 }
 
 export function createApiClient(authorizedFetch: AuthorizedFetch) {
@@ -257,7 +259,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
 
     startDiscovery: (
       sessionId: string,
-      body: { source_text?: string; message?: string; document_text?: string; goal?: string },
+      body: {
+        source_text?: string;
+        message?: string;
+        document_text?: string;
+        document_name?: string;
+        goal?: string;
+      },
       idempotencyKey?: string,
     ) =>
       requestJson<StageEnvelope>(

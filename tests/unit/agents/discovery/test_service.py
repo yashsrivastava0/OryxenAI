@@ -74,6 +74,31 @@ class TestIntakePreservation:
         assert intake.source_text == "First role\n"
         assert [document.original_text for document in documents] == ["\n"]
 
+    def test_attached_document_keeps_exact_text_and_filename(self):
+        extracted = "# Resume\n\n  Principal designer & researcher  \n"
+        intake, documents = _merge_intake(
+            DiscoveryIntake(),
+            DiscoveryIntake(document_text=extracted, document_name="maya.pdf"),
+        )
+        assert intake.document_text == extracted
+        assert intake.document_name == "maya.pdf"
+        assert len(documents) == 1
+        assert documents[0].original_text == extracted
+        assert documents[0].label == "Attached document: maya.pdf"
+
+    def test_appended_document_updates_its_label_without_losing_prior_text(self):
+        previous = DiscoveryIntake(document_text="# First page", document_name="resume.pdf")
+        intake, documents = _merge_intake(
+            previous,
+            DiscoveryIntake(
+                document_text="# First page\n\n## More work", document_name="resume.pdf"
+            ),
+        )
+        assert intake.document_text == "# First page\n\n## More work"
+        assert len(documents) == 1
+        assert documents[0].original_text == "\n\n## More work"
+        assert documents[0].label == "Attached document: resume.pdf"
+
 
 class TestAnswerText:
     def test_selected_choice_ids_become_labels(self):

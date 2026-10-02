@@ -91,6 +91,7 @@ class DiscoveryService:
         goal: str,
         *,
         source_text: str = "",
+        document_name: str = "",
         model_profile: str = "",
         request_id: str = "",
     ) -> dict[str, Any]:
@@ -127,6 +128,7 @@ class DiscoveryService:
         submitted = DiscoveryIntake(
             message=message,
             document_text=document_text,
+            document_name=document_name,
             goal=goal,
             source_text=source_text,
         )
@@ -814,7 +816,7 @@ def _merge_intake(
     new_documents: list[SourceDocument] = []
     fields = (
         ("source_text", "Pasted source material", "user_provided", True),
-        ("document_text", "Document text", "user_provided", True),
+        ("document_text", "Attached document", "user_provided", True),
         ("message", "Your notes", "user_provided", True),
         ("goal", "Portfolio goal", "user_intent", False),
     )
@@ -837,8 +839,12 @@ def _merge_intake(
             else:
                 merged_text = f"{previous_text}\n\n{addition}" if previous_text else addition
             setattr(combined, field, merged_text)
+            if field == "document_text":
+                combined.document_name = submitted.document_name or previous.document_name
         else:
             setattr(combined, field, submitted_text)
+        if field == "document_text" and submitted.document_name:
+            label = f"Attached document: {submitted.document_name}"
         new_documents.append(create_source_document(addition, label=label, source_kind=source_kind))
     return combined, new_documents
 

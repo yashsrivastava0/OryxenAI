@@ -135,16 +135,24 @@ async def test_document_extraction_is_available_before_session_creation(client):
     )
     assert extracted.status_code == 200
     assert extracted.json()["text"] == "# Resume\nBuilt reliable systems."
+    assert extracted.json()["name"] == "resume.md"
+    assert extracted.json()["page_count"] is None
+    assert extracted.json()["warnings"] == []
 
     created = await client.post("/api/v1/sessions", json={})
     sid = created.json()["id"]
     started = await client.post(
         f"/api/v1/sessions/{sid}/discovery/start",
-        json={"document_text": extracted.json()["text"], "goal": "create my portfolio"},
+        json={
+            "document_text": extracted.json()["text"],
+            "document_name": extracted.json()["name"],
+            "goal": "create my portfolio",
+        },
     )
     assert started.status_code == 202
     assert any(
         document["original_text"] == "# Resume\nBuilt reliable systems."
+        and document["label"] == "Attached document: resume.md"
         for document in started.json()["discovery"]["source_documents"]
     )
 
@@ -154,3 +162,44 @@ async def test_document_extraction_is_available_before_session_creation(client):
         headers={"Content-Type": "application/octet-stream"},
     )
     assert invalid.status_code == 400
+
+
+async def test_pdf_transcript_and_filename_reach_discovery_exactly(client, monkeypatch):
+    from oryxenai.api.routes import discovery as discovery_routes
+
+    transcript = "# Product Designer\n\nBuilt a team workspace with 37% faster workflows."
+    observed = {}
+
+    def fake_extract(filename, data, **limits):
+        observed.update(filename=filename, data=data, limits=limits)
+        return filename, transcript, 3, []
+
+    monkeypatch.setattr(discovery_routes, "extract_document", fake_extract)
+    extracted = await client.post(
+        "/api/v1/discovery-documents/extract?filename=maya.pdf",
+        content=b"%PDF-1.7 browser-extracted bytes",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert extracted.status_code == 200
+    assert extracted.json()["text"] == transcript
+    assert extracted.json()["page_count"] == 3
+    assert observed["filename"] == "maya.pdf"
+    assert observed["data"] == b"%PDF-1.7 browser-extracted bytes"
+
+    created = await client.post("/api/v1/sessions", json={})
+    sid = created.json()["id"]
+    started = await client.post(
+        f"/api/v1/sessions/{sid}/discovery/start",
+        json={
+            "document_text": extracted.json()["text"],
+            "document_name": extracted.json()["name"],
+            "goal": "create my portfolio",
+        },
+    )
+    assert started.status_code == 202
+    attached = next(
+        document
+        for document in started.json()["discovery"]["source_documents"]
+        if document["label"] == "Attached document: maya.pdf"
+    )
+    assert attached["original_text"] == transcript
