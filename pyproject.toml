@@ -29,6 +29,9 @@ dependencies = [
     "Pillow>=10.4",
     "playwright>=1.50",
     "pypdf>=5.0",
+    "docling[rapidocr]>=2.116,<3",
+    "torch>=2.14,<3",
+    "torchvision>=0.29,<1",
 ]
 
 [dependency-groups]
@@ -46,9 +49,22 @@ packages = ["src/oryxenai"]
 # ----------------------------------------------------------------------------
 # uv
 # ----------------------------------------------------------------------------
-# The lockfile (uv.lock) is committed for reproducibility. No special tool.uv
-# keys are required for this single-project workspace.
+# The lockfile (uv.lock) is committed for reproducibility. Docling's default
+# PDF layout models run on CPU, so use the CPU PyTorch wheels in the image.
 # ----------------------------------------------------------------------------
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
+]
+
 # Ruff
 # ----------------------------------------------------------------------------
 [tool.ruff]

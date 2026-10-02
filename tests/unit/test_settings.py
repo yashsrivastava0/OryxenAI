@@ -38,6 +38,41 @@ def test_database_url_override():
     assert s.database_url == "postgresql+asyncpg://custom@host:5433/customdb"
 
 
+def test_database_url_environment_override_uses_asyncpg_and_keeps_ssl_options(monkeypatch):
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://managed:secret@db.example:5432/app?sslmode=require",
+    )
+
+    settings = Settings()
+
+    from sqlalchemy.dialects.postgresql.asyncpg import PGDialect_asyncpg
+    from sqlalchemy.engine import make_url
+
+    url = make_url(settings.database_url)
+    _, connect_args = PGDialect_asyncpg().create_connect_args(url)
+    assert connect_args["ssl"] == "require"
+    assert "sslmode" not in connect_args
+    assert "managed:secret@" not in repr(settings)
+
+
+def test_database_url_environment_override_rejects_non_postgresql(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "mysql://user:secret@db.example/app")
+
+    with pytest.raises(ValueError, match="PostgreSQL"):
+        _ = Settings().database_url
+
+
+def test_managed_host_origin_overrides_configured_auth_origins(monkeypatch):
+    monkeypatch.setenv("ORYXENAI_AUTH_PRIMARY_ORIGIN", "https://portfolio.example")
+    monkeypatch.setenv("ORYXENAI_AUTH_ALLOWED_ORIGINS", "https://portfolio.example")
+
+    settings = Settings()
+
+    assert settings.auth.primary_origin == "https://portfolio.example"
+    assert settings.auth.allowed_origins == ["https://portfolio.example"]
+
+
 def test_model_config_extra_ignore():
     """Leftover env variables are ignored, not errors."""
     import os

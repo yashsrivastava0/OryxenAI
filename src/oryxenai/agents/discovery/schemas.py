@@ -55,6 +55,7 @@ class DiscoveryIntake(BaseModel):
 
     message: str = ""
     document_text: str = ""
+    document_name: str = ""
     goal: str = ""
     source_text: str = ""
 

@@ -31,11 +31,23 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.19@sha256:b46b03ddfcfbf8f547af7e9eaefdf8a3
 
 WORKDIR /app
 
+# RapidOCR pulls OpenCV's manylinux wheel. Supply the small set of Debian
+# runtime libraries it expects even though the app never opens a GUI.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libglib2.0-0 libgl1 libxcb1 libsm6 libxext6 libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only dependency manifests for cache-efficient install.
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies into a virtual environment (no dev deps, no project).
 RUN uv sync --frozen --no-dev --no-install-project
+
+# Download the exact CPU OCR/layout assets into the image. Runtime requests do
+# not contact Hugging Face or any OCR service.
+COPY scripts/download_docling_models.py ./scripts/download_docling_models.py
+RUN uv run --no-sync python scripts/download_docling_models.py --output-dir /opt/docling-models
 
 # Copy application source (config/migrations are not needed to build the
 # wheel, only src/ and README.md), then install the oryxenai project package.
@@ -46,6 +58,12 @@ RUN uv sync --frozen --no-dev
 # ---- Stage 2: runtime ----
 FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS runtime
 
+# Required by the CPU OpenCV wheel that RapidOCR uses.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libglib2.0-0 libgl1 libxcb1 libsm6 libxext6 libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Optional: headless Chromium so generated portfolio pages are also verified in a
 # real browser before they go live. Off by default (the image stays small); build
 # with --build-arg INSTALL_CHROMIUM=true and set
@@ -54,6 +72,10 @@ ARG INSTALL_CHROMIUM=false
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    DOCLING_ARTIFACTS_PATH=/opt/docling-models \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1 \
+    OMP_NUM_THREADS=2 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
@@ -65,6 +87,7 @@ WORKDIR /app
 
 # Copy the fully-populated virtual environment from the builder.
 COPY --from=builder --chown=oryxen:oryxen /app/.venv /app/.venv
+COPY --from=builder --chown=oryxen:oryxen /opt/docling-models/ /opt/docling-models/
 # Copy runtime assets: source, config, migrations, entrypoint.
 COPY --chown=oryxen:oryxen src/ ./src/
 # The Vite output is generated in the image rather than relying on an ignored
@@ -97,7 +120,7 @@ USER oryxen
 EXPOSE 8000
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8000/health/live').read(); sys.exit(0)" || exit 1
+    CMD python -c "import os,urllib.request,sys; port=os.environ.get('PORT','8000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health/live').read(); sys.exit(0)" || exit 1
 
 ENTRYPOINT ["./scripts/docker-entrypoint.sh"]
-CMD ["uvicorn", "oryxenai.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn oryxenai.main:app --host 0.0.0.0 --port \"${PORT:-8000}\""]

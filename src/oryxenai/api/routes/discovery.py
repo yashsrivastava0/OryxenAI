@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, NoReturn
 
 from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.concurrency import run_in_threadpool
 
 from oryxenai.agents.discovery.document_extract import (
     DocumentExtractionError,
@@ -31,29 +33,46 @@ async def extract_discovery_document(
     request: Request,
     filename: str,
     _user: object = Depends(get_pipeline_user),
-) -> dict[str, str | int]:
+) -> dict[str, Any]:
     """Extract text for the intake composer; persist only when Discovery starts."""
     limits = request.app.state.settings.discovery
+    semaphore = getattr(request.app.state, "discovery_document_semaphore", None)
+    if semaphore is None:
+        semaphore = asyncio.Semaphore(1)
+        request.app.state.discovery_document_semaphore = semaphore
     data = bytearray()
-    async for chunk in request.stream():
-        data.extend(chunk)
-        if len(data) > limits.max_upload_bytes:
-            raise AppError(
-                "The selected file exceeds the upload size limit.",
-                code="DISCOVERY_DOCUMENT_TOO_LARGE",
-                status_code=413,
+    async with semaphore:
+        async for chunk in request.stream():
+            data.extend(chunk)
+            if len(data) > limits.max_upload_bytes:
+                raise AppError(
+                    "The selected file exceeds the upload size limit.",
+                    code="DISCOVERY_DOCUMENT_TOO_LARGE",
+                    status_code=413,
+                )
+        try:
+            name, extracted, page_count, warnings = await run_in_threadpool(
+                extract_document,
+                filename,
+                bytes(data),
+                max_chars=limits.max_input_chars,
+                max_bytes=limits.max_upload_bytes,
+                max_pdf_pages=limits.max_pdf_pages,
+                artifacts_path=limits.ocr_artifacts_path,
+                pdf_timeout_seconds=limits.pdf_timeout_seconds,
             )
-    try:
-        name, extracted = extract_document(
-            filename,
-            bytes(data),
-            max_chars=limits.max_input_chars,
-            max_bytes=limits.max_upload_bytes,
-            max_pdf_pages=limits.max_pdf_pages,
-        )
-    except DocumentExtractionError as exc:
-        raise AppError(str(exc), code="DISCOVERY_DOCUMENT_INVALID", status_code=400) from exc
-    return {"name": name, "text": extracted, "characters": len(extracted)}
+        except DocumentExtractionError as exc:
+            status_code = 413 if "too much text" in str(exc).lower() else 400
+            raise AppError(
+                str(exc), code="DISCOVERY_DOCUMENT_INVALID", status_code=status_code
+            ) from exc
+    return {
+        "name": name,
+        "text": extracted,
+        "characters": len(extracted),
+        "page_count": page_count,
+        "warnings": warnings,
+    }
 
 
 class StartRequest(BaseModel):
@@ -61,6 +80,7 @@ class StartRequest(BaseModel):
 
     message: str = ""
     document_text: str = ""
+    document_name: str = ""
     goal: str = ""
     source_text: str = ""
     model_profile: str | None = None
@@ -138,6 +158,7 @@ async def start_discovery(
                 body.document_text,
                 body.goal,
                 source_text=body.source_text,
+                document_name=body.document_name,
                 model_profile=body.model_profile or "",
             )
         )

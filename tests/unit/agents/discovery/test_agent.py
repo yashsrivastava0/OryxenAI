@@ -44,6 +44,27 @@ def test_model_packet_is_stable_across_new_source_ids():
     assert first_documents[0].id != second_documents[0].id
 
 
+def test_model_packet_receives_the_complete_named_attachment():
+    transcript = "# Maya Kapoor\n\n" + ("Product design evidence. " * 240) + "Final page marker."
+    packet, documents, _ = _packet(
+        {
+            "intake": {
+                "document_name": "maya.pdf",
+                "document_text": transcript,
+            }
+        }
+    )
+
+    assert len(documents) == 1
+    assert packet["sources"] == [
+        {
+            "kind": "user_provided",
+            "label": "Attached document: maya.pdf",
+            "text": transcript,
+        }
+    ]
+
+
 def test_question_choices_are_three_or_free_text():
     payload = {
         "questions": [

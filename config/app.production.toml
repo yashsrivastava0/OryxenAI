@@ -1,8 +1,9 @@
-# Azure VM production overlay template.
+# Production container overlay template.
 #
 # azure-deploy.sh renders this file to the ignored
-# config/app.production.local.toml file. Replace the placeholders only in the
-# VM-local rendered copy. Secrets still come only from .env.
+# config/app.production.local.toml file. Managed container hosts can select
+# this template directly and override the public auth origin through runtime
+# environment variables. Secrets still come only from the environment store.
 
 [app]
 env = "production"
@@ -17,6 +18,9 @@ browser = "off"
 
 [client_diagnostics]
 enabled = false
+
+[discovery]
+ocr_artifacts_path = "/opt/docling-models"
 
 [auth]
 required = true

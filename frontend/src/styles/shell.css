@@ -583,6 +583,72 @@ button:disabled, textarea:disabled, input:disabled {
   font-weight: 700;
   cursor: pointer;
 }
+.discovery-document-preview {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0 0 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: #fffefa;
+}
+.discovery-document-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.discovery-document-preview-header h2 {
+  margin: 0 0 0.25rem;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 650;
+}
+.discovery-document-preview-header p {
+  margin: 0;
+  color: var(--graphite-light);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+.discovery-document-preview-header button {
+  flex-shrink: 0;
+  border: 0;
+  padding: 0.25rem 0;
+  background: transparent;
+  color: var(--graphite);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.discovery-document-preview > label {
+  color: var(--graphite);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.discovery-document-textarea {
+  width: 100%;
+  min-height: 16rem;
+  max-height: 32rem;
+  resize: vertical;
+  padding: 0.85rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.discovery-document-warning {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 5px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-size: 0.82rem;
+}
 .discovery-intake-error {
   color: var(--rose);
   font-weight: 500;
@@ -2275,6 +2341,8 @@ button:disabled, textarea:disabled, input:disabled {
 @media (max-width: 480px) {
   .pipeline-reset-word { display: none; }
   .app-topbar-actions { gap: 0.5rem; }
+  .discovery-document-preview { padding: 0.75rem; }
+  .discovery-document-textarea { min-height: 13rem; }
 }
 
 /* Reduced Motion Compliance */

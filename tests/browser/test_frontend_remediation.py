@@ -69,6 +69,12 @@ def test_discovery_can_start_with_an_attached_text_file_alone(browser_page: obje
         {"name": "resume.md", "mimeType": "text/markdown", "buffer": b"# My resume"}
     )
     expect(page.get_by_text("resume.md", exact=False)).to_be_visible()
+    assert (
+        page.get_by_label(
+            "Discovery will read this text. Correct anything the PDF reader missed."
+        ).input_value()
+        == "# My resume"
+    )
     expect(start).to_be_enabled()
 
 

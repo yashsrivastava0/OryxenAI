@@ -467,7 +467,8 @@ export function AppShell({
         sessionId,
         {
           source_text: intakeText,
-          document_text: attachment ? `Attached file: ${attachment.name}\n\n${attachment.text}` : "",
+          document_text: attachment?.text ?? "",
+          document_name: attachment?.name ?? "",
           goal: "create my portfolio",
         },
         getOrCreateIdempotencyKey(sessionId, action),

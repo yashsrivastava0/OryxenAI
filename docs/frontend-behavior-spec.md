@@ -58,11 +58,14 @@ terminal for both stages.
 
 ## 3. Discovery interaction
 
-Discovery accepts user-provided text and an optional PDF, Markdown, or UTF-8
+Discovery accepts user-provided text and one optional PDF, Markdown, or UTF-8
 plain text attachment, plus a goal. The attachment control is in the intake
-composer and a file alone can start Discovery. Text is extracted before the
-start call; the original file bytes are not retained. PDFs need selectable
-text. Discovery can ask focused questions, one at a time, before drafting the brief.
+composer and a file alone can start Discovery. The frontend displays an
+editable transcript before submission. Selectable PDF text is kept as the
+source of truth; local OCR reads image regions and scanned pages while Docling
+returns headings, lists, reading order, and page boundaries as Markdown. The
+original file bytes are not retained. Discovery receives the reviewed text as
+an attached source document and can ask focused questions before drafting.
 The interface shows questions with the available answer options and lets the
 user provide a written answer or skip when allowed.
 
@@ -103,8 +106,9 @@ contract. Configuration in config/models.toml controls model routing.
 
 ## 7. Current limitations
 
-- DOCX, image attachments, scanned PDF OCR, and multi-file intake are not yet
-  supported. Unsupported or unreadable files produce a visible error.
+- DOCX, image attachments, and multi-file intake are not yet supported.
+  OCR can make recognition errors on low-quality scans; the transcript is
+  shown for review and editing before Discovery starts.
 - Progress uses polling and does not expose token-level model streaming.
 - The generated page is previewed for its owner only; there is no publish,
   export or public hosting step.
