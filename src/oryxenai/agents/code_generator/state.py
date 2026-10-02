@@ -21,7 +21,7 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from oryxenai.agents.code_generator.schemas import FailureEnvelope
 
@@ -88,6 +88,22 @@ _VERSION_NAMESPACE = uuid5(NAMESPACE_URL, "https://oryxenai.local/code-generator
 def version_id_for_run(run_id: UUID | str) -> UUID:
     """Deterministic version id: a redelivered run can never create a second row."""
     return uuid5(_VERSION_NAMESPACE, str(run_id))
+
+
+def parse_code_generator_state(raw: object) -> CodeGeneratorState:
+    """Read ``current_state['code_generator']``, tolerating the retired generator's leftovers.
+
+    Sessions created before the Studio may carry a state written by the earlier,
+    retired generator (for example ``status: "queued"`` with its own fields). Such
+    a value is not this feature's state: it reads as "not started" and is replaced
+    when a build starts. It never raises.
+    """
+    if not isinstance(raw, dict):
+        return CodeGeneratorState()
+    try:
+        return CodeGeneratorState.model_validate(raw)
+    except ValidationError:
+        return CodeGeneratorState()
 
 
 def _now() -> str:
