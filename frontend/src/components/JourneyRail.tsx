@@ -40,9 +40,14 @@ export function JourneyRail({ journey, selectedStageId, onSelect }: JourneyRailP
         <div className="journey-mobile-header">
           <span className="journey-mobile-kicker">CURRENT STAGE</span>
           <div className="journey-mobile-breadcrumbs" aria-hidden="true">
-            <span>DISCOVER</span>
-            <span className="breadcrumb-arrow">›</span>
-            <span className="breadcrumb-active">CONTENT</span>
+            {allStages.map((stage, index) => (
+              <span key={stage.id} className="journey-mobile-crumb">
+                {index > 0 ? <span className="breadcrumb-arrow">›</span> : null}
+                <span className={stage.id === selectedStageId ? "breadcrumb-active" : undefined}>
+                  {stage.label.toUpperCase()}
+                </span>
+              </span>
+            ))}
           </div>
         </div>
 

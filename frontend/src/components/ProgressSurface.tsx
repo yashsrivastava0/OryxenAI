@@ -72,8 +72,8 @@ export function ProgressSurface({
   const formattedElapsed =
     elapsedSeconds !== null && elapsedSeconds > 0
       ? elapsedSeconds < 60
-        ? `${Math.floor(elapsedSeconds)}s elapsed`
-        : `${Math.floor(elapsedSeconds / 60)}m ${Math.floor(elapsedSeconds % 60)}s elapsed`
+        ? `${Math.floor(elapsedSeconds)}s`
+        : `${Math.floor(elapsedSeconds / 60)}m ${Math.floor(elapsedSeconds % 60)}s`
       : null;
 
   return (

@@ -16,6 +16,11 @@ export interface ContentStageProps {
   onRevise: (revisionRequest: string) => Promise<void>;
   onStop?: () => Promise<void>;
   inFlight?: boolean;
+  /** When set, approval also starts the portfolio build and opens the Studio. */
+  approveLabel?: string;
+  /** Opens the Studio (starting the build if it has not started) for an approved plan. */
+  onOpenStudio?: () => Promise<void>;
+  studioInFlight?: boolean;
 }
 
 export function ContentStage({
@@ -26,6 +31,9 @@ export function ContentStage({
   onRevise,
   onStop,
   inFlight = false,
+  approveLabel,
+  onOpenStudio,
+  studioInFlight = false,
 }: ContentStageProps) {
 
   if (!view || view.state === "locked") {
@@ -102,6 +110,9 @@ export function ContentStage({
         canMutate={canMutate}
         onApproveAndContinue={onApproveAndContinue}
         onRevise={onRevise}
+        approveLabel={approveLabel}
+        onOpenStudio={onOpenStudio}
+        studioInFlight={studioInFlight}
       />
     </div>
   );
@@ -112,11 +123,17 @@ function ContentReviewSurface({
   canMutate,
   onApproveAndContinue,
   onRevise,
+  approveLabel,
+  onOpenStudio,
+  studioInFlight,
 }: {
   view: ContentViewModel;
   canMutate: boolean;
   onApproveAndContinue: () => Promise<void>;
   onRevise: (revisionRequest: string) => Promise<void>;
+  approveLabel?: string;
+  onOpenStudio?: () => Promise<void>;
+  studioInFlight: boolean;
 }) {
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const highlightTimer = useRef<number | undefined>(undefined);
@@ -158,7 +175,12 @@ function ContentReviewSurface({
         { label: "Claims checked", value: String(view.claimGrounding.length) },
       ]}
       finalJsonOutput={view.agentOutput}
+      approveLabel={approveLabel}
       onApproveAndContinue={empty ? undefined : onApproveAndContinue}
+      nextStageName={onOpenStudio ? "Studio" : undefined}
+      startNextStageLabel="Generate my portfolio"
+      onStartNextStage={onOpenStudio}
+      nextStageInFlight={studioInFlight}
       onRevise={onRevise}
     >
       {empty && (

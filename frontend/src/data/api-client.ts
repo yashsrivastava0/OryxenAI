@@ -105,6 +105,11 @@ function summarizeApiPayload(path: string, payload: unknown): Record<string, unk
     if (errorCodes.length) summary.job_error_codes = errorCodes;
   }
   if (path.includes("/discovery")) summary.pipeline_stage = "discovery";
+  if (path.includes("/code-generator")) {
+    summary.pipeline_stage = "studio";
+    const generator = payload.code_generator;
+    if (isRecord(generator) && typeof generator.status === "string") summary.studio_status = generator.status;
+  }
   return summary;
 }
 
@@ -177,6 +182,25 @@ export interface StageEnvelope {
   session_revision: number;
   jobs?: unknown[];
   [stageKey: string]: unknown;
+}
+
+/** The /code-generator response: control state plus versions and chat. */
+export interface StudioEnvelope {
+  session_id: string;
+  session_revision: number;
+  code_generator: Record<string, unknown>;
+  versions: unknown[];
+  chat: unknown[];
+  jobs: unknown[];
+}
+
+export interface StudioPreviewGrant {
+  /** Same-origin, signed, short-lived path to the sandboxed preview. */
+  url: string;
+  expires_at: string;
+  expires_in_seconds: number;
+  version_id: string;
+  version_number: number | null;
 }
 
 export interface MeProjection {
@@ -300,6 +324,52 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         authorizedFetch,
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/content-architect/stop`,
         jsonInit("POST", {}),
+      ),
+
+    // Studio: the generated portfolio page, its versions and the change chat.
+    getStudio: (sessionId: string) =>
+      requestJson<StudioEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator`,
+      ),
+
+    startStudio: (sessionId: string) =>
+      requestJson<StudioEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/start`,
+        jsonInit("POST", {}),
+      ),
+
+    stopStudio: (sessionId: string) =>
+      requestJson<StudioEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/stop`,
+        jsonInit("POST", {}),
+      ),
+
+    sendStudioMessage: (
+      sessionId: string,
+      body: { message: string; client_message_id: string; base_version_id?: string | null },
+    ) =>
+      requestJson<StudioEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/messages`,
+        jsonInit("POST", body),
+      ),
+
+    restoreStudioVersion: (sessionId: string, versionId: string) =>
+      requestJson<StudioEnvelope>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/versions/${encodeURIComponent(versionId)}/restore`,
+        jsonInit("POST", {}),
+      ),
+
+    getStudioPreview: (sessionId: string, versionId?: string | null) =>
+      requestJson<StudioPreviewGrant>(
+        authorizedFetch,
+        `/api/v1/sessions/${encodeURIComponent(sessionId)}/code-generator/preview-grant${
+          versionId ? `?version_id=${encodeURIComponent(versionId)}` : ""
+        }`,
       ),
 
 

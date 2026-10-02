@@ -39,6 +39,31 @@ describe("authenticated product boundary", () => {
     expect(appSource).toContain('const contentState = state.content?.state ?? (discoveryApproved ? "available" : "locked")');
   });
 
+  it("approves content and starts the portfolio build from one explicit click, in that order", async () => {
+    const api = await readSource("src/data/api-client.ts");
+    expect(api).toContain("/code-generator");
+    expect(api).toContain("/preview-grant");
+    const app = await readSource("src/app/AppShell.tsx");
+    expect(app).toContain('approveLabel="Approve & generate my portfolio"');
+    expect(app).toContain("onApproveAndContinue={handleApproveAndGenerate}");
+    const flow = app.slice(
+      app.indexOf("const handleApproveAndGenerate"),
+      app.indexOf("const handleStopStudio"),
+    );
+    expect(flow.indexOf('runContentMutation("approve")')).toBeGreaterThan(-1);
+    expect(flow.indexOf('runContentMutation("approve")')).toBeLessThan(flow.indexOf("startStudio()"));
+    // A safety repair of the content plan must never start a build.
+    expect(flow).toContain('completed !== "approve"');
+  });
+
+  it("embeds the generated page only in a script-less, opaque-origin sandbox", async () => {
+    const preview = await readSource("src/components/studio/PreviewPane.tsx");
+    expect(preview).toContain('sandbox="allow-popups allow-popups-to-escape-sandbox"');
+    expect(preview).not.toContain("allow-same-origin");
+    expect(preview).not.toContain("allow-scripts");
+    expect(preview).toContain('referrerPolicy="no-referrer"');
+  });
+
   it("repairs a stale incomplete Content result instead of looping on approval", async () => {
     const source = await readSource("src/app/AppShell.tsx");
     expect(source).toContain('error.code !== "CONTENT_ARCHITECT_PUBLIC_SCOPE_INCOMPLETE"');
