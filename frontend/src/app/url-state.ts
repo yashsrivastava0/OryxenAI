@@ -1,6 +1,6 @@
-// URL codec for the supported two-stage portfolio workflow.
+// URL codec for the supported three-stage portfolio workflow.
 
-export type JourneyStageId = "discover" | "content";
+export type JourneyStageId = "discover" | "content" | "studio";
 export type ViewId = "start" | "work" | "artifact" | "progress";
 
 export interface AppUrlState {
@@ -8,7 +8,7 @@ export interface AppUrlState {
   view: ViewId | null;
 }
 
-const STAGE_VALUES: readonly JourneyStageId[] = ["discover", "content"];
+const STAGE_VALUES: readonly JourneyStageId[] = ["discover", "content", "studio"];
 const VIEW_VALUES: readonly ViewId[] = ["start", "work", "artifact", "progress"];
 
 function includesValue<T extends string>(values: readonly T[], candidate: string | null): candidate is T {

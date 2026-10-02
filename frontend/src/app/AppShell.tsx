@@ -3,6 +3,7 @@ import { AppStoreContext, appReducer, initialAppState } from "./store";
 import { createApiClient, type AuthorizedFetch, type CacheReceipt, type MeProjection, type StageEnvelope } from "../data/api-client";
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
+import { adaptStudio } from "../data/adapters/studio";
 import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
 import { clearIdempotencyKey, getOrCreateIdempotencyKey } from "../data/idempotency";
 import { ApiError } from "../data/errors";
@@ -16,6 +17,7 @@ import { StartSurface } from "../components/StartSurface";
 import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { ContentStage } from "../stages/content/ContentStage";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
+import { StudioStage } from "../stages/studio/StudioStage";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
 import { safeSessionStorage } from "../data/safe-storage";
 import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics";
@@ -31,13 +33,14 @@ export interface AppShellProps {
 }
 
 function viewForStage(stage: JourneyStageId): "work" | "artifact" {
-  return stage === "discover" ? "work" : "artifact";
+  return stage === "content" ? "artifact" : "work";
 }
 
 function stageDisplayName(stage: JourneyStageId): string {
   switch (stage) {
     case "discover": return "Discover";
     case "content": return "Content";
+    case "studio": return "Studio";
     default: return "Studio";
   }
 }
@@ -46,6 +49,7 @@ function stagePurposeText(stage: JourneyStageId): string {
   switch (stage) {
     case "discover": return "Capture your goal, audience, key message and any reference material.";
     case "content": return "Write the finished copy for every section of your page.";
+    case "studio": return "Review your live page and ask for changes to its words.";
     default: return "Creative portfolio studio.";
   }
 }
@@ -69,9 +73,11 @@ function activeSessionStorageKey(userId: string): string {
 export function resolveInitialStage(
   requested: JourneyStageId | null,
   discoveryApproved: boolean,
+  contentApproved = false,
 ): { stage: JourneyStageId | null; corrected: boolean } {
   let fallback: JourneyStageId | null = null;
   if (requested === "content" && !discoveryApproved) fallback = "discover";
+  if (requested === "studio" && !contentApproved) fallback = discoveryApproved ? "content" : "discover";
   if (fallback) return { stage: fallback, corrected: true };
 
   // None of the backward branches fired, so the requested stage was never
@@ -82,6 +88,7 @@ export function resolveInitialStage(
   if (requested === null || requested === "discover") {
     let furthest: JourneyStageId = "discover";
     if (discoveryApproved) furthest = "content";
+    if (contentApproved) furthest = "studio";
     if (furthest !== "discover") return { stage: furthest, corrected: true };
   }
 
@@ -139,6 +146,11 @@ export function AppShell({
 
   const api = useMemo(() => createApiClient(authorizedFetch), [authorizedFetch]);
   const pollerRef = useRef<PollCoordinator | null>(null);
+  // The Studio polls a little slower than the planning stages and only while a build runs.
+  const studioPollerRef = useRef<PollCoordinator | null>(null);
+  const studioLock = useRef(false);
+  const [studioBusy, setStudioBusy] = useState(false);
+  const [studioStartError, setStudioStartError] = useState<string | null>(null);
   const invalidationChannelRef = useRef<InvalidationChannel | null>(null);
   const initialNormalizationDone = useRef(false);
   const seenCacheReceipts = useRef(new Set<string>());
@@ -209,6 +221,7 @@ export function AppShell({
     const contentResult = discoveryApproved
       ? await Promise.allSettled([api.getContentArchitect(sessionId)]).then(([result]) => result)
       : null;
+    let contentApproved = false;
     if (contentResult?.status === "fulfilled") {
       inspectCacheReceipt("content_architect", contentResult.value);
       const view = adaptContentArchitect(
@@ -216,13 +229,21 @@ export function AppShell({
         discoveryApproved,
         contentResult.value.jobs,
       );
+      contentApproved = view.state === "complete";
       dispatch({ type: "content/set", view });
+    }
+
+    const studioResult = contentApproved
+      ? await Promise.allSettled([api.getStudio(sessionId)]).then(([result]) => result)
+      : null;
+    if (studioResult?.status === "fulfilled") {
+      dispatch({ type: "studio/set", view: adaptStudio(studioResult.value, true) });
     }
 
     if (!initialNormalizationDone.current) {
       initialNormalizationDone.current = true;
       const requested = initialUrl.stage;
-      const resolved = resolveInitialStage(requested, discoveryApproved);
+      const resolved = resolveInitialStage(requested, discoveryApproved, contentApproved);
       if (resolved.corrected && resolved.stage) {
         selectStage(resolved.stage, true);
         dispatch({
@@ -236,7 +257,12 @@ export function AppShell({
       }
     }
 
-    const results = [sessionResult, discoveryResult, ...(contentResult ? [contentResult] : [])];
+    const results = [
+      sessionResult,
+      discoveryResult,
+      ...(contentResult ? [contentResult] : []),
+      ...(studioResult ? [studioResult] : []),
+    ];
     dispatch({
       type: "connection/set",
       state: results.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
@@ -246,12 +272,15 @@ export function AppShell({
   useEffect(() => {
     const poller = new PollCoordinator();
     pollerRef.current = poller;
+    const studioPoller = new PollCoordinator({ intervalMs: 2000 });
+    studioPollerRef.current = studioPoller;
     const channel = createInvalidationChannel((message) => {
       if (message.sessionId === state.sessionId) void refetchCurrentSession();
     });
     invalidationChannelRef.current = channel;
     return () => {
       poller.teardown();
+      studioPoller.teardown();
       channel.close();
     };
   }, [refetchCurrentSession, state.sessionId]);
@@ -343,15 +372,47 @@ export function AppShell({
     state.sessionId,
   ]);
 
+  useEffect(() => {
+    const poller = studioPollerRef.current;
+    if (!poller || !state.sessionId) return undefined;
+    const sessionId = state.sessionId;
+    if (state.studio?.building) {
+      poller.subscribe("code_generator", async () => {
+        try {
+          const result = await api.getStudio(sessionId);
+          const view = adaptStudio(result, true);
+          dispatch({ type: "studio/set", view });
+          dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+          dispatch({ type: "connection/set", state: "confirmed" });
+          if (!view.building) {
+            dispatch({
+              type: "announce",
+              message: view.lastError
+                ? "The build did not finish. The details are in the Studio."
+                : "Your portfolio is ready.",
+            });
+          }
+        } catch (error) {
+          dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
+          throw error;
+        }
+      }, false);
+    } else poller.unsubscribe("code_generator");
+    return () => poller.unsubscribe("code_generator");
+  }, [api, state.sessionId, state.studio?.building]);
+
+  const contentApprovedForStudio = state.content?.state === "complete";
   const journey = useMemo<JourneyStageVM[]>(() => {
     const discoveryState = state.discovery?.state ?? "available";
     const discoveryApproved = discoveryState === "complete";
     const contentState = state.content?.state ?? (discoveryApproved ? "available" : "locked");
+    const studioState = state.studio?.state ?? (contentState === "complete" ? "available" : "locked");
     return [
       { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: discoveryState, isSelectable: true },
       { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: contentState, isSelectable: contentState !== "locked" },
+      { id: "studio", ordinal: 3, label: "Studio", sublabel: "BUILD YOUR PAGE", state: studioState, isSelectable: studioState !== "locked" },
     ];
-  }, [state.content, state.discovery]);
+  }, [state.content, state.discovery, state.studio]);
 
   const outputEntries = useMemo(() => [
     {
@@ -699,13 +760,6 @@ export function AppShell({
     }
   };
 
-  // If approval routes into the safety repair path (public-scope validation
-  // failure), stay on Content so the user can review the corrected plan.
-  // Never treat a repaired, unapproved result as complete.
-  const handleApproveContent = async () => {
-    await runContentMutation("approve");
-  };
-
   const startContentAfterApproval = async () => {
     try {
       await runContentMutation("start");
@@ -714,6 +768,99 @@ export function AppShell({
       dispatch({ type: "announce", message: `Content Architect could not start: ${error instanceof Error ? error.message : "try again."}` });
     }
   };
+
+  // ── Studio (generated portfolio page) ────────────────────────────────
+  // A ref lock, not React state: approving content and starting the build run
+  // back to back, and the closure above would still see the old busy flag.
+  const runStudioMutation = async (
+    operation: "start" | "stop" | "message" | "restore",
+    argument = "",
+    clientMessageId = "",
+  ): Promise<void> => {
+    if (!state.sessionId || studioLock.current) return;
+    const sessionId = state.sessionId;
+    studioLock.current = true;
+    setStudioBusy(true);
+    try {
+      const result =
+        operation === "start"
+          ? await api.startStudio(sessionId)
+          : operation === "stop"
+            ? await api.stopStudio(sessionId)
+            : operation === "message"
+              ? await api.sendStudioMessage(sessionId, {
+                  message: argument,
+                  client_message_id: clientMessageId,
+                  base_version_id: state.studio?.activeVersionId ?? null,
+                })
+              : await api.restoreStudioVersion(sessionId, argument);
+      dispatch({ type: "studio/set", view: adaptStudio(result, true) });
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
+      dispatch({
+        type: "announce",
+        message:
+          operation === "start"
+            ? "Building your portfolio."
+            : operation === "stop"
+              ? "Build stopped. Your last live page is unchanged."
+              : operation === "message"
+                ? "Working on your change."
+                : "Earlier version restored.",
+      });
+      notifyMutation(sessionId);
+    } catch (error) {
+      void refetchCurrentSession();
+      throw error;
+    } finally {
+      studioLock.current = false;
+      setStudioBusy(false);
+    }
+  };
+
+  // Starting is the one Studio request that reports through the stage panel
+  // (it has no composer to show an error in), so it records instead of throwing.
+  const startStudio = async () => {
+    setStudioStartError(null);
+    try {
+      await runStudioMutation("start");
+    } catch (error) {
+      setStudioStartError(error instanceof Error ? error.message : "The build could not start. Please try again.");
+    }
+  };
+
+  const openStudio = async () => {
+    selectStage("studio");
+    const status = state.studio?.status;
+    if (status === "ready" || status === "build_running") return;
+    await startStudio();
+  };
+
+  // One explicit click on the approved content: approve, start the build, open the Studio.
+  const handleApproveAndGenerate = async () => {
+    const completed = await runContentMutation("approve");
+    if (completed !== "approve") return; // a safety repair keeps the user on Content
+    selectStage("studio");
+    await startStudio();
+  };
+
+  const handleStopStudio = async () => {
+    if (!state.sessionId) return;
+    recordClientEvent({ kind: "user_action", stage: "studio", action: "stop" });
+    studioPollerRef.current?.unsubscribe("code_generator");
+    try {
+      await runStudioMutation("stop");
+    } catch {
+      dispatch({ type: "announce", message: "The build could not be stopped. Refreshing its status." });
+    }
+  };
+
+  const loadStudioPreview = useCallback(
+    (versionId: string) => {
+      if (!state.sessionId) return Promise.reject(new Error("There is no active portfolio session."));
+      return api.getStudioPreview(state.sessionId, versionId);
+    },
+    [api, state.sessionId],
+  );
 
 
 
@@ -804,9 +951,28 @@ export function AppShell({
                   canMutate={true}
                   inFlight={mutatingStage === "content"}
                   onStart={async () => { await runContentMutation("start"); }}
-                  onApproveAndContinue={handleApproveContent}
+                  onApproveAndContinue={handleApproveAndGenerate}
+                  approveLabel="Approve & generate my portfolio"
+                  onOpenStudio={openStudio}
+                  studioInFlight={studioBusy}
                   onRevise={async (request) => { await runContentMutation("revise", request); }}
                   onStop={handleStopContent}
+                />
+              ) : null}
+
+              {state.sessionId && activeStage === "studio" ? (
+                <StudioStage
+                  view={state.studio}
+                  contentApproved={contentApprovedForStudio}
+                  canMutate={mutatingStage === null}
+                  inFlight={studioBusy}
+                  startError={studioStartError}
+                  loadPreview={loadStudioPreview}
+                  onStart={startStudio}
+                  onStop={handleStopStudio}
+                  onSend={(message, clientMessageId) => runStudioMutation("message", message, clientMessageId)}
+                  onRestore={(versionId) => runStudioMutation("restore", versionId)}
+                  onBackToContent={() => selectStage("content")}
                 />
               ) : null}
 

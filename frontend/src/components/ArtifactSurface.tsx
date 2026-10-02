@@ -24,6 +24,8 @@ export interface ArtifactSurfaceProps {
   metadata?: Array<{ label: string; value: string }>;
   warnings?: string[];
   artifactTypeName: string; // e.g. "portfolio brief" or "content plan"
+  /** Overrides the default "Approve <artifact>" label (for example when approval also starts the next stage). */
+  approveLabel?: string;
   finalJsonOutput?: unknown;
   /** The next agent this artifact hands off to. The approved state exposes a
    * separate destination-specific start action for this stage. */
@@ -50,6 +52,7 @@ export function ArtifactSurface({
   metadata = [],
   warnings = [],
   artifactTypeName,
+  approveLabel,
   finalJsonOutput,
   nextStageName,
   onApproveAndContinue,
@@ -230,7 +233,7 @@ export function ArtifactSurface({
                   onClick={() => void handleApproveAndContinue()}
                 >
                   <span className="handoff-cta-label">
-                    {approving ? "Saving approval..." : `Approve ${artifactTypeName}`}
+                    {approving ? "Saving approval..." : (approveLabel ?? `Approve ${artifactTypeName}`)}
                   </span>
                 </button>
                 {onRevise && (

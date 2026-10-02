@@ -1,10 +1,14 @@
 import { render, type ComponentChildren } from "preact";
+import { useRef, useState } from "preact/hooks";
 import { JourneyRail, type JourneyStageVM } from "../src/components/JourneyRail";
 import { OutputInspector } from "../src/components/OutputInspector";
 import { StartSurface } from "../src/components/StartSurface";
 import { StageContextStrip } from "../src/components/StageContextStrip";
 import { DiscoveryStage } from "../src/stages/discovery/DiscoveryStage";
 import { ContentStage } from "../src/stages/content/ContentStage";
+import { StudioStage } from "../src/stages/studio/StudioStage";
+import { adaptStudio } from "../src/data/adapters/studio";
+import { studioFixtures } from "./studio-fixtures";
 import { adaptDiscovery } from "../src/data/adapters/discovery";
 import { briefReview, questionsMcqReady, questionsReady, questionsTextReady } from "../src/data/adapters/discovery.fixtures";
 import { adaptContentArchitect } from "../src/data/adapters/content";
@@ -17,16 +21,26 @@ import "../src/styles/shell.css";
 
 const noop = async () => {};
 
-function getJourney(isDiscover: boolean): JourneyStageVM[] {
+type FixtureStage = "discover" | "content" | "studio";
+
+function stageOf(fixture: string): FixtureStage {
+  if (fixture.startsWith("discovery-")) return "discover";
+  if (fixture.startsWith("studio-")) return "studio";
+  return "content";
+}
+
+function getJourney(stage: FixtureStage): JourneyStageVM[] {
   return [
-    { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: isDiscover ? "current" : "complete", isSelectable: true },
-    { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: isDiscover ? "locked" : "review", isSelectable: !isDiscover },
+    { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: stage === "discover" ? "current" : "complete", isSelectable: true },
+    { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: stage === "discover" ? "locked" : stage === "studio" ? "complete" : "review", isSelectable: stage !== "discover" },
+    { id: "studio", ordinal: 3, label: "Studio", sublabel: "BUILD YOUR PAGE", state: stage === "studio" ? "complete" : "locked", isSelectable: stage === "studio" },
   ];
 }
 
 function FixtureFrame({ children }: { children: ComponentChildren }) {
   const fixture = new URLSearchParams(window.location.search).get("fixture") ?? "discovery-input";
-  const isDiscover = fixture.startsWith("discovery-");
+  const stage = stageOf(fixture);
+  const isDiscover = stage === "discover";
 
   return (
     <div className="app-shell">
@@ -36,7 +50,7 @@ function FixtureFrame({ children }: { children: ComponentChildren }) {
           <span className="header-pipe" aria-hidden="true">|</span>
           <span className="header-descriptor">IDEAS TO IMPACT</span>
         </a>
-        <JourneyRail journey={getJourney(isDiscover)} selectedStageId={isDiscover ? "discover" : "content"} onSelect={() => {}} />
+        <JourneyRail journey={getJourney(stage)} selectedStageId={stage} onSelect={() => {}} />
         <div className="app-topbar-actions">
           <span className="topbar-motto">A MORE THOUGHTFUL CREATIVE FUTURE</span>
           <span className="topbar-dot" aria-hidden="true">•</span>
@@ -47,16 +61,18 @@ function FixtureFrame({ children }: { children: ComponentChildren }) {
       </header>
 
       <StageContextStrip
-        stageName={isDiscover ? "Discover" : "Content"}
+        stageName={isDiscover ? "Discover" : stage === "studio" ? "Studio" : "Content"}
         stagePurpose={isDiscover
           ? "Capture your goal, audience, key message and any reference material."
-          : "Shape the narrative structure and page outlines."}
+          : stage === "studio"
+            ? "Review your live page and ask for changes to its words."
+            : "Shape the narrative structure and page outlines."}
         tagline="A STRONG START LEADS FURTHER"
       />
 
       <main className="app-work-surface">
         <div className="app-stage-layout">
-          <section id="workspace-stage" className="stage-frame" data-stage={isDiscover ? "discover" : "content"} tabIndex={-1}>
+          <section id="workspace-stage" className="stage-frame" data-stage={stage} tabIndex={-1}>
             <div className="stage-transition-layer">{children}</div>
           </section>
           <OutputInspector
@@ -205,7 +221,62 @@ function StageFixture() {
   if (fixture === "content-approved") {
     return <ContentStage view={adaptContentArchitect(contentFixtureApproved, true)} canMutate onStart={noop} onApproveAndContinue={noop} onRevise={noop} />;
   }
+  if (fixture.startsWith("studio-")) return <StudioFixture name={fixture} />;
   return <p>Unknown fixture</p>;
+}
+
+const samplePreview = async (versionId: string) => ({
+  url: `/studio-sample/index.html?v=${encodeURIComponent(versionId)}`,
+  expires_at: "2099-01-01T00:00:00+00:00",
+  expires_in_seconds: 1800,
+  version_id: versionId,
+  version_number: null,
+});
+
+// A stateful stand-in for the API so the whole chat -> build -> new version
+// flow can be exercised in a real browser without a backend.
+function InteractiveStudio({ initial }: { initial: unknown }) {
+  const [view, setView] = useState(() => adaptStudio(initial, true));
+  const counter = useRef(2);
+  const send = async (message: string) => {
+    const next = counter.current;
+    counter.current += 1;
+    const base = view;
+    setView(adaptStudio(studioFixtures.building(initial, message, next, "planning"), true));
+    window.setTimeout(() => setView(adaptStudio(studioFixtures.building(initial, message, next, "generating"), true)), 700);
+    window.setTimeout(() => setView(adaptStudio(studioFixtures.afterChange(initial, message, next, base), true)), 1600);
+  };
+  return (
+    <StudioStage
+      view={view}
+      contentApproved
+      canMutate
+      inFlight={false}
+      loadPreview={samplePreview}
+      onStart={noop}
+      onStop={async () => setView(adaptStudio(initial, true))}
+      onSend={send}
+      onRestore={noop}
+    />
+  );
+}
+
+function StudioFixture({ name }: { name: string }) {
+  const envelope = studioFixtures.byName(name);
+  if (name === "studio-interactive") return <InteractiveStudio initial={envelope} />;
+  return (
+    <StudioStage
+      view={adaptStudio(envelope, true)}
+      contentApproved
+      canMutate
+      inFlight={false}
+      loadPreview={samplePreview}
+      onStart={noop}
+      onStop={noop}
+      onSend={noop}
+      onRestore={noop}
+    />
+  );
 }
 
 render(<FixtureFrame><StageFixture /></FixtureFrame>, document.getElementById("app")!);
