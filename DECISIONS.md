@@ -8,6 +8,16 @@
 - **Trade-off:** Script execution enlarges the preview trust boundary. Strict CSP/sandbox, audited fixed code, resource hashes, keyboard/reduced-motion behavior, and a realistic Chromium policy are release gates. The D-127 Render Free pilot currently disables browser verification, so interactive per-build verification would need a measured hosting/policy choice. D-126 remains the paid always-on path.
 - **Consequence:** Research and exact implementation map are in `docs/research/studio-interactive-theme-architecture.md`. No code, schema, theme package, config, remote service, or production branch is changed by this proposal. An implementation decision and separate task are still required.
 
+## D-127 — Render Free pilot with existing Supabase Auth and PostgreSQL
+
+- **Date & Time:** 2026-10-03 — Codex (OpenAI)
+- **Status:** decided-not-provisioned
+- **Context:** The operator clarified a hard free-tier constraint, only two or three expected users, and a preference for the fewest beginner-friendly services. The app needs a PostgreSQL-backed API/worker, document intake, agent stages, and a same-origin Studio preview. D-126's Railway Hobby plan is paid and therefore does not satisfy that constraint.
+- **Decision:** Select one Render Free Docker Web Service for the combined FastAPI/Preact app and existing durable worker, plus the existing Supabase project for Google Auth and application PostgreSQL. Use the Supabase Session pooler, one Render instance, a low-concurrency Render-specific overlay, startup Alembic migrations, and bounded 30-day retention for replaceable model cache, superseded Studio versions, and retired Code Generator runs. Add a managed-host supervisor because Render Free has no background-worker service. This is a limited pilot only.
+- **Rejected alternatives:** Railway Free's $1/month usage allowance as a dependable always-running app/worker/database; Vercel Functions for the persistent worker and 600–900 second job timeouts; Render Free PostgreSQL because it expires after 30 days; a separate frontend/preview host, Redis, or object storage.
+- **Trade-off:** Render Free sleeps after 15 minutes without inbound traffic, may restart, and has 512 MB RAM / 0.1 CPU. Long jobs need the service awake; OCR may exceed memory; the overlay does not run headless Chromium verification. Supabase Free is limited to a recommended 500 MB database and can pause for low activity. This is not production-grade availability. If a complete DB-to-Studio acceptance run fails, use the paid Railway Hobby path in D-126 rather than representing the free service as reliable.
+- **Consequence:** The strict-free pilot guide is `docs/deployment/version-2/free-tier-migration-guide.md`. D-126 remains the paid always-on alternative. The Azure `deployment` branch and VM are not modified or retired by this decision. The Render pilot has not been provisioned and no cloud database, OAuth, DNS, or Azure state was changed; local verification used only `oryxenai_test`.
+
 ## D-126 — Railway Hobby as the recommended Version 2 hosting target
 
 - **Date & Time:** 2026-10-03 — Codex (OpenAI)

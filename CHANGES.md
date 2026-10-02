@@ -14,6 +14,19 @@ hosting trade-offs. Wrote the implementation map and acceptance criteria in
 This is documentation only: no theme, application code, runtime policy, cloud
 service, or deployment branch was changed.
 
+### 2026-10-03 — Codex (OpenAI) — strict-free deployment pilot implementation
+
+Added the Render Free pilot launcher (migration + API + durable worker), a
+Render-specific low-resource configuration, bounded 30-day cleanup for stale
+model-cache rows, superseded Studio versions, and retired generator runs, plus
+migration 0028 to keep restored Supabase app tables behind server-side access.
+Added the detailed browser-assisted Render/Supabase/Google OAuth migration
+runbook, data restore steps, acceptance checklist, retention policy, and
+Azure-only cleanup boundary (D-127). No cloud service, cloud database, Google
+OAuth setting, DNS, Azure
+machine, or branch was changed; local checks used only `oryxenai_test`. No live
+deployment or cloud acceptance run has happened.
+
 ### 2026-10-03 — Codex (OpenAI) — deployment strategy v2
 
 Researched and documented the proposed Railway + Supabase deployment, current

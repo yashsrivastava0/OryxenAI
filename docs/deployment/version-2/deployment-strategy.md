@@ -1,9 +1,12 @@
-# Deployment strategy v2: Railway + Supabase
+# Paid production strategy v2: Railway + Supabase
 
 **Research snapshot:** 2026-10-03
 
-**Recommendation:** Railway Hobby for the application, worker, and PostgreSQL;
-retain the existing Supabase project for authentication.
+**Recommendation in this document:** Railway Hobby for the application, worker,
+and PostgreSQL; retain the existing Supabase project for authentication. This
+is the paid, always-on upgrade path, not the strict-free pilot selection. For
+the latest request to stay on free tiers, follow
+[`free-tier-migration-guide.md`](./free-tier-migration-guide.md).
 
 **Status:** This is a deployment plan only. No cloud service, DNS record, or
 production data was changed; no production branch was promoted or deployed.

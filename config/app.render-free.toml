@@ -1,0 +1,82 @@
+# Strict-free pilot overlay for one Render Web Service plus the existing
+# Supabase project (Google Auth + application PostgreSQL). This is a best-
+# effort hobby deployment, not an always-on production configuration.
+
+[app]
+env = "production"
+host = "0.0.0.0"
+enable_dev_ui = false
+enable_product_preact_shell = true
+
+[database.pool]
+pool_size = 1
+max_overflow = 1
+pool_timeout = 20
+pool_recycle = 1800
+
+[auth]
+required = true
+pipeline_mode = "attached"
+development_harness_mode = "attached"
+admission_mode = "allowlist"
+# These are runtime-overridden by ORYXENAI_AUTH_PRIMARY_ORIGIN and
+# ORYXENAI_AUTH_ALLOWED_ORIGINS. Set both to Render's generated HTTPS origin.
+primary_origin = "https://replace-with-render-host.onrender.com"
+allowed_origins = ["https://replace-with-render-host.onrender.com"]
+
+[worker]
+polling_interval = 5.0
+heartbeat_interval = 30.0
+claim_batch_size = 1
+concurrency = 1
+model_lane_concurrency = 1
+shutdown_grace = 20.0
+
+[client_diagnostics]
+enabled = false
+
+[model_cache]
+enabled = true
+ttl_seconds = 2592000
+export_enabled = false
+
+[retention]
+enabled = true
+interval_seconds = 86400
+completed_version_ttl_days = 30
+model_cache_ttl_days = 30
+batch_size = 100
+
+[discovery]
+ocr_artifacts_path = "/opt/docling-models"
+
+[code_generator]
+max_versions_per_session = 10
+preview_grant_ttl_seconds = 1800
+
+[code_generator.verification]
+# This conserves RAM on Render Free. The user-visible Studio preview still
+# renders in the browser; server-side Chromium verification is not run.
+browser = "off"
+
+[artifact_storage]
+provider = "local_fs"
+endpoint_url = ""
+bucket = ""
+region = ""
+prefix = "temporary"
+require_lifecycle = false
+access_key_env = ""
+secret_key_env = ""
+
+[archive_storage]
+provider = "local_fs"
+root = "/app/.workspace/archive-storage"
+prefix = "preview"
+artifact_root = "/app/.workspace/archive-artifacts"
+generation_root = "/app/.workspace/archive-generation"
+checkpoint_root = "/app/.workspace/archive-checkpoints"
+workspace_root = "/app/.workspace/archive-workspaces"
+export_root = "/app/output/archive-exports"
+handoff_root = "/app/.workspace/archive-handoffs"
+handoff_mirror_root = "/app/output/archive-handoff-mirrors"
