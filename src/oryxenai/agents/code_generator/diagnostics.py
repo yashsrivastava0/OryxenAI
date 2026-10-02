@@ -109,11 +109,71 @@ _PROVIDER_COPY: dict[str, tuple[str, str, FailureOwner, str]] = {
         "configuration",
         "This needs the site operator: the model credentials must be fixed.",
     ),
-    "PROVIDER_CREDIT_EXHAUSTED": (
+    "MODEL_PROVIDER_CREDIT_EXHAUSTED": (
         "The model account is out of credit.",
         "The provider reports that no usage credit is left.",
         "configuration",
         "This needs the site operator: the model account must be topped up.",
+    ),
+    "PROVIDER_INVALID_REQUEST_ERROR": (
+        "The model rejected the request.",
+        "The provider refused the request as malformed, which points to a configuration problem.",
+        "configuration",
+        "This needs the site operator.",
+    ),
+    "PROVIDER_BAD_RESPONSE_ERROR": (
+        "The model's reply was not usable.",
+        "The provider returned a response this builder could not read.",
+        "infrastructure",
+        "Try again.",
+    ),
+    "PROVIDER_CONTENT_FILTER_ERROR": (
+        "The model declined to write this page.",
+        "The provider's safety filter blocked the request.",
+        "model_output",
+        "Try again. If it repeats, review your content for sensitive wording.",
+    ),
+    "PROVIDER_HTTP_ERROR": (
+        "The model provider returned an unexpected response.",
+        "The provider answered with a status this builder does not recognize.",
+        "infrastructure",
+        "Try again in a moment.",
+    ),
+    "NETWORK_RETRY_EXHAUSTED": (
+        "The model could not be reached after several attempts.",
+        "The connection to the model provider kept failing.",
+        "infrastructure",
+        "Try again in a moment.",
+    ),
+    "MODEL_INPUT_POLICY_BLOCKED": (
+        "This content cannot be sent to the configured model.",
+        "The routing policy does not approve the configured provider for this kind of content.",
+        "configuration",
+        "This needs the site operator.",
+    ),
+    "MODEL_INPUT_TOO_LARGE": (
+        "Your content is too large for the page builder.",
+        "The approved content is longer than the model's configured input limit.",
+        "content",
+        "Shorten the longest sections of your content plan, then generate again.",
+    ),
+    "MODEL_CAPABILITY_UNSUPPORTED": (
+        "The configured model cannot do this job.",
+        "The model route does not support a capability the page builder requires.",
+        "configuration",
+        "This needs the site operator.",
+    ),
+    "MODEL_USAGE_PERSISTENCE_UNAVAILABLE": (
+        "Usage accounting is unavailable right now.",
+        "The builder could not record model usage, so no request was sent.",
+        "infrastructure",
+        "Try again in a moment.",
+    ),
+    "MODEL_USAGE_SETTLEMENT_UNAVAILABLE": (
+        "Usage accounting could not record the model's reply.",
+        "The model answered, but its usage could not be saved, so the reply was discarded.",
+        "infrastructure",
+        "Try again in a moment.",
     ),
     "PROVIDER_CONFIG_ERROR": (
         "The model is not configured correctly.",

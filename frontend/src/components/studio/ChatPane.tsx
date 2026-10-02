@@ -141,7 +141,7 @@ export function ChatPane({
         ) : null}
       </div>
 
-      {lastError && !building ? (
+      {lastError && !building && lastError.code !== "JOB_CANCELLED" ? (
         <div className="studio-chat-failure">
           <button
             type="button"
