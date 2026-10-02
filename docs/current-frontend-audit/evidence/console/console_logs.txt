@@ -1,8 +1,0 @@
-[CONSOLE LOGS & CLIENT-SIDE LOG CAPTURE]
-Session URL: http://localhost:8000/app?stage=generate&view=artifact
-User: yashxbbdtest (UUID: 6a630f57-0f19-4480-8425-8b66a60eb2a8)
-Timestamp: 2026-09-12T16:37:00Z to 2026-09-12T17:03:00Z
-
-[LOG] [auth-runtime] Session active for user yashxbbdtest. Bearer token injected.
-[LOG] [pipeline] Active session resolved: 5822e80f-83d8-4606-b25d-05e09e92d8b8 (stage=generate)
-[LOG] [polling] GET /api/v1/sessions/5822e80f-83d8-4606-b25d-05e09e92d8b8 -> 200 OK (every ~2000ms)
