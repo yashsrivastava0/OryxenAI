@@ -70,7 +70,7 @@ export function StartSurface({
     event?.preventDefault();
     if (disabled || inFlight || extracting) return;
     const value = intakeText.trim();
-    if (!value && !attachment) {
+    if (!value && !attachment?.text.trim()) {
       setError("Write some details or attach a resume before starting Discovery.");
       return;
     }
@@ -92,7 +92,6 @@ export function StartSurface({
     const file = input.files?.[0];
     input.value = "";
     if (!file) return;
-    setAttachment(null);
     setExtracting(true);
     setError(null);
     try {
@@ -138,12 +137,6 @@ export function StartSurface({
           disabled={disabled || inFlight}
           rows={8}
         />
-        {attachment && (
-          <div className="discovery-attached-file">
-            <span aria-label="Attached document">{attachment.name} · {attachment.characters.toLocaleString()} characters</span>
-            <button type="button" onClick={() => setAttachment(null)} disabled={disabled || inFlight} aria-label={`Remove ${attachment.name}`}>Remove</button>
-          </div>
-        )}
         <div className="discovery-intake-meta">
           <input
             ref={fileInputRef}
@@ -166,6 +159,47 @@ export function StartSurface({
           <span className="discovery-intake-counter">{wordCount.toLocaleString()} words</span>
         </div>
       </div>
+
+      {attachment && (
+        <section className="discovery-document-preview" aria-labelledby="discovery-document-preview-title">
+          <div className="discovery-document-preview-header">
+            <div>
+              <h2 id="discovery-document-preview-title">Review the extracted document</h2>
+              <p>
+                {attachment.name}
+                {attachment.page_count ? ` · ${attachment.page_count} pages` : ""}
+                {` · ${attachment.text.length.toLocaleString()} characters`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAttachment(null)}
+              disabled={disabled || inFlight}
+              aria-label={`Remove ${attachment.name}`}
+            >
+              Remove
+            </button>
+          </div>
+          {attachment.warnings.map((warning) => (
+            <p className="discovery-document-warning" role="status" key={warning}>{warning}</p>
+          ))}
+          <label htmlFor="discovery-document-text">
+            Discovery will read this text. Correct anything the PDF reader missed.
+          </label>
+          <textarea
+            id="discovery-document-text"
+            className="discovery-document-textarea"
+            value={attachment.text}
+            onInput={(event) => {
+              const text = (event.currentTarget as HTMLTextAreaElement).value;
+              setAttachment((current) => current ? { ...current, text, characters: text.length } : current);
+            }}
+            disabled={disabled || inFlight}
+            rows={14}
+            spellcheck={false}
+          />
+        </section>
+      )}
 
       {/* Starting point suggestion cards matching 02-discovery-intake.png */}
       <div className="discovery-starting-points">
@@ -211,7 +245,7 @@ export function StartSurface({
                 type="button"
                 className="btn-primary btn-cobalt"
                 onClick={submit}
-                disabled={disabled || inFlight || extracting || (!intakeText.trim() && !attachment)}
+                disabled={disabled || inFlight || extracting || (!intakeText.trim() && !attachment?.text.trim())}
               >
                 {inFlight
                   ? continuation ? "Adding details…" : "Starting Discovery…"

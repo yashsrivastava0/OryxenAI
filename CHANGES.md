@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-02 20:35 +05:30 — Codex (OpenAI) — Discovery PDF OCR and managed-container readiness
+
+Upgraded PDF intake to structure-aware Docling conversion with region OCR, locally bundled offline models, an editable transcript, and source-preserving Discovery handoff. Added managed-host PostgreSQL URL/origin configuration and Render/Railway service guidance; reset remains one sticky header action across stages (D-124, D-125). No remote deployment.
+
 ### 2026-10-02 18:05 +05:30 — Codex (OpenAI) — owner reset and Discovery attachments
 
 Added a consistent Reset pipeline action to the workspace header, enabled owner-scoped full cleanup from any stage, and returned the user to empty Discovery after confirmation. Added one-file PDF, Markdown, and plain text intake with bounded server text extraction; the Discovery agent receives the extracted text with optional notes. Added parser, API, and browser coverage and updated the behavior docs (D-124). No push or deployment.

@@ -37,6 +37,9 @@ The canonical deployment material is grouped into these documents:
   (01:00 IST) / auto-start (07:00 IST) schedule, why that window, and the
   Logic App implementation detail. The VM is intentionally unreachable
   during that window every day — read this before assuming it's down.
+- [Document intake and managed-container deployment](./document-extraction.md)
+  — PDF/text extraction strategy, bundled offline OCR assets, and the API,
+  worker, database, and migration settings for Render or Railway.
 
 The numbered files below remain compatibility entry points for older links;
 their complete content is preserved in the two canonical documents.

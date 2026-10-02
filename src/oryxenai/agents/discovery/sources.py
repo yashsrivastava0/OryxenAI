@@ -52,7 +52,6 @@ def create_source_document(
 def documents_from_intake(intake: dict[str, Any]) -> list[SourceDocument]:
     fields = (
         ("source_text", "Pasted source material", "user_provided"),
-        ("document_text", "Document text", "user_provided"),
         ("message", "Your notes", "user_provided"),
         ("goal", "Portfolio goal", "user_intent"),
     )
@@ -61,6 +60,13 @@ def documents_from_intake(intake: dict[str, Any]) -> list[SourceDocument]:
         text = str(intake.get(field, "") or "")
         if text.strip():
             documents.append(create_source_document(text, label=label, source_kind=source_kind))
+    document_text = str(intake.get("document_text", "") or "")
+    if document_text.strip():
+        document_name = str(intake.get("document_name", "") or "").strip()
+        label = f"Attached document: {document_name}" if document_name else "Attached document"
+        documents.append(
+            create_source_document(document_text, label=label, source_kind="user_provided")
+        )
     return documents
 
 

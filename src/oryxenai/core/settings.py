@@ -7,6 +7,7 @@ Non-secret configuration is loaded from committed TOML files:
 
 Secrets are read from the environment (root .env via pydantic-settings):
   * POSTGRES_PASSWORD  -> database password
+  * DATABASE_URL       -> optional managed PostgreSQL URL
 
 Overlay policy:
   Docker sets OryxenAI_CONFIG_OVERLAY=config/app.docker.toml
@@ -465,8 +466,10 @@ class DiscoveryConfig(BaseModel):
     max_projects: int = 8
     max_answer_chars: int = 10000
     max_input_chars: int = 200000
-    max_upload_bytes: int = 8388608
-    max_pdf_pages: int = 40
+    max_upload_bytes: int = 10485760
+    max_pdf_pages: int = 10
+    pdf_timeout_seconds: float = 120.0
+    ocr_artifacts_path: str = ".workspace/docling-models"
 
 
 class CodeGeneratorVerificationConfig(BaseModel):
@@ -712,8 +715,8 @@ class ModelConfig(BaseModel):
 class Settings(BaseSettings):
     """Central settings object.
 
-    Composes non-secret TOML configuration (base + optional overlay) with the
-    database password secret read from the environment.
+    Composes non-secret TOML configuration (base + optional overlay) with
+    database and provider credentials read from the environment.
     """
 
     model_config = SettingsConfigDict(
@@ -726,6 +729,19 @@ class Settings(BaseSettings):
 
     # Secret from .env — optional in code so unit tests can run without it.
     postgres_password: SecretStr = SecretStr("")
+    # Managed Postgres hosts commonly provide a single DATABASE_URL. Keep it
+    # secret and normalize their sync-style PostgreSQL schemes for asyncpg.
+    database_url_override: SecretStr = Field(
+        default=SecretStr(""), validation_alias="DATABASE_URL", repr=False
+    )
+    # Public deployment coordinates are non-secret runtime settings supplied
+    # by the container host after its public hostname has been assigned.
+    auth_primary_origin_override: str = Field(
+        default="", validation_alias="ORYXENAI_AUTH_PRIMARY_ORIGIN"
+    )
+    auth_allowed_origins_override: str = Field(
+        default="", validation_alias="ORYXENAI_AUTH_ALLOWED_ORIGINS"
+    )
 
     # Supabase coordinates from .env. The publishable key may be rendered to
     # the browser; the secret key and admission lists are server-only.
@@ -808,7 +824,16 @@ class Settings(BaseSettings):
         if "client_diagnostics" in app_data:
             self.client_diagnostics = ClientDiagnosticsConfig(**app_data["client_diagnostics"])
         if "auth" in app_data:
-            self.auth = AuthConfig(**app_data["auth"])
+            auth_data = dict(app_data["auth"])
+            if self.auth_primary_origin_override.strip():
+                auth_data["primary_origin"] = self.auth_primary_origin_override.strip()
+            if self.auth_allowed_origins_override.strip():
+                auth_data["allowed_origins"] = [
+                    origin.strip()
+                    for origin in self.auth_allowed_origins_override.split(",")
+                    if origin.strip()
+                ]
+            self.auth = AuthConfig(**auth_data)
         if "model_cache" in app_data:
             self.model_cache = ModelCacheConfig(**app_data["model_cache"])
         if "discovery" in app_data:
@@ -839,9 +864,32 @@ class Settings(BaseSettings):
         """Compose the async SQLAlchemy database URL."""
         from urllib.parse import quote_plus
 
-        override = self.database.url.strip()
+        from sqlalchemy.engine import make_url
+
+        override = (
+            self.database_url_override.get_secret_value().strip() or self.database.url.strip()
+        )
         if override:
-            return override
+            try:
+                url = make_url(override)
+            except Exception as exc:
+                raise ValueError("DATABASE_URL must be a valid PostgreSQL connection URL.") from exc
+            if url.drivername in {"postgres", "postgresql"}:
+                url = url.set(drivername="postgresql+asyncpg")
+            if url.drivername != "postgresql+asyncpg":
+                raise ValueError("DATABASE_URL must use PostgreSQL with the asyncpg driver.")
+            query = dict(url.query)
+            sslmode = query.pop("sslmode", None)
+            if isinstance(sslmode, tuple):
+                if len(sslmode) != 1:
+                    raise ValueError("DATABASE_URL has multiple PostgreSQL sslmode values.")
+                sslmode = sslmode[0]
+            if sslmode is not None:
+                if "ssl" in query and query["ssl"] != sslmode:
+                    raise ValueError("DATABASE_URL has conflicting PostgreSQL SSL options.")
+                query["ssl"] = sslmode
+                url = url.set(query=query)
+            return url.render_as_string(hide_password=False)
         password = quote_plus(self.postgres_password.get_secret_value())
         host = self.db_host_override or self.database.host
         port = self.db_port_override or self.database.port

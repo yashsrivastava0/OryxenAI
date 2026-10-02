@@ -93,10 +93,13 @@ function StageFixture() {
     return (
       <StartSurface
         onStart={noop}
-        onExtractDocument={async (file) => {
-          const text = await file.text();
-          return { name: file.name, text, characters: text.length };
-        }}
+        onExtractDocument={async () => ({
+          name: "resume.md",
+          text: "# My resume",
+          characters: 11,
+          page_count: null,
+          warnings: [],
+        })}
       />
     );
   }

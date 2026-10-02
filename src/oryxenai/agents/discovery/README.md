@@ -23,23 +23,28 @@ explicitly started stage.
 
 ## Non-responsibilities
 
-Discovery does not write final public website copy, fetch links, analyze images,
-perform OCR, or start another agent. Text supplied by the user remains the
-evidence boundary. The intake adapter extracts selectable PDF text and UTF-8
-Markdown/plain text before the Discovery start call.
+Discovery does not write final public website copy, fetch links, analyze
+photos, or start another agent. Text supplied by the user remains the evidence
+boundary. The intake adapter uses Docling for PDF structure and local
+RapidOCR for image regions and scanned pages. It accepts UTF-8 Markdown and
+plain text without normalizing their content.
 
 ## Flow
 
-1. The browser can call `POST /api/v1/discovery-documents/extract` with one
-   PDF, Markdown, or plain text file (within the configured size limit). The endpoint returns extracted
-   text without storing the original bytes. Image-only PDFs report that no
-   selectable text was found. The composer shows the chosen file and can start
-   with the file alone or combine it with typed notes.
+1. The browser calls `POST /api/v1/discovery-documents/extract` with one PDF,
+   Markdown, or plain text file (within the configured size and page limits).
+   The endpoint streams the upload into a bounded in-memory buffer, returns a
+   transcript, page count, and any partial-conversion warning, and discards the
+   file bytes. The composer lets the user review and edit the transcript before
+   starting with the file alone or combining it with typed notes.
 2. `POST /api/v1/sessions/{id}/discovery/start` stores the text and creates
    immutable source-document snapshots. `source_text`, `message`, and
    `document_text` are addressable source material; `goal` is recorded as user
    intent. New text can be appended after `NEEDS_INPUT` without discarding
    earlier material.
+   The worker passes the complete attached transcript and filename to the
+   question prompt; the prompt treats document contents as evidence rather
+   than instructions.
 3. The worker runs `understand_and_question`. It returns `NEEDS_DETAILS`,
    `ASK_QUESTIONS`, or `READY_FOR_BRIEF`; question batches contain at most
    three questions. User answers and skips are persisted with their history
