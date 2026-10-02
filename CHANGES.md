@@ -4,6 +4,16 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-03 — Codex (OpenAI) — interactive Studio theme architecture research
+
+Researched a versioned, pre-built CSS/JavaScript theme paired with agent-generated
+HTML, including content and markup contracts, bundle integrity, signed preview
+security, browser verification, accessibility, design variation, and free-tier
+hosting trade-offs. Wrote the implementation map and acceptance criteria in
+`docs/research/studio-interactive-theme-architecture.md` and recorded D-128.
+This is documentation only: no theme, application code, runtime policy, cloud
+service, or deployment branch was changed.
+
 ### 2026-10-03 — Codex (OpenAI) — deployment strategy v2
 
 Researched and documented the proposed Railway + Supabase deployment, current

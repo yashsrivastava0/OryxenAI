@@ -1,3 +1,13 @@
+## D-128 — Proposed interactive Studio theme using pre-built JavaScript
+
+- **Date & Time:** 2026-10-03 — Codex (OpenAI)
+- **Status:** proposed-research-only; not approved or implemented
+- **Context:** The owner wants more advanced portfolio interaction while keeping `index.html` generated per person and pairing it with pre-built CSS and JavaScript. The current v1 theme already has CSS motion, but its preview CSP and iframe sandbox block scripts; saved versions record a full asset manifest while serve/restore check only the CSS hash.
+- **Proposal:** Create a new immutable theme version with reviewed `styles.css` and `theme.js`; keep the model output to visible `body_html` and let the host insert the script in the head. Extend exact markup/hook validation, full-bundle integrity checks, theme-specific preview CSP/iframe flags without `allow-same-origin`, and browser verification of behavior. Retain v1 for existing versions. Treat visual layout variants and new portfolio content shapes as separate versioned contract work.
+- **Rejected paths for this proposal:** Model-generated or inline JavaScript, per-user stylesheet/script files, editing released v1 assets, unbounded hook/data attributes, a second queue or runtime bundler, and claiming that JavaScript alone creates distinct layouts.
+- **Trade-off:** Script execution enlarges the preview trust boundary. Strict CSP/sandbox, audited fixed code, resource hashes, keyboard/reduced-motion behavior, and a realistic Chromium policy are release gates. The D-127 Render Free pilot currently disables browser verification, so interactive per-build verification would need a measured hosting/policy choice. D-126 remains the paid always-on path.
+- **Consequence:** Research and exact implementation map are in `docs/research/studio-interactive-theme-architecture.md`. No code, schema, theme package, config, remote service, or production branch is changed by this proposal. An implementation decision and separate task are still required.
+
 ## D-126 — Railway Hobby as the recommended Version 2 hosting target
 
 - **Date & Time:** 2026-10-03 — Codex (OpenAI)
