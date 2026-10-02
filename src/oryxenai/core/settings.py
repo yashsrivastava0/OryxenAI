@@ -465,6 +465,8 @@ class DiscoveryConfig(BaseModel):
     max_projects: int = 8
     max_answer_chars: int = 10000
     max_input_chars: int = 200000
+    max_upload_bytes: int = 8388608
+    max_pdf_pages: int = 40
 
 
 class CodeGeneratorVerificationConfig(BaseModel):

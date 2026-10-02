@@ -60,6 +60,18 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
     assert_no_horizontal_overflow(page)
 
 
+def test_discovery_can_start_with_an_attached_text_file_alone(browser_page: object) -> None:
+    page = browser_page
+    page.goto(f"{BASE_URL}/?fixture=discovery-input", wait_until="networkidle")
+    start = page.get_by_role("button", name="Start Discovery")
+    assert start.is_disabled()
+    page.locator('input[type="file"]').set_input_files(
+        {"name": "resume.md", "mimeType": "text/markdown", "buffer": b"# My resume"}
+    )
+    expect(page.get_by_text("resume.md", exact=False)).to_be_visible()
+    expect(start).to_be_enabled()
+
+
 def test_discovery_reveals_next_question_while_answer_saves(browser_page: object) -> None:
     page = browser_page
     page.set_viewport_size({"width": 1366, "height": 768})

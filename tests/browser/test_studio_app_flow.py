@@ -13,7 +13,12 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from tests.browser.helpers import BASE_URL, expect, install_sample_page
+from tests.browser.helpers import (
+    BASE_URL,
+    assert_no_horizontal_overflow,
+    expect,
+    install_sample_page,
+)
 
 SESSION = "session-e2e"
 
@@ -170,6 +175,16 @@ class FakeBackend:
                     "revision": 5,
                 }
             )
+        elif path == "/reset" and method == "POST":
+            ok(
+                {
+                    "id": SESSION,
+                    "name": "Portfolio",
+                    "status": "active",
+                    "current_state": {},
+                    "revision": 6,
+                }
+            )
         elif path == "/discovery":
             ok(
                 {
@@ -268,6 +283,9 @@ def test_one_click_approves_the_plan_then_builds_and_opens_the_live_studio(
 ) -> None:
     page = browser_page
     backend = _open_app(page, {"content": "review"})
+    reset = page.get_by_role("button", name="Reset pipeline")
+    expect(reset).to_be_visible()
+    reset_position = reset.bounding_box()
     button = page.get_by_role("button", name="Approve & generate my portfolio")
     expect(button).to_be_visible(timeout=8000)
     button.click()
@@ -280,6 +298,13 @@ def test_one_click_approves_the_plan_then_builds_and_opens_the_live_studio(
     expect(frame.locator("h1")).to_be_visible(timeout=20000)
     expect(page.get_by_text("Version 1", exact=True)).to_be_visible()
     expect(page.get_by_text("Your portfolio is ready (version 1).")).to_be_visible()
+    expect(reset).to_be_visible()
+    studio_reset_position = reset.bounding_box()
+    assert reset_position and studio_reset_position
+    assert (reset_position["x"], reset_position["y"]) == (
+        studio_reset_position["x"],
+        studio_reset_position["y"],
+    )
 
     calls = backend.log
     approve = calls.index("POST /content-architect/approve")
@@ -311,6 +336,19 @@ def test_a_chat_change_builds_a_new_version_and_restore_goes_back(browser_page: 
     page.get_by_role("button", name="Restore").click()
     expect(page.get_by_text("Version 3", exact=True)).to_be_visible(timeout=8000)
     assert "POST /code-generator/versions/v1/restore" in backend.log
+
+
+def test_reset_from_studio_confirms_and_returns_to_discovery(browser_page: Any) -> None:
+    page = browser_page
+    backend = _open_app(page, {"content": "approved", "studio": "ready"})
+    expect(page.get_by_text("Version 1", exact=True)).to_be_visible(timeout=8000)
+    page.set_viewport_size({"width": 390, "height": 844})
+    expect(page.get_by_role("button", name="Reset pipeline")).to_be_visible()
+    assert_no_horizontal_overflow(page)
+    page.once("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Reset pipeline").click()
+    expect(page).to_have_url(re.compile(r"stage=discover"), timeout=8000)
+    assert "POST /reset" in backend.log
 
 
 def test_a_failed_first_build_is_explained_and_retry_recovers(browser_page: Any) -> None:

@@ -1,8 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "preact/hooks";
 import { safeSessionStorage } from "../data/safe-storage";
+import type { ExtractedDocument } from "../data/api-client";
 
 export interface StartSurfaceProps {
-  onStart: (intakeText: string) => Promise<void>;
+  onStart: (intakeText: string, attachment?: ExtractedDocument | null) => Promise<void>;
+  onExtractDocument: (file: File) => Promise<ExtractedDocument>;
   disabled?: boolean;
   disabledReason?: string;
   continuation?: boolean;
@@ -30,6 +32,7 @@ const STARTER_PROMPTS: StarterPrompt[] = [
 
 export function StartSurface({
   onStart,
+  onExtractDocument,
   disabled = false,
   disabledReason,
   continuation = false,
@@ -38,7 +41,10 @@ export function StartSurface({
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [attachment, setAttachment] = useState<ExtractedDocument | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     safeSessionStorage.setItem("oryxenai.discovery_intake_draft", intakeText);
@@ -62,21 +68,39 @@ export function StartSurface({
 
   const submit = async (event?: Event) => {
     event?.preventDefault();
-    if (disabled || inFlight) return;
+    if (disabled || inFlight || extracting) return;
     const value = intakeText.trim();
-    if (!value) {
-      setError("Please share your goals, context, or paste your resume before starting Discovery.");
+    if (!value && !attachment) {
+      setError("Write some details or attach a resume before starting Discovery.");
       return;
     }
     setInFlight(true);
     setError(null);
     try {
-      await onStart(value);
+      await onStart(value, attachment);
       safeSessionStorage.removeItem("oryxenai.discovery_intake_draft");
+      setAttachment(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Discovery could not start. Try again.");
     } finally {
       setInFlight(false);
+    }
+  };
+
+  const selectFile = async (event: Event) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    setAttachment(null);
+    setExtracting(true);
+    setError(null);
+    try {
+      setAttachment(await onExtractDocument(file));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "This file could not be read.");
+    } finally {
+      setExtracting(false);
     }
   };
 
@@ -114,7 +138,30 @@ export function StartSurface({
           disabled={disabled || inFlight}
           rows={8}
         />
+        {attachment && (
+          <div className="discovery-attached-file">
+            <span aria-label="Attached document">{attachment.name} · {attachment.characters.toLocaleString()} characters</span>
+            <button type="button" onClick={() => setAttachment(null)} disabled={disabled || inFlight} aria-label={`Remove ${attachment.name}`}>Remove</button>
+          </div>
+        )}
         <div className="discovery-intake-meta">
+          <input
+            ref={fileInputRef}
+            className="visually-hidden"
+            type="file"
+            accept=".pdf,.md,.txt,application/pdf,text/markdown,text/plain"
+            onChange={selectFile}
+            disabled={disabled || inFlight || extracting}
+            aria-label="Choose a PDF, Markdown, or text file"
+          />
+          <button
+            type="button"
+            className="discovery-attach-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || inFlight || extracting}
+          >
+            <span aria-hidden="true">+</span> {extracting ? "Reading file…" : "Attach file"}
+          </button>
           {error && <span className="discovery-intake-error" role="alert">{error}</span>}
           <span className="discovery-intake-counter">{wordCount.toLocaleString()} words</span>
         </div>
@@ -164,7 +211,7 @@ export function StartSurface({
                 type="button"
                 className="btn-primary btn-cobalt"
                 onClick={submit}
-                disabled={disabled || inFlight || !intakeText.trim()}
+                disabled={disabled || inFlight || extracting || (!intakeText.trim() && !attachment)}
               >
                 {inFlight
                   ? continuation ? "Adding details…" : "Starting Discovery…"

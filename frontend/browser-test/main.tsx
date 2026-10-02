@@ -89,7 +89,17 @@ function FixtureFrame({ children }: { children: ComponentChildren }) {
 
 function StageFixture() {
   const fixture = new URLSearchParams(window.location.search).get("fixture") ?? "discovery-input";
-  if (fixture === "discovery-input") return <StartSurface onStart={noop} />;
+  if (fixture === "discovery-input") {
+    return (
+      <StartSurface
+        onStart={noop}
+        onExtractDocument={async (file) => {
+          const text = await file.text();
+          return { name: file.name, text, characters: text.length };
+        }}
+      />
+    );
+  }
 
   if (fixture === "discovery-question-mcq") {
     return (

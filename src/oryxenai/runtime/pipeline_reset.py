@@ -1,4 +1,4 @@
-"""Hard-reset service for the temporary anonymous pipeline."""
+"""Fenced cleanup and reset of a portfolio pipeline."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineResetService:
-    """Fence, clean, delete, and recreate exactly one detached session."""
+    """Reset an owned session or restart a detached development session."""
 
     def __init__(
         self,
@@ -150,10 +150,30 @@ class PipelineResetService:
         actor_id: UUID,
         request_id: str = "",
     ) -> PortfolioSession:
-        """Fence, clean external resources, purge stage runs/jobs, and reset pipeline state to zero."""
+        """Reset a session selected by an administrator."""
+        return await self.reset_pipeline(
+            session_id,
+            actor_id=actor_id,
+            request_id=request_id,
+            audit_action="admin_pipeline_reset",
+        )
+
+    async def reset_pipeline(
+        self,
+        session_id: UUID,
+        *,
+        actor_id: UUID | None = None,
+        expected_owner_id: UUID | None = None,
+        request_id: str = "",
+        audit_action: str = "owner_pipeline_reset",
+    ) -> PortfolioSession:
+        """Fence workers and return one authorized portfolio to empty Discovery."""
         repo = PortfolioSessionRepository(self.db)
         session = await repo.get_by_id_for_update(session_id)
-        if session is None:
+        if session is None or (
+            expected_owner_id is not None
+            and (session.owner_user_id != expected_owner_id or session.legacy_quarantined)
+        ):
             raise LookupError("session not found")
 
         session.status = "deletion_pending"
@@ -169,7 +189,7 @@ class PipelineResetService:
                 status="failed",
                 error_payload={
                     "code": "PIPELINE_RESET",
-                    "message": "The pipeline was reset by an administrator.",
+                    "message": "The portfolio pipeline was reset.",
                     "retryable": False,
                 },
             )
@@ -231,20 +251,20 @@ class PipelineResetService:
         session.updated_at = datetime.now(UTC)
         await self.db.flush()
 
-        if self.auth_admin_provider is not None:
+        if self.auth_admin_provider is not None and actor_id is not None:
             try:
                 from oryxenai.auth.admin.repository import AdminRepository
 
                 admin_repo = AdminRepository(self.db)
                 await admin_repo.add_audit(
                     actor_id=actor_id,
-                    action="admin_pipeline_reset",
+                    action=audit_action,
                     target_type="project",
                     target_id=session_id,
                     operation_id=None,
                     outcome="completed",
                     request_id=request_id,
-                    safe_details={"message": "Pipeline reset to zero by admin."},
+                    safe_details={"message": "Pipeline reset to zero."},
                 )
                 await self.db.flush()
             except Exception as exc:

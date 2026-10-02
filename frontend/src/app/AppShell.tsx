@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "preact/hooks";
 import { AppStoreContext, appReducer, initialAppState } from "./store";
-import { createApiClient, type AuthorizedFetch, type CacheReceipt, type MeProjection, type StageEnvelope } from "../data/api-client";
+import { createApiClient, type AuthorizedFetch, type CacheReceipt, type ExtractedDocument, type MeProjection, type StageEnvelope } from "../data/api-client";
 import { adaptDiscovery } from "../data/adapters/discovery";
 import { adaptContentArchitect } from "../data/adapters/content";
 import { adaptStudio } from "../data/adapters/studio";
@@ -127,6 +127,8 @@ export function AppShell({
   const initialStage = initialUrl.stage ?? "discover";
   const [activeStage, setActiveStage] = useState<JourneyStageId>(initialStage);
   const [mutatingStage, setMutatingStage] = useState<JourneyStageId | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   // Normal users receive their single owner-scoped session from /me. Admins
   // can work across explicitly created sessions, so retain only an
@@ -445,13 +447,13 @@ export function AppShell({
 
   const notifyMutation = (sessionId: string) => invalidationChannelRef.current?.broadcast(sessionId);
 
-  const handleStartPortfolio = async (intakeText: string) => {
+  const handleStartPortfolio = async (intakeText: string, attachment?: ExtractedDocument | null) => {
     if (mutatingStage) return;
     recordClientEvent({
       kind: "user_action",
       stage: "discovery",
       action: "start",
-      input_characters: intakeText.length,
+      input_characters: intakeText.length + (attachment?.characters ?? 0),
     });
     setMutatingStage("discover");
     try {
@@ -459,16 +461,20 @@ export function AppShell({
       if (!sessionId) {
         const created = await api.createSession("Portfolio workspace");
         sessionId = created.id;
-        dispatch({ type: "session/set", sessionId, revision: created.revision });
       }
       const action = "discovery-start";
       const result = await api.startDiscovery(
         sessionId,
-        { source_text: intakeText, goal: "create my portfolio" },
+        {
+          source_text: intakeText,
+          document_text: attachment ? `Attached file: ${attachment.name}\n\n${attachment.text}` : "",
+          goal: "create my portfolio",
+        },
         getOrCreateIdempotencyKey(sessionId, action),
       );
       clearIdempotencyKey(sessionId, action);
       inspectCacheReceipt("discovery", result);
+      dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
       dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
       dispatch({ type: "announce", message: "Discovery started." });
       notifyMutation(sessionId);
@@ -862,6 +868,33 @@ export function AppShell({
     [api, state.sessionId],
   );
 
+  const handleResetPipeline = async () => {
+    if (!state.sessionId || resetting || mutatingStage || studioBusy) return;
+    const confirmed = window.confirm(
+      "Reset your portfolio pipeline? This permanently removes your Discovery material, content plan, generated page, and chat history. You will start again from an empty Discovery screen.",
+    );
+    if (!confirmed) return;
+    const sessionId = state.sessionId;
+    setResetting(true);
+    setResetError(null);
+    try {
+      const result = await api.resetSession(sessionId);
+      safeSessionStorage.removeItem("oryxenai.discovery_intake_draft");
+      for (const action of ["discovery-start", "discovery-retry-questions", "content-start"]) {
+        clearIdempotencyKey(sessionId, action);
+      }
+      dispatch({ type: "pipeline/reset", sessionId: result.id, revision: result.revision });
+      notifyMutation(sessionId);
+      window.location.replace(
+        `${window.location.pathname}${serializeAppUrlState({ stage: "discover", view: "work" })}`,
+      );
+    } catch (reason) {
+      setResetError(reason instanceof Error ? reason.message : "The pipeline could not be reset.");
+    } finally {
+      setResetting(false);
+    }
+  };
+
 
 
   return (
@@ -888,6 +921,16 @@ export function AppShell({
           <div className="app-topbar-actions">
             <span className="topbar-motto" aria-hidden="true">A MORE THOUGHTFUL CREATIVE FUTURE</span>
             <span className="topbar-dot" aria-hidden="true">●</span>
+            <button
+              type="button"
+              className="pipeline-reset-button"
+              aria-label="Reset pipeline"
+              onClick={handleResetPipeline}
+              disabled={!state.sessionId || resetting || Boolean(mutatingStage) || studioBusy}
+              title={state.sessionId ? "Clear this portfolio and start again" : "Start Discovery to create a pipeline"}
+            >
+              {resetting ? "Resetting…" : <>Reset <span className="pipeline-reset-word">pipeline</span></>}
+            </button>
             <details className="account-menu">
               <summary aria-label="Open account menu">
                 <span className="account-monogram" aria-hidden="true">{(me.username ?? "U").slice(0, 1).toUpperCase()}</span>
@@ -903,6 +946,7 @@ export function AppShell({
         </header>
 
         <ConnectionBanner state={state.connection} />
+        {resetError && <div className="pipeline-reset-error" role="alert">{resetError}</div>}
         <CacheNotice key={cacheNotice?.id ?? "empty"} message={cacheNotice?.message ?? null} />
         {developer ? (
           <ClientTraceNotice traceId={getClientTraceId()} />
@@ -923,6 +967,7 @@ export function AppShell({
               {!state.sessionId ? (
                 <StartSurface
                   onStart={handleStartPortfolio}
+                  onExtractDocument={api.extractDocument}
                   disabled={me.can_create_portfolio === false || mutatingStage === "discover"}
                   disabledReason={me.can_create_portfolio === false ? "Your account cannot start another portfolio." : undefined}
                 />
@@ -934,6 +979,7 @@ export function AppShell({
                   history={discoveryHistory}
                   canMutate={mutatingStage === null}
                   onStartDiscovery={handleStartPortfolio}
+                  onExtractDocument={api.extractDocument}
                   onSubmitAnswer={handleSubmitDiscoveryAnswer}
                   onContinueWithCurrentInformation={handleContinueWithCurrentInformation}
                   onRetryDiscovery={handleRetryDiscovery}

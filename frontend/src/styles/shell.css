@@ -166,6 +166,30 @@ button:disabled, textarea:disabled, input:disabled {
   gap: 1.25rem;
   flex-shrink: 0;
 }
+.pipeline-reset-button {
+  flex-shrink: 0;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--graphite);
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.pipeline-reset-button:hover:not(:disabled),
+.pipeline-reset-button:focus-visible {
+  border-color: var(--rose);
+  color: var(--rose);
+}
+.pipeline-reset-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.pipeline-reset-error {
+  padding: 0.7rem max(1.5rem, calc((100vw - var(--canvas-max-width)) / 2));
+  color: var(--rose);
+  background: #fff4f1;
+  font-size: 0.85rem;
+}
 .topbar-motto {
   font-size: 0.68rem;
   font-weight: 700;
@@ -525,6 +549,39 @@ button:disabled, textarea:disabled, input:disabled {
   border-top: 1px solid var(--rule-subtle);
   font-size: 0.8rem;
   color: var(--graphite-light);
+}
+.discovery-attach-button {
+  margin-right: auto;
+  border: 0;
+  padding: 0.25rem 0;
+  background: transparent;
+  color: var(--signal);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.discovery-attach-button span { font-size: 1.2rem; vertical-align: -0.04em; }
+.discovery-attach-button:disabled { opacity: 0.5; cursor: not-allowed; }
+.discovery-attached-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  background: #f1f5f2;
+  color: var(--ink);
+  font-size: 0.83rem;
+  overflow-wrap: anywhere;
+}
+.discovery-attached-file button {
+  border: 0;
+  background: transparent;
+  color: var(--graphite);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
 }
 .discovery-intake-error {
   color: var(--rose);
@@ -2027,6 +2084,10 @@ button:disabled, textarea:disabled, input:disabled {
 /* ==========================================================================
    Responsive Adaptations matching 10-mobile-review.png
    ========================================================================== */
+@media (max-width: 1280px) {
+  .topbar-motto, .topbar-dot { display: none; }
+  .journey-rail { --journey-gap: clamp(1.5rem, 3vw, 3rem); }
+}
 @media (max-width: 1024px) {
   .key-details-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -2209,6 +2270,11 @@ button:disabled, textarea:disabled, input:disabled {
     width: 100%;
     text-align: center;
   }
+}
+
+@media (max-width: 480px) {
+  .pipeline-reset-word { display: none; }
+  .app-topbar-actions { gap: 0.5rem; }
 }
 
 /* Reduced Motion Compliance */

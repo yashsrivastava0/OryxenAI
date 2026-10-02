@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from typing import Any, NoReturn
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
+from oryxenai.agents.discovery.document_extract import (
+    DocumentExtractionError,
+    extract_document,
+)
 from oryxenai.agents.discovery.schemas import DiscoveryAnswer
 from oryxenai.agents.discovery.service import DiscoveryOperationError, DiscoveryService
 from oryxenai.api.dependencies import (
     get_discovery_service,
+    get_pipeline_user,
     require_pipeline_mutable,
     require_pipeline_session,
 )
@@ -18,6 +23,37 @@ from oryxenai.api.errors import AppError
 from oryxenai.auth.authorization import PortfolioAccess
 
 router = APIRouter(prefix="/sessions/{session_id}/discovery", tags=["discovery"])
+document_router = APIRouter(prefix="/discovery-documents", tags=["discovery"])
+
+
+@document_router.post("/extract")
+async def extract_discovery_document(
+    request: Request,
+    filename: str,
+    _user: object = Depends(get_pipeline_user),
+) -> dict[str, str | int]:
+    """Extract text for the intake composer; persist only when Discovery starts."""
+    limits = request.app.state.settings.discovery
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > limits.max_upload_bytes:
+            raise AppError(
+                "The selected file exceeds the upload size limit.",
+                code="DISCOVERY_DOCUMENT_TOO_LARGE",
+                status_code=413,
+            )
+    try:
+        name, extracted = extract_document(
+            filename,
+            bytes(data),
+            max_chars=limits.max_input_chars,
+            max_bytes=limits.max_upload_bytes,
+            max_pdf_pages=limits.max_pdf_pages,
+        )
+    except DocumentExtractionError as exc:
+        raise AppError(str(exc), code="DISCOVERY_DOCUMENT_INVALID", status_code=400) from exc
+    return {"name": name, "text": extracted, "characters": len(extracted)}
 
 
 class StartRequest(BaseModel):
