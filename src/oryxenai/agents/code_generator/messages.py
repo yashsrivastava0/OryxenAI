@@ -17,9 +17,20 @@ def build_ready(version_number: int) -> str:
     return f"Your portfolio is ready (version {version_number})."
 
 
-def build_failed(envelope: FailureEnvelope, *, kept_previous: bool) -> str:
+def build_failed(envelope: FailureEnvelope, *, kept_previous: bool, origin: str = "initial") -> str:
     tail = " Your last verified page is unchanged." if kept_previous else ""
-    return f"I couldn't finish this build. {envelope.summary}{tail}"
+    lead = (
+        "I couldn't apply that change." if origin == "change" else "I couldn't finish this build."
+    )
+    return f"{lead} {envelope.summary}{tail}"
+
+
+def versions_restricted(count: int) -> str:
+    noun = "version" if count == 1 else "versions"
+    return (
+        f"{count} earlier {noun} that showed the removed information "
+        f"{'is' if count == 1 else 'are'} no longer available."
+    )
 
 
 def build_stopped(*, kept_previous: bool) -> str:

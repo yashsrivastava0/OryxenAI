@@ -306,3 +306,72 @@ async def test_run_history_never_exposes_the_page_content(client) -> None:
             .all()
         )
         assert rows and "page_content" in rows[0].input_payload  # kept on the row itself
+
+
+@pytest.mark.asyncio
+async def test_chat_message_flow_over_http_including_errors_and_restore(client) -> None:
+    session_id = await _create_session(client)
+    await _approve_content(client, session_id)
+    base = f"/api/v1/sessions/{session_id}/code-generator"
+
+    early = await client.post(f"{base}/messages", json={"message": "hi", "client_message_id": "m0"})
+    assert early.status_code == 409 and early.json()["error"]["code"] == "CODE_GENERATOR_NOT_READY"
+
+    await _run_build(client, (await client.post(f"{base}/start")).json())
+    state = (await client.get(base)).json()
+    active = state["code_generator"]["active_version_id"]
+
+    bad = await client.post(f"{base}/messages", json={"message": "", "client_message_id": "m1"})
+    assert bad.status_code == 422
+    stale = await client.post(
+        f"{base}/messages",
+        json={"message": "hi", "client_message_id": "m1", "base_version_id": str(uuid4())},
+    )
+    assert stale.status_code == 409 and stale.json()["error"]["code"] == "CODE_GENERATOR_STALE_BASE"
+    extra = await client.post(
+        f"{base}/messages", json={"message": "hi", "client_message_id": "m1", "surprise": 1}
+    )
+    assert extra.status_code == 422
+
+    previous_plans = _MODEL.plans
+    _MODEL.plans = [
+        {
+            "intent": "content_edit",
+            "reply": "Shortened your intro.",
+            "ops": [{"op": "set", "path": "hero.intro", "value": "A short intro."}],
+        }
+    ]
+    try:
+        accepted = await client.post(
+            f"{base}/messages",
+            json={
+                "message": "shorten my intro",
+                "client_message_id": "m2",
+                "base_version_id": active,
+            },
+        )
+        assert accepted.status_code == 202, accepted.text
+        assert accepted.json()["code_generator"]["in_flight"]["origin"] == "change"
+        assert (
+            await client.post(
+                f"{base}/messages", json={"message": "again", "client_message_id": "m3"}
+            )
+        ).json()["error"]["code"] == "CODE_GENERATOR_BUILD_IN_PROGRESS"
+        result = await _run_build(client, accepted.json())
+    finally:
+        _MODEL.plans = previous_plans
+    assert result["status"] == "succeeded"
+
+    after = (await client.get(base)).json()
+    assert after["code_generator"]["active_version_number"] == 2
+    first = next(v for v in after["versions"] if v["version_number"] == 1)
+    grant = (await client.get(f"{base}/preview-grant")).json()
+    assert "A short intro." in (await client.get(grant["url"])).text
+
+    restored = await client.post(f"{base}/versions/{first['id']}/restore")
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["code_generator"]["active_version_number"] == 3
+    fresh = (await client.get(f"{base}/preview-grant")).json()
+    assert "A short intro." not in (await client.get(fresh["url"])).text
+    assert (await client.post(f"{base}/versions/{uuid4()}/restore")).status_code == 404
+    assert (await client.post(f"{base}/versions/not-a-uuid/restore")).status_code in {400, 422}

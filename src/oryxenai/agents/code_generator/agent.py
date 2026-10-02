@@ -8,7 +8,7 @@ validated by the host, and a failure is reported exactly (see ``diagnostics``).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -19,7 +19,11 @@ from oryxenai.agents.code_generator.prompt_builder import (
     build_instructions,
     get_prompt_version,
 )
-from oryxenai.agents.code_generator.schemas import CodeGeneratorFailure, GeneratedPageEnvelope
+from oryxenai.agents.code_generator.schemas import (
+    ChangePlanEnvelope,
+    CodeGeneratorFailure,
+    GeneratedPageEnvelope,
+)
 from oryxenai.agents.shared.contracts import Agent, AgentContext, AgentKey, AgentResult, ModelClient
 from oryxenai.agents.shared.model_cache import prompt_cache_context
 from oryxenai.agents.shared.providers.errors import ModelOutputInvalidError
@@ -54,6 +58,12 @@ class ModelCallInfo:
             "prompt_modules": self.manifest,
             "telemetry": self.telemetry,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class InterpretedChange:
+    plan: ChangePlanEnvelope
+    call: ModelCallInfo
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,3 +173,44 @@ class CodeGeneratorAgent(Agent):
         return GeneratedPage(
             lang=envelope.lang.strip() or "en", body_html=envelope.body_html, call=call
         )
+
+    async def interpret_change(
+        self,
+        page_content: Mapping[str, Any],
+        instruction: str,
+        history: Sequence[Mapping[str, str]],
+        context: AgentContext,
+    ) -> InterpretedChange:
+        """One small model call: what (if anything) does this chat message change?"""
+        bundle = build_instructions("interpret_change", self._theme)
+        packet = {
+            "content": dict(page_content),
+            "user_request": instruction,
+            "recent_conversation": [dict(item) for item in history],
+        }
+        request_context = prompt_cache_context(
+            "code_generator", "interpret_change", bundle.manifest, context
+        )
+        result = await self._client.generate_structured(
+            operation="interpret_change",
+            system_prompt=bundle.system_prompt,
+            instructions=bundle.task,
+            input_payload=packet,
+            output_model=ChangePlanEnvelope,
+            model_profile=self._profile_name,
+            request_context=request_context,
+            strict_schema=False,
+        )
+        call = _call_info(
+            result, "interpret_change", get_prompt_version("interpret_change"), bundle.manifest
+        )
+        try:
+            plan = ChangePlanEnvelope.model_validate(getattr(result, "parsed_output", None))
+        except ValidationError as exc:
+            failure = failure_from_provider_error(ModelOutputInvalidError(), stage="interpret")
+            failure.cause = (
+                "The reply was valid JSON but not a valid change plan "
+                f"({len(exc.errors())} field problem{'s' if len(exc.errors()) != 1 else ''})."
+            )
+            raise CodeGeneratorFailure(failure) from exc
+        return InterpretedChange(plan=plan, call=call)

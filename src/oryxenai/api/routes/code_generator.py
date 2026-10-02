@@ -6,7 +6,7 @@ from typing import Any, NoReturn
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oryxenai.agents.code_generator.service import (
     CodeGeneratorOperationError,
@@ -30,6 +30,14 @@ class CodeGeneratorStateResponse(BaseModel):
     versions: list[dict[str, Any]] = Field(default_factory=list)
     chat: list[dict[str, Any]] = Field(default_factory=list)
     jobs: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ChangeMessageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    message: str
+    client_message_id: str
+    base_version_id: str | None = None
 
 
 def _translate(exc: CodeGeneratorOperationError) -> NoReturn:
@@ -83,6 +91,48 @@ async def stop_code_generator(
 ) -> CodeGeneratorStateResponse:
     try:
         return CodeGeneratorStateResponse(**await service.stop(access.session.id))
+    except CodeGeneratorOperationError as exc:
+        _translate(exc)
+
+
+@router.post(
+    "/messages",
+    response_model=CodeGeneratorStateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def send_change_message(
+    session_id: str,
+    body: ChangeMessageRequest,
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
+    service: CodeGeneratorService = Depends(get_code_generator_service),
+) -> CodeGeneratorStateResponse:
+    """Ask for a content change in plain language (answered or built in the background)."""
+    try:
+        return CodeGeneratorStateResponse(
+            **await service.post_message(
+                access.session.id,
+                message=body.message,
+                client_message_id=body.client_message_id,
+                base_version_id=body.base_version_id,
+            )
+        )
+    except CodeGeneratorOperationError as exc:
+        _translate(exc)
+
+
+@router.post("/versions/{version_id}/restore", response_model=CodeGeneratorStateResponse)
+async def restore_code_generator_version(
+    session_id: str,
+    version_id: str,
+    access: PortfolioAccess = Depends(require_pipeline_session),
+    _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
+    service: CodeGeneratorService = Depends(get_code_generator_service),
+) -> CodeGeneratorStateResponse:
+    try:
+        return CodeGeneratorStateResponse(
+            **await service.restore(access.session.id, _uuid(version_id, "version ID"))
+        )
     except CodeGeneratorOperationError as exc:
         _translate(exc)
 

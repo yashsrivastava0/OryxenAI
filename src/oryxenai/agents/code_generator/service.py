@@ -15,12 +15,13 @@ from __future__ import annotations
 import hashlib
 import json
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
 from oryxenai.agents.code_generator import messages
 from oryxenai.agents.code_generator.admission import content_admission_issues
+from oryxenai.agents.code_generator.changes import content_sha256
 from oryxenai.agents.code_generator.diagnostics import (
     failure_cancelled,
     failure_from_admission,
@@ -32,11 +33,11 @@ from oryxenai.agents.code_generator.schemas import FailureEnvelope
 from oryxenai.agents.code_generator.serving import PREVIEW_PREFIX
 from oryxenai.agents.code_generator.state import (
     CodeGeneratorSourceRef,
-    CodeGeneratorState,
     CodeGeneratorStatus,
     InFlightBuild,
     apply_build_failed,
     apply_build_started,
+    apply_restored,
     version_id_for_run,
 )
 from oryxenai.agents.content_architect.schemas import ContentArchitectStatus
@@ -73,11 +74,6 @@ class CodeGeneratorOperationError(Exception):
 
 def _iso(value: Any) -> str | None:
     return value.isoformat() if isinstance(value, datetime) else None
-
-
-def content_sha256(page_content: dict[str, Any]) -> str:
-    material = json.dumps(page_content, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def _section(receipt: dict[str, Any], key: str) -> dict[str, Any]:
@@ -307,6 +303,242 @@ class CodeGeneratorService:
         )
         return await self._response(session_id)
 
+    # ── chat edits ───────────────────────────────────────────────────────────
+
+    async def post_message(
+        self,
+        session_id: UUID,
+        *,
+        message: str,
+        client_message_id: str,
+        base_version_id: str | None,
+        request_id: str = "",
+    ) -> dict[str, Any]:
+        """Ask for a content change. The interpreter + build run in one background job."""
+        settings = self._settings.code_generator
+        text = (message or "").strip()
+        client_id = (client_message_id or "").strip()
+        if not text or len(text) > settings.max_instruction_chars:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_MESSAGE_INVALID",
+                f"Write between 1 and {settings.max_instruction_chars} characters.",
+                status_code=422,
+            )
+        if not client_id or len(client_id) > 80:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_MESSAGE_INVALID",
+                "A client_message_id of 1 to 80 characters is required.",
+                status_code=422,
+            )
+        session = await self._repo.lock_session(session_id)
+        if session is None:
+            self._not_found()
+        await self._reconcile_locked(session_id)
+        if await self._repo.find_chat_by_client_id(session_id, client_id) is not None:
+            return await self._response(session_id)  # a retried request: already accepted
+        state = await self._repo.get_state(session_id)
+        if state.status is CodeGeneratorStatus.BUILD_RUNNING:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BUILD_IN_PROGRESS",
+                "Your page is being built. Wait for it to finish, or stop it first.",
+            )
+        if state.status is not CodeGeneratorStatus.READY or not state.active_version_id:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_NOT_READY",
+                "Generate your portfolio before asking for changes.",
+                details={"status": state.status.value},
+            )
+        if base_version_id and base_version_id != state.active_version_id:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_STALE_BASE",
+                "The page changed since you last looked. Reload and ask again.",
+                details={"active_version_id": state.active_version_id},
+            )
+        since = datetime.now(UTC) - timedelta(hours=1)
+        sent = await self._repo.count_user_messages_since(session_id, since)
+        if sent >= settings.max_changes_per_hour:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_RATE_LIMITED",
+                "You have reached the hourly limit for change requests. Try again a little later.",
+                status_code=429,
+            )
+        base = await self._repo.get_version(UUID(state.active_version_id), session_id=session_id)
+        if base is None or base.status != "ready" or base.restricted:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_NOT_READY", "The live page is not available to edit."
+            )
+
+        from oryxenai.agents.shared.model_runtime import get_model_runtime
+
+        policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
+        history = await self._repo.recent_conversation(
+            session_id, settings.interpreter_history_messages
+        )
+        run_id = uuid4()
+        version_id = version_id_for_run(run_id)
+        key = hashlib.sha256(
+            json.dumps(
+                {"session": str(session_id), "op": "change", "client": client_id},
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        run = AgentRun(
+            id=run_id,
+            agent_key="code_generator",
+            status="pending",
+            input_payload={
+                "operation": "change",
+                "origin": "change",
+                "page_content": dict(base.content_snapshot),
+                "content_sha256": base.content_sha256,
+                "source_ref": state.source_ref.model_dump(mode="json"),
+                "theme_id": base.theme_id,
+                "version_id": str(version_id),
+                "base_version_id": str(base.id),
+                "instruction": text,
+                "history": history,
+                "model_profile": "",
+                "input_classification": "personal",
+                "routing_policy_snapshot": policy_snapshot,
+            },
+            state_before=dict(session.current_state),
+            idempotency_key=key,
+            **durable_snapshot_for_session(self._jobs.authorization_context, session_id),
+        )
+        await self._repo.create_run(run)
+        job = await self._jobs.enqueue(
+            _BUILD_KIND,
+            {
+                "portfolio_session_id": str(session_id),
+                "agent_run_id": str(run.id),
+                "version_id": str(version_id),
+                "expected_session_revision": session.revision + 1,
+                "request_id": request_id,
+            },
+            max_attempts=1,
+            idempotency_scope=f"code_generator:{session_id}",
+            idempotency_key=key,
+        )
+        running = apply_build_started(
+            state,
+            in_flight=InFlightBuild(
+                run_id=str(run.id),
+                job_id=str(job.id),
+                version_id=str(version_id),
+                origin="change",
+                instruction=text,
+                base_version_id=str(base.id),
+                started_at=datetime.now(UTC).isoformat(),
+            ),
+            source_ref=state.source_ref,
+            theme_id=state.theme_id,
+            routing_policy_version=str(policy_snapshot["version"]),
+            routing_policy_fingerprint=str(policy_snapshot["fingerprint"]),
+        )
+        if await self._repo.save_state(session_id, running, session.revision) is None:
+            self._revision_conflict(session.revision)
+        await self._repo.append_chat(
+            session_id,
+            role="user",
+            kind="message",
+            body=text,
+            client_message_id=client_id,
+        )
+        return await self._response(session_id)
+
+    async def restore(self, session_id: UUID, version_id: UUID) -> dict[str, Any]:
+        """Make an earlier verified page live again: a copy, no build and no model call."""
+        session = await self._repo.lock_session(session_id)
+        if session is None:
+            self._not_found()
+        await self._reconcile_locked(session_id)
+        state = await self._repo.get_state(session_id)
+        if state.status is CodeGeneratorStatus.BUILD_RUNNING:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_BUILD_IN_PROGRESS",
+                "Your page is being built. Wait for it to finish, or stop it first.",
+            )
+        if state.status is not CodeGeneratorStatus.READY:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_NOT_READY", "There is no finished page to restore into yet."
+            )
+        source = await self._repo.get_version(version_id, session_id=session_id)
+        if source is None:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_VERSION_NOT_FOUND", "That version was not found.", status_code=404
+            )
+        if str(source.id) == state.active_version_id:
+            return await self._response(session_id)
+        reason = self._not_restorable(source)
+        if reason:
+            raise CodeGeneratorOperationError(
+                "CODE_GENERATOR_VERSION_NOT_RESTORABLE",
+                reason,
+                details={"version_id": str(source.id)},
+            )
+
+        number = await self._repo.next_version_number(session_id)
+        duplicate = await self._repo.create_version(
+            version_id=uuid4(),
+            session_id=session_id,
+            origin="restore",
+            status="ready",
+            instruction=f"Restore version {source.version_number}",
+            content_snapshot=dict(source.content_snapshot),
+            content_sha256=source.content_sha256,
+            theme_id=source.theme_id,
+            run_id=None,
+            job_id=None,
+            parent_version_id=source.id,
+        )
+        await self._repo.mark_version_ready(
+            duplicate,
+            version_number=number,
+            lang=source.lang,
+            index_html=str(source.index_html),
+            index_sha256=str(source.index_sha256),
+            theme_sha256=source.theme_sha256,
+            manifest=dict(source.manifest),
+            receipt={
+                **dict(source.receipt),
+                "restored_from": {
+                    "version_id": str(source.id),
+                    "version_number": source.version_number,
+                },
+            },
+            trace={},
+        )
+        restored = apply_restored(state, version_id=str(duplicate.id), version_number=number)
+        if await self._repo.save_state(session_id, restored, session.revision) is None:
+            self._revision_conflict(session.revision)
+        await self._repo.append_chat(
+            session_id,
+            role="system",
+            kind="build",
+            body=f"Restored version {source.version_number} as version {number}.",
+            version_id=duplicate.id,
+        )
+        await self._repo.prune_versions(
+            session_id,
+            keep=self._settings.code_generator.max_versions_per_session,
+            active_id=duplicate.id,
+        )
+        return await self._response(session_id)
+
+    @staticmethod
+    def _not_restorable(version: PortfolioSiteVersion) -> str:
+        if version.restricted:
+            return "That version was removed because it contained information you asked to hide."
+        if version.status != "ready" or not version.index_html:
+            return "Only finished versions can be restored."
+        try:
+            theme = get_theme(version.theme_id)
+        except ThemeError:
+            return "The theme this version was built with is no longer installed."
+        if theme.css_sha256 != version.theme_sha256:
+            return "The theme files changed since this version was built."
+        return ""
+
     # ── read ─────────────────────────────────────────────────────────────────
 
     async def get_state(self, session_id: UUID) -> dict[str, Any]:
@@ -451,7 +683,9 @@ class CodeGeneratorService:
             session_id,
             role="system",
             kind="build",
-            body=messages.build_failed(envelope, kept_previous=bool(state.active_version_id)),
+            body=messages.build_failed(
+                envelope, kept_previous=bool(state.active_version_id), origin=flight.origin
+            ),
             version_id=version_uuid,
         )
 
@@ -478,9 +712,3 @@ def _elapsed_seconds(started_at: str | None) -> float | None:
     except ValueError:
         return None
     return max(0.0, (datetime.now(UTC) - started).total_seconds())
-
-
-def reconcile_state_for(
-    state: CodeGeneratorState,
-) -> CodeGeneratorState:  # pragma: no cover - helper for tests
-    return state

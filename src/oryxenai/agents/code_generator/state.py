@@ -153,6 +153,33 @@ def apply_build_succeeded(
     return new
 
 
+def apply_reply_only(state: CodeGeneratorState) -> CodeGeneratorState:
+    """A chat request needed no new page (a reply, a question, a refusal): back to ready."""
+    if not state.active_version_id:
+        raise InvalidTransitionError(state.status.value, CodeGeneratorStatus.READY.value)
+    _require(state, CodeGeneratorStatus.READY)
+    new = state.model_copy(deep=True)
+    new.status = CodeGeneratorStatus.READY
+    new.in_flight = None
+    new.last_error = None
+    new.updated_at = _now()
+    return new
+
+
+def apply_restored(
+    state: CodeGeneratorState, *, version_id: str, version_number: int
+) -> CodeGeneratorState:
+    """An earlier verified page was made live again (no build, no model)."""
+    if state.status is not CodeGeneratorStatus.READY or state.in_flight is not None:
+        raise InvalidTransitionError(state.status.value, CodeGeneratorStatus.READY.value)
+    new = state.model_copy(deep=True)
+    new.active_version_id = version_id
+    new.active_version_number = version_number
+    new.last_error = None
+    new.updated_at = _now()
+    return new
+
+
 def apply_build_failed(state: CodeGeneratorState, envelope: FailureEnvelope) -> CodeGeneratorState:
     """The in-flight build failed: keep the live page (if any) and say why.
 

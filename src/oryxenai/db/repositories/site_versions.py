@@ -337,6 +337,87 @@ class SiteVersionRepository:
         rows.reverse()
         return rows
 
+    async def find_chat_by_client_id(
+        self, session_id: UUID, client_message_id: str
+    ) -> PortfolioChatMessage | None:
+        stmt = select(PortfolioChatMessage).where(
+            PortfolioChatMessage.portfolio_session_id == session_id,
+            PortfolioChatMessage.client_message_id == client_message_id,
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def count_user_messages_since(self, session_id: UUID, since: datetime) -> int:
+        value = await self._session.scalar(
+            select(func.count())
+            .select_from(PortfolioChatMessage)
+            .where(
+                PortfolioChatMessage.portfolio_session_id == session_id,
+                PortfolioChatMessage.role == "user",
+                PortfolioChatMessage.created_at >= since,
+            )
+        )
+        return int(value or 0)
+
+    async def recent_conversation(self, session_id: UUID, limit: int) -> list[dict[str, str]]:
+        """The last ``limit`` plain chat turns (not build events), oldest first."""
+        stmt = (
+            select(PortfolioChatMessage)
+            .where(
+                PortfolioChatMessage.portfolio_session_id == session_id,
+                PortfolioChatMessage.kind == "message",
+                PortfolioChatMessage.role.in_(("user", "assistant")),
+            )
+            .order_by(PortfolioChatMessage.seq.desc())
+            .limit(max(0, limit))
+        )
+        rows = list((await self._session.execute(stmt)).scalars().all())
+        rows.reverse()
+        return [{"role": row.role, "text": row.body} for row in rows]
+
+    async def prune_versions(self, session_id: UUID, *, keep: int, active_id: UUID | None) -> int:
+        """Delete the oldest versions beyond ``keep``; the live page is never pruned."""
+        stmt = (
+            select(PortfolioSiteVersion.id)
+            .where(PortfolioSiteVersion.portfolio_session_id == session_id)
+            .order_by(PortfolioSiteVersion.seq.desc())
+            .offset(max(1, keep))
+        )
+        doomed = [
+            row for row in (await self._session.execute(stmt)).scalars().all() if row != active_id
+        ]
+        if not doomed:
+            return 0
+        await self._session.execute(
+            delete(PortfolioSiteVersion).where(PortfolioSiteVersion.id.in_(doomed))
+        )
+        await self._session.flush()
+        return len(doomed)
+
+    async def restrict_versions(self, session_id: UUID, version_ids: list[UUID]) -> None:
+        if not version_ids:
+            return
+        await self._session.execute(
+            update(PortfolioSiteVersion)
+            .where(
+                PortfolioSiteVersion.portfolio_session_id == session_id,
+                PortfolioSiteVersion.id.in_(version_ids),
+            )
+            .values(restricted=True, updated_at=datetime.now(UTC))
+        )
+
+    async def ready_versions_with_content(
+        self, session_id: UUID, *, exclude: UUID | None = None
+    ) -> list[tuple[UUID, dict[str, Any]]]:
+        """(id, content_snapshot) of ready, unrestricted versions (privacy sweeps)."""
+        stmt = select(PortfolioSiteVersion.id, PortfolioSiteVersion.content_snapshot).where(
+            PortfolioSiteVersion.portfolio_session_id == session_id,
+            PortfolioSiteVersion.status == "ready",
+            PortfolioSiteVersion.restricted.is_(False),
+        )
+        if exclude is not None:
+            stmt = stmt.where(PortfolioSiteVersion.id != exclude)
+        return [(row[0], dict(row[1] or {})) for row in (await self._session.execute(stmt)).all()]
+
     # ── cleanup ──────────────────────────────────────────────────────────────
 
     async def delete_for_session(self, session_id: UUID) -> None:
