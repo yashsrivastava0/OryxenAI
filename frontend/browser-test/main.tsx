@@ -10,7 +10,8 @@ import { StudioStage } from "../src/stages/studio/StudioStage";
 import { adaptStudio } from "../src/data/adapters/studio";
 import { studioFixtures } from "./studio-fixtures";
 import { adaptDiscovery } from "../src/data/adapters/discovery";
-import { briefReview, questionsMcqReady, questionsReady, questionsTextReady } from "../src/data/adapters/discovery.fixtures";
+import { approved, briefReview, questionsMcqReady, questionsReady, questionsTextReady } from "../src/data/adapters/discovery.fixtures";
+import { AppShell } from "../src/app/AppShell";
 import { adaptContentArchitect } from "../src/data/adapters/content";
 import { contentFixtureApproved, contentFixtureReview } from "../src/data/adapters/content.fixtures";
 // The product template loads these shared files before shell.css. Keep the
@@ -279,4 +280,52 @@ function StudioFixture({ name }: { name: string }) {
   );
 }
 
-render(<FixtureFrame><StageFixture /></FixtureFrame>, document.getElementById("app")!);
+// Raw API payloads for the Python-side fake backend (tests/browser).
+(window as unknown as { __fixtures: unknown }).__fixtures = {
+  discoveryApproved: approved,
+  contentReview: contentFixtureReview,
+  contentApproved: contentFixtureApproved,
+};
+
+// authorizedFetch in production throws on a non-2xx response; mirror that so the
+// real AppShell/API-client error paths run against a fake backend.
+async function fixtureFetch(url: string, init?: RequestInit): Promise<Response> {
+  const response = await fetch(url, init);
+  if (!response.ok) {
+    let body: { error?: { code?: string; message?: string; details?: unknown } } | null = null;
+    try {
+      body = await response.clone().json();
+    } catch {
+      body = null;
+    }
+    throw {
+      code: body?.error?.code ?? "REQUEST_FAILED",
+      status: response.status,
+      message: body?.error?.message ?? "The request could not be completed.",
+      details: body?.error?.details,
+    };
+  }
+  return response;
+}
+
+if (new URLSearchParams(window.location.search).get("app") === "1") {
+  render(
+    <AppShell
+      authorizedFetch={fixtureFetch}
+      me={{
+        id: "user-e2e",
+        username: "yash",
+        role: "user",
+        status: "active",
+        onboarding_required: false,
+        admin_available: false,
+        can_create_portfolio: true,
+        portfolio_session_id: "session-e2e",
+      }}
+      serverSessionId="session-e2e"
+    />,
+    document.getElementById("app")!,
+  );
+} else {
+  render(<FixtureFrame><StageFixture /></FixtureFrame>, document.getElementById("app")!);
+}
