@@ -22,7 +22,7 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -467,6 +467,38 @@ class DiscoveryConfig(BaseModel):
     max_input_chars: int = 200000
 
 
+class CodeGeneratorVerificationConfig(BaseModel):
+    """Real-browser verification of a generated page (``[code_generator.verification]``)."""
+
+    # off: never launch a browser. best_effort: verify when a browser can launch;
+    # an unlaunchable browser is recorded, never fatal, and any defect it finds
+    # still blocks. required: a page is never ready without a passing browser run.
+    browser: Literal["off", "best_effort", "required"] = "best_effort"
+    viewports: list[int] = Field(default_factory=lambda: [320, 390, 768, 1280])
+    # "chrome" drives an installed Google Chrome (handy on developer machines).
+    browser_channel: str = ""
+    # Absolute path to a Chromium/Chrome binary (container images).
+    browser_executable: str = ""
+    page_timeout_seconds: float = 20.0
+    concurrency: int = 1
+
+
+class CodeGeneratorConfig(BaseModel):
+    """Code Generator limits and policy from ``[code_generator]`` in config/app.toml."""
+
+    theme_id: str = "editorial-forest/v1"
+    max_body_bytes: int = 262_144
+    max_versions_per_session: int = 40
+    max_instruction_chars: int = 1500
+    max_changes_per_hour: int = 30
+    preview_grant_ttl_seconds: int = 1800
+    chat_tail_messages: int = 60
+    interpreter_history_messages: int = 8
+    verification: CodeGeneratorVerificationConfig = Field(
+        default_factory=CodeGeneratorVerificationConfig
+    )
+
+
 class ArtifactStorageConfig(BaseModel):
     """Non-secret S3-compatible artifact storage settings."""
 
@@ -708,6 +740,12 @@ class Settings(BaseSettings):
     allowed_user_emails: str = Field(
         default="", validation_alias="ORYXENAI_ALLOWED_USER_EMAILS", repr=False
     )
+    # Signs short-lived preview grants. Optional: when unset the API process
+    # generates a random key at startup (grants then die on restart and the
+    # Studio simply requests a fresh one). Set it for multi-instance deployments.
+    preview_grant_secret: SecretStr = Field(
+        default=SecretStr(""), validation_alias="PREVIEW_GRANT_SECRET", repr=False
+    )
 
     # Non-secret infrastructure overrides (env vars, not in .env):
     # Docker Compose sets these to redirect to the postgres service.
@@ -728,6 +766,7 @@ class Settings(BaseSettings):
     models: ModelConfig = Field(default_factory=ModelConfig)
     model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    code_generator: CodeGeneratorConfig = Field(default_factory=CodeGeneratorConfig)
     archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
     preview_gateway: PreviewGatewayConfig = Field(default_factory=PreviewGatewayConfig)
     artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
@@ -772,6 +811,8 @@ class Settings(BaseSettings):
             self.model_cache = ModelCacheConfig(**app_data["model_cache"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
+        if "code_generator" in app_data:
+            self.code_generator = CodeGeneratorConfig(**app_data["code_generator"])
         if "archive_storage" in app_data:
             self.archive_storage = ArchiveStorageConfig(**app_data["archive_storage"])
         if "preview_gateway" in app_data:

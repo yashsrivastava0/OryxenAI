@@ -23,6 +23,7 @@ _POLICIES: dict[str, JobKindPolicy] = {
     "discovery.prepare_questions": JobKindPolicy(True, True, True),
     "discovery.build_brief": JobKindPolicy(True, True, True),
     "content_architect.build": JobKindPolicy(True, True, True),
+    "code_generator.build": JobKindPolicy(True, True, True),
 }
 
 

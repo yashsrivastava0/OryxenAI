@@ -24,9 +24,10 @@ selectable_profiles = []
 [routing.engine_profiles]
 discovery = "experiential_luna_6"
 content_architect = "experiential_luna_6"
+code_generator = "experiential_luna_6"
 
 [routing.policy]
-version = "active_agent_routes_v4"
+version = "active_agent_routes_v5"
 # Active agent operations use the configured Experiential Luna route only.
 input_policy = "personal_luna_only"
 utilization_ceiling = 0.8
@@ -141,6 +142,33 @@ max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
 reasoning_effort = "medium"
+
+# Code Generator: one straight line, no automatic retries or repairs. A first
+# build makes one generate_page call; a chat edit makes interpret_change then
+# generate_page. normal_calls is the shared per-run allowance; recovery stays 0.
+[routing.operation_profiles.code_generator.generate_page]
+primary_profile = "experiential_luna_6"
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
+normal_calls = 2
+recovery_allowance = 0
+max_output_tokens = 20000
+input_limit_tokens = 96000
+timeout_seconds = 180
+reasoning_effort = "low"
+
+[routing.operation_profiles.code_generator.interpret_change]
+primary_profile = "experiential_luna_6"
+fallback_profiles = []
+allow_gemini = false
+allow_personal_gemini_fallback = false
+normal_calls = 2
+recovery_allowance = 0
+max_output_tokens = 4000
+input_limit_tokens = 96000
+timeout_seconds = 90
+reasoning_effort = "low"
 
 [profiles.default]
 provider = "anthropic"

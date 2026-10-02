@@ -53,6 +53,7 @@ def _register_builtins() -> None:
         register(WorkerProbeHandler())
     _register_discovery_handlers()
     _register_content_architect_handlers()
+    _register_code_generator_handlers()
 
 
 def _register_discovery_handlers() -> None:
@@ -78,6 +79,15 @@ def _register_content_architect_handlers() -> None:
     from oryxenai.jobs.handlers.content_architect import ContentArchitectBuildHandler
 
     for handler_cls in (ContentArchitectBuildHandler,):
+        instance = handler_cls()
+        if not is_registered(instance.kind):
+            register(instance)
+
+
+def _register_code_generator_handlers() -> None:
+    from oryxenai.jobs.handlers.code_generator import CodeGeneratorBuildHandler
+
+    for handler_cls in (CodeGeneratorBuildHandler,):
         instance = handler_cls()
         if not is_registered(instance.kind):
             register(instance)

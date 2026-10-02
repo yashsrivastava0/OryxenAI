@@ -43,9 +43,19 @@ VOID_ELEMENTS = frozenset(
 _WS = re.compile(r"[ \t\n\r\f]+")
 
 
+# A no-break space is content, but the ordinary spaces beside it are not: models
+# routinely add or drop them, and the rendered difference is invisible.
+_NBSP_FLANK = re.compile(" ?" + chr(0xA0) + " ?")
+
+
 def normalize_text(value: str) -> str:
-    """NFC-normalize and collapse ASCII whitespace (NBSP is intentionally kept)."""
-    return _WS.sub(" ", unicodedata.normalize("NFC", value)).strip()
+    """NFC-normalize and collapse ASCII whitespace.
+
+    A no-break space itself is kept (it must still appear), but the ordinary
+    whitespace directly around it is not significant.
+    """
+    collapsed = _WS.sub(" ", unicodedata.normalize("NFC", value)).strip()
+    return _NBSP_FLANK.sub(chr(0xA0), collapsed)
 
 
 @dataclass(eq=False)

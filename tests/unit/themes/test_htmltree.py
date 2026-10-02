@@ -101,6 +101,15 @@ def test_normalize_text_keeps_nbsp_and_nfc() -> None:
     assert normalize_text("é") == "é"
 
 
+def test_spaces_around_a_no_break_space_are_not_significant_but_the_nbsp_is() -> None:
+    nbsp = chr(0xA0)
+    assert normalize_text("fine " + nbsp + " ok") == "fine" + nbsp + "ok"
+    assert normalize_text("fine" + nbsp + "ok") == "fine" + nbsp + "ok"
+    assert normalize_text("fine " + nbsp + "ok") == normalize_text("fine" + nbsp + " ok")
+    # Dropping the no-break space itself is still a copy difference.
+    assert normalize_text("fine ok") != normalize_text("fine" + nbsp + "ok")
+
+
 def test_evidence_makes_invisible_and_confusable_characters_visible() -> None:
     assert escape_invisible("a" + chr(0xA0) + "b" + chr(0x200B) + "c") == "a\\u00a0b\\u200bc"
     assert (

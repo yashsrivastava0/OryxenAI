@@ -778,7 +778,15 @@ def _parse_json_object(raw: str) -> Any:
     try:
         return json.loads(raw)
     except json.JSONDecodeError as original:
-        decoder = json.JSONDecoder()
+        # Long string values (for example embedded HTML) sometimes carry literal
+        # control characters such as a raw newline or tab. ``strict=False``
+        # accepts exactly those and changes nothing else; try it on the whole
+        # document before scanning for an embedded object.
+        try:
+            return json.loads(raw, strict=False)
+        except json.JSONDecodeError:
+            pass
+        decoder = json.JSONDecoder(strict=False)
         for index, character in enumerate(raw):
             if character != "{":
                 continue

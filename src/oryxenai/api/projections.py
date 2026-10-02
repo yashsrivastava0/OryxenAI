@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from oryxenai.agents.code_generator.state import CodeGeneratorState, InFlightBuild
 from oryxenai.agents.content_architect.schemas import (
     ContentArchitectIntake,
     ContentArchitectOutput,
@@ -37,6 +38,11 @@ def project_session_state(value: object) -> dict[str, Any]:
             if key in raw:
                 raw[key] = _fields(raw[key], model)
         projected["content_architect"] = raw
+    if "code_generator" in value:
+        raw_generator = _fields(value["code_generator"], CodeGeneratorState)
+        if "in_flight" in raw_generator and raw_generator["in_flight"] is not None:
+            raw_generator["in_flight"] = _fields(raw_generator["in_flight"], InFlightBuild)
+        projected["code_generator"] = raw_generator
     raw_agents = value.get("agents")
     if isinstance(raw_agents, Mapping):
         agents: dict[str, Any] = {}
@@ -55,12 +61,26 @@ def project_agent_output(agent_key: str, value: object) -> dict[str, Any] | None
         return None
     if agent_key == "content_architect":
         return _fields(value, ContentArchitectOutput)
+    if agent_key == "code_generator":
+        allowed = {"version_id", "version_number", "lang", "index_sha256", "index_bytes"}
+        return {key: item for key, item in value.items() if key in allowed}
     return dict(value)
 
 
 def project_agent_input(agent_key: str, value: object) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         return {}
+    if agent_key == "code_generator":
+        # The page content stays on the run row; only the control facts are shown.
+        keep = {
+            "operation",
+            "origin",
+            "theme_id",
+            "version_id",
+            "model_profile",
+            "routing_policy_snapshot",
+        }
+        return {key: item for key, item in value.items() if key in keep}
     if agent_key != "content_architect":
         return dict(value)
     allowed = {
