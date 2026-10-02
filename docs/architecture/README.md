@@ -28,6 +28,7 @@ Each accepted change creates a revision and a candidate. A failed candidate neve
 
 | Document | What it settles |
 | --- | --- |
+| [Visual Architecture & Preview Flow](proposed-architecture-and-agent-generation-flow.md) | Visual Mermaid diagrams, Git branching, end-to-end agent generation, and split-screen live preview |
 | [System and product journey](10-proposed-resume-portfolio-system.md) | User flow, stage ownership, target boundaries, supplied CSS audit, migration order |
 | [Agent and artifact contracts](11-agent-and-artifact-contracts.md) | Exact handoffs, factual provenance, content depth, model packets and context budgets |
 | [Generation and revision mechanics](12-generation-preview-revisions-and-operations.md) | HTML/CSS integration, persisted versions, preview verification, edit routing, recovery |
