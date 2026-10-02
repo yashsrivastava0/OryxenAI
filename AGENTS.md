@@ -17,7 +17,7 @@
 
 | Domain | Quick Reference & Ground Truth |
 | :--- | :--- |
-| **Core Architecture** | Two-stage portfolio planning: **Stage 1: Discovery** &rarr; **Stage 2: Content Architect**. The active product and API workflow concludes strictly upon Content Architect plan approval. No automatic stage chaining. |
+| **Core Architecture** | Three-stage portfolio flow: **Stage 1: Discovery** &rarr; **Stage 2: Content Architect** &rarr; **Stage 3: Studio (Code Generator)**. Every stage starts only from an explicit user action; the one-click *Approve & generate my portfolio* approves the content plan and then starts the build, and the API never chains stages. The workflow ends with a verified, previewable page. Publishing or hosting that page is not implemented. |
 | **Technology Stack** | Python 3.13 (`uv`), FastAPI, SQLAlchemy Async, PostgreSQL (JSONB state + queue), Preact + TypeScript + Vite frontend. |
 | **Queue & Worker** | PostgreSQL-backed durable jobs (`SELECT ... FOR UPDATE SKIP LOCKED`). Zero Redis/Celery. |
 | **Model Invocations** | Provider-neutral `ModelClient` configured via `config/models.toml`. Never hardcode provider names or model IDs in business logic. |
@@ -30,15 +30,17 @@
 
 ## 1. What OryxenAI Is (and Isn't)
 
-OryxenAI is an authenticated, intelligent portfolio-planning product. It converts raw user intent and background materials into:
+OryxenAI is an authenticated, intelligent portfolio product. It converts raw user intent and background materials into:
 1. An approved **Discovery Brief**.
 2. An approved **Content Architect Plan**.
+3. A generated, verified **one-page portfolio** shown in the **Studio**: a live, sandboxed preview next to a chat that changes the page's content.
 
-The active product and API workflow **ends after content plan approval**. The repository does **not** currently generate, compile, or serve a published portfolio website.
+The active workflow **ends in the Studio**. The repository generates and previews the page for its owner; it does **not** publish, export or host a public portfolio website.
 
 ### Deliberately Excluded Behaviors
-* **No automatic stage chaining or autonomous supervisor:** Callers and users explicitly trigger each stage via API/UI.
-* **No generated-site runtime or browser hosting:** Output is structured planning data, not a deployed frontend portfolio site.
+* **No automatic stage chaining or autonomous supervisor:** Callers and users explicitly trigger each stage via API/UI. The product's single *Approve & generate my portfolio* click is one explicit user action (approve, then start); no API endpoint starts the next stage by itself.
+* **No public hosting of generated pages:** The generated page is previewed only for its owner through short-lived, signed, sandboxed preview links; it is not published, exported or served publicly.
+* **No automatic retry or repair of generated pages:** A failed build is reported exactly (what, where, why) and the owner starts it again. Any future retry or repair loop must be a deliberate, documented change.
 * **No external queue brokers:** No Redis, RabbitMQ, Celery, or Kafka. Background jobs are managed purely via PostgreSQL.
 * **No live model calls during standard tests:** Default test runs use deterministic fixtures and mock clients. Live provider calls are strictly opt-in.
 
@@ -57,6 +59,12 @@ The active product and API workflow **ends after content plan approval**. The re
 * **Capabilities:** Consumes approved Discovery dossier, runs as a single durable background job executing 1 to 3 sequential model operations (`plan_content`, optionally `write_pages`, optionally `integrate_content`).
 * **Boundary:** Started only through explicit API call; stops upon content plan review and approval.
 * **Documentation:** See [`src/oryxenai/agents/content_architect/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/content_architect/README.md).
+
+### Studio (Code Generator) Stage
+* **Status:** Implemented end-to-end.
+* **Capabilities:** Builds the page from the approved `page_content` with one durable job and one model call, validates it strictly against the pinned theme contract, seals it, verifies it in a real browser (policy-controlled), keeps immutable versions with restore, and applies chat edits to the content through typed, whitelisted operations.
+* **Boundary:** Started only through the explicit `code-generator/start` call; never replaces the live page with a failed attempt.
+* **Documentation:** See [`src/oryxenai/agents/code_generator/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/code_generator/README.md).
 
 ### Authentication, Entitlements & Storage
 * Local foundation supporting identity verification, just-in-time account admission, onboarding, owner-scoped session security, admin access, account lifecycle, and worker fencing.
@@ -91,6 +99,8 @@ src/oryxenai/
     shared/                  # Agent contracts, registry, executor, ModelClient
     discovery/               # Active intake and brief planning stage
     content_architect/       # Active content blueprint stage
+    code_generator/          # Studio: page build, versions, chat edits, preview serving
+  themes/                    # Immutable pinned theme packages (CSS, fonts, contract)
   auth/                      # Identity, ownership, entitlements, admin lifecycle
   api/routes/                # Session, stage, and operational endpoints
   web/                       # Product shell and static assets
@@ -186,6 +196,7 @@ tests/unit/          # Pure unit tests (fast, no external services)
 tests/api/           # FastAPI HTTP endpoint tests
 tests/integration/   # PostgreSQL-backed repository & queue tests (requires oryxenai_test)
 tests/worker/        # Worker claiming, concurrency, retry, and shutdown tests
+tests/browser/       # Headless-browser UI tests (Studio fixtures and AppShell flows)
 ```
 
 ---
@@ -238,3 +249,4 @@ Multiple AI tools (Claude Code, OpenAI Codex, Antigravity, Cursor) collaborate o
 * [`docs/deployment/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/deployment/) — Deployment architecture, CI/CD runbooks, and issue registry.
 * [`src/oryxenai/agents/discovery/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/discovery/README.md) — Discovery routes, prompts, and states.
 * [`src/oryxenai/agents/content_architect/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/content_architect/README.md) — Content Architect planning pipeline.
+* [`src/oryxenai/agents/code_generator/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/code_generator/README.md) — Studio pipeline, failures, preview security, CLI.

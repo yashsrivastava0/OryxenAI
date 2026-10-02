@@ -177,3 +177,17 @@ redacted logs.
 The old [`docs/github-student-pack-benefits.md`](../github-student-pack-benefits.md)
 is background research, not the deployment source of truth. Offers and prices
 must be rechecked in the provider dashboards immediately before redemption.
+
+## Studio deployment notes
+
+- The Studio needs only the web process, the worker and PostgreSQL: bundles are
+  stored in PostgreSQL and theme files ship inside the image, so no object store
+  or shared volume is required. Any container host works; a serverless platform
+  can host the static frontend only, because the worker needs a long-lived process.
+- `PREVIEW_GRANT_SECRET` (32+ random characters) is optional. Set it when more than
+  one API instance serves previews or when preview links should survive a restart.
+- Browser verification is off in the deployment overlays because the default image
+  has no browser. To enable it, build with `--build-arg INSTALL_CHROMIUM=true` and set
+  `[code_generator.verification] browser = "best_effort"` (or `"required"`) in the
+  overlay. A host that cannot start the browser records that in the page receipt
+  and still publishes in `best_effort`.
