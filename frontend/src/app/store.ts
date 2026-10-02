@@ -7,6 +7,7 @@ import { useContext } from "preact/hooks";
 import type { MeProjection } from "../data/api-client";
 import type { DiscoveryViewModel } from "../data/adapters/discovery";
 import type { ContentViewModel } from "../data/adapters/content";
+import type { StudioViewModel } from "../data/adapters/studio";
 import type { JourneyStageId } from "./url-state";
 
 export type ConnectionState = "confirmed" | "checking" | "stale" | "offline";
@@ -18,6 +19,7 @@ export interface AppState {
   activeStage: JourneyStageId;
   discovery: DiscoveryViewModel | null;
   content: ContentViewModel | null;
+  studio: StudioViewModel | null;
   connection: ConnectionState;
   announcement: string | null;
 }
@@ -28,6 +30,7 @@ export type AppAction =
   | { type: "stage/select"; stage: JourneyStageId }
   | { type: "discovery/set"; view: DiscoveryViewModel }
   | { type: "content/set"; view: ContentViewModel }
+  | { type: "studio/set"; view: StudioViewModel }
   | { type: "pipeline/reset"; sessionId: string; revision: number }
   | { type: "connection/set"; state: ConnectionState }
   | { type: "announce"; message: string };
@@ -39,6 +42,7 @@ export const initialAppState: AppState = {
   activeStage: "discover",
   discovery: null,
   content: null,
+  studio: null,
   connection: "checking",
   announcement: null,
 };
@@ -57,6 +61,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         activeStage: "discover",
         discovery: null,
         content: null,
+        studio: null,
       };
     case "stage/select":
       return { ...state, activeStage: action.stage };
@@ -64,6 +69,8 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, discovery: action.view };
     case "content/set":
       return { ...state, content: action.view };
+    case "studio/set":
+      return { ...state, studio: action.view };
     case "connection/set":
       return { ...state, connection: action.state };
     case "announce":
