@@ -548,3 +548,71 @@ async def test_content_snapshot_is_frozen_with_the_version(db_session, monkeypat
     assert row.content_snapshot == expected
     assert len(row.content_sha256) == 64
     assert (row.theme_id, len(row.theme_sha256)) == ("editorial-forest/v1", 64)
+
+
+@pytest.mark.asyncio
+async def test_browser_verification_is_recorded_in_the_receipt(db_session, monkeypatch) -> None:
+    from oryxenai.agents.code_generator.verify_browser import BrowserVerifier
+    from oryxenai.core.settings import CodeGeneratorVerificationConfig
+
+    _use_client(monkeypatch, ReferenceModelClient())
+    for options in ({}, {"browser_channel": "chrome"}):
+        config = CodeGeneratorVerificationConfig(
+            browser="best_effort", viewports=[390, 1280], page_timeout_seconds=25.0, **options
+        )
+        monkeypatch.setattr(
+            "oryxenai.jobs.handlers.code_generator._build_verifier",
+            lambda cfg=config: BrowserVerifier(cfg),
+        )
+        session_id = await _new_session(db_session)
+        _started, result = await _start_and_run(db_session, session_id)
+        assert result["status"] == "succeeded"
+        state = await _service(db_session).get_state(session_id)
+        status = state["versions"][0]["summary"]["browser"]
+        if status != "unavailable":
+            break
+    else:
+        pytest.skip("no headless browser can be started on this machine")
+    assert status == "passed"
+    detail = await _service(db_session).get_version(
+        session_id, UUID(state["versions"][0]["id"]), include_html=True
+    )
+    assert detail["receipt"]["browser"]["status"] == "passed"
+    assert detail["receipt"]["browser"]["viewports"] == [390, 1280]
+    assert detail["trace"]["verification"]["status"] == "passed"
+    assert "verify" in detail["trace"]["timings_ms"]
+
+
+@pytest.mark.asyncio
+async def test_a_browser_finding_blocks_publication_with_the_exact_location(
+    db_session, monkeypatch
+) -> None:
+    from oryxenai.agents.code_generator.pipeline import VerificationResult
+    from oryxenai.themes.issues import Issue
+
+    class _Failing:
+        async def verify(self, bundle, theme):
+            issue = Issue(
+                "REQUEST_FAILED",
+                "error",
+                "A page resource did not load (HTTP 404).",
+                found="/assets/gone.png: HTTP 404",
+                origin="request:/assets/gone.png",
+            )
+            return VerificationResult("failed", [issue], {"viewports": [390]})
+
+    _use_client(monkeypatch, ReferenceModelClient())
+    monkeypatch.setattr("oryxenai.jobs.handlers.code_generator._build_verifier", lambda: _Failing())
+    session_id = await _new_session(db_session)
+    _started, result = await _start_and_run(db_session, session_id)
+    assert result["status"] == "failed" and result["error"]["code"] == "PAGE_BROWSER_CHECK_FAILED"
+    state = await _service(db_session).get_state(session_id)
+    error = state["code_generator"]["last_error"]
+    assert (error["stage"], error["owner"]) == ("verify", "browser")
+    assert error["where"][0] == {
+        "kind": "request",
+        "ref": "/assets/gone.png",
+        "detail": "A page resource did not load (HTTP 404).",
+    }
+    assert state["code_generator"]["status"] == "needs_attention"
+    assert state["code_generator"]["active_version_id"] == ""

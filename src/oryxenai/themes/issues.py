@@ -60,6 +60,8 @@ class Issue:
     found: str | None = None
     line: int | None = None
     column: int | None = None
+    # Where a browser finding happened: ``viewport:390``, ``request:/styles.css``, ``file:...``.
+    origin: str | None = None
 
     @property
     def is_error(self) -> bool:
@@ -78,6 +80,7 @@ class Issue:
             ("found", bounded(self.found)),
             ("line", self.line),
             ("column", self.column),
+            ("origin", self.origin),
         ):
             if value is not None:
                 data[key] = value

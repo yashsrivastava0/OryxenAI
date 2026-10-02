@@ -136,7 +136,10 @@ def _build_code_generator_agent(
 
 def _build_verifier() -> Any:
     """The browser verifier for this deployment, or ``None`` when verification is off."""
-    return None
+    from oryxenai.agents.code_generator.verify_browser import build_verifier
+    from oryxenai.core.settings import get_settings
+
+    return build_verifier(get_settings().code_generator.verification)
 
 
 def _cancelled(job_id: UUID | None) -> dict[str, Any]:
