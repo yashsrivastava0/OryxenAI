@@ -1,7 +1,8 @@
-"""Integration API tests for the admin-only pipeline reset endpoint."""
+"""Integration API tests for the owner-scoped pipeline reset endpoint."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -11,6 +12,7 @@ from httpx import ASGITransport
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from oryxenai.auth.models import AppUser
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.db.models.portfolio_session import PortfolioSession
@@ -132,16 +134,45 @@ async def test_admin_can_reset_pipeline(admin_client: Any) -> None:
     assert disc_resp.json()["discovery"]["status"] == "not_started"
 
 
-async def test_normal_user_forbidden_from_resetting(user_client: Any) -> None:
-    """A normal user receives 403 Forbidden when attempting to reset a pipeline."""
-    client, _app = user_client
+async def test_normal_user_can_reset_only_own_pipeline(user_client: Any) -> None:
+    """Owners can clear their own work while foreign sessions remain hidden."""
+    client, app = user_client
     create_resp = await client.post("/api/v1/sessions", json={"name": "User Portfolio"})
     assert create_resp.status_code == 201
     sid = create_resp.json()["id"]
 
     reset_resp = await client.post(f"/api/v1/sessions/{sid}/reset")
-    assert reset_resp.status_code == 403
-    assert reset_resp.json()["error"]["code"] == "ADMIN_REQUIRED"
+    assert reset_resp.status_code == 200
+    assert reset_resp.json()["current_state"] == {}
+
+    foreign_user_id = uuid4()
+    foreign_session_id = uuid4()
+    async with app.state.sessionmaker() as db:
+        db.add(
+            AppUser(
+                id=foreign_user_id,
+                supabase_user_id=str(uuid4()),
+                primary_email="foreign-reset@example.com",
+                username="foreign-reset",
+                role="user",
+                status="active",
+                onboarding_completed_at=datetime.now(UTC),
+            )
+        )
+        db.add(
+            PortfolioSession(
+                id=foreign_session_id,
+                owner_user_id=foreign_user_id,
+                legacy_quarantined=False,
+                session_mode="owned",
+                name="Foreign portfolio",
+            )
+        )
+        await db.commit()
+
+    foreign_resp = await client.post(f"/api/v1/sessions/{foreign_session_id}/reset")
+    assert foreign_resp.status_code == 404
+    assert foreign_resp.json()["error"]["code"] == "SESSION_NOT_FOUND"
 
 
 async def test_unauthenticated_cannot_reset_pipeline() -> None:

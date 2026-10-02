@@ -78,7 +78,8 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
         "/api/v1/sessions/{session_id}/code-generator/versions/{version_id}/restore",
     ): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/restart"): "portfolio_mutation",
-    ("POST", "/api/v1/sessions/{session_id}/reset"): "admin_session_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/reset"): "portfolio_mutation",
+    ("POST", "/api/v1/discovery-documents/extract"): "intake_preparation",
     ("POST", "/api/v1/system/worker-probes"): "admin_system_mutation",
     ("POST", "/api/v1/client-diagnostics/events"): "client_diagnostics",
 }
@@ -132,7 +133,11 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
             _require(route, require_detached_pipeline_mode)
             continue
         if path == "/api/v1/sessions/{session_id}/reset":
-            _require(route, require_admin)
+            _require(route, require_pipeline_session)
+            _require(route, require_pipeline_mutable)
+            continue
+        if path == "/api/v1/discovery-documents/extract":
+            _require(route, get_pipeline_user)
             continue
         if path.startswith("/api/v1/pipeline/model-profiles"):
             if method != "GET":

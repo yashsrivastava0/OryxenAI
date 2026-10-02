@@ -23,33 +23,38 @@ explicitly started stage.
 
 ## Non-responsibilities
 
-Discovery does not write final public website copy, fetch links, analyze binary
-documents or images, or start another agent. Text supplied by the user remains
-the evidence boundary. Intake attachments and OCR can be added as a separate
-deterministic Intake capability later.
+Discovery does not write final public website copy, fetch links, analyze images,
+perform OCR, or start another agent. Text supplied by the user remains the
+evidence boundary. The intake adapter extracts selectable PDF text and UTF-8
+Markdown/plain text before the Discovery start call.
 
 ## Flow
 
-1. `POST /api/v1/sessions/{id}/discovery/start` stores the text and creates
+1. The browser can call `POST /api/v1/discovery-documents/extract` with one
+   PDF, Markdown, or plain text file (within the configured size limit). The endpoint returns extracted
+   text without storing the original bytes. Image-only PDFs report that no
+   selectable text was found. The composer shows the chosen file and can start
+   with the file alone or combine it with typed notes.
+2. `POST /api/v1/sessions/{id}/discovery/start` stores the text and creates
    immutable source-document snapshots. `source_text`, `message`, and
    `document_text` are addressable source material; `goal` is recorded as user
    intent. New text can be appended after `NEEDS_INPUT` without discarding
    earlier material.
-2. The worker runs `understand_and_question`. It returns `NEEDS_DETAILS`,
+3. The worker runs `understand_and_question`. It returns `NEEDS_DETAILS`,
    `ASK_QUESTIONS`, or `READY_FOR_BRIEF`; question batches contain at most
    three questions. User answers and skips are persisted with their history
    and answer-source spans.
-3. Submitting the final answer or skip queues brief preparation immediately.
+4. Submitting the final answer or skip queues brief preparation immediately.
    `continue_with_current_information` remains an API-compatible way to end
    a partial batch. `READY_FOR_BRIEF` queues the brief in the worker transaction,
    without depending on an open browser. Discovery waits for approval before Content
    Architect can start.
-4. `POST .../discovery/revise` regenerates the brief and dossier from the same
+5. `POST .../discovery/revise` regenerates the brief and dossier from the same
    source snapshots, answers, and revision request.
-5. The review surface presents the report alongside an inspector for
+6. The review surface presents the report alongside an inspector for
    facts, roles, projects, open items, restrictions, and question history.
    Earlier span-linked dossiers still show their source excerpts and coverage.
-6. `POST .../discovery/approve` hashes the reviewed Markdown and dossier
+7. `POST .../discovery/approve` hashes the reviewed Markdown and dossier
    together. Content Architect snapshots the full approved dossier, retaining
    the compact profile as a compatibility aid for older approved sessions.
 
@@ -99,6 +104,7 @@ is configured in `config/app.toml`. No model name is frozen in this document.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| POST | `/api/v1/discovery-documents/extract?filename=...` | Extract bounded text from PDF, Markdown, or plain text before intake |
 | GET | `/api/v1/sessions/{id}/discovery` | Current state, dossier, sources, jobs, and safe errors |
 | POST | `/api/v1/sessions/{id}/discovery/start` | Store or append intake and queue question analysis |
 | PUT | `/api/v1/sessions/{id}/discovery/answers` | Save answers; optionally continue with current information |

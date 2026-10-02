@@ -38,6 +38,12 @@ Stage state is persisted server-side and loaded through owner-scoped API
 routes. The browser polls stage and durable-job status; it does not treat
 browser state as an authorization boundary.
 
+The sticky workspace header keeps Reset pipeline in the same position across
+Discovery, Content Architect, and Studio. After explicit confirmation, the
+owner-scoped reset fences active work and clears intake, answers, plans, page
+versions, and chat, then returns to empty Discovery in the same portfolio
+session. The browser clears its local intake draft and reloads server state.
+
 Discovery progresses through question queuing/running, answer collection,
 brief creation/review, and approval. When no questions are needed, the worker
 queues brief creation in the same transaction that saves the question result.
@@ -52,8 +58,11 @@ terminal for both stages.
 
 ## 3. Discovery interaction
 
-Discovery accepts user-provided text, an optional plain-text document, and a
-goal. It can ask focused questions, one at a time, before drafting the brief.
+Discovery accepts user-provided text and an optional PDF, Markdown, or UTF-8
+plain text attachment, plus a goal. The attachment control is in the intake
+composer and a file alone can start Discovery. Text is extracted before the
+start call; the original file bytes are not retained. PDFs need selectable
+text. Discovery can ask focused questions, one at a time, before drafting the brief.
 The interface shows questions with the available answer options and lets the
 user provide a written answer or skip when allowed.
 
@@ -94,8 +103,8 @@ contract. Configuration in config/models.toml controls model routing.
 
 ## 7. Current limitations
 
-- Document intake is plain text; unsupported document formats must produce a
-  visible error instead of silently dropping their content.
+- DOCX, image attachments, scanned PDF OCR, and multi-file intake are not yet
+  supported. Unsupported or unreadable files produce a visible error.
 - Progress uses polling and does not expose token-level model streaming.
 - The generated page is previewed for its owner only; there is no publish,
   export or public hosting step.

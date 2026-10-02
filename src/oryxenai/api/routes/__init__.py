@@ -36,6 +36,7 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     router.include_router(model_profiles.pipeline_router)
     router.include_router(model_usage.router)
     router.include_router(discovery.router)
+    router.include_router(discovery.document_router)
     router.include_router(content_architect.router)
     router.include_router(code_generator.router)
     # Client diagnostics are a separate local-only switch. Keep the route

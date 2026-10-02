@@ -215,6 +215,12 @@ export interface MeProjection {
   [key: string]: unknown;
 }
 
+export interface ExtractedDocument {
+  name: string;
+  text: string;
+  characters: number;
+}
+
 export function createApiClient(authorizedFetch: AuthorizedFetch) {
   return {
     getMe: () => requestJson<MeProjection>(authorizedFetch, "/api/v1/me"),
@@ -237,6 +243,13 @@ export function createApiClient(authorizedFetch: AuthorizedFetch) {
         authorizedFetch,
         `/api/v1/sessions/${encodeURIComponent(sessionId)}/reset`,
         jsonInit("POST", {}),
+      ),
+
+    extractDocument: (file: File) =>
+      requestJson<ExtractedDocument>(
+        authorizedFetch,
+        `/api/v1/discovery-documents/extract?filename=${encodeURIComponent(file.name)}`,
+        { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file },
       ),
 
     getDiscovery: (sessionId: string) =>

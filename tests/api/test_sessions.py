@@ -107,3 +107,50 @@ async def test_error_response_structure(client):
     assert "code" in body["error"]
     assert "message" in body["error"]
     assert "requestId" in body["error"]
+
+
+async def test_owner_can_reset_discovery_to_empty_session(client):
+    created = await client.post("/api/v1/sessions", json={"name": "Portfolio workspace"})
+    sid = created.json()["id"]
+    started = await client.post(
+        f"/api/v1/sessions/{sid}/discovery/start",
+        json={"source_text": "Backend engineer with portfolio projects", "goal": "portfolio"},
+    )
+    assert started.status_code == 202
+
+    reset = await client.post(f"/api/v1/sessions/{sid}/reset", json={})
+    assert reset.status_code == 200
+    assert reset.json()["id"] == sid
+    assert reset.json()["current_state"] == {}
+    discovery = await client.get(f"/api/v1/sessions/{sid}/discovery")
+    assert discovery.status_code == 200
+    assert discovery.json()["discovery"]["status"] == "not_started"
+
+
+async def test_document_extraction_is_available_before_session_creation(client):
+    extracted = await client.post(
+        "/api/v1/discovery-documents/extract?filename=resume.md",
+        content=b"# Resume\nBuilt reliable systems.",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert extracted.status_code == 200
+    assert extracted.json()["text"] == "# Resume\nBuilt reliable systems."
+
+    created = await client.post("/api/v1/sessions", json={})
+    sid = created.json()["id"]
+    started = await client.post(
+        f"/api/v1/sessions/{sid}/discovery/start",
+        json={"document_text": extracted.json()["text"], "goal": "create my portfolio"},
+    )
+    assert started.status_code == 202
+    assert any(
+        document["original_text"] == "# Resume\nBuilt reliable systems."
+        for document in started.json()["discovery"]["source_documents"]
+    )
+
+    invalid = await client.post(
+        "/api/v1/discovery-documents/extract?filename=resume.pdf",
+        content=b"not a PDF",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    assert invalid.status_code == 400

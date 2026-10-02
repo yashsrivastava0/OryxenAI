@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-02 18:05 +05:30 — Codex (OpenAI) — owner reset and Discovery attachments
+
+Added a consistent Reset pipeline action to the workspace header, enabled owner-scoped full cleanup from any stage, and returned the user to empty Discovery after confirmation. Added one-file PDF, Markdown, and plain text intake with bounded server text extraction; the Discovery agent receives the extracted text with optional notes. Added parser, API, and browser coverage and updated the behavior docs (D-124). No push or deployment.
+
 ### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [b177faa] — browser verification, hardening
 
 Added real-browser verification of the sealed page: headless Chromium at four screen widths with every request answered in process by the production preview router, blocking console and CSP errors, failed requests, broken images, failed fonts and unstyled pages, and recording overflow as a warning. The policy is off, best effort or required; the container image gets an opt-in Chromium layer. Proved the real worker builds several users' pages at once without crossing wires (D-122).
