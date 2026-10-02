@@ -5,19 +5,22 @@
 
 ## 1. Workflow boundary
 
-The supported workflow contains Discovery and Content Architect. It starts
-with supplied user intent, produces a reviewed brief, then produces a reviewed
-content plan. The plan approval is the terminal product state.
+The supported workflow contains Discovery, Content Architect and the Studio
+(Code Generator). It starts with supplied user intent, produces a reviewed
+brief, then a reviewed content plan, then a generated and verified page that the
+owner previews and refines in a chat.
 
 ```mermaid
 flowchart LR
     Intake[User intent and optional text] --> Discovery[Discovery]
     Discovery -->|explicit brief approval| Content[Content Architect]
-    Content -->|explicit plan approval| Done[Workflow complete]
+    Content -->|explicit plan approval| Studio[Studio: build, preview, chat]
 ```
 
 Approval never auto-starts another stage. A caller explicitly starts Content
-Architect only after Discovery is approved.
+Architect only after Discovery is approved, and explicitly starts the Studio
+only after the content plan is approved (the UI sends both requests from one
+explicit click).
 
 ## 2. Shared agent contract
 
@@ -111,3 +114,16 @@ projections.
 Run src/oryxenai/agents/discovery/README.md and
 src/oryxenai/agents/content_architect/README.md for the current detailed route,
 prompt, state, and validation contracts.
+
+## 7. Studio (Code Generator)
+
+One durable job per build (`code_generator.build`, single attempt). A first build
+is admission, one `generate_page` model call, strict validation against the
+pinned theme contract, a sealed bundle, browser verification (policy-controlled)
+and a single promote transaction. A chat message first runs `interpret_change`,
+which yields typed edits to a whitelist of content paths or a plain reply; edits
+are re-checked with the same admission rules and regenerate the page as a new
+version. Failures are one exact what / where / why envelope; a failed attempt never
+replaces the live page. The preview is served same-origin from a signed, expiring,
+sandboxed `/preview/g/<grant>/...` route. Details, modules and the CLI:
+src/oryxenai/agents/code_generator/README.md.
