@@ -4,6 +4,30 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [b177faa] — browser verification, hardening
+
+Added real-browser verification of the sealed page: headless Chromium at four screen widths with every request answered in process by the production preview router, blocking console and CSP errors, failed requests, broken images, failed fonts and unstyled pages, and recording overflow as a warning. The policy is off, best effort or required; the container image gets an opt-in Chromium layer. Proved the real worker builds several users' pages at once without crossing wires (D-122).
+
+### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [22acd67, c00c6f5] — Studio frontend
+
+Added the Studio as the third journey stage: change chat on the left, a live sandboxed preview on the right (device and zoom controls, two frames swapped on load), first-build progress, an exact failure panel, and one-click "Approve & generate my portfolio" on the content review. Verified the production AppShell, polling and handlers against a stateful fake backend in headless Chromium, with a real generated page served under the production preview headers (D-122).
+
+### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [7d94328] — chat edits, restore, privacy restriction
+
+Added chat changes: one small model call turns a message into typed edits on a whitelist of content paths (or a reply), the host applies them atomically, re-checks them with the first-build rules and regenerates a new version. Added restore without a model call, idempotent sends, an hourly cap, and restriction of older versions that showed text the owner asked to hide. Checked against realistic requests including mixed, non-English and prompt-injection ones (D-122).
+
+### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [2606b40] — durable build pipeline, versions, API, grant-addressed preview, CLI
+
+Added the Code Generator slice: one single-attempt job (generate, validate, seal, promote), version and chat tables (migration 0027), an exact what/where/why failure envelope, start/stop/state/preview endpoints, a signed expiring same-origin preview route with a sandbox CSP and log redaction, and a developer CLI. Generalised the shared model layer for the third engine (D-122, D-123). Measured live first-pass success on every content shape through the production pipeline.
+
+### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [0caaaf3] — pinned theme package, strict validator, failure diagnostics
+
+Packaged the pinned portfolio theme as an immutable, byte-pinned theme with local fonts, hero art and an executable markup contract, and wrote the strict page validator and failure diagnostics that the Code Generator builds on (D-122).
+
+### 2026-10-02 09:43 +05:30 — Claude Code (Anthropic) — [92c927b] — documentation
+
+Updated the agent context, README, status, frontend spec, architecture manual and deployment notes for the three-stage flow, added the Code Generator README, and recorded the Studio decisions (D-122, D-123).
+
 ### 2026-10-01 21:55 +05:30 — Claude Code (Anthropic) — [a21390c] — Preview removed from Content Architect
 
 Per the operator, previewing belongs only to the Code Generator. Removed the Live preview tab, the browser-side component and template-substitution helper (with its tests) and their styles from the Content review, which now shows the structured copy and the evidence and coverage inspector only. Moved the pinned `index.html` and `styles.css` fixture out of the served frontend folder into `docs/pinned-theme/` for the future Code Generator, so the app no longer serves it. Content Architect's output contract is unchanged (D-121 narrows D-118). Verified with the frontend typecheck and unit tests, lint, types, the full Python suite and a rebuilt bundle. No push or deployment.
