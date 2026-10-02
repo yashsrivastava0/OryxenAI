@@ -10,6 +10,11 @@ host = "0.0.0.0"
 enable_dev_ui = false
 enable_product_preact_shell = true
 
+[code_generator.verification]
+# The default image has no browser, so skip the browser check. After building
+# with INSTALL_CHROMIUM=true, set this to "best_effort" (or "required").
+browser = "off"
+
 [client_diagnostics]
 enabled = false
 

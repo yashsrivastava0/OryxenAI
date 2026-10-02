@@ -7,6 +7,11 @@
 # and fixture APIs are not registered in this environment.
 enable_dev_ui = false
 
+[code_generator.verification]
+# The default image has no browser, so skip the browser check. After building
+# with INSTALL_CHROMIUM=true, set this to "best_effort" (or "required").
+browser = "off"
+
 [client_diagnostics]
 # Browser trace ingestion is a local development aid and is disabled in the
 # deployment-like overlay.

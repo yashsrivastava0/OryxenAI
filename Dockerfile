@@ -46,7 +46,14 @@ RUN uv sync --frozen --no-dev
 # ---- Stage 2: runtime ----
 FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS runtime
 
+# Optional: headless Chromium so generated portfolio pages are also verified in a
+# real browser before they go live. Off by default (the image stays small); build
+# with --build-arg INSTALL_CHROMIUM=true and set
+# [code_generator.verification] browser = "best_effort" in the deployment overlay.
+ARG INSTALL_CHROMIUM=false
+
 ENV PATH="/app/.venv/bin:${PATH}" \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
@@ -78,6 +85,12 @@ RUN sed -i 's/\r$//' ./scripts/docker-entrypoint.sh \
     && chown -R oryxen:oryxen /app/.workspace \
         /app/output \
     && chmod +x ./scripts/docker-entrypoint.sh
+
+# Runs as root (system packages), before dropping to the service account.
+RUN if [ "$INSTALL_CHROMIUM" = "true" ]; then \
+        python -m playwright install --with-deps chromium \
+        && chmod -R a+rX /ms-playwright; \
+    fi
 
 USER oryxen
 
