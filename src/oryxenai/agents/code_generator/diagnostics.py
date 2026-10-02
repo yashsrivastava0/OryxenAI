@@ -146,7 +146,12 @@ def _locations(issues: Sequence[Issue]) -> list[FailureLocation]:
     for issue in issues:
         if len(locations) >= _MAX_LOCATIONS:
             break
-        if issue.path:
+        if issue.origin and issue.origin.partition(":")[0] in {"viewport", "request", "file"}:
+            kind, _, ref = issue.origin.partition(":")
+            locations.append(
+                FailureLocation(kind=kind, ref=ref, detail=issue.message)  # type: ignore[arg-type]
+            )
+        elif issue.path:
             locations.append(FailureLocation(kind="field", ref=issue.path, detail=issue.message))
         elif issue.selector:
             locations.append(

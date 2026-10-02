@@ -14,6 +14,10 @@ enable_dev_ui = true
 host = "127.0.0.1"
 port = 5432
 
+[code_generator.verification]
+# Verify generated pages in the Chrome installed on this machine (no bundled browser needed).
+browser_channel = "chrome"
+
 # The standard native port remains 8000. Keep the alternate 8001 origin
 # allowed as well so a second local instance can be started while another
 # development server is still running on the standard port.
