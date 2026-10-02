@@ -142,6 +142,13 @@ describe("StudioStage states", () => {
     expect(html).toContain('role="tablist"');
   });
 
+  it("calls a user-stopped build stopped, not failed", () => {
+    const stopped = { ...failure, code: "JOB_CANCELLED", summary: "The build was stopped.", cause: "You stopped this build." };
+    const html = render(stage(adaptStudio(envelope({ status: "needs_attention", last_error: stopped }), true)));
+    expect(html).toContain("The build was stopped");
+    expect(html).not.toContain("could not be built yet");
+  });
+
   it("fails closed on an unrecognised status", () => {
     expect(render(stage(adaptStudio(envelope({ status: "mystery" }), true)))).toContain("Studio");
   });
@@ -183,6 +190,11 @@ describe("ChatPane", () => {
     expect(html).toContain("Wait for the current change to finish");
     expect(html).toContain("disabled");
     expect(html).not.toContain("studio-suggestion");
+  });
+
+  it("does not show a failure link after the owner stopped a change", () => {
+    const stopped = adaptStudioFailure({ ...failure, code: "JOB_CANCELLED" });
+    expect(render(h(ChatPane, { ...base, lastError: stopped }))).not.toContain("See exactly what went wrong");
   });
 
   it("keeps the failed-edit details one click away", () => {

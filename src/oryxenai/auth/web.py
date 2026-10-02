@@ -41,6 +41,9 @@ def auth_csp(supabase_url: str) -> str:
             "object-src 'none'",
             "base-uri 'none'",
             "form-action 'self' https://accounts.google.com",
+            # The Studio embeds the generated page from this same origin, in a
+            # sandboxed iframe. No other framing is allowed.
+            "frame-src 'self'",
             "frame-ancestors 'none'",
         ]
     )
