@@ -13,8 +13,9 @@ explicitly started stage.
   document digests and UTF-16 offsets that map directly to browser selections.
 - Distinguish personal facts, user intent/preferences, team scope, job criteria,
   references, duplicates, exclusions, conflicts, and explicit restrictions.
-- Ask zero to three focused questions in one contextual batch. Ask none when
-  the supplied context is sufficient. Users can skip individual questions;
+- Ask zero to three focused contextual questions, then one fixed visual palette
+  question with three swatch cards. The palette is required even when no
+  contextual clarification is needed. Users can skip contextual questions;
   answer saves are queued in order while the next question appears. The interview does
   not repeat after the batch is complete.
 - Produce a detailed editable brief and a dossier of facts, entities,
@@ -45,22 +46,23 @@ plain text without normalizing their content.
    The worker passes the complete attached transcript and filename to the
    question prompt; the prompt treats document contents as evidence rather
    than instructions.
-3. The worker runs `understand_and_question`. It returns `NEEDS_DETAILS`,
-   `ASK_QUESTIONS`, or `READY_FOR_BRIEF`; question batches contain at most
-   three questions. User answers and skips are persisted with their history
-   and answer-source spans.
+3. The worker runs `understand_and_question`. The server appends the fixed
+   palette question after at most three model-authored contextual questions.
+   Palette choices map deterministically to a pinned theme id; the optional
+   mood note does not alter that mapping or enter the factual dossier. User
+   answers and skips are persisted with their history and answer-source spans.
 4. Submitting the final answer or skip queues brief preparation immediately.
    `continue_with_current_information` remains an API-compatible way to end
-   a partial batch. `READY_FOR_BRIEF` queues the brief in the worker transaction,
-   without depending on an open browser. Discovery waits for approval before Content
-   Architect can start.
+   a partial contextual batch, but cannot bypass the palette choice. A model
+   `READY_FOR_BRIEF` result still presents that choice before preparing the
+   brief. Discovery waits for approval before Content Architect can start.
 5. `POST .../discovery/revise` regenerates the brief and dossier from the same
    source snapshots, answers, and revision request.
 6. The review surface presents the report alongside an inspector for
    facts, roles, projects, open items, restrictions, and question history.
    Earlier span-linked dossiers still show their source excerpts and coverage.
-7. `POST .../discovery/approve` hashes the reviewed Markdown and dossier
-   together. Content Architect snapshots the full approved dossier, retaining
+7. `POST .../discovery/approve` hashes the reviewed Markdown, dossier, and
+   selected theme together. Content Architect snapshots the full approved dossier, retaining
    the compact profile as a compatibility aid for older approved sessions.
 
 ## Source and dossier contracts
@@ -81,7 +83,8 @@ legacy `StructuredProfile` used by Content Architect is rebuilt from the
 dossier with no project truncation. Older approved dossiers retain their
 existing structure and approval hash.
 
-The approval hash includes both `brief_markdown` and the dossier snapshot, so a
+The approval hash includes `brief_markdown`, the dossier snapshot, and the
+selected theme, so a
 source or claim change invalidates downstream approval matching.
 
 ## State machine

@@ -1,9 +1,10 @@
 # Code Generator ("Studio")
 
 Stage 3 of the portfolio flow. It turns the approved Content Architect
-`page_content` into one verified, previewable page for a fixed, pre-built theme,
-and lets the owner change the page's **content** in a chat. Styling, scripts and
-extra themes are deliberately out of scope (see "Seams kept" below).
+`page_content` into one verified, previewable page using the immutable theme
+selected in Discovery, and lets the owner change the page's **content** in a
+chat. Each theme is a separate stylesheet and markup contract; scripts and
+per-user style edits are outside this build.
 
 The workflow never chains by itself: the API starts a build only on
 `POST /api/v1/sessions/{id}/code-generator/start`. The product UI sends that
@@ -13,7 +14,7 @@ portfolio".
 ## What a build does
 
 ```text
-approved page_content
+approved page_content + selected theme id
   -> admission (counts and lengths, no model call)
   -> generate_page   one model call -> {"lang", "body_html"}
   -> validate        strict, never auto-fixed (see "Validation")
@@ -30,6 +31,10 @@ approved page_content
   a restore makes none.
 * The model writes the visible markup only. The host owns the technical
   `<head>` (charset, viewport, title, description, stylesheet link).
+* New sessions use one of three installed packages: Editorial Forest Motion,
+  Cobalt Atlas, or Obsidian Signal. Existing approved sessions without a
+  selection use the configured default theme. The pinned theme id travels with
+  the build, version, chat edits, restore, and preview.
 
 ## Modules
 
@@ -141,6 +146,6 @@ rejected markup.
 ## Seams kept
 
 A single retry loop, a single repair call and a clearly labelled degraded render
-can be added in `pipeline.py` without touching the stages around them. New themes
-are new packages under `src/oryxenai/themes/`; a bundle already lists its files
-by hash, so scripts or extra stylesheets can join the manifest later.
+can be added in `pipeline.py` without touching the stages around them. Additional
+themes are versioned packages under `src/oryxenai/themes/` with their own CSS,
+assets, markup contract, and manifest.

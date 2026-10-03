@@ -1,0 +1,92 @@
+<a class="atlas-skip" href="#top">Skip to content</a>
+<div class="atlas-progress" aria-hidden="true"></div>
+<aside class="atlas-spine" aria-label="Portfolio">
+  <a class="atlas-spine__mark" href="#top" aria-label="Back to top">{{ d.monogram }}</a>
+  <span class="atlas-spine__middle" aria-hidden="true">Portfolio</span>
+</aside>
+<div class="atlas-shell">
+  <header class="atlas-header">
+    <nav class="atlas-wrap atlas-header__inner" aria-label="Portfolio">
+      <a class="atlas-header__brand" href="#top">{{ d.monogram }}</a>
+      <div class="atlas-header__links">
+        <a href="#practice">Practice</a><a href="#capabilities">Capabilities</a><a href="#about">About</a><a href="#contact">Contact</a>
+      </div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="atlas-intro" id="top" aria-labelledby="hero-title">
+      <div class="atlas-wrap atlas-intro__layout">
+        <div class="atlas-intro__copy">
+          {% if c.hero.eyebrow_primary %}<p class="atlas-small-title" data-field="hero.eyebrow_primary">{{ c.hero.eyebrow_primary }}</p>{% endif %}
+          {% if c.hero.eyebrow_secondary %}<p class="atlas-small-title" data-field="hero.eyebrow_secondary">{{ c.hero.eyebrow_secondary }}</p>{% endif %}
+          <h1 id="hero-title" data-field="hero.name">{{ c.hero.name }}</h1>
+          <p class="atlas-intro__statement">{% if c.hero.headline_prefix %}<span data-field="hero.headline_prefix">{{ c.hero.headline_prefix }}</span>{% endif %} {% if c.hero.headline_emphasis %}<em data-field="hero.headline_emphasis">{{ c.hero.headline_emphasis }}</em>{% endif %}</p>
+          {% if c.hero.intro %}<p class="atlas-intro__lede" data-field="hero.intro">{{ c.hero.intro }}</p>{% endif %}
+          {% if c.hero.location %}<p class="atlas-small-title" data-field="hero.location">{{ c.hero.location }}</p>{% endif %}
+          <div class="atlas-intro__bottom">
+            {% if c.hero.primary_cta_label %}<a class="atlas-pill" href="#practice"><span data-field="hero.primary_cta_label">{{ c.hero.primary_cta_label }}</span><span class="atlas-pill__icon" aria-hidden="true">↗</span></a>{% endif %}
+            {% if c.hero.secondary_cta_label %}<a class="atlas-inline" href="#contact" data-field="hero.secondary_cta_label">{{ c.hero.secondary_cta_label }}</a>{% endif %}
+          </div>
+        </div>
+        <div class="atlas-intro__visual" aria-hidden="true"><span class="atlas-intro__orb"></span></div>
+      </div>
+    </section>
+    <section class="atlas-gallery atlas-section" id="practice" aria-labelledby="practice-title">
+      <div class="atlas-wrap atlas-gallery__heading">
+        <div>
+          {% if c.systems_practice.eyebrow %}<p class="atlas-small-title" data-field="systems_practice.eyebrow">{{ c.systems_practice.eyebrow }}</p>{% endif %}
+          <h2 class="atlas-heading" id="practice-title" data-field="systems_practice.heading">{{ c.systems_practice.heading }}</h2>
+          {% if c.systems_practice.intro %}<p class="atlas-gallery__hint" data-field="systems_practice.intro">{{ c.systems_practice.intro }}</p>{% endif %}
+        </div>
+      </div>
+      {% if c.marquee_keywords %}<ul class="atlas-keywords">
+        {% for keyword in c.marquee_keywords %}<li data-field="marquee_keywords[{{ loop.index0 }}]">{{ keyword }}</li>{% endfor %}
+      </ul>{% endif %}
+      <div class="atlas-gallery__track" tabindex="0" aria-label="Practice areas">
+        {% for pillar in c.systems_practice.pillars %}
+        <article class="atlas-project">
+          <div class="atlas-art{% if loop.index0 % 3 == 1 %} atlas-art--two{% elif loop.index0 % 3 == 2 %} atlas-art--three{% endif %}" aria-hidden="true"><span class="atlas-art__disc"></span></div>
+          <div class="atlas-project__body"><div><span class="atlas-project__num" aria-hidden="true">0{{ loop.index }}</span><h3 data-field="systems_practice.pillars[{{ loop.index0 }}].title">{{ pillar.title }}</h3><p class="atlas-project__type" data-field="systems_practice.pillars[{{ loop.index0 }}].description">{{ pillar.description }}</p></div></div>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="atlas-method atlas-section" id="capabilities" aria-labelledby="capabilities-title">
+      <div class="atlas-wrap">
+        <div class="atlas-method__header">
+          {% if c.technical_capabilities.eyebrow %}<p class="atlas-small-title" data-field="technical_capabilities.eyebrow">{{ c.technical_capabilities.eyebrow }}</p>{% endif %}
+          <h2 class="atlas-heading" id="capabilities-title" data-field="technical_capabilities.heading">{{ c.technical_capabilities.heading }}</h2>
+          {% if c.technical_capabilities.intro %}<p class="atlas-method__lede" data-field="technical_capabilities.intro">{{ c.technical_capabilities.intro }}</p>{% endif %}
+        </div>
+        <div class="atlas-capability-grid">
+          {% for group in c.technical_capabilities.groups %}
+          {% set group_index = loop.index0 %}
+          <article class="atlas-capability-group"><h3 data-field="technical_capabilities.groups[{{ group_index }}].heading">{{ group.heading }}</h3><ul>
+            {% for item in group["items"] %}<li data-field="technical_capabilities.groups[{{ group_index }}].items[{{ loop.index0 }}]">{{ item }}</li>{% endfor %}
+          </ul></article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+    <section class="atlas-profile atlas-section" id="about" aria-labelledby="about-title">
+      <div class="atlas-wrap atlas-profile__layout">
+        {% if c.professional_context.eyebrow %}<p class="atlas-profile__aside" data-field="professional_context.eyebrow">{{ c.professional_context.eyebrow }}</p>{% endif %}
+        <div class="atlas-profile__portrait" aria-hidden="true"></div>
+        <div class="atlas-profile__copy">
+          <h2 class="atlas-heading" id="about-title" data-field="professional_context.heading">{{ c.professional_context.heading }}</h2>
+          {% if c.professional_context.intro %}<p data-field="professional_context.intro">{{ c.professional_context.intro }}</p>{% endif %}
+          {% if c.professional_context.organizations %}<ul class="atlas-organizations">{% for item in c.professional_context.organizations %}<li data-field="professional_context.organizations[{{ loop.index0 }}]">{{ item }}</li>{% endfor %}</ul>{% endif %}
+        </div>
+      </div>
+    </section>
+    <section class="atlas-contact" id="contact" aria-labelledby="contact-title">
+      <div class="atlas-wrap"><div class="atlas-contact__panel">
+        {% if c.connect.eyebrow %}<p class="atlas-contact__label" data-field="connect.eyebrow">{{ c.connect.eyebrow }}</p>{% endif %}
+        <h2 id="contact-title" data-field="connect.heading">{{ c.connect.heading }}</h2>
+        {% if c.connect.intro %}<p class="atlas-contact__intro" data-field="connect.intro">{{ c.connect.intro }}</p>{% endif %}
+        <div class="atlas-destinations">{% for item in d.destinations %}<a class="atlas-pill atlas-pill--white" href="{{ item.url }}"{% if item.external %} target="_blank" rel="noopener noreferrer"{% endif %} data-field="connect.destinations[{{ loop.index0 }}].label">{{ item.label }}</a>{% endfor %}</div>
+      </div></div>
+    </section>
+  </main>
+  <footer class="atlas-footer"><div class="atlas-wrap atlas-footer__inner"><a href="#top">Back to top</a></div></footer>
+</div>

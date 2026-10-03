@@ -76,7 +76,14 @@ async def _approve_discovery(db_session, session_id, monkeypatch) -> None:
     state_data = await discovery_service.get_discovery_state(session_id)
     questions = state_data["discovery"]["operation_a"]["items"]
     answers = [
-        DiscoveryAnswer(question_id=q["id"], mode="answered", value="pick-one") for q in questions
+        DiscoveryAnswer(
+            question_id=q["id"],
+            mode="answered",
+            value={"choice_id": "forest_copper", "note": ""}
+            if q["kind"] == "palette_select"
+            else "pick-one",
+        )
+        for q in questions
     ]
     answered = await discovery_service.save_answers(
         session_id, answers, complete=True, continue_with_current_information=True

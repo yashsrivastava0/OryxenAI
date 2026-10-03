@@ -15,6 +15,7 @@ from oryxenai.agents.code_generator.agent import CodeGeneratorAgent
 from oryxenai.agents.code_generator.dev.mock_client import ReferenceModelClient
 from oryxenai.agents.content_architect.schemas import (
     ContentArchitectApproval,
+    ContentArchitectIntake,
     ContentArchitectState,
     ContentArchitectStatus,
     PortfolioPageContent,
@@ -26,6 +27,7 @@ from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionReposito
 from oryxenai.jobs.handlers.code_generator import CodeGeneratorBuildHandler
 from oryxenai.jobs.repository import JobRepository
 from oryxenai.main import create_app
+from oryxenai.themes import get_theme
 from tests.conftest import install_test_identity
 from tests.unit.agents.code_generator.helpers import sample_content
 
@@ -46,7 +48,7 @@ async def client(test_engine, monkeypatch):
     await install_test_identity(app, test_engine, role="user")
     monkeypatch.setattr(
         "oryxenai.jobs.handlers.code_generator._build_code_generator_agent",
-        lambda **kwargs: CodeGeneratorAgent(_MODEL),
+        lambda **kwargs: CodeGeneratorAgent(_MODEL, theme_id=kwargs["theme_id"]),
     )
     async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
@@ -59,7 +61,9 @@ async def _create_session(client: httpx.AsyncClient) -> str:
     return str(response.json()["id"])
 
 
-async def _approve_content(client: httpx.AsyncClient, session_id: str) -> None:
+async def _approve_content(
+    client: httpx.AsyncClient, session_id: str, *, theme_id: str = ""
+) -> None:
     app = client._transport.app  # type: ignore[attr-defined]
     async with app.state.sessionmaker() as db:
         repo = ContentArchitectRepository(db)
@@ -67,6 +71,7 @@ async def _approve_content(client: httpx.AsyncClient, session_id: str) -> None:
         assert session is not None
         state = ContentArchitectState(
             status=ContentArchitectStatus.APPROVED,
+            intake=ContentArchitectIntake(selected_theme_id=theme_id),
             page_content=PortfolioPageContent.model_validate(sample_content("01_strong_profile")),
             approved=ContentArchitectApproval(
                 approved_at="2026-10-02T00:00:00+00:00", content_hash="h1"
@@ -179,6 +184,26 @@ async def test_full_flow_start_build_preview_and_serve(client) -> None:
     assert detail.json()["receipt"]["validation"]["ok"] is True
     plain = await client.get(f"{base}/versions/{version_id}")
     assert "index_html" not in plain.json()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("theme_id", ["cobalt-atlas/v1", "obsidian-signal/v1"])
+async def test_selected_theme_builds_and_serves_its_own_css(client, theme_id: str) -> None:
+    session_id = await _create_session(client)
+    await _approve_content(client, session_id, theme_id=theme_id)
+    base = f"/api/v1/sessions/{session_id}/code-generator"
+    started = await client.post(f"{base}/start")
+    assert started.status_code == 202, started.text
+    result = await _run_build(client, started.json())
+    state = (await client.get(base)).json()
+    assert result["status"] == "succeeded", state["code_generator"]["last_error"]
+    assert state["versions"][0]["theme_id"] == theme_id
+    grant = (await client.get(f"{base}/preview-grant")).json()
+    html = await client.get(grant["url"])
+    css = await client.get(grant["url"].replace("index.html", "styles.css"))
+    assert html.status_code == css.status_code == 200
+    assert sample_content("01_strong_profile")["hero"]["name"] in html.text
+    assert css.content == get_theme(theme_id).stylesheet.data
 
 
 @pytest.mark.asyncio

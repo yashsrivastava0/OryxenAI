@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-03 — Codex (OpenAI) — Discovery palette and three Studio designs
+
+Added a required visual palette card to Discovery with deterministic server-side selection, carried the selected theme through Content Architect approval into Studio, and packaged the supplied Forest Motion, Cobalt Atlas, and Obsidian Signal designs as separate pinned CSS themes with strict markup contracts (D-129). Kept the current content tree and legacy theme fallback; verified the new API handoff and browser previews alongside the repository quality gates. No push or deployment.
+
 ### 2026-10-03 — Codex (OpenAI) — interactive Studio theme architecture research
 
 Researched a versioned, pre-built CSS/JavaScript theme paired with agent-generated

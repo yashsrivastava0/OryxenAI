@@ -14,6 +14,7 @@ import pytest
 from httpx import ASGITransport
 
 from oryxenai.agents.discovery.agent import DiscoveryAgent
+from oryxenai.agents.discovery.palette import PALETTE_GAP_ID
 from oryxenai.agents.shared.contracts import AgentResult
 from oryxenai.agents.shared.providers.errors import ProviderTimeoutError
 from oryxenai.main import create_app
@@ -157,10 +158,16 @@ async def _run_worker_job(
     await handler.execute(payload, "test-worker")
 
 
-async def _answer_all(client, sid: str, state: dict) -> dict:
+async def _answer_all(
+    client, sid: str, state: dict, *, choice: str = "forest_copper", note: str = ""
+) -> dict:
     questions = state["discovery"]["operation_a"]["items"]
     answers = [
-        {"question_id": question["id"], "mode": "answered", "value": "pick-one"}
+        {
+            "question_id": question["id"],
+            "mode": "answered",
+            "value": _answer_value(question, "pick-one", choice=choice, note=note),
+        }
         for question in questions
     ]
     resp = await client.put(
@@ -175,7 +182,15 @@ async def _answer_all(client, sid: str, state: dict) -> dict:
     return resp.json()
 
 
-async def _full_flow(client, sid: str) -> dict:
+def _answer_value(
+    question: dict, value: str, *, choice: str = "forest_copper", note: str = ""
+) -> str | dict[str, str]:
+    if question["kind"] == "palette_select":
+        return {"choice_id": choice, "note": note}
+    return value
+
+
+async def _full_flow(client, sid: str, *, choice: str = "forest_copper", note: str = "") -> dict:
     started = await _start(client, sid)
     assert started["discovery"]["status"] == "questions_queued"
     assert started["discovery"]["intake"]["message"]
@@ -189,9 +204,10 @@ async def _full_flow(client, sid: str) -> dict:
     assert state["discovery"]["status"] == "questions_ready"
     assert state["discovery"]["operation_a"]["mode"] == "ASK_QUESTIONS"
     questions = state["discovery"]["operation_a"]["items"]
-    assert 0 < len(questions) <= 3
+    assert 1 <= len(questions) <= 4
+    assert questions[-1]["gap_id"] == PALETTE_GAP_ID
 
-    answered = await _answer_all(client, sid, state)
+    answered = await _answer_all(client, sid, state, choice=choice, note=note)
     assert answered["discovery"]["status"] == "brief_running"
 
     await _run_worker_job(client, answered["discovery"]["brief"]["job_id"])
@@ -202,6 +218,57 @@ async def _full_flow(client, sid: str) -> dict:
 
 
 class TestFullHttpFlow:
+    @pytest.mark.parametrize(
+        ("choice", "theme_id"),
+        [
+            ("forest_copper", "editorial-forest-motion/v1"),
+            ("cobalt_white", "cobalt-atlas/v1"),
+            ("obsidian_lime", "obsidian-signal/v1"),
+        ],
+    )
+    async def test_palette_choice_is_deterministic_and_not_brief_copy(
+        self, client, choice, theme_id
+    ):
+        sid = await _create_session(client)
+        review = await _full_flow(client, sid, choice=choice, note="violet-orbit-test-note")
+        assert review["discovery"]["selected_theme_id"] == theme_id
+        assert "violet-orbit-test-note" not in review["discovery"]["brief"]["markdown"]
+        assert "violet-orbit-test-note" not in str(review["discovery"]["dossier"])
+
+    async def test_palette_is_required_and_rejects_unknown_choice(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        palette = ready["discovery"]["operation_a"]["items"][-1]
+        assert palette["kind"] == "palette_select"
+        assert len(palette["options"]) == 3
+        assert all(len(option["swatches"]) == 3 for option in palette["options"])
+
+        for answers, status in (
+            ([], 409),
+            ([{"question_id": palette["id"], "mode": "skipped"}], 400),
+            (
+                [
+                    {
+                        "question_id": palette["id"],
+                        "mode": "answered",
+                        "value": {"choice_id": "unknown", "note": ""},
+                    }
+                ],
+                400,
+            ),
+        ):
+            response = await client.put(
+                f"/api/v1/sessions/{sid}/discovery/answers",
+                json={
+                    "complete": True,
+                    "continue_with_current_information": True,
+                    "answers": answers,
+                },
+            )
+            assert response.status_code == status, response.text
+
     async def test_full_flow_and_approval(self, client):
         sid = await _create_session(client)
         review = await _full_flow(client, sid)
@@ -237,7 +304,7 @@ class TestFullHttpFlow:
                         {
                             "question_id": question["id"],
                             "mode": "answered",
-                            "value": "My own context",
+                            "value": _answer_value(question, "My own context"),
                         }
                     ],
                 },
@@ -276,7 +343,11 @@ class TestFullHttpFlow:
             json={
                 "complete": False,
                 "answers": [
-                    {"question_id": question["id"], "mode": "answered", "value": "Saved context"}
+                    {
+                        "question_id": question["id"],
+                        "mode": "answered",
+                        "value": _answer_value(question, "Saved context"),
+                    }
                     for question in questions
                 ],
             },
@@ -363,6 +434,7 @@ class TestFullHttpFlow:
         assert [question_id.rsplit(":", 1)[-1] for question_id in question_ids] == [
             "direction",
             "audience",
+            "visual_palette",
         ]
 
         first = await client.put(
@@ -388,11 +460,12 @@ class TestFullHttpFlow:
                 "complete": True,
                 "continue_with_current_information": True,
                 "answers": [
+                    {"question_id": question_ids[1], "mode": "answered", "value": "CTOs"},
                     {
-                        "question_id": question_ids[1],
+                        "question_id": question_ids[2],
                         "mode": "answered",
-                        "value": "CTOs",
-                    }
+                        "value": _answer_value(questions[2], ""),
+                    },
                 ],
             },
         )

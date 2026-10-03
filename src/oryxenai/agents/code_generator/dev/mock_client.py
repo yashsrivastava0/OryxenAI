@@ -83,7 +83,11 @@ class ReferenceModelClient:
         if self.raw_output is not None:
             parsed = dict(self.raw_output)
         else:
-            body = render_body(input_payload["content"], input_payload["derived"])
+            body = render_body(
+                input_payload["content"],
+                input_payload["derived"],
+                theme_id=str(input_payload["theme"]["id"]),
+            )
             if self.mutate is not None:
                 body = self.mutate(body)
             parsed = {"lang": self.lang, "body_html": body}

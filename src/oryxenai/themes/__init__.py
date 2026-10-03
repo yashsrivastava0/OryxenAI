@@ -25,6 +25,9 @@ DEFAULT_THEME_ID = "editorial-forest/v1"
 # theme id -> module exposing ``load() -> ThemePackage``
 _THEME_MODULES: dict[str, str] = {
     "editorial-forest/v1": "oryxenai.themes.editorial_forest.v1",
+    "editorial-forest-motion/v1": "oryxenai.themes.editorial_forest_motion.v1",
+    "cobalt-atlas/v1": "oryxenai.themes.cobalt_atlas.v1",
+    "obsidian-signal/v1": "oryxenai.themes.obsidian_signal.v1",
 }
 
 _MEDIA_TYPES = {

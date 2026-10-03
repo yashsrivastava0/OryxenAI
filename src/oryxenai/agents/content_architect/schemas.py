@@ -109,6 +109,7 @@ class ContentArchitectIntake(BaseModel):
     open_items: list[str] = Field(default_factory=list)
     discovery_brief_hash: str = ""
     discovery_session_revision: int = 0
+    selected_theme_id: str = ""
 
 
 class ContentArchitectPreferences(BaseModel):

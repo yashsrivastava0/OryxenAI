@@ -34,9 +34,9 @@ export function DiscoveryQuestionCard({
   const multiKey = `${draftKey}.multi`;
   const locked = disabled || inFlight;
   const questionOrdinalText = `Question ${String(ordinal).padStart(2, "0")} of ${String(total).padStart(2, "0")}`;
-  const canSubmit = Boolean(
-    textAnswer.trim() || selectedSingleOption || selectedOptions.length > 0,
-  );
+  const canSubmit = question.kind === "palette_select"
+    ? Boolean(selectedSingleOption)
+    : Boolean(textAnswer.trim() || selectedSingleOption || selectedOptions.length > 0);
 
   useEffect(() => {
     setTextAnswer(safeSessionStorage.getItem(draftKey) ?? "");
@@ -78,9 +78,11 @@ export function DiscoveryQuestionCard({
       question.kind === "boolean" ? (id === "true" ? "Yes" : "No") : choiceLabels.get(id) ?? id,
     ).join(", ");
     const customText = textAnswer.trim();
-    const value = customText
-      ? selectedText ? `${selectedText}. ${customText}` : customText
-      : selectedValue;
+    const value = question.kind === "palette_select"
+      ? { choice_id: selectedSingleOption, note: customText }
+      : customText
+        ? selectedText ? `${selectedText}. ${customText}` : customText
+        : selectedValue;
     const answer = skip
       ? skippedDiscoveryQuestion(question.id)
       : answeredDiscoveryQuestion(question.id, value);
@@ -143,6 +145,39 @@ export function DiscoveryQuestionCard({
                       {selected && <span className="choice-radio-dot" />}
                     </span>
                     <span className="choice-text">{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
+
+        {question.kind === "palette_select" && (
+          <fieldset className="choice-fieldset palette-fieldset">
+            <legend className="choice-group-hint">CHOOSE A COLOR DIRECTION</legend>
+            <div className="palette-choice-list" role="radiogroup" aria-label={question.text}>
+              {question.options.map((option) => {
+                const selected = selectedSingleOption === option.id;
+                return (
+                  <label key={option.id} className={`palette-choice ${selected ? "is-selected" : ""}`}>
+                    <input
+                      type="radio"
+                      name={`discovery-q-${question.id}`}
+                      className="visually-hidden choice-input"
+                      checked={selected}
+                      disabled={locked}
+                      onChange={() => {
+                        setSelectedSingleOption(option.id);
+                        safeSessionStorage.setItem(singleKey, option.id);
+                      }}
+                    />
+                    <span className="palette-choice__swatches" aria-hidden="true">
+                      {option.swatches.map((color) => <span key={color} style={{ backgroundColor: color }} />)}
+                    </span>
+                    <span className="palette-choice__footer">
+                      <span><strong>{option.label}</strong><small>{option.description}</small></span>
+                      <span className="palette-choice__check" aria-hidden="true">{selected ? "✓" : "○"}</span>
+                    </span>
                   </label>
                 );
               })}
@@ -224,13 +259,14 @@ export function DiscoveryQuestionCard({
 
         <div className="text-composer-group">
             <label className="choice-group-hint composer-label" htmlFor={`discovery-answer-${question.id}`}>
-              {question.kind === "text" ? "Your answer" : "Add context or write your own answer"}
+              {question.kind === "text" ? "Your answer" : question.kind === "palette_select" ? "A note about the feeling (optional)" : "Add context or write your own answer"}
             </label>
             <textarea
+              maxLength={question.kind === "palette_select" ? 1000 : undefined}
               id={`discovery-answer-${question.id}`}
               className="workbench-textarea composer-textarea"
               rows={question.kind === "text" ? 4 : 3}
-              placeholder={question.kind === "text" ? "Write what feels important…" : "Optional details, or a different answer…"}
+              placeholder={question.kind === "text" ? "Write what feels important…" : question.kind === "palette_select" ? "For example, calm and understated, or lively and expressive…" : "Optional details, or a different answer…"}
               value={textAnswer}
               onInput={(event) => updateText((event.target as HTMLTextAreaElement).value)}
               onKeyDown={onComposerKeyDown}

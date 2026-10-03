@@ -4,17 +4,15 @@ This note explains the boundaries used by the current repository. Read
 AGENTS.md for the canonical project context and the active stage READMEs for
 their detailed contracts.
 
-The proposed resume-to-portfolio replacement is documented separately in
+The earlier proposal and its rationale are in
 [the research and review guide](architecture/README.md),
-[system design](architecture/10-proposed-resume-portfolio-system.md),
-[agent and artifact contracts](architecture/11-agent-and-artifact-contracts.md),
-[generation, preview, revision, and operations design](architecture/12-generation-preview-revisions-and-operations.md),
-and [the detailed agent playbook](architecture/13-agent-operation-playbook.md).
-These documents are proposals awaiting user review before implementation.
+[system design](architecture/10-proposed-resume-portfolio-system.md), and
+[agent contracts](architecture/11-agent-and-artifact-contracts.md).
+The stage READMEs describe the running implementation.
 
 ## 1. Explicit Python agents
 
-The active workflow has two agents: Discovery and Content Architect. They are
+The active workflow has three agents: Discovery, Content Architect, and Code Generator. They are
 ordinary Python implementations of shared protocols, not a framework-managed
 graph. The shared executor persists runs, dispatches jobs, and applies state
 changes; agents receive structured data rather than HTTP or database objects.
@@ -48,9 +46,12 @@ auditing.
 ## 6. Explicit workflow and approval
 
 Discovery approval does not automatically start Content Architect. A caller
-must make a separate start request. Content Architect approval ends the
-current workflow. Any additional product stage requires a future, explicit
-architecture and API change; historical records do not enable one.
+must make a separate start request. The product's explicit "Approve & generate
+my portfolio" action approves the content plan and starts Code Generator.
+Discovery's fixed palette choice selects one immutable stylesheet package;
+Content Architect carries that selection with the approved content, and Code
+Generator generates HTML against that package's markup contract. The workflow
+ends with an owner-only verified Studio preview.
 
 ## 7. Current product frontend
 

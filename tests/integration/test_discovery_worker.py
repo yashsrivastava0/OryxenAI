@@ -70,10 +70,16 @@ async def test_full_worker_flow_with_mock_client(db_session, monkeypatch) -> Non
     assert state_data["discovery"]["status"] == "questions_ready"
     assert state_data["discovery"]["operation_a"]["mode"] == "ASK_QUESTIONS"
     questions = state_data["discovery"]["operation_a"]["items"]
-    assert len(questions) == 1
+    assert len(questions) == 2
 
     answers = [
-        DiscoveryAnswer(question_id=question["id"], mode="answered", value="pick-one")
+        DiscoveryAnswer(
+            question_id=question["id"],
+            mode="answered",
+            value={"choice_id": "forest_copper", "note": ""}
+            if question["kind"] == "palette_select"
+            else "pick-one",
+        )
         for question in questions
     ]
     answered = await service.save_answers(

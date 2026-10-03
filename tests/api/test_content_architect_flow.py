@@ -83,7 +83,7 @@ _DISCOVERY_HANDLERS = {
 _CONTENT_ARCHITECT_HANDLERS = {"content_architect.build": ContentArchitectBuildHandler()}
 
 
-async def _approve_discovery(client) -> str:
+async def _approve_discovery(client, *, choice: str = "forest_copper") -> str:
     """Create a session and drive Discovery to `approved` via the real API."""
     sid = await _create_session(client)
     resp = await client.post(
@@ -101,7 +101,16 @@ async def _approve_discovery(client) -> str:
     resp = await client.get(f"/api/v1/sessions/{sid}/discovery")
     state = resp.json()
     questions = state["discovery"]["operation_a"]["items"]
-    answers = [{"question_id": q["id"], "mode": "answered", "value": "pick-one"} for q in questions]
+    answers = [
+        {
+            "question_id": q["id"],
+            "mode": "answered",
+            "value": (
+                {"choice_id": choice, "note": ""} if q["kind"] == "palette_select" else "pick-one"
+            ),
+        }
+        for q in questions
+    ]
     resp = await client.put(
         f"/api/v1/sessions/{sid}/discovery/answers",
         json={
@@ -178,6 +187,16 @@ async def _remove_coverage_ledger(client, sid: str) -> None:
 
 
 class TestFullHttpFlow:
+    async def test_palette_selection_survives_content_build_and_approval(self, client):
+        sid = await _approve_discovery(client, choice="cobalt_white")
+        review = await _build_content(client, sid)
+        assert review["content_architect"]["intake"]["selected_theme_id"] == "cobalt-atlas/v1"
+        approved = await client.post(f"/api/v1/sessions/{sid}/content-architect/approve")
+        assert approved.status_code == 200, approved.text
+        assert (
+            approved.json()["content_architect"]["intake"]["selected_theme_id"] == "cobalt-atlas/v1"
+        )
+
     async def test_full_flow_and_approval(self, client):
         sid = await _approve_discovery(client)
         review = await _build_content(client, sid)

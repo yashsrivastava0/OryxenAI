@@ -15,6 +15,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from oryxenai.themes import DEFAULT_THEME_ID, get_theme
+from oryxenai.themes.prototype_contract import PrototypeContract
 
 _ENV = Environment(
     loader=FileSystemLoader(str(Path(__file__).resolve().parent / "templates")),
@@ -44,6 +45,8 @@ def render_body(
 ) -> str:
     """Render the page body for ``page_content`` (valid by construction)."""
     theme = get_theme(theme_id)
+    if isinstance(theme.contract, PrototypeContract):
+        return theme.contract.render_reference_body(page_content)
     values = dict(derived) if derived is not None else theme.contract.derive(page_content)
     hero = {key: _text(value) for key, value in _region(page_content, "hero").items()}
     for key in (

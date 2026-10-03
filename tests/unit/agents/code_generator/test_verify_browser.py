@@ -102,6 +102,26 @@ async def test_a_golden_page_passes_at_every_viewport() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "theme_id", ["editorial-forest-motion/v1", "cobalt-atlas/v1", "obsidian-signal/v1"]
+)
+async def test_selected_designs_pass_browser_verification(theme_id: str) -> None:
+    theme = get_theme(theme_id)
+    content = HEAD_CONTENT
+    derived = theme.contract.derive(content)
+    bundle = build_bundle(
+        content, derived, render_body(content, derived, theme_id=theme_id), "en", theme
+    )
+    for options in ({}, {"browser_channel": "chrome"}):
+        result = await BrowserVerifier(_config(**options)).verify(bundle, theme)
+        if result.status != "unavailable":
+            assert result.status == "passed", [issue.to_dict() for issue in result.issues]
+            assert result.issues == []
+            return
+    pytest.skip("no headless browser can be started on this machine")
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["minimal", "maximal", "non_latin", "special_characters"])
 async def test_other_content_shapes_pass_too(name: str) -> None:
     result = await _verify(_golden(shapes()[name]), viewports=[390, 1280])

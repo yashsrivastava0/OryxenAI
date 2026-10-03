@@ -1,0 +1,18 @@
+{
+  "theme_id": "obsidian-signal/v1",
+  "display_name": "Obsidian Signal",
+  "contract_version": "ThemeContract/v1",
+  "stylesheet": "styles.css",
+  "capabilities": {
+    "javascript": false,
+    "generated_css": false
+  },
+  "files": [
+    {
+      "path": "styles.css",
+      "sha256": "c5ca6140c3f8813a67c6901072fa249a130be160550b44a0f98bf167571e687b",
+      "bytes": 34497,
+      "media_type": "text/css; charset=utf-8"
+    }
+  ]
+}
