@@ -4,6 +4,17 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 — Codex (OpenAI) — Supabase auth recovery
+
+Added a self-healing, bounded HTTP client for Supabase authentication, resilient
+JWKS refresh with a one-hour maximum stale-key window and refresh backoff, and
+first-login identity retries. The browser retries temporary `/api/v1/me`
+failures and offers Retry while preserving the session; admin mutations remain
+single-shot. Added validated non-secret defaults, security decision D-130, and
+mocked backend and browser coverage. No Supabase configuration or deployment
+settings need changes. Verified the full Python suite, type checking, auth
+browser tests, and the production frontend build.
+
 ### 2026-10-03 — Codex (OpenAI) — Discovery interview and workspace refinement
 
 Paired the three pinned portfolio palettes with visual style previews in Discovery and tightened contextual questions to three useful choices plus a custom answer, including targeted follow-ups for partial resumes. Malformed questions receive bounded recovery, and unresolved gaps carry into the brief instead of appearing as broken cards. Refined navigation spacing, review layouts, and the Studio chat composer across desktop and mobile. Reduced duplicate Content Architect input and compacted its output schema while keeping the existing stage boundaries and review contract; surfaced elapsed generation time in its progress view. Verified application checks and browser layouts. No push or deployment.

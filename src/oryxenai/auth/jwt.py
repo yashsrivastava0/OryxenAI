@@ -21,6 +21,7 @@ from oryxenai.auth.errors import (
     AuthRateLimitedError,
     AuthRequiredError,
 )
+from oryxenai.auth.http import AuthHttpClient
 from oryxenai.core.settings import AuthConfig
 
 _JWT_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
@@ -70,17 +71,18 @@ class SupabaseJwtVerifier:
             # an actual verification request remains fail-closed with 503.
             self._issuer = ""
         self._jwks_url = f"{self._issuer}/.well-known/jwks.json"
-        self._client = client or httpx.AsyncClient(
-            timeout=httpx.Timeout(config.http_timeout_seconds)
+        self._http = AuthHttpClient(
+            timeout=httpx.Timeout(config.http_timeout_seconds),
+            client=client,
         )
-        self._owns_client = client is None
         self._cache_lock = asyncio.Lock()
         self._keys: dict[str, dict[str, Any]] = {}
         self._fetched_at: float | None = None
+        self._last_refresh_failed_at: float | None = None
+        self._last_unknown_kid_refresh_at: float | None = None
 
     async def aclose(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
+        await self._http.aclose()
 
     async def verify(self, token: str) -> VerifiedToken:
         """Verify header, key, signature, registered claims, and role."""
@@ -149,47 +151,116 @@ class SupabaseJwtVerifier:
 
     async def _get_key(self, kid: str) -> dict[str, Any] | None:
         now = time.monotonic()
-        if self._fetched_at is None or now - self._fetched_at > self._config.jwks_cache_ttl_seconds:
-            await self._refresh()
-        key = self._keys.get(kid)
+        had_cached_keys = self._fetched_at is not None
+        expired = (
+            self._fetched_at is None or now - self._fetched_at > self._config.jwks_cache_ttl_seconds
+        )
+        if expired:
+            try:
+                refreshed = await self._refresh()
+            except (AuthProviderUnavailableError, AuthRateLimitedError):
+                stale_key = self._get_usable_stale_key(kid)
+                if stale_key is None:
+                    raise
+                cache_age = (
+                    time.monotonic() - self._fetched_at if self._fetched_at is not None else 0
+                )
+                logger.warning(
+                    "Using a cached Supabase signing key after a failed JWKS refresh "
+                    "(cache_age_seconds=%.1f)",
+                    cache_age,
+                )
+                return stale_key
+            if refreshed:
+                # A successful refresh is authoritative: a missing key is an
+                # invalid token when a previous key set existed. On process
+                # startup, do one forced refresh for a possible rotation race.
+                refreshed_key = self._keys.get(kid)
+                if refreshed_key is not None or had_cached_keys:
+                    return refreshed_key
+
+        key = self._get_usable_stale_key(kid)
         if key is not None:
             return key
-        # Rotation is the one allowed cache miss refresh. A second miss is a
-        # token error; a network failure remains provider-unavailable.
-        await self._refresh(force=True)
+        if (
+            self._fetched_at is not None
+            and time.monotonic() - self._fetched_at > self._config.jwks_max_stale_seconds
+        ):
+            raise AuthProviderUnavailableError()
+
+        # Rotation is checked at most once per backoff window. A failed forced
+        # refresh is provider-unavailable so a possibly rotated session is not
+        # mistaken for an invalid token.
+        try:
+            await self._refresh(force=True)
+        except (AuthProviderUnavailableError, AuthRateLimitedError):
+            raise
+        refreshed_key = self._keys.get(kid)
+        if (
+            refreshed_key is not None
+            and self._fetched_at is not None
+            and time.monotonic() - self._fetched_at <= self._config.jwks_max_stale_seconds
+        ):
+            return refreshed_key
+        if refreshed_key is not None:
+            raise AuthProviderUnavailableError()
+        return None
+
+    def _get_usable_stale_key(self, kid: str) -> dict[str, Any] | None:
+        if self._fetched_at is None:
+            return None
+        if time.monotonic() - self._fetched_at > self._config.jwks_max_stale_seconds:
+            return None
         return self._keys.get(kid)
 
-    async def _refresh(self, *, force: bool = False) -> None:
+    async def _refresh(self, *, force: bool = False) -> bool:
         async with self._cache_lock:
             now = time.monotonic()
+            if (
+                self._last_refresh_failed_at is not None
+                and now - self._last_refresh_failed_at < self._config.jwks_refresh_backoff_seconds
+            ):
+                if force:
+                    raise AuthProviderUnavailableError()
+                return False
+            if (
+                self._last_refresh_failed_at is not None
+                and now - self._last_refresh_failed_at >= self._config.jwks_refresh_backoff_seconds
+            ):
+                self._last_refresh_failed_at = None
+            if (
+                force
+                and self._last_unknown_kid_refresh_at is not None
+                and now - self._last_unknown_kid_refresh_at
+                < self._config.jwks_refresh_backoff_seconds
+            ):
+                return False
             if (
                 self._fetched_at is not None
                 and now - self._fetched_at <= self._config.jwks_cache_ttl_seconds
                 and not force
             ):
-                return
-            for attempt in range(2):
-                try:
-                    response = await self._client.get(
-                        self._jwks_url,
-                        headers={"Accept": "application/json"},
-                    )
-                except httpx.RequestError as exc:
-                    if attempt == 0:
-                        await asyncio.sleep(0.2)
-                        continue
-                    logger.warning("Supabase JWKS request failed: %s", type(exc).__name__)
-                    raise AuthProviderUnavailableError() from exc
-                if response.status_code >= 500 and attempt == 0:
-                    await asyncio.sleep(0.2)
-                    continue
-                break
+                return False
+            if force:
+                self._last_unknown_kid_refresh_at = now
+            try:
+                response = await self._http.get(
+                    self._jwks_url,
+                    headers={"Accept": "application/json"},
+                )
+            except httpx.RequestError as exc:
+                self._last_refresh_failed_at = time.monotonic()
+                logger.warning("Supabase JWKS refresh failed (%s)", type(exc).__name__)
+                raise AuthProviderUnavailableError() from exc
             if response.status_code == 429:
+                self._last_refresh_failed_at = time.monotonic()
                 raise AuthRateLimitedError()
             if response.status_code >= 500:
+                self._last_refresh_failed_at = time.monotonic()
                 logger.warning("Supabase JWKS returned HTTP %s", response.status_code)
                 raise AuthProviderUnavailableError()
             if response.status_code != 200:
+                self._last_refresh_failed_at = time.monotonic()
                 logger.warning("Supabase JWKS returned HTTP %s", response.status_code)
                 raise AuthProviderUnavailableError()
             try:
@@ -203,10 +274,14 @@ class SupabaseJwtVerifier:
                     and item.get("kid")
                 }
             except (ValueError, TypeError, KeyError) as exc:
+                self._last_refresh_failed_at = time.monotonic()
                 logger.warning("Supabase JWKS response could not be parsed")
                 raise AuthProviderUnavailableError() from exc
             if not keys:
+                self._last_refresh_failed_at = time.monotonic()
                 logger.warning("Supabase JWKS response contained no usable keys")
                 raise AuthProviderUnavailableError()
             self._keys = keys
             self._fetched_at = time.monotonic()
+            self._last_refresh_failed_at = None
+            return True

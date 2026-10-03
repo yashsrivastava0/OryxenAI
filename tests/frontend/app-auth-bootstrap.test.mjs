@@ -15,7 +15,9 @@ function location(path) {
   return {
     pathname: path,
     replacements: [],
+    reloadCalls: 0,
     replace(value) { this.replacements.push(value); },
+    reload() { this.reloadCalls += 1; },
   };
 }
 
@@ -45,13 +47,38 @@ function sessionAuth(session = { access_token: "access-token" }) {
 }
 
 function documentProbe() {
+  const main = {
+    children: [],
+    prepend(node) {
+      node.parentNode = this;
+      this.children.unshift(node);
+    },
+    append(node) {
+      node.parentNode = this;
+      this.children.push(node);
+    },
+    insertAfter(node, reference) {
+      const index = this.children.indexOf(reference);
+      node.parentNode = this;
+      this.children.splice(index + 1, 0, node);
+    },
+  };
+  const createElement = (tagName) => ({
+    tagName: tagName.toUpperCase(),
+    attributes: {},
+    listeners: {},
+    setAttribute(name, value) { this.attributes[name] = value; },
+    addEventListener(name, callback) { this.listeners[name] = callback; },
+    after(node) { this.parentNode?.insertAfter(node, this); },
+    click() {
+      this.listeners.click?.();
+      this.onclick?.();
+    },
+    textContent: "",
+  });
   const progress = {
     attributes: {},
     setAttribute(name, value) { this.attributes[name] = value; },
-  };
-  const main = {
-    children: [],
-    prepend(node) { this.children.unshift(node); },
   };
   const body = {
     classList: {
@@ -64,14 +91,10 @@ function documentProbe() {
     body,
     progress,
     getElementById(id) {
-      return id === "auth-bootstrap-progress" ? progress : null;
+      if (id === "auth-bootstrap-progress") return progress;
+      return main.children.find((node) => node.id === id) || null;
     },
-    createElement() {
-      return {
-        setAttribute() {},
-        textContent: "",
-      };
-    },
+    createElement,
     querySelector(selector) { return selector === "main" ? main : null; },
   };
 }
@@ -162,9 +185,11 @@ test("workspace bootstrap failure preserves a valid auth session and avoids a re
   assert.deepEqual(documentRef.body.classList.removed, ["auth-pending"]);
 });
 
-test("a transient provider outage keeps the session instead of signing out", async () => {
+test("a transient provider 503 is retried and the product workspace opens", async () => {
   const page = location("/app");
   const auth = sessionAuth();
+  const sleeps = [];
+  let calls = 0;
   let signOutCalls = 0;
   auth.signOut = async () => { signOutCalls += 1; };
   const result = await bootProductShell({
@@ -172,13 +197,62 @@ test("a transient provider outage keeps the session instead of signing out", asy
     config,
     location: page,
     storage: { removeItem() {} },
-    fetchImpl: async () => response(503, { error: { code: "AUTH_PROVIDER_UNAVAILABLE", message: "down" } }),
+    sleepImpl: async (milliseconds) => { sleeps.push(milliseconds); },
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return response(503, { error: { code: "AUTH_PROVIDER_UNAVAILABLE", message: "down" } });
+      }
+      return response(200, {
+        id: "app-user",
+        username: "chosen-name",
+        role: "user",
+        status: "active",
+        onboarding_required: false,
+        admin_available: false,
+      });
+    },
+    loadWorkspace: async () => ({ boot() {} }),
+  });
+
+  assert.equal(result.kind, "app");
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [1000]);
+  assert.equal(signOutCalls, 0);
+  assert.deepEqual(page.replacements, []);
+});
+
+test("persistent provider 503 shows Retry and keeps the browser session", async () => {
+  const page = location("/app");
+  const documentRef = documentProbe();
+  const auth = sessionAuth();
+  const sleeps = [];
+  let calls = 0;
+  let signOutCalls = 0;
+  auth.signOut = async () => { signOutCalls += 1; };
+  const result = await bootProductShell({
+    auth,
+    config,
+    location: page,
+    storage: { removeItem() {} },
+    globalRef: { document: documentRef },
+    sleepImpl: async (milliseconds) => { sleeps.push(milliseconds); },
+    fetchImpl: async () => {
+      calls += 1;
+      return response(503, { error: { code: "AUTH_PROVIDER_UNAVAILABLE", message: "down" } });
+    },
     loadWorkspace: async () => { throw new Error("workspace must not load"); },
   });
 
   assert.equal(result.kind, "provider_unavailable");
+  assert.equal(calls, 3);
+  assert.deepEqual(sleeps, [1000, 2500]);
   assert.equal(signOutCalls, 0);
   assert.deepEqual(page.replacements, []);
+  assert.equal(documentRef.main.children[0].textContent, "Authentication is temporarily unavailable. Please try again shortly.");
+  assert.equal(documentRef.main.children[1].textContent, "Retry");
+  documentRef.main.children[1].click();
+  assert.equal(page.reloadCalls, 1);
 });
 
 test("exhausted generation credit keeps the session instead of signing out", async () => {
@@ -226,4 +300,5 @@ test("a stalled session restore reveals a recoverable error instead of hanging",
     documentRef.main.children[0].textContent,
     "Authentication is taking longer than expected. Check your connection and refresh to try again.",
   );
+  assert.equal(documentRef.main.children[1].textContent, "Retry");
 });

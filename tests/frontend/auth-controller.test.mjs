@@ -2,13 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  AuthRequestError,
   canonicalDestination,
   createAuthorizedFetch,
   isReviewedDestination,
   logoutCurrentBrowser,
   routeController,
 } from "../../src/oryxenai/auth/static/auth-controller.mjs";
-import { clearPrivateState } from "../../src/oryxenai/auth/static/auth-runtime.mjs";
+import {
+  clearPrivateState,
+  fetchAuthenticatedUser,
+} from "../../src/oryxenai/auth/static/auth-runtime.mjs";
 
 function fakeLocation(path, query = "") {
   return {
@@ -35,10 +39,14 @@ function uiProbe() {
   return {
     panels: [],
     errors: [],
+    errorOptions: [],
     users: [],
     progressSteps: [],
     panel(value) { this.panels.push(value); },
-    error(value) { this.errors.push(value); },
+    error(value, options) {
+      this.errors.push(value);
+      this.errorOptions.push(options);
+    },
     user(value) { this.users.push(value); },
     progress(step) { this.progressSteps.push(step); },
     clearPrivate() { this.cleared = true; },
@@ -124,6 +132,86 @@ test("persistent active session resolves /me once and reaches the app", async ()
   assert.equal(calls[0].init.headers.get("Authorization"), "Bearer access-token");
   assert.deepEqual(location.replacements, []);
   assert.equal(ui.users[0].username, "chosen-name");
+});
+
+test("sign-in controller retries a transient /me 503 and keeps the active session", async () => {
+  const location = fakeLocation("/app");
+  const ui = uiProbe();
+  const sleeps = [];
+  let calls = 0;
+  const result = await routeController({
+    auth: authWithSession(),
+    fetchImpl: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return response(503, { error: { code: "AUTH_PROVIDER_UNAVAILABLE", message: "down" } });
+      }
+      return response(200, {
+        id: "local-id",
+        username: "chosen-name",
+        role: "user",
+        status: "active",
+        onboarding_required: false,
+        admin_available: false,
+      });
+    },
+    location,
+    history: { replaceState() {} },
+    storage: { removeItem() {} },
+    sleepImpl: async (milliseconds) => { sleeps.push(milliseconds); },
+    ui,
+  });
+
+  assert.equal(result.kind, "app");
+  assert.equal(calls, 2);
+  assert.deepEqual(sleeps, [1000]);
+  assert.deepEqual(location.replacements, []);
+  assert.deepEqual(ui.errors, []);
+});
+
+test("persistent /me provider failure exposes the retry action without signing out", async () => {
+  const location = fakeLocation("/auth/callback", "?code=oauth-code");
+  const ui = uiProbe();
+  const sleeps = [];
+  let calls = 0;
+  const result = await routeController({
+    auth: authWithSession(),
+    fetchImpl: async () => {
+      calls += 1;
+      return response(503, { error: { code: "AUTH_PROVIDER_UNAVAILABLE", message: "down" } });
+    },
+    location,
+    history: { replaceState() {} },
+    storage: { removeItem() {} },
+    sleepImpl: async (milliseconds) => { sleeps.push(milliseconds); },
+    ui,
+  });
+
+  assert.equal(result.kind, "provider_unavailable");
+  assert.equal(calls, 3);
+  assert.deepEqual(sleeps, [1000, 2500]);
+  assert.deepEqual(ui.errorOptions.at(-1), { retry: true });
+  assert.deepEqual(location.replacements, []);
+  assert.equal(ui.errors.at(-1), "Authentication is temporarily unavailable. Please try again shortly.");
+});
+
+test("the shared /me retry helper does not retry rate limits or other auth errors", async () => {
+  const sleeps = [];
+  let calls = 0;
+
+  await assert.rejects(
+    fetchAuthenticatedUser({
+      authorizedFetch: async () => {
+        calls += 1;
+        throw new AuthRequestError("rate limited", { code: "AUTH_RATE_LIMITED", status: 429 });
+      },
+      sleepImpl: async (milliseconds) => { sleeps.push(milliseconds); },
+    }),
+    { code: "AUTH_RATE_LIMITED" },
+  );
+
+  assert.equal(calls, 1);
+  assert.deepEqual(sleeps, []);
 });
 
 test("callback exchanges PKCE code, strips artifacts, and progresses to onboarding", async () => {
@@ -296,8 +384,8 @@ test("authorized fetch consumes its bootstrap session once and then reads curren
   await request("/api/v1/me");
   sessionToken = "newer";
   await request("/api/v1/sessions");
-  assert.deepEqual(seen, ["Bearer bootstrap", "Bearer newer", "Bearer newer"]);
-  assert.equal(sessionReads, 2);
+  assert.deepEqual(seen, ["Bearer bootstrap", "Bearer newer"]);
+  assert.equal(sessionReads, 1);
 });
 
 test("authorized fetch rejects foreign destinations and clears after a second 401", async () => {

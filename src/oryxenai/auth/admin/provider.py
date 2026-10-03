@@ -12,6 +12,8 @@ from uuid import UUID
 
 import httpx
 
+from oryxenai.auth.http import AuthHttpClient
+
 
 class AdminProviderError(Exception):
     """Safe provider failure classification without response-body leakage."""
@@ -52,15 +54,15 @@ class SupabaseAdminProvider:
         # window, so keep support without misclassifying arbitrary secrets.
         if _looks_like_legacy_jwt(secret_key):
             self._headers["Authorization"] = f"Bearer {secret_key}"
-        self._owned_client = client is None
-        self._client = client or httpx.AsyncClient(
+        self._http = AuthHttpClient(
             timeout=httpx.Timeout(
                 timeout_seconds,
                 connect=min(timeout_seconds, 3.0),
                 read=timeout_seconds,
                 write=timeout_seconds,
                 pool=min(timeout_seconds, 3.0),
-            )
+            ),
+            client=client,
         )
 
     async def suspend_user(self, subject: UUID) -> None:
@@ -71,12 +73,11 @@ class SupabaseAdminProvider:
 
     async def delete_user(self, subject: UUID) -> None:
         try:
-            response = await self._client.delete(
+            response = await self._http.request(
+                "DELETE",
                 f"{self._base_url}/auth/v1/admin/users/{subject}",
                 headers=self._headers,
             )
-        except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise AdminProviderError("AUTH_ADMIN_PROVIDER_UNAVAILABLE", retryable=True) from exc
         except httpx.HTTPError as exc:
             raise AdminProviderError("AUTH_ADMIN_PROVIDER_UNAVAILABLE", retryable=True) from exc
         if response.status_code in {200, 204, 404}:
@@ -85,13 +86,12 @@ class SupabaseAdminProvider:
 
     async def _patch(self, subject: UUID, payload: dict[str, str]) -> None:
         try:
-            response = await self._client.put(
+            response = await self._http.request(
+                "PUT",
                 f"{self._base_url}/auth/v1/admin/users/{subject}",
                 headers=self._headers,
-                json=payload,
+                json_body=payload,
             )
-        except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise AdminProviderError("AUTH_ADMIN_PROVIDER_UNAVAILABLE", retryable=True) from exc
         except httpx.HTTPError as exc:
             raise AdminProviderError("AUTH_ADMIN_PROVIDER_UNAVAILABLE", retryable=True) from exc
         if 200 <= response.status_code < 300:
@@ -109,8 +109,7 @@ class SupabaseAdminProvider:
         raise AdminProviderError("AUTH_ADMIN_PROVIDER_REQUEST_REJECTED")
 
     async def aclose(self) -> None:
-        if self._owned_client:
-            await self._client.aclose()
+        await self._http.aclose()
 
 
 def _looks_like_legacy_jwt(value: str) -> bool:

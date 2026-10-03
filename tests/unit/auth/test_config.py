@@ -115,6 +115,30 @@ def test_auth_policy_rejects_wildcards_and_symmetric_algorithms() -> None:
         AuthConfig(development_harness_mode="public")
 
 
+def test_jwks_resilience_settings_have_safe_defaults() -> None:
+    config = AuthConfig()
+
+    assert config.jwks_cache_ttl_seconds == 300
+    assert config.jwks_max_stale_seconds == 3600
+    assert config.jwks_refresh_backoff_seconds == 30
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"jwks_max_stale_seconds": 299},
+        {"jwks_max_stale_seconds": 86401},
+        {"jwks_refresh_backoff_seconds": 0},
+        {"jwks_refresh_backoff_seconds": 301},
+    ],
+)
+def test_jwks_resilience_settings_reject_out_of_range_values(
+    overrides: dict[str, int],
+) -> None:
+    with pytest.raises(ValueError):
+        AuthConfig(**overrides)
+
+
 def test_configured_local_auth_rejects_incomplete_provider_coordinates() -> None:
     config = _valid_config()
     with pytest.raises(ValueError, match="incomplete"):

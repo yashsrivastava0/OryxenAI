@@ -8,7 +8,7 @@ function hideBootstrapProgress(documentRef) {
   progress?.setAttribute?.("aria-hidden", "true");
 }
 
-function showBootstrapError(documentRef, message) {
+function showBootstrapError(documentRef, message, { onRetry } = {}) {
   let node = documentRef?.getElementById?.("auth-bootstrap-error");
   if (!node && documentRef?.createElement) {
     node = documentRef.createElement("p");
@@ -19,6 +19,19 @@ function showBootstrapError(documentRef, message) {
     parent?.prepend?.(node);
   }
   if (node) node.textContent = message;
+  let retryButton = documentRef?.getElementById?.("auth-bootstrap-retry");
+  if (onRetry && !retryButton && documentRef?.createElement) {
+    retryButton = documentRef.createElement("button");
+    retryButton.id = "auth-bootstrap-retry";
+    retryButton.type = "button";
+    retryButton.className = "button button-secondary";
+    retryButton.textContent = "Retry";
+    node?.after?.(retryButton);
+  }
+  if (retryButton) {
+    retryButton.hidden = !onRetry;
+    retryButton.onclick = onRetry || null;
+  }
   hideBootstrapProgress(documentRef);
 }
 
@@ -64,6 +77,7 @@ export async function bootProductShell({
   config,
   globalRef = globalThis,
   timeoutMs,
+  sleepImpl,
   loadWorkspace = async () => {
     // /product_shell.html renders this meta tag only when the Preact bundle
     // (frontend/, docs/Frontend/05) has actually been built. The legacy
@@ -160,6 +174,7 @@ export async function bootProductShell({
     storage,
     onAuthFailure,
     timeoutMs,
+    sleepImpl,
   });
   if (context.kind === "signed_out" || context.kind === "storage_error") {
     if (context.kind === "storage_error") {
@@ -183,6 +198,7 @@ export async function bootProductShell({
     showBootstrapError(
       globalRef.document,
       "Authentication is taking longer than expected. Check your connection and refresh to try again.",
+      { onRetry: () => location?.reload?.() },
     );
     revealWorkspace(globalRef.document);
     return context;
@@ -197,6 +213,9 @@ export async function bootProductShell({
       context.kind === "provider_credit_exhausted"
         ? "The model provider is temporarily unavailable. Please try again later."
         : "Authentication is temporarily unavailable. Please try again shortly.",
+      context.kind === "provider_unavailable"
+        ? { onRetry: () => location?.reload?.() }
+        : {},
     );
     revealWorkspace(globalRef.document);
     return context;

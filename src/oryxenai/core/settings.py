@@ -234,6 +234,8 @@ class AuthConfig(BaseModel):
     bootstrap_admin_count: int = 2
     clock_skew_seconds: int = 30
     jwks_cache_ttl_seconds: int = 300
+    jwks_max_stale_seconds: int = 3600
+    jwks_refresh_backoff_seconds: int = 30
     http_timeout_seconds: float = 5.0
     max_token_bytes: int = 8192
 
@@ -298,6 +300,12 @@ class AuthConfig(BaseModel):
             raise ValueError("JWT clock skew must be between 0 and 300 seconds.")
         if not 1 <= self.jwks_cache_ttl_seconds <= 600:
             raise ValueError("JWKS cache TTL must be between 1 and 600 seconds.")
+        if not self.jwks_cache_ttl_seconds <= self.jwks_max_stale_seconds <= 86400:
+            raise ValueError(
+                "Maximum JWKS staleness must be at least the cache TTL and at most 86400 seconds."
+            )
+        if not 1 <= self.jwks_refresh_backoff_seconds <= 300:
+            raise ValueError("JWKS refresh backoff must be between 1 and 300 seconds.")
         if not 0.1 <= self.http_timeout_seconds <= 30:
             raise ValueError("Auth HTTP timeout must be between 0.1 and 30 seconds.")
         if not 1024 <= self.max_token_bytes <= 65536:
