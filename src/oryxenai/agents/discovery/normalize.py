@@ -83,7 +83,16 @@ def normalize_questions(
     questions: list[dict[str, Any]] = []
     used_ids: set[str] = set()
     raw_questions = data.get("questions")
+    all_proposals_closed = bool(raw_questions) and isinstance(raw_questions, list)
     for item in raw_questions if isinstance(raw_questions, list) else []:
+        item_text = (
+            as_text(item.get("text") or item.get("question") or item.get("prompt"))
+            if isinstance(item, dict)
+            else as_text(item)
+        )
+        item_gap_id = as_text(item.get("gap_id")) if isinstance(item, dict) else ""
+        if not item_text or (item_gap_id or gap_id_for(item_text)) not in closed:
+            all_proposals_closed = False
         question = _normalize_question(item, len(questions) + 1, used_ids, closed)
         if question is not None:
             questions.append(question)
@@ -95,6 +104,8 @@ def normalize_questions(
         questions = []
     elif questions:
         mode = OperationMode.ASK_QUESTIONS.value
+    elif raw_mode == OperationMode.ASK_QUESTIONS.value and not all_proposals_closed:
+        return None, ["Model proposed questions without three distinct, usable choices"]
     else:
         mode = OperationMode.READY_FOR_BRIEF.value
 
@@ -126,13 +137,14 @@ def _normalize_question(
         "text",
     )
     options = _normalize_options(item.get("options") or item.get("choices"))
-    if kind in _SELECT_KINDS:
-        if len(options) < 3:
-            kind, options = "text", []
-        else:
-            options = options[:3]
-    else:
-        options = []
+    # New interview rounds always render three useful choices plus the UI's
+    # custom-answer field. Older persisted text/boolean questions still load
+    # through the state schema and frontend; they are never created here.
+    if len(options) < 3:
+        return None
+    if kind not in _SELECT_KINDS:
+        kind = "single_select"
+    options = options[:3]
 
     base = re.sub(r"[^a-z0-9_]+", "_", as_text(item.get("id")).casefold()).strip("_")[:48]
     question_id = base or f"q{index}"

@@ -1,7 +1,7 @@
 <!--
   Operation: integrate_content (runs when integration_needed was signaled, or as the one
   bounded repair pass when the deterministic approval-readiness check found errors)
-  Version: content_architect.integrate_content.v6
+  Version: content_architect.integrate_content.v7
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 

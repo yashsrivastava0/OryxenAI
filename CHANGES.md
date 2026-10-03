@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-03 — Codex (OpenAI) — Discovery interview and workspace refinement
+
+Paired the three pinned portfolio palettes with visual style previews in Discovery and tightened contextual questions to three useful choices plus a custom answer, including targeted follow-ups for partial resumes. Malformed questions receive bounded recovery, and unresolved gaps carry into the brief instead of appearing as broken cards. Refined navigation spacing, review layouts, and the Studio chat composer across desktop and mobile. Reduced duplicate Content Architect input and compacted its output schema while keeping the existing stage boundaries and review contract; surfaced elapsed generation time in its progress view. Verified application checks and browser layouts. No push or deployment.
+
 ### 2026-10-03 — Codex (OpenAI) — Discovery palette and three Studio designs
 
 Added a required visual palette card to Discovery with deterministic server-side selection, carried the selected theme through Content Architect approval into Studio, and packaged the supplied Forest Motion, Cobalt Atlas, and Obsidian Signal designs as separate pinned CSS themes with strict markup contracts (D-129). Kept the current content tree and legacy theme fallback; verified the new API handoff and browser previews alongside the repository quality gates. No push or deployment.

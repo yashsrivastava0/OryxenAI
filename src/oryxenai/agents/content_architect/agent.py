@@ -87,6 +87,10 @@ class ContentArchitectAgent(Agent):
     async def _run_build(self, context: AgentContext) -> AgentResult:
         agent_input = context.agent_input
         intake = self._intake_from(agent_input)
+        # The approved dossier already contains the subject, roles, projects,
+        # and facts represented in the legacy profile. Keep the profile only
+        # for older sessions that have no dossier.
+        model_profile = intake.get("profile", {}) if not intake.get("dossier") else {}
         preferences = dict(agent_input.get("preferences", {}) or {})
         prior_output = dict(agent_input.get("prior_output", {}) or {})
         revision_request = str(agent_input.get("revision_request", "") or "")
@@ -98,7 +102,7 @@ class ContentArchitectAgent(Agent):
         plan_packet = {
             "approved_brief_title": intake.get("approved_brief_title", ""),
             "user_summary": intake.get("user_summary", ""),
-            "profile": intake.get("profile", {}),
+            "profile": model_profile,
             "dossier": intake.get("dossier", {}),
             "open_items": intake.get("open_items", []),
             "preferences": preferences,
@@ -129,7 +133,7 @@ class ContentArchitectAgent(Agent):
 
         def absorb(parsed: dict[str, Any]) -> None:
             """Fold a later stage's refreshed page/claims/ledger into the working copy."""
-            nonlocal page_content, claim_grounding, coverage_ledger, internal_notes
+            nonlocal page_content, claim_grounding, coverage_ledger, internal_notes, user_summary
             page_content = dict(parsed.get("page_content") or page_content)
             claim_grounding = list(parsed.get("claim_grounding") or claim_grounding)
             coverage_ledger = list(parsed.get("coverage_ledger") or coverage_ledger)
@@ -137,6 +141,7 @@ class ContentArchitectAgent(Agent):
             warnings.extend(parsed.get("warnings") or [])
             decision_basis.extend(parsed.get("decision_basis") or [])
             memory_update.update(parsed.get("memory_update") or {})
+            user_summary = str(parsed.get("user_summary") or user_summary)
 
         # ── Stage 2: write_pages (only if stage 1 deferred content) ─────
         if not content_included:
@@ -144,7 +149,7 @@ class ContentArchitectAgent(Agent):
                 "site_story_strategy": site_story_strategy,
                 "claim_grounding": claim_grounding,
                 "dossier": intake.get("dossier", {}),
-                "profile": intake.get("profile", {}),
+                "profile": model_profile,
                 "open_items": intake.get("open_items", []),
                 "preferences": preferences,
             }
@@ -157,6 +162,11 @@ class ContentArchitectAgent(Agent):
             stages_run.append("write_pages")
             stages_meta.append(meta_pages)
             absorb(parsed_pages)
+            if not parsed_pages.get("user_summary"):
+                user_summary = (
+                    "Your complete portfolio page copy is ready to review. "
+                    "Read each section and the evidence notes before approving it."
+                )
             integration_needed = integration_needed or bool(
                 parsed_pages.get("integration_needed", False)
             )

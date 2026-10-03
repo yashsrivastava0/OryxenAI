@@ -403,16 +403,24 @@ class TestFullHttpFlow:
                     {
                         "id": "direction",
                         "text": "Which direction should lead?",
-                        "kind": "text",
-                        "options": [],
+                        "kind": "single_select",
+                        "options": [
+                            {"id": "projects", "label": "Projects"},
+                            {"id": "systems", "label": "Systems"},
+                            {"id": "experience", "label": "Experience"},
+                        ],
                         "allow_skip": True,
                         "allow_auto": False,
                     },
                     {
                         "id": "audience",
                         "text": "Who should this persuade?",
-                        "kind": "text",
-                        "options": [],
+                        "kind": "single_select",
+                        "options": [
+                            {"id": "clients", "label": "Clients"},
+                            {"id": "hiring", "label": "Hiring teams"},
+                            {"id": "partners", "label": "Partners"},
+                        ],
                         "allow_skip": True,
                         "allow_auto": False,
                     },
@@ -480,7 +488,7 @@ class TestFullHttpFlow:
         )
         assert {
             event["answer"] for event in brief_request["input_payload"]["question_history"]
-        } == {"systems", "CTOs"}
+        } == {"Systems", "CTOs"}
 
     async def test_invalid_answer_batch_does_not_change_discovery(self, client):
         sid = await _create_session(client)

@@ -1,6 +1,6 @@
 <!--
   Operation: plan_content (always runs first)
-  Version: content_architect.plan_content.v7
+  Version: content_architect.plan_content.v8
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
