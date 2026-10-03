@@ -84,6 +84,7 @@ export function ContentStage({
           { id: "brief", label: "Approved Discovery brief received", state: "complete" },
           { id: "current", label: view.statusText || "Content Architect is working", state: "current" },
         ]}
+        elapsedSeconds={view.elapsedSeconds}
         onStop={onStop}
         stopLabel="Stop Content Architect"
       />

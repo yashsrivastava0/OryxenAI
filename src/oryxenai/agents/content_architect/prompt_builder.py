@@ -20,9 +20,9 @@ logger = get_logger("oryxenai.agents.content_architect.prompt_builder")
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 PROMPT_VERSION_SYSTEM = "content_architect.system.v5"
-PROMPT_VERSION_PLAN_CONTENT = "content_architect.plan_content.v7"
-PROMPT_VERSION_WRITE_PAGES = "content_architect.write_pages.v6"
-PROMPT_VERSION_INTEGRATE_CONTENT = "content_architect.integrate_content.v6"
+PROMPT_VERSION_PLAN_CONTENT = "content_architect.plan_content.v8"
+PROMPT_VERSION_WRITE_PAGES = "content_architect.write_pages.v7"
+PROMPT_VERSION_INTEGRATE_CONTENT = "content_architect.integrate_content.v7"
 
 _OPERATION_VERSION_MAP = {
     "plan_content": PROMPT_VERSION_PLAN_CONTENT,
@@ -72,7 +72,9 @@ def build_instructions(
     if operation not in _OPERATION_PROMPT_FILE:
         raise ValueError(f"Unknown Content Architect operation: {operation}")
 
-    schema = json.dumps(ContentArchitectOutput.model_json_schema(), ensure_ascii=False, indent=2)
+    schema = json.dumps(
+        ContentArchitectOutput.model_json_schema(), ensure_ascii=False, separators=(",", ":")
+    )
 
     system_prompt = _load_text("system.md")
     operation_prompt = _load_text(_OPERATION_PROMPT_FILE[operation])

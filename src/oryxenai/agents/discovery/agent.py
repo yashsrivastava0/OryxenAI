@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from oryxenai.agents.discovery.dossier import profile_from_dossier
+from oryxenai.agents.discovery.dossier import as_text_list, profile_from_dossier
 from oryxenai.agents.discovery.drafts import BriefOutput, QuestionSetOutput
 from oryxenai.agents.discovery.normalize import normalize_brief, normalize_questions
 from oryxenai.agents.discovery.palette import PALETTE_GAP_ID, add_palette_question
@@ -21,6 +21,7 @@ from oryxenai.agents.shared.model_cache import (
     generate_with_cache,
     prompt_cache_context,
 )
+from oryxenai.agents.shared.providers.errors import ModelOutputInvalidError
 from oryxenai.core.logging import get_logger
 from oryxenai.core.settings import get_settings
 
@@ -75,29 +76,67 @@ class DiscoveryAgent(Agent):
         )
         request_context["stream"] = True
         closed = {event.gap_id for event in events if event.gap_id and event.status != "pending"}
+        unresolved_questions: list[str] = []
 
         def validate(parsed: dict[str, Any]) -> None:
             output, errors = normalize_questions(
                 parsed, self._config.max_questions, closed_gap_ids=closed
             )
             if output is None:
+                raw_questions = parsed.get("questions")
+                for item in raw_questions if isinstance(raw_questions, list) else []:
+                    question_text = (
+                        str(item.get("text") or item.get("question") or "").strip()
+                        if isinstance(item, dict)
+                        else str(item).strip()
+                    )
+                    if question_text and question_text not in unresolved_questions:
+                        unresolved_questions.append(question_text)
+                if not unresolved_questions:
+                    unresolved_questions.append("Clarify missing resume details or portfolio goals")
                 raise DiscoveryModelOutputError("understand_and_question", errors)
 
-        result = await generate_with_cache(
-            client=self._model_client,
-            result_cache=self._result_cache,
-            agent_key=self.key.value,
-            operation="understand_and_question",
-            system_prompt=system,
-            instructions=instructions,
-            input_payload=packet,
-            output_model=QuestionSetOutput,
-            model_profile=self._profile_name,
-            profile_fingerprint=self._profile_fingerprint,
-            request_context=request_context,
-            strict_schema=False,
-            validator=validate,
-        )
+        try:
+            result = await generate_with_cache(
+                client=self._model_client,
+                result_cache=self._result_cache,
+                agent_key=self.key.value,
+                operation="understand_and_question",
+                system_prompt=system,
+                instructions=instructions,
+                input_payload=packet,
+                output_model=QuestionSetOutput,
+                model_profile=self._profile_name,
+                profile_fingerprint=self._profile_fingerprint,
+                request_context=request_context,
+                strict_schema=False,
+                validator=validate,
+            )
+        except (DiscoveryModelOutputError, ModelOutputInvalidError):
+            if not unresolved_questions:
+                raise
+            # The model client's bounded recovery has been exhausted. Preserve
+            # the open gaps for the brief instead of showing a broken card.
+            fallback_output = add_palette_question(
+                {
+                    "mode": "READY_FOR_BRIEF",
+                    "assistant_message": "I can draft your brief from what you shared and mark uncertain details for review.",
+                    "questions": [],
+                },
+                already_answered=any(
+                    event.gap_id == PALETTE_GAP_ID and event.status == "answered"
+                    for event in events
+                ),
+            )
+            return AgentResult(
+                output={
+                    "operation": "understand_and_question",
+                    **fallback_output,
+                    "memory_update": {"unresolved_question_gaps": unresolved_questions[:3]},
+                },
+                prompt_version=version,
+                model_metadata={"question_recovery_exhausted": True, "prompt_modules": manifest},
+            )
         output, errors = normalize_questions(
             result.parsed_output, self._config.max_questions, closed_gap_ids=closed
         )
@@ -120,6 +159,7 @@ class DiscoveryAgent(Agent):
 
     async def _brief(self, context: AgentContext) -> AgentResult:
         packet, documents, events = _packet(context.agent_input)
+        unresolved_gaps = packet.get("unresolved_question_gaps") or []
         revision_request = str(context.agent_input.get("revision_request", "") or "")
         packet.update(
             existing_brief=str(context.agent_input.get("existing_brief", "") or ""),
@@ -134,6 +174,13 @@ class DiscoveryAgent(Agent):
         request_context["stream"] = True
 
         def normalize(parsed: dict[str, Any]) -> dict[str, Any]:
+            if unresolved_gaps:
+                parsed = {
+                    **parsed,
+                    "open_items": list(
+                        dict.fromkeys([*as_text_list(parsed.get("open_items")), *unresolved_gaps])
+                    ),
+                }
             output, errors = normalize_brief(
                 parsed,
                 documents=documents,
@@ -218,6 +265,13 @@ def _packet(
             if event.gap_id != PALETTE_GAP_ID
         ],
     }
+    prior_memory = agent_input.get("prior_memory")
+    if isinstance(prior_memory, dict):
+        unresolved = prior_memory.get("unresolved_question_gaps")
+        if isinstance(unresolved, list):
+            packet["unresolved_question_gaps"] = [
+                str(item).strip() for item in unresolved[:3] if str(item).strip()
+            ]
     return packet, documents, events
 
 

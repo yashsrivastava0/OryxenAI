@@ -14,9 +14,14 @@ def test_questions_repair_mode_options_and_duplicates() -> None:
                     "id": "same",
                     "text": "Which audience?",
                     "kind": "radio",
-                    "options": ["Hiring teams"],
+                    "options": ["Hiring teams", "Clients", "Collaborators"],
                 },
-                {"id": "same", "text": "What work should lead?", "kind": "text"},
+                {
+                    "id": "same",
+                    "text": "What work should lead?",
+                    "kind": "text",
+                    "options": ["Projects", "Experience", "Research"],
+                },
                 {"text": "Should we use your latest role?", "kind": "yes_no"},
                 {"text": "Extra question"},
             ],
@@ -25,10 +30,30 @@ def test_questions_repair_mode_options_and_duplicates() -> None:
     assert errors == []
     assert output is not None
     assert output["mode"] == "ASK_QUESTIONS"
-    assert len(output["questions"]) == 3
-    assert output["questions"][0]["kind"] == "text"
-    assert output["questions"][0]["options"] == []
-    assert len({question["id"] for question in output["questions"]}) == 3
+    assert len(output["questions"]) == 2
+    assert all(question["kind"] == "single_select" for question in output["questions"])
+    assert all(len(question["options"]) == 3 for question in output["questions"])
+    assert len({question["id"] for question in output["questions"]}) == 2
+
+
+def test_malformed_question_batch_requests_recovery_but_closed_gaps_do_not() -> None:
+    candidate = {
+        "text": "Which missing project should lead?",
+        "kind": "single_select",
+        "options": ["Only one choice"],
+    }
+    payload = {"mode": "ASK_QUESTIONS", "questions": [candidate]}
+
+    output, errors = normalize_questions(payload)
+    assert output is None
+    assert errors == ["Model proposed questions without three distinct, usable choices"]
+
+    from oryxenai.agents.discovery.normalize import gap_id_for
+
+    output, errors = normalize_questions(payload, closed_gap_ids={gap_id_for(candidate["text"])})
+    assert errors == []
+    assert output is not None
+    assert output["mode"] == "READY_FOR_BRIEF"
 
 
 def test_brief_repairs_dossier_without_losing_claims() -> None:

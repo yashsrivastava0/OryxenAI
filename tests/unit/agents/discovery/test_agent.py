@@ -65,7 +65,7 @@ def test_model_packet_receives_the_complete_named_attachment():
     ]
 
 
-def test_question_choices_are_three_or_free_text():
+def test_question_choices_are_three_or_omitted():
     payload = {
         "questions": [
             {
@@ -81,8 +81,7 @@ def test_question_choices_are_three_or_free_text():
     assert errors == []
     assert normalized is not None
     assert [option["id"] for option in normalized["questions"][0]["options"]] == ["0", "1", "2"]
-    assert normalized["questions"][1]["kind"] == "text"
-    assert normalized["questions"][1]["options"] == []
+    assert len(normalized["questions"]) == 1
 
 
 def test_dossier_normalization_preserves_claims_and_repairs_references():
@@ -213,3 +212,41 @@ async def test_needs_details_mode_is_preserved_for_long_unstructured_material():
 
     assert result.output["mode"] == "NEEDS_DETAILS"
     assert result.output["questions"] == []
+
+
+async def test_malformed_question_falls_back_to_palette_and_carries_open_gap():
+    question_text = "Which missing role should appear?"
+    agent = DiscoveryAgent(
+        model_client=_FakeModelClient(
+            {
+                "mode": "ASK_QUESTIONS",
+                "questions": [{"text": question_text, "kind": "single_select", "options": ["One"]}],
+            }
+        )
+    )
+
+    result = await agent.run(_questions_context("A partial resume."))
+
+    assert [item["kind"] for item in result.output["questions"]] == ["palette_select"]
+    assert result.output["memory_update"]["unresolved_question_gaps"] == [question_text]
+    assert result.model_metadata["question_recovery_exhausted"] is True
+
+    packet, _, _ = _packet({"intake": {}, "prior_memory": result.output["memory_update"]})
+    assert packet["unresolved_question_gaps"] == [question_text]
+
+
+async def test_unanswered_recovery_gap_is_stored_in_brief_and_dossier():
+    context = _context()
+    context.agent_input["prior_memory"] = {
+        "unresolved_question_gaps": ["Which missing role should appear?"]
+    }
+
+    result = await DiscoveryAgent(
+        model_client=_FakeModelClient(_brief_payload(project_count=1))
+    ).run(context)
+
+    assert result.output["open_items"] == ["Which missing role should appear?"]
+    assert any(
+        item["detail"] == "Which missing role should appear?"
+        for item in result.output["dossier"]["open_items"]
+    )

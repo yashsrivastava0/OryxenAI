@@ -8,6 +8,39 @@ import { questionsMcqReady, questionsReady, questionsTextReady } from "../data/a
 const noop = async () => {};
 
 describe("ConversationSurface discovery question rendering", () => {
+  it("shows three distinct visual looks as one selectable decision", () => {
+    const html = render(
+      h(ConversationSurface, {
+        questions: [{
+          id: "visual_palette",
+          text: "Which look feels right for your portfolio?",
+          helpText: "Each direction pairs its colors with a distinct design style.",
+          reason: null,
+          gapId: "visual_palette_v1",
+          affectedIds: [],
+          kind: "palette_select",
+          allowSkip: false,
+          options: [
+            { id: "forest_copper", label: "Forest & copper", description: "Editorial warmth", swatches: ["#14231c", "#f3f1e9", "#9a3f29"] },
+            { id: "cobalt_white", label: "Cobalt & white", description: "Minimal clarity", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
+            { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold modernity", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
+          ],
+        }],
+        history: [],
+        isWorking: false,
+        onSubmitAnswer: noop,
+      }),
+    );
+
+    expect(html.match(/class="palette-choice /g)).toHaveLength(3);
+    expect(html).toContain("palette-choice__demo");
+    expect(html).toContain("Editorial warmth");
+    expect(html).toContain("Minimal clarity");
+    expect(html).toContain("Bold modernity");
+    expect(html).toContain("Optional note for your reference");
+    expect(html).not.toContain("cobalt-atlas/v1");
+  });
+
   it("renders three choices and a free-text field for a multi-select question", () => {
     const vm = adaptDiscovery(questionsMcqReady);
     const html = render(

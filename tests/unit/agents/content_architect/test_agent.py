@@ -89,12 +89,26 @@ async def test_full_dossier_reaches_planning_and_deferred_writing():
     agent = ContentArchitectAgent(model_client=client)
     context = _context()
     context.agent_input["intake"]["dossier"] = dossier
+    context.agent_input["intake"]["profile"] = {"name": "Duplicate profile"}
 
     result = await agent.run(context)
 
     assert client.calls == ["plan_content", "write_pages"]
     assert result.output["stages_run"] == ["plan_content", "write_pages"]
     assert all(packet["dossier"] == dossier for packet in client.packets)
+    assert all(packet["profile"] == {} for packet in client.packets)
+
+
+async def test_deferred_writer_summary_describes_finished_page():
+    pages = pages_payload()
+    pages["user_summary"] = "Your finished page leads with the strongest grounded work."
+    client = _FakeModelClient(
+        {"plan_content": plan_payload(content_included=False), "write_pages": pages}
+    )
+
+    result = await ContentArchitectAgent(model_client=client).run(_context())
+
+    assert result.output["user_summary"] == pages["user_summary"]
 
 
 async def test_writer_refreshes_claim_field_paths():

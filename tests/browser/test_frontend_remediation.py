@@ -15,6 +15,74 @@ VIEWPORTS = [(1536, 695), (1366, 768), (768, 1024), (390, 844)]
 
 
 @pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_workspace_header_has_room_for_brand_journey_and_actions(
+    browser_page: object, width: int, height: int
+) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
+    brand = page.locator(".app-brand").bounding_box()
+    journey = page.locator(".journey-nav").bounding_box()
+    actions = page.locator(".app-topbar-actions").bounding_box()
+    assert brand and journey and actions
+    assert brand["x"] + brand["width"] <= actions["x"] + 1
+    if width <= 600:
+        assert brand["y"] + brand["height"] <= journey["y"] + 1
+    else:
+        assert brand["x"] + brand["width"] <= journey["x"] + 1
+        assert journey["x"] + journey["width"] <= actions["x"] + 1
+    assert_no_horizontal_overflow(page)
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
+def test_visual_palette_cards_fit_and_remain_keyboard_selectable(
+    browser_page: object, width: int, height: int
+) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": width, "height": height})
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
+    cards = page.locator(".palette-choice")
+    assert cards.count() == 3
+    assert [card.locator("small").inner_text() for card in cards.all()] == [
+        "Editorial warmth · layered and considered",
+        "Minimal clarity · bright and structured",
+        "Bold modernity · high contrast and energetic",
+    ]
+    assert page.get_by_role("textbox", name="Optional note for your reference").is_visible()
+    assert_no_horizontal_overflow(page)
+
+    first = cards.nth(0).locator('input[type="radio"]')
+    second = cards.nth(1).locator('input[type="radio"]')
+    first.focus()
+    page.keyboard.press("Space")
+    assert first.is_checked()
+    page.keyboard.press("ArrowRight")
+    assert second.is_checked()
+    assert page.get_by_role("button", name="Continue to brief").is_enabled()
+    _shot(page, f"discovery-palette-{width}")
+
+
+def test_context_question_accepts_custom_only_and_mixed_answers(browser_page: object) -> None:
+    page = browser_page
+    for selected, expected in (
+        (False, "My own project story"),
+        (True, "AlphaMesh-Core. My own project story"),
+    ):
+        page.goto(f"{BASE_URL}/?fixture=discovery-question-mcq", wait_until="networkidle")
+        page.evaluate("sessionStorage.clear()")
+        page.reload(wait_until="networkidle")
+        if selected:
+            page.get_by_text("AlphaMesh-Core", exact=True).click()
+        page.get_by_role("textbox", name="Add context or write your own answer").fill(
+            "My own project story"
+        )
+        page.get_by_role("button", name="Next question").click()
+        answer = page.evaluate("window.__capturedDiscoveryAnswer")
+        assert answer["mode"] == "answered"
+        assert answer["value"] == expected
+
+
+@pytest.mark.parametrize("width,height", VIEWPORTS)
 def test_required_viewports_keep_stage_actions_visible(
     browser_page: object, width: int, height: int
 ) -> None:
@@ -24,6 +92,7 @@ def test_required_viewports_keep_stage_actions_visible(
     assert page.get_by_role("heading", name="Your portfolio page content").is_visible()
     assert page.get_by_role("button", name="Approve content plan").is_visible()
     assert_no_horizontal_overflow(page)
+    _shot(page, f"content-review-{width}")
 
 
 def test_mobile_uses_compact_selector_and_locked_options(browser_page: object) -> None:
@@ -58,6 +127,7 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
     assert prompt_box and dock_box
     assert dock_box["y"] >= prompt_box["y"] + prompt_box["height"]
     assert_no_horizontal_overflow(page)
+    _shot(page, "discovery-intake-1366")
 
 
 def test_discovery_can_start_with_an_attached_text_file_alone(browser_page: object) -> None:

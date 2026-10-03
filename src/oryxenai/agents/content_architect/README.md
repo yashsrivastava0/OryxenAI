@@ -36,6 +36,10 @@ summary, structured profile, selected theme id, approval hash, and session revis
 pasted text and Markdown brief stay upstream. The raw `styles.css` is **not**
 sent: the template's slots, counts, and length limits are written into
 `prompts/system.md` (`<page_template>`) instead.
+For model calls with a complete dossier, the duplicate structured profile is
+omitted from the prompt packet; older profile-only sessions retain it. The
+schema prompt is compact JSON to reduce repeated input without changing its
+requirements.
 
 ## The page content tree (`PortfolioPageContent`)
 

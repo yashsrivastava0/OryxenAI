@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v9"
-PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v9"
+PROMPT_VERSION_QUESTIONS = "discovery.understand_and_question.v10"
+PROMPT_VERSION_BRIEF = "discovery.build_or_revise_brief.v10"
 PROMPT_VERSION_SYSTEM = "discovery.system.v6"
 _QUESTIONS = {"understand_and_question", "prepare_questions"}
 _FILES = {
@@ -20,8 +20,10 @@ _FILES = {
 _QUESTION_SHAPE = (
     '{"mode":"ASK_QUESTIONS|READY_FOR_BRIEF|NEEDS_DETAILS",'
     '"assistant_message":"...","questions":['
-    '{"id":"q1","text":"...","kind":"text|single_select|multi_select|boolean",'
-    '"options":[{"id":"o1","label":"..."}],"help_text":"..."}]}'
+    '{"id":"q1","text":"specific clarification?","kind":"single_select|multi_select",'
+    '"options":[{"id":"o1","label":"contextual choice 1"},'
+    '{"id":"o2","label":"contextual choice 2"},'
+    '{"id":"o3","label":"contextual choice 3"}],"help_text":"..."}]}'
 )
 _BRIEF_SHAPE = (
     '{"brief_title":"...","brief_markdown":"# ...\\n...","user_summary":"...",'
