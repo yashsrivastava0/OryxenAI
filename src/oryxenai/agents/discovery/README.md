@@ -13,8 +13,9 @@ explicitly started stage.
   document digests and UTF-16 offsets that map directly to browser selections.
 - Distinguish personal facts, user intent/preferences, team scope, job criteria,
   references, duplicates, exclusions, conflicts, and explicit restrictions.
-- Ask zero to three focused contextual questions, then one fixed visual palette
-  question with three swatch cards. The palette is required even when no
+- Ask zero to three focused contextual questions with three relevant choices
+  and one custom answer field each, then one fixed visual choice with three
+  complete-look cards. The visual choice is required even when no
   contextual clarification is needed. Users can skip contextual questions;
   answer saves are queued in order while the next question appears. The interview does
   not repeat after the batch is complete.
@@ -46,8 +47,11 @@ plain text without normalizing their content.
    The worker passes the complete attached transcript and filename to the
    question prompt; the prompt treats document contents as evidence rather
    than instructions.
-3. The worker runs `understand_and_question`. The server appends the fixed
-   palette question after at most three model-authored contextual questions.
+3. The worker runs `understand_and_question`. New contextual questions must
+   have three distinct choices; malformed questions are omitted rather than
+   shown as broken text-only cards. If no useful question survives, bounded
+   model recovery runs and unresolved gaps pass to the brief. The server appends the fixed visual
+   question after at most three model-authored contextual questions.
    Palette choices map deterministically to a pinned theme id; the optional
    mood note does not alter that mapping or enter the factual dossier. User
    answers and skips are persisted with their history and answer-source spans.

@@ -121,6 +121,7 @@ export interface StoryStrategyVM {
 }
 
 export interface ContentViewModel extends StageViewModel {
+  elapsedSeconds: number | null;
   userSummary: string;
   positioning: string;
   storyStrategy: StoryStrategyVM;
@@ -308,6 +309,7 @@ function unsupportedView(raw: unknown, jobs: unknown[]): ContentViewModel {
     job: selectStageJob(jobs),
     agentOutput: null,
     userSummary: "",
+    elapsedSeconds: null,
     positioning: "",
     storyStrategy: adaptStrategy({}),
     pageContent: emptyPageContent(),
@@ -369,6 +371,9 @@ export function adaptContentArchitect(
     job,
     agentOutput: readAgentOutput(raw),
     userSummary: str(raw.user_summary),
+    elapsedSeconds: typeof raw.elapsed_seconds === "number" && Number.isFinite(raw.elapsed_seconds)
+      ? Math.max(0, raw.elapsed_seconds)
+      : null,
     positioning: storyStrategy.positioning,
     storyStrategy,
     pageContent: adaptPageContent(raw.page_content),

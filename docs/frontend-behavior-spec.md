@@ -67,9 +67,11 @@ source of truth; local OCR reads image regions and scanned pages while Docling
 returns headings, lists, reading order, and page boundaries as Markdown. The
 original file bytes are not retained. Discovery receives the reviewed text as
 an attached source document and can ask focused questions before drafting.
-The interface shows questions with the available answer options and lets the
-user provide a written answer or skip when allowed. The final palette question
-shows three swatch cards with mood descriptions and an optional note. A
+Every new contextual question shows three relevant options and one custom
+answer box; older saved text or boolean questions remain readable. Users can
+select a choice, write their own answer, add detail, or skip when allowed.
+The final visual question shows three miniature portfolio looks with swatches,
+style descriptions, and an optional reference note. A
 palette selection is required to continue; the server maps it to a pinned
 theme, while the note does not affect that mapping.
 

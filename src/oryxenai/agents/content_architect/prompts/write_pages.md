@@ -1,6 +1,6 @@
 <!--
   Operation: write_pages (only runs when plan_content set content_included=false)
-  Version: content_architect.write_pages.v6
+  Version: content_architect.write_pages.v7
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -49,6 +49,11 @@ Return the complete content set. Preserve all grounded detail the page can hold.
 short only when the supplied facts genuinely provide no more material; never shorten a rich section
 into a label or placeholder to save output space.
 </detail_rule>
+
+<review_summary>
+Write user_summary for the reviewer after the finished page is written. Briefly name the page's
+strongest content and any unresolved points. Do not say that copy will be written in a later step.
+</review_summary>
 
 <integration_signal>
 Set integration_needed=true only if, after writing, you notice inconsistent terminology, repeated

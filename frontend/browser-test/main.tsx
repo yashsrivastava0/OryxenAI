@@ -117,7 +117,9 @@ function StageFixture() {
         ]}
         canMutate
         onStartDiscovery={noop}
-        onSubmitAnswer={noop as never}
+        onSubmitAnswer={async (answer) => {
+          (window as unknown as { __capturedDiscoveryAnswer?: unknown }).__capturedDiscoveryAnswer = answer;
+        }}
         onGenerateBriefNow={noop}
         onRetryDiscovery={noop}
         onApproveAndContinue={noop}
@@ -183,6 +185,38 @@ function StageFixture() {
         onStartDiscovery={noop}
         onSubmitAnswer={noop as never}
         onGenerateBriefNow={noop}
+        onRetryDiscovery={noop}
+        onApproveAndContinue={noop}
+        onReviseBrief={noop}
+      />
+    );
+  }
+  if (fixture === "discovery-question-palette") {
+    return (
+      <DiscoveryStage
+        view={adaptDiscovery({
+          status: "questions_ready",
+          operation_a: {
+            items: [{
+              id: "visual_palette",
+              gap_id: "visual_palette_v1",
+              text: "Which look feels right for your portfolio?",
+              help_text: "Each direction pairs its colors with a distinct design style. Choose the complete look you like most.",
+              kind: "palette_select",
+              allow_skip: false,
+              options: [
+                { id: "forest_copper", label: "Forest & copper", description: "Editorial warmth · layered and considered", swatches: ["#14231c", "#f3f1e9", "#9a3f29"] },
+                { id: "cobalt_white", label: "Cobalt & white", description: "Minimal clarity · bright and structured", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
+                { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold modernity · high contrast and energetic", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
+              ],
+            }],
+          },
+          answers: { items: {} },
+        })}
+        history={[]}
+        canMutate
+        onStartDiscovery={noop}
+        onSubmitAnswer={noop as never}
         onRetryDiscovery={noop}
         onApproveAndContinue={noop}
         onReviseBrief={noop}

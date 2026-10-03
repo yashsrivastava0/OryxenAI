@@ -23,26 +23,26 @@ def palette_question() -> DiscoveryQuestion:
     return DiscoveryQuestion(
         id="visual_palette",
         gap_id=PALETTE_GAP_ID,
-        text="Which color direction feels right for your portfolio?",
-        help_text="Choose the palette that feels most like you. You can add a note about the mood, too.",
+        text="Which look feels right for your portfolio?",
+        help_text="Each direction pairs its colors with a distinct design style. Choose the complete look you like most.",
         kind=QuestionKind.PALETTE_SELECT,
         options=[
             QuestionOption(
                 id="forest_copper",
                 label="Forest & copper",
-                description="Warm, considered, editorial",
+                description="Editorial warmth · layered and considered",
                 swatches=["#14231c", "#f3f1e9", "#9a3f29"],
             ),
             QuestionOption(
                 id="cobalt_white",
                 label="Cobalt & white",
-                description="Bright, structured, open",
+                description="Minimal clarity · bright and structured",
                 swatches=["#2849c9", "#f7f9fc", "#17253c"],
             ),
             QuestionOption(
                 id="obsidian_lime",
                 label="Obsidian & lime",
-                description="Bold, high contrast, energetic",
+                description="Bold modernity · high contrast and energetic",
                 swatches=["#0c0e0d", "#d9fc73", "#f0f2eb"],
             ),
         ],
