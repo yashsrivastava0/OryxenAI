@@ -7,10 +7,13 @@
  */
 
 import {
+  AUTH_BOOTSTRAP_TIMEOUT_MS,
+  AuthBootstrapTimeoutError,
   AuthRequestError,
   canonicalDestination,
   clearPrivateState,
   createAuthorizedFetch,
+  fetchAuthenticatedUser,
   invalidateBrowserSession,
   isReviewedDestination,
   logoutCurrentBrowser,
@@ -20,9 +23,11 @@ import {
 } from "./auth-runtime.mjs";
 
 export {
+  AuthBootstrapTimeoutError,
   AuthRequestError,
   canonicalDestination,
   createAuthorizedFetch,
+  fetchAuthenticatedUser,
   isReviewedDestination,
   logoutCurrentBrowser,
 };
@@ -43,6 +48,8 @@ export async function routeController({
   paths = {},
   path = location?.pathname || "/",
   stopActivity = () => {},
+  timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS,
+  sleepImpl,
 }) {
   const reviewed = {
     signIn: safeRelativePath(paths.signIn || "/sign-in", "/sign-in"),
@@ -60,7 +67,7 @@ export async function routeController({
     if (location?.pathname !== destination) location?.replace?.(destination);
   };
   const progress = (step, detail) => ui.progress?.(step, detail);
-  const failure = (message) => ui.error?.(message);
+  const failure = (message, options) => ui.error?.(message, options);
   const onAuthFailure = async () => {
     await invalidateBrowserSession({ auth, storage, ui, stopActivity });
     replace(reviewed.signIn);
@@ -125,9 +132,16 @@ export async function routeController({
   let me;
   try {
     const authorizedFetch = createAuthorizedFetch({ auth, fetchImpl, onAuthFailure });
-    const response = await authorizedFetch("/api/v1/me", { method: "GET" });
-    me = await response.json();
+    me = await fetchAuthenticatedUser({ authorizedFetch, timeoutMs, sleepImpl });
   } catch (error) {
+    if (error instanceof AuthBootstrapTimeoutError) {
+      ui.panel?.("sign-in");
+      failure(
+        "Authentication is taking longer than expected. Check your connection and try again.",
+        { retry: true },
+      );
+      return { kind: "provider_unavailable", error };
+    }
     if (error instanceof AuthRequestError) {
       if (error.code === "ACCESS_NOT_APPROVED") {
         ui.panel?.("access");
@@ -149,8 +163,7 @@ export async function routeController({
       }
       if (error.code === "AUTH_PROVIDER_UNAVAILABLE") {
         ui.panel?.("sign-in");
-        failure(error.message);
-        replace(reviewed.signIn);
+        failure(error.message, { retry: true });
         return { kind: "provider_unavailable" };
       }
       if (error.code === "MODEL_PROVIDER_CREDIT_EXHAUSTED") {
@@ -224,11 +237,24 @@ function makeDomUi() {
       });
     },
     panel: show,
-    error(message) {
+    error(message, { retry = false } = {}) {
       const error = document.getElementById("global-error");
       if (error) {
         error.textContent = message;
         error.hidden = !message;
+      }
+      let retryButton = document.getElementById("auth-provider-retry");
+      if (retry && !retryButton && error?.parentNode) {
+        retryButton = document.createElement("button");
+        retryButton.id = "auth-provider-retry";
+        retryButton.type = "button";
+        retryButton.className = "button button-secondary";
+        retryButton.textContent = "Retry";
+        error.parentNode.append(retryButton);
+      }
+      if (retryButton) {
+        retryButton.hidden = !retry;
+        retryButton.onclick = () => globalThis.location?.reload?.();
       }
     },
     clearPrivate() {
