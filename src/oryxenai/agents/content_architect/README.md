@@ -1,11 +1,10 @@
 # Content Architect Agent
 
-Content Architect is the second and final active OryxenAI workflow stage. It
+Content Architect is the second OryxenAI workflow stage. It
 converts an **approved** Discovery result into the complete, grounded,
-person-specific copy for **one fixed single-page portfolio template** (the
-pinned `index.html` + `styles.css` pair). Its output is reviewed and approved
-by the user, then serves as the only person-specific input of a future Code
-Generator that writes `index.html` against that same template. This agent
+person-specific copy for a **single-page portfolio**. Its output is reviewed
+and approved by the user, then Code Generator writes `index.html` against the
+selected, immutable theme package. This agent
 never writes HTML or CSS.
 
 ## Responsibilities
@@ -33,7 +32,7 @@ snapshot.
 
 A snapshot of the approved `DiscoveryDossier/v1` (all source-linked facts,
 entities, restrictions, question history, open items), plus the brief title,
-summary, structured profile, approval hash, and session revision. The raw
+summary, structured profile, selected theme id, approval hash, and session revision. The raw
 pasted text and Markdown brief stay upstream. The raw `styles.css` is **not**
 sent: the template's slots, counts, and length limits are written into
 `prompts/system.md` (`<page_template>`) instead.
@@ -58,8 +57,8 @@ Deliberately not modeled: hrefs other than `connect.destinations[].url`
 `preview` line of a capability group, and the monogram — the template consumer
 derives those from the fields above so they can never drift. The template has
 no projects, experience, education, or metrics section; that material is
-folded into pillars, the hero intro, and capability groups. Multi-theme
-support is deferred until a second stylesheet exists.
+folded into pillars, the hero intro, and capability groups. Each installed
+theme has its own markup contract for this same content tree.
 
 Model output extras are dropped (`extra="ignore"`) instead of failing a
 finished run; internal-review key leakage is still rejected.

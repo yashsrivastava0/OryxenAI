@@ -1,0 +1,79 @@
+<a class="sg-skip" href="#top">Skip to content</a>
+<div class="sg-progress" data-css-progress="true" aria-hidden="true"></div>
+<nav class="sg-nav" aria-label="Portfolio">
+  <div class="sg-container sg-nav__inner">
+    <a class="sg-brand" href="#top"><span class="sg-brand__mark" aria-hidden="true">{{ d.monogram }}</span></a>
+    <ul class="sg-nav__links"><li><a href="#practice">Practice</a></li><li><a href="#capabilities">Capabilities</a></li><li><a href="#about">About</a></li><li><a href="#contact">Contact</a></li></ul>
+  </div>
+</nav>
+<main id="main" class="sg-frame">
+  <header class="sg-hero" id="top">
+    <div class="sg-container sg-hero__grid">
+      <div class="sg-hero__copy">
+        {% if c.hero.eyebrow_primary %}<p class="sg-kicker" data-field="hero.eyebrow_primary">{{ c.hero.eyebrow_primary }}</p>{% endif %}
+        {% if c.hero.eyebrow_secondary %}<p class="sg-kicker" data-field="hero.eyebrow_secondary">{{ c.hero.eyebrow_secondary }}</p>{% endif %}
+        <h1 data-field="hero.name">{{ c.hero.name }}</h1>
+        <p class="sg-hero__statement">{% if c.hero.headline_prefix %}<span data-field="hero.headline_prefix">{{ c.hero.headline_prefix }}</span>{% endif %} {% if c.hero.headline_emphasis %}<em data-field="hero.headline_emphasis">{{ c.hero.headline_emphasis }}</em>{% endif %}</p>
+        {% if c.hero.intro %}<p class="sg-hero__intro" data-field="hero.intro">{{ c.hero.intro }}</p>{% endif %}
+        {% if c.hero.location %}<p class="sg-kicker" data-field="hero.location">{{ c.hero.location }}</p>{% endif %}
+        <div class="sg-hero__actions">
+          {% if c.hero.primary_cta_label %}<a class="sg-button" href="#practice"><span data-field="hero.primary_cta_label">{{ c.hero.primary_cta_label }}</span><span class="sg-button__arrow" aria-hidden="true">↘</span></a>{% endif %}
+          {% if c.hero.secondary_cta_label %}<a class="sg-text-link" href="#contact" data-field="hero.secondary_cta_label">{{ c.hero.secondary_cta_label }}</a>{% endif %}
+        </div>
+      </div>
+      <div class="sg-hero__visual" aria-hidden="true"><span class="sg-hero__plasma"></span><span class="sg-hero__object"></span></div>
+    </div>
+  </header>
+  <section class="sg-work sg-section" id="practice" aria-labelledby="practice-title">
+    {% if c.marquee_keywords %}<div class="sg-ticker"><ul class="sg-ticker__list">{% for keyword in c.marquee_keywords %}<li data-field="marquee_keywords[{{ loop.index0 }}]">{{ keyword }}</li>{% endfor %}</ul></div>{% endif %}
+    <div class="sg-container">
+      <div class="sg-work__head"><div>
+        {% if c.systems_practice.eyebrow %}<p class="sg-section__number" data-field="systems_practice.eyebrow">{{ c.systems_practice.eyebrow }}</p>{% endif %}
+        <h2 class="sg-section__title" id="practice-title" data-field="systems_practice.heading">{{ c.systems_practice.heading }}</h2>
+        {% if c.systems_practice.intro %}<p class="sg-section__lede" data-field="systems_practice.intro">{{ c.systems_practice.intro }}</p>{% endif %}
+      </div></div>
+      {% if c.systems_practice.pillars %}{% set pillar = c.systems_practice.pillars[0] %}
+      <article class="sg-project-feature"><div class="sg-media sg-media--signal" aria-hidden="true"></div><div class="sg-project-feature__copy"><span class="sg-project__meta" aria-hidden="true">Selected focus</span><div><h3 class="sg-project__title" data-field="systems_practice.pillars[0].title">{{ pillar.title }}</h3><p class="sg-project__desc" data-field="systems_practice.pillars[0].description">{{ pillar.description }}</p></div></div></article>
+      {% endif %}
+      <div class="sg-project-grid">
+        {% for pillar in c.systems_practice.pillars[1:] %}
+        <article class="sg-project-row"><div class="sg-media" aria-hidden="true"></div><div class="sg-project-row__copy"><div><h3 class="sg-project__title" data-field="systems_practice.pillars[{{ loop.index }}].title">{{ pillar.title }}</h3><p class="sg-project__desc" data-field="systems_practice.pillars[{{ loop.index }}].description">{{ pillar.description }}</p></div></div></article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  <section class="sg-process sg-section" id="capabilities" aria-labelledby="capabilities-title">
+    <div class="sg-container sg-process__layout">
+      <div class="sg-process__intro">
+        {% if c.technical_capabilities.eyebrow %}<p class="sg-section__number" data-field="technical_capabilities.eyebrow">{{ c.technical_capabilities.eyebrow }}</p>{% endif %}
+        <h2 class="sg-section__title" id="capabilities-title" data-field="technical_capabilities.heading">{{ c.technical_capabilities.heading }}</h2>
+        {% if c.technical_capabilities.intro %}<p class="sg-section__lede" data-field="technical_capabilities.intro">{{ c.technical_capabilities.intro }}</p>{% endif %}
+      </div>
+      <div class="sg-steps">
+        {% for group in c.technical_capabilities.groups %}{% set group_index = loop.index0 %}
+        <article class="sg-step"><span class="sg-step__index" aria-hidden="true">0{{ loop.index }}</span><div><h3 data-field="technical_capabilities.groups[{{ group_index }}].heading">{{ group.heading }}</h3><ul class="sg-capability-items">{% for item in group["items"] %}<li data-field="technical_capabilities.groups[{{ group_index }}].items[{{ loop.index0 }}]">{{ item }}</li>{% endfor %}</ul></div></article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+  <section class="sg-about sg-section" id="about" aria-labelledby="about-title">
+    <div class="sg-container sg-about__layout">
+      <div class="sg-about__copy">
+        {% if c.professional_context.eyebrow %}<p class="sg-section__number" data-field="professional_context.eyebrow">{{ c.professional_context.eyebrow }}</p>{% endif %}
+        <h2 class="sg-about__statement" id="about-title" data-field="professional_context.heading">{{ c.professional_context.heading }}</h2>
+        {% if c.professional_context.intro %}<p class="sg-about__body" data-field="professional_context.intro">{{ c.professional_context.intro }}</p>{% endif %}
+        {% if c.professional_context.organizations %}<ul class="sg-organizations">{% for item in c.professional_context.organizations %}<li data-field="professional_context.organizations[{{ loop.index0 }}]">{{ item }}</li>{% endfor %}</ul>{% endif %}
+      </div>
+      <div class="sg-about__aside"><div class="sg-portrait" aria-hidden="true"></div></div>
+    </div>
+  </section>
+  <section class="sg-contact sg-section" id="contact" aria-labelledby="contact-title">
+    <div class="sg-container sg-contact__layout">
+      {% if c.connect.eyebrow %}<p class="sg-section__number" data-field="connect.eyebrow">{{ c.connect.eyebrow }}</p>{% endif %}
+      <h2 id="contact-title" data-field="connect.heading">{{ c.connect.heading }}</h2>
+      {% if c.connect.intro %}<p class="sg-section__lede" data-field="connect.intro">{{ c.connect.intro }}</p>{% endif %}
+      <div class="sg-contact__actions">{% for item in d.destinations %}<a class="sg-button" href="{{ item.url }}"{% if item.external %} target="_blank" rel="noopener noreferrer"{% endif %} data-field="connect.destinations[{{ loop.index0 }}].label">{{ item.label }}</a>{% endfor %}</div>
+    </div>
+  </section>
+</main>
+<footer class="sg-footer"><div class="sg-container sg-footer__bottom"><a href="#top">Back to top</a></div></footer>
