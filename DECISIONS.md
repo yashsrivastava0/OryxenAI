@@ -1,3 +1,12 @@
+## D-129 — Discovery palette selects an immutable Studio theme
+
+- **Date & Time:** 2026-10-03 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** The owner supplied three distinct pre-built portfolio designs and asked for one visual choice during Discovery to determine which stylesheet the Code Generator uses. The existing flow had one pinned theme and a complete, approved single-page content tree.
+- **Decision:** Append one required, server-authored palette question after up to three contextual Discovery questions. Its three swatch choices map deterministically to Editorial Forest Motion, Cobalt Atlas, or Obsidian Signal; an optional mood note is saved for the interview UI but does not change selection or factual copy. Persist the chosen immutable theme id in Discovery and Content Architect state, include it in their approval hashes, and pin it to the Code Generator run and version. Give each design its own CSS, markup contract, manifest, and reference renderer while keeping the existing `page_content` schema. Sessions approved before this change use the configured legacy default theme.
+- **Rejected alternatives:** Model-selected themes, mapping from free-text mood notes, runtime stylesheet modes, CSS mutations per owner, and changing the content schema for this visual choice.
+- **Consequence:** The owner sees palette descriptions and swatches, never theme filenames in the choice UI. The same selected package is used for first build, content edits, restore, and signed preview. The three designs remain independent immutable packages, and no publishing or deployment behavior changes.
+
 ## D-128 — Proposed interactive Studio theme using pre-built JavaScript
 
 - **Date & Time:** 2026-10-03 — Codex (OpenAI)

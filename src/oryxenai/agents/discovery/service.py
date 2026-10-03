@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
+from oryxenai.agents.discovery.palette import PALETTE_TO_THEME, palette_answer
 from oryxenai.agents.discovery.schemas import (
     AnswerMode,
     DiscoveryAnswer,
@@ -279,6 +280,14 @@ class DiscoveryService:
                     status_code=400,
                 )
             question = active_questions[question_id]
+            if question.kind is QuestionKind.PALETTE_SELECT:
+                if answer.mode is not AnswerMode.ANSWERED or palette_answer(answer.value) is None:
+                    raise DiscoveryOperationError(
+                        "DISCOVERY_INVALID_ANSWER",
+                        "Choose one of the visual palettes before continuing.",
+                        status_code=400,
+                    )
+                continue
             if answer.mode is AnswerMode.ANSWERED and not (
                 isinstance(answer.value, str)
                 or (question.kind is QuestionKind.MULTI_SELECT and isinstance(answer.value, list))
@@ -305,10 +314,16 @@ class DiscoveryService:
         answer_map: dict[str, DiscoveryAnswer] = dict(state.answers.items)
         answer_documents: list[SourceDocument] = []
         question_events = [event.model_copy(deep=True) for event in state.question_events]
+        next_theme_id = state.selected_theme_id
         for answer in answers:
             if answer.question_id:
                 previous = answer_map.get(answer.question_id)
                 answer_map[answer.question_id] = answer
+                question = active_questions[answer.question_id]
+                if question.kind is QuestionKind.PALETTE_SELECT:
+                    palette_choice = palette_answer(answer.value)
+                    assert palette_choice is not None
+                    next_theme_id = PALETTE_TO_THEME[palette_choice[0]]
                 event = next(
                     (item for item in question_events if item.question_id == answer.question_id),
                     None,
@@ -335,7 +350,11 @@ class DiscoveryService:
                         event.answer = answer_text
                         if changed:
                             event.answer_source_refs = []
-                            answer_document = document_from_answer(answer.question_id, answer_text)
+                            answer_document = (
+                                None
+                                if question.kind is QuestionKind.PALETTE_SELECT
+                                else document_from_answer(answer.question_id, answer_text)
+                            )
                             if answer_document is not None:
                                 answer_documents.append(answer_document)
                                 event.answer_source_refs = [
@@ -355,12 +374,25 @@ class DiscoveryService:
             next_state = apply_answers_in_progress(state)
         next_state.answers.revision += 1
         next_state.answers.items = answer_map
+        next_state.selected_theme_id = next_theme_id
         next_state.question_events = question_events
         next_state.source_documents.extend(answer_documents)
         next_state.latest_error = None
 
         operation = ""
         if complete:
+            if (
+                any(
+                    question.kind is QuestionKind.PALETTE_SELECT
+                    for question in active_questions.values()
+                )
+                and not next_state.selected_theme_id
+            ):
+                raise DiscoveryOperationError(
+                    "DISCOVERY_PALETTE_REQUIRED",
+                    "Choose a color direction before preparing the brief.",
+                    status_code=409,
+                )
             # A fresh user action may follow a routing change. Snapshot the
             # route used by this new job rather than replaying the old one.
             policy_snapshot = self._current_routing_policy_snapshot()
@@ -607,6 +639,7 @@ class DiscoveryService:
             user_summary=state.brief.user_summary,
             profile=state.brief.profile.model_dump(mode="json"),
             open_items=state.brief.open_items,
+            selected_theme_id=state.selected_theme_id,
         )
         approved = apply_approval(state, brief_hash)
         updated = await self._repository.save_discovery_state(
@@ -793,6 +826,7 @@ def _brief_hash(
     user_summary: str = "",
     profile: dict[str, Any] | None = None,
     open_items: list[str] | None = None,
+    selected_theme_id: str = "",
 ) -> str:
     payload = {
         "title": title,
@@ -802,6 +836,8 @@ def _brief_hash(
         "open_items": open_items or [],
         "dossier": dossier.model_dump(mode="json") if dossier is not None else None,
     }
+    if selected_theme_id:
+        payload["selected_theme_id"] = selected_theme_id
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -861,6 +897,11 @@ def _has_answer_value(value: Any) -> bool:
 
 def _answer_text(value: Any, question: DiscoveryQuestion) -> str:
     """Record the user's selected label rather than an opaque model option ID."""
+    if question.kind is QuestionKind.PALETTE_SELECT:
+        selected = palette_answer(value)
+        if selected is not None:
+            label = next(option.label for option in question.options if option.id == selected[0])
+            return f"{label}. {selected[1]}" if selected[1] else label
     if question.kind is QuestionKind.BOOLEAN and isinstance(value, str):
         return {"true": "Yes", "false": "No"}.get(value, value)
     if question.kind in {QuestionKind.SINGLE_SELECT, QuestionKind.MULTI_SELECT}:

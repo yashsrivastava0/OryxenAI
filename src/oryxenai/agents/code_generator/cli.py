@@ -114,7 +114,9 @@ def _command_render(args: argparse.Namespace) -> int:
     theme = get_theme(args.theme)
     content = load_content(args.sample, args.content)
     derived = theme.contract.derive(content)
-    bundle = build_bundle(content, derived, render_body(content, derived), "en", theme)
+    bundle = build_bundle(
+        content, derived, render_body(content, derived, theme_id=theme.theme_id), "en", theme
+    )
     written = write_bundle(Path(args.out), bundle, theme)
     print(
         f"Wrote {len(written)} files to {args.out} (serve with: python -m http.server -d {args.out})"

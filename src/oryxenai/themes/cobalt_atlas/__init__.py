@@ -1,0 +1,1 @@
+"""Cobalt Atlas theme namespace."""

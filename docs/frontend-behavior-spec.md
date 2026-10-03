@@ -45,8 +45,9 @@ versions, and chat, then returns to empty Discovery in the same portfolio
 session. The browser clears its local intake draft and reloads server state.
 
 Discovery progresses through question queuing/running, answer collection,
-brief creation/review, and approval. When no questions are needed, the worker
-queues brief creation in the same transaction that saves the question result.
+brief creation/review, and approval. After any contextual questions, a fixed
+palette question is always shown; even when the model has no clarification to
+ask, the brief waits for that selection.
 Failures enter needs_attention and expose a safe recovery action. Brief
 revisions are allowed while under review, and a failed revision retry retains
 the user's revision request.
@@ -67,7 +68,10 @@ returns headings, lists, reading order, and page boundaries as Markdown. The
 original file bytes are not retained. Discovery receives the reviewed text as
 an attached source document and can ask focused questions before drafting.
 The interface shows questions with the available answer options and lets the
-user provide a written answer or skip when allowed.
+user provide a written answer or skip when allowed. The final palette question
+shows three swatch cards with mood descriptions and an optional note. A
+palette selection is required to continue; the server maps it to a pinned
+theme, while the note does not affect that mapping.
 
 The Discovery result includes a Markdown brief, a user-facing summary, and a
 structured dossier and profile. The user can review or request a revision,
@@ -112,8 +116,9 @@ contract. Configuration in config/models.toml controls model routing.
 - Progress uses polling and does not expose token-level model streaming.
 - The generated page is previewed for its owner only; there is no publish,
   export or public hosting step.
-- Chat changes cover wording and content. Colors, layout, scripts and extra
-  themes are not available yet and the chat says so.
+- Chat changes cover wording and content. The palette chooses one of three
+  pre-built themes during Discovery; later chat does not change colors,
+  layout, or scripts.
 - Migrations run before API and worker startup; API and worker remain separate
   processes.
 

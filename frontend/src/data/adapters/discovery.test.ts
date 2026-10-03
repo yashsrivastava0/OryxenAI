@@ -22,6 +22,26 @@ describe("adaptDiscovery", () => {
     expect(vm.currentQuestions[0]?.options).toHaveLength(3);
   });
 
+  it("preserves the fixed palette question's visual options", () => {
+    const palette = {
+      id: "palette",
+      text: "Which colors feel right?",
+      help_text: "Choose one",
+      kind: "palette_select",
+      options: [
+        { id: "forest_copper", label: "Forest & copper", description: "Warm, editorial", swatches: ["#14231c", "#f3f1e9", "#9a3f29"] },
+        { id: "cobalt_white", label: "Cobalt & white", description: "Bright, structured", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
+        { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold, energetic", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
+      ],
+      allow_skip: false,
+    };
+    const raw = { status: "questions_ready", operation_a: { items: [palette] }, answers: { items: {} } };
+    const question = adaptDiscovery(raw).currentQuestions[0];
+    expect(question?.kind).toBe("palette_select");
+    expect(question?.allowSkip).toBe(false);
+    expect(question?.options.map((option) => option.swatches)).toEqual(palette.options.map((option) => option.swatches));
+  });
+
   it("treats questions_ready with no remaining unanswered question as working, not an empty composer", () => {
     const vm = adaptDiscovery(fixtures.questionsReadyStale);
     expect(vm.state).toBe("working");

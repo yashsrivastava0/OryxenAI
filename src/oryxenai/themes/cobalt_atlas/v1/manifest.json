@@ -1,0 +1,18 @@
+{
+  "theme_id": "cobalt-atlas/v1",
+  "display_name": "Cobalt Atlas",
+  "contract_version": "ThemeContract/v1",
+  "stylesheet": "styles.css",
+  "capabilities": {
+    "javascript": false,
+    "generated_css": false
+  },
+  "files": [
+    {
+      "path": "styles.css",
+      "sha256": "45819aec4e314ec23dc58d53cdbd3548e58603b1035a86b8de8e7ad5c8aadc7d",
+      "bytes": 33765,
+      "media_type": "text/css; charset=utf-8"
+    }
+  ]
+}

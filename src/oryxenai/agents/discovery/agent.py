@@ -7,6 +7,7 @@ from typing import Any
 from oryxenai.agents.discovery.dossier import profile_from_dossier
 from oryxenai.agents.discovery.drafts import BriefOutput, QuestionSetOutput
 from oryxenai.agents.discovery.normalize import normalize_brief, normalize_questions
+from oryxenai.agents.discovery.palette import PALETTE_GAP_ID, add_palette_question
 from oryxenai.agents.discovery.prompt_builder import build_instructions
 from oryxenai.agents.discovery.schemas import (
     QuestionHistoryEvent,
@@ -102,6 +103,12 @@ class DiscoveryAgent(Agent):
         )
         if output is None:
             raise DiscoveryModelOutputError("understand_and_question", errors)
+        output = add_palette_question(
+            output,
+            already_answered=any(
+                event.gap_id == PALETTE_GAP_ID and event.status == "answered" for event in events
+            ),
+        )
         logger.info(
             "understand_and_question mode=%s questions=%d", output["mode"], len(output["questions"])
         )
@@ -130,7 +137,7 @@ class DiscoveryAgent(Agent):
             output, errors = normalize_brief(
                 parsed,
                 documents=documents,
-                question_events=events,
+                question_events=[event for event in events if event.gap_id != PALETTE_GAP_ID],
                 goal_text=str(context.agent_input.get("intake", {}).get("goal", "") or ""),
             )
             if output is None:
@@ -208,6 +215,7 @@ def _packet(
                 "gap_id": event.gap_id,
             }
             for event in events
+            if event.gap_id != PALETTE_GAP_ID
         ],
     }
     return packet, documents, events

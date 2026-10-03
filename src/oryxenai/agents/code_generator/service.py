@@ -170,15 +170,19 @@ class CodeGeneratorService:
                 status_code=422,
                 details={"failure": envelope.to_payload()},
             )
+        theme_id = (
+            content.intake.selected_theme_id
+            or self._settings.code_generator.theme_id
+            or DEFAULT_THEME_ID
+        )
         try:
-            get_theme(self._settings.code_generator.theme_id or DEFAULT_THEME_ID)
+            get_theme(theme_id)
         except ThemeError as exc:
             raise CodeGeneratorOperationError(
                 "CODE_GENERATOR_THEME_UNAVAILABLE",
                 "The configured page theme is not installed.",
                 status_code=500,
             ) from exc
-        theme_id = self._settings.code_generator.theme_id or DEFAULT_THEME_ID
 
         from oryxenai.agents.shared.model_runtime import get_model_runtime
 

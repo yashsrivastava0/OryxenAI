@@ -15,11 +15,13 @@ import {
   type StageViewModel,
 } from "./types";
 
-export type DiscoveryQuestionKind = "text" | "single_select" | "multi_select" | "boolean";
+export type DiscoveryQuestionKind = "text" | "single_select" | "multi_select" | "boolean" | "palette_select";
 
 export interface DiscoveryQuestionOption {
   id: string;
   label: string;
+  description: string;
+  swatches: string[];
 }
 
 export interface DiscoveryQuestionVM {
@@ -465,13 +467,17 @@ function adaptStructuredProfile(raw: unknown): StructuredProfileVM {
 function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
   if (!isRecord(raw) || typeof raw.id !== "string" || typeof raw.text !== "string") return null;
   const kind: DiscoveryQuestionKind =
-    raw.kind === "single_select" || raw.kind === "multi_select" || raw.kind === "boolean" ? raw.kind : "text";
+    raw.kind === "single_select" || raw.kind === "multi_select" || raw.kind === "boolean" || raw.kind === "palette_select" ? raw.kind : "text";
   const options: DiscoveryQuestionOption[] = Array.isArray(raw.options)
     ? raw.options
         .filter((option): option is Record<string, unknown> => isRecord(option))
         .map((option) => ({
           id: typeof option.id === "string" ? option.id : "",
           label: typeof option.label === "string" ? option.label : "",
+          description: typeof option.description === "string" ? option.description : "",
+          swatches: Array.isArray(option.swatches)
+            ? option.swatches.filter((color): color is string => typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)).slice(0, 3)
+            : [],
         }))
         .filter((option) => option.id && option.label)
         .slice(0, 3)
@@ -494,6 +500,11 @@ function formatAnswer(answer: unknown, question: DiscoveryQuestionVM): string {
   if (answer.mode === "skipped") return "Skipped";
   const value = answer.value;
   const labels = new Map(question.options.map((option) => [option.id, option.label]));
+  if (question.kind === "palette_select" && isRecord(value)) {
+    const choice = typeof value.choice_id === "string" ? labels.get(value.choice_id) : null;
+    const note = typeof value.note === "string" ? value.note.trim() : "";
+    return choice ? note ? `${choice}. ${note}` : choice : "Answer saved";
+  }
   if (Array.isArray(value)) {
     return value.map((item) => labels.get(String(item)) ?? String(item)).join(", ");
   }
