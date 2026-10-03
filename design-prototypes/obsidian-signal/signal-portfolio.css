@@ -30,6 +30,10 @@
   --sg-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }
 
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: .34s ease both sg-page-out; }
+::view-transition-new(root) { animation: .46s var(--sg-ease) both sg-page-in; }
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html {
@@ -171,6 +175,7 @@ body.sg-page {
   transition: transform .45s var(--sg-ease);
 }
 .sg-brand:hover .sg-brand__mark { transform: rotate(0); }
+.sg-brand { view-transition-name: signal-brand; }
 .sg-nav__links {
   display: flex;
   align-items: center;
@@ -322,6 +327,18 @@ body.sg-page {
   clip-path: polygon(7% 0, 79% 0, 100% 17%, 100% 88%, 68% 100%, 0 88%, 0 14%);
   box-shadow: 0 0 4rem rgba(217, 252, 115, .15);
   animation: sg-object-float 8s ease-in-out infinite;
+}
+.sg-hero__plasma {
+  position: absolute;
+  z-index: 0;
+  width: min(80%, 34rem);
+  aspect-ratio: 1;
+  background: radial-gradient(circle at 30% 35%, rgba(217,252,115,.5), transparent 52%), radial-gradient(circle at 75% 65%, rgba(106,156,77,.55), transparent 50%);
+  border-radius: 42% 58% 69% 31% / 48% 31% 69% 52%;
+  filter: blur(18px);
+  opacity: .56;
+  pointer-events: none;
+  animation: sg-plasma 13s ease-in-out infinite alternate;
 }
 .sg-hero__object::before {
   position: absolute;
@@ -522,6 +539,8 @@ body.sg-page {
   text-decoration: none;
 }
 .sg-project-feature .sg-media { min-height: clamp(23rem, 48vw, 42rem); }
+.sg-project-feature .sg-media,
+.sg-case__visual:first-of-type .sg-media { view-transition-name: signal-feature; }
 .sg-project-feature__copy {
   display: flex;
   flex-direction: column;
@@ -624,6 +643,24 @@ body.sg-page {
 .sg-next strong { display: block; margin-top: 1rem; font: 850 clamp(2.6rem, 6vw, 6rem)/.95 var(--sg-display); letter-spacing: -.06em; text-transform: uppercase; transition: transform .4s var(--sg-ease); }
 .sg-next:hover strong { transform: translateX(.6rem); }
 
+/* A third page shares the material system while using a different reading rhythm. */
+.sg-bio-hero { position: relative; overflow: hidden; padding-block: clamp(5rem, 10vw, 10rem); border-bottom: 1px solid var(--sg-line); }
+.sg-bio-hero::after { position: absolute; width: min(45vw, 34rem); aspect-ratio: 1; right: -6%; top: 3%; border: 1px solid rgba(217,252,115,.19); border-radius: 50%; box-shadow: 0 0 0 4vw rgba(217,252,115,.025), 0 0 0 8vw rgba(217,252,115,.018); content: ""; pointer-events: none; }
+.sg-bio-hero h1 { position: relative; z-index: 1; max-width: 12ch; margin-top: 1.5rem; font: 850 clamp(4rem, 9vw, 10rem)/.88 var(--sg-display); letter-spacing: -.085em; text-transform: uppercase; }
+.sg-bio-hero h1 span { color: var(--sg-accent); }
+.sg-bio-hero p:last-child { position: relative; z-index: 1; max-width: 38rem; margin-top: 2rem; color: var(--sg-muted); font-size: clamp(1.1rem, 1.6vw, 1.4rem); }
+.sg-bio { border-bottom: 1px solid var(--sg-line); }
+.sg-bio__layout { display: grid; grid-template-columns: minmax(12rem, .4fr) minmax(0, 1fr); gap: clamp(2rem, 9vw, 10rem); }
+.sg-bio__label { color: var(--sg-accent); font: 600 .66rem/1.5 var(--sg-mono); letter-spacing: .1em; text-transform: uppercase; }
+.sg-bio__prose { max-width: 48rem; font-size: clamp(1.3rem, 2vw, 2.1rem); line-height: 1.4; letter-spacing: -.035em; }
+.sg-bio__prose p + p { margin-top: 1.5rem; color: var(--sg-muted); }
+.sg-bio__links { display: flex; flex-wrap: wrap; gap: 1rem 2rem; margin-top: 2.5rem; }
+.sg-bio__timeline { margin-top: clamp(4rem, 9vw, 9rem); border-top: 1px solid var(--sg-line); }
+.sg-bio__timeline li { display: grid; grid-template-columns: 8rem minmax(0, 1fr); gap: 2rem; padding-block: 1.8rem; border-bottom: 1px solid var(--sg-line); }
+.sg-bio__timeline span { color: var(--sg-accent); font: 600 .67rem/1.6 var(--sg-mono); }
+.sg-bio__timeline strong { display: block; font: 800 clamp(1.4rem, 2.2vw, 2.4rem)/1.1 var(--sg-display); letter-spacing: -.05em; text-transform: uppercase; }
+.sg-bio__timeline p { max-width: 36rem; margin-top: .5rem; color: var(--sg-muted); font-size: .92rem; }
+
 /* Optional future JavaScript toggles. Pages stay fully visible without them. */
 .sg-page[data-motion="enabled"] .sg-reveal {
   opacity: 0;
@@ -641,8 +678,21 @@ body.sg-page {
   0%, 100% { translate: 0 0; }
   50% { translate: 0 -1rem; }
 }
+@keyframes sg-plasma { to { border-radius: 68% 32% 39% 61% / 34% 66% 34% 66%; transform: translate(7%, -6%) rotate(20deg) scale(1.08); } }
 @keyframes sg-ticker { to { transform: translateX(-50%); } }
 @keyframes sg-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes sg-page-out { to { opacity: 0; transform: translateY(-1rem); } }
+@keyframes sg-page-in { from { opacity: 0; transform: translateY(1rem); } }
+@keyframes sg-ring-drift { from { transform: rotate(-18deg) translateY(-6%); } to { transform: rotate(26deg) translateY(9%); } }
+@keyframes sg-panel-drift { from { transform: translateY(-7%); } to { transform: translateY(8%); } }
+@keyframes sg-quote-drift { from { transform: translateX(-1.5rem); } to { transform: translateX(1.5rem); } }
+
+@supports (animation-timeline: view()) {
+  .sg-hero__visual::before { animation: sg-ring-drift linear both; animation-timeline: view(block); animation-range: entry 0% exit 100%; }
+  .sg-project-feature .sg-media::before,
+  .sg-case__visual .sg-media::before { animation: sg-panel-drift linear both; animation-timeline: view(block); animation-range: entry 0% exit 100%; }
+  .sg-note__mark { animation: sg-quote-drift linear both; animation-timeline: view(block); animation-range: entry 0% exit 100%; }
+}
 
 @media (max-width: 1100px) {
   .sg-hero__grid { grid-template-columns: minmax(0, 1fr) minmax(18rem, .75fr); }
@@ -674,6 +724,7 @@ body.sg-page {
   .sg-facts { grid-template-columns: 1fr; }
   .sg-process__layout { grid-template-columns: 1fr; gap: 3rem; }
   .sg-case__split { grid-template-columns: 1fr; gap: 1.4rem; }
+  .sg-bio__layout { grid-template-columns: 1fr; gap: 2rem; }
 }
 
 @media (max-width: 540px) {
@@ -696,6 +747,7 @@ body.sg-page {
   .sg-footer__main { grid-template-columns: 1fr; }
   .sg-footer__links { justify-content: flex-start; }
   .sg-footer__bottom { flex-direction: column; }
+  .sg-bio__timeline li { grid-template-columns: 1fr; gap: .5rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -703,4 +755,5 @@ body.sg-page {
   .sg-page *, .sg-page *::before, .sg-page *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .sg-page[data-motion="enabled"] .sg-reveal { opacity: 1; transform: none; }
   .sg-ticker__track { animation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .01ms !important; }
 }
