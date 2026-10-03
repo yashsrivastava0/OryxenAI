@@ -35,11 +35,17 @@ export class AuthRequestError extends Error {
   }
 }
 
-class AuthBootstrapTimeoutError extends Error {
+export class AuthBootstrapTimeoutError extends Error {
   constructor() {
     super("Authentication bootstrap timed out.");
     this.name = "AuthBootstrapTimeoutError";
   }
+}
+
+const AUTH_PROVIDER_RETRY_DELAYS_MS = Object.freeze([1000, 2500]);
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function withTimeout(value, timeoutMs) {
@@ -345,6 +351,42 @@ export function createAuthorizedFetch({
   };
 }
 
+export async function fetchAuthenticatedUser({
+  authorizedFetch,
+  timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS,
+  sleepImpl = delay,
+}) {
+  const abortController = typeof AbortController === "function" ? new AbortController() : null;
+  const fetchUser = async () => {
+    for (let attempt = 0; attempt <= AUTH_PROVIDER_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        const response = await authorizedFetch("/api/v1/me", {
+          method: "GET",
+          ...(abortController ? { signal: abortController.signal } : {}),
+        });
+        return await response.json();
+      } catch (error) {
+        if (
+          !(error instanceof AuthRequestError) ||
+          error.code !== "AUTH_PROVIDER_UNAVAILABLE" ||
+          attempt === AUTH_PROVIDER_RETRY_DELAYS_MS.length
+        ) {
+          throw error;
+        }
+        await sleepImpl(AUTH_PROVIDER_RETRY_DELAYS_MS[attempt]);
+      }
+    }
+    throw new Error("Authenticated user retry loop exited unexpectedly.");
+  };
+
+  try {
+    return await withTimeout(fetchUser(), timeoutMs);
+  } catch (error) {
+    abortController?.abort();
+    throw error;
+  }
+}
+
 export function readAuthConfig(documentRef = globalThis.document) {
   const read = (name) => documentRef?.querySelector?.(`meta[name="${name}"]`)?.content || "";
   return {
@@ -413,6 +455,7 @@ export async function resolveAuthenticatedContext({
   storage,
   onAuthFailure = () => {},
   timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS,
+  sleepImpl = delay,
 }) {
   let sessionResult;
   try {
@@ -435,13 +478,7 @@ export async function resolveAuthenticatedContext({
     onAuthFailure,
   });
   try {
-    const me = await withTimeout(
-      (async () => {
-        const response = await authorizedFetch("/api/v1/me", { method: "GET" });
-        return response.json();
-      })(),
-      timeoutMs,
-    );
+    const me = await fetchAuthenticatedUser({ authorizedFetch, timeoutMs, sleepImpl });
     return { kind: "authenticated", me, session, authorizedFetch };
   } catch (error) {
     if (error instanceof AuthBootstrapTimeoutError) {

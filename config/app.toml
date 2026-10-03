@@ -120,6 +120,8 @@ normal_user_limit = 15
 bootstrap_admin_count = 2
 clock_skew_seconds = 30
 jwks_cache_ttl_seconds = 300
+jwks_max_stale_seconds = 3600
+jwks_refresh_backoff_seconds = 30
 http_timeout_seconds = 5.0
 max_token_bytes = 8192
 

@@ -1,3 +1,12 @@
+## D-130 — Resilient Supabase authentication provider reads
+
+- **Date & Time:** 2026-10-04 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** A long-running local API returned `AUTH_PROVIDER_UNAVAILABLE` for every authenticated request while a fresh process using the same Supabase coordinates succeeded. The verifier held one HTTP connection pool for the process lifetime, and a failed JWKS refresh discarded the opportunity to use a recently fetched signing key.
+- **Decision:** Use one bounded auth HTTP client for the JWT verifier, first-login identity lookup, and Supabase admin provider. Recreate an owned client after transport errors; retry transport errors and 5xx responses once only for idempotent GETs, and keep admin mutations single-shot. Keep the last successfully fetched JWKS available for matching keys through transient provider failure for at most 3,600 seconds, back off failed refreshes for 30 seconds, and limit unknown-key refreshes to one per backoff window. Retry the browser's `/api/v1/me` bootstrap twice for `AUTH_PROVIDER_UNAVAILABLE` within its existing timeout, then show a Retry action without clearing the session. Make both JWKS limits non-secret, range-validated auth settings with defaults in `config/app.toml`.
+- **Trade-off:** While Supabase is unreachable, a signing key revoked after the last successful JWKS fetch may remain accepted for up to one hour. Normal refreshes use current provider keys when reachable; signature, allowed algorithm, issuer, audience, role, and expiry checks remain in force.
+- **Consequence:** Existing environments need no new secrets or manual configuration. Browser users retain their session during transient provider outages. Admin mutations are never replayed after uncertain transport outcomes. The behavior is covered with mocked provider and browser tests; no Supabase project or deployment settings are changed.
+
 ## D-129 — Discovery palette selects an immutable Studio theme
 
 - **Date & Time:** 2026-10-03 — Codex (OpenAI)

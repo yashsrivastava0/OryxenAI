@@ -12,6 +12,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
 from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat
 
+from oryxenai.auth import http as auth_http
 from oryxenai.auth.errors import (
     AuthInvalidError,
     AuthProviderUnavailableError,
@@ -33,6 +34,10 @@ def _private_pem(key: Any) -> bytes:
 RSA_PRIVATE = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 EC_PRIVATE = ec.generate_private_key(ec.SECP256R1())
 RSA_PRIVATE_OTHER = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+async def _async_no_sleep(_seconds: float) -> None:
+    return None
 
 
 def _jwk(key: Any, *, kid: str, algorithm: str) -> dict[str, Any]:
@@ -239,3 +244,142 @@ async def test_jwks_timeout_is_bounded_and_does_not_expose_token() -> None:
             await verifier.verify(_token(RSA_PRIVATE))
     finally:
         await verifier.aclose()
+
+
+@pytest.mark.asyncio
+async def test_cached_key_survives_failed_ttl_refresh_and_backoff_suppresses_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_http.asyncio, "sleep", _async_no_sleep)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={"keys": [_jwk(RSA_PRIVATE, kid="key-1", algorithm="RS256")]},
+            )
+        raise httpx.ConnectError("connection unavailable", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    verifier = SupabaseJwtVerifier(
+        supabase_url=SUPABASE_URL,
+        config=AuthConfig(),
+        client=client,
+    )
+    try:
+        assert (await verifier.verify(_token(RSA_PRIVATE))).subject == SUBJECT
+        verifier._fetched_at = time.monotonic() - verifier._config.jwks_cache_ttl_seconds - 1
+        assert (await verifier.verify(_token(RSA_PRIVATE))).subject == SUBJECT
+        assert (await verifier.verify(_token(RSA_PRIVATE))).subject == SUBJECT
+    finally:
+        await verifier.aclose()
+        await client.aclose()
+
+    # One initial fetch plus two transport attempts; the next request observes
+    # the failure backoff and uses the still-eligible cached key.
+    assert calls == 3
+
+
+@pytest.mark.asyncio
+async def test_cache_older_than_maximum_stale_age_returns_503(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_http.asyncio, "sleep", _async_no_sleep)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={"keys": [_jwk(RSA_PRIVATE, kid="key-1", algorithm="RS256")]},
+            )
+        raise httpx.ConnectError("connection unavailable", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    verifier = SupabaseJwtVerifier(
+        supabase_url=SUPABASE_URL,
+        config=AuthConfig(),
+        client=client,
+    )
+    try:
+        assert (await verifier.verify(_token(RSA_PRIVATE))).subject == SUBJECT
+        verifier._fetched_at = time.monotonic() - verifier._config.jwks_max_stale_seconds - 1
+        with pytest.raises(AuthProviderUnavailableError):
+            await verifier.verify(_token(RSA_PRIVATE))
+        with pytest.raises(AuthProviderUnavailableError):
+            await verifier.verify(_token(RSA_PRIVATE))
+    finally:
+        await verifier.aclose()
+        await client.aclose()
+
+    assert calls == 3
+
+
+@pytest.mark.asyncio
+async def test_unknown_kid_refresh_is_limited_after_successful_refresh() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(
+            200,
+            json={"keys": [_jwk(RSA_PRIVATE, kid="key-1", algorithm="RS256")]},
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    verifier = SupabaseJwtVerifier(
+        supabase_url=SUPABASE_URL,
+        config=AuthConfig(),
+        client=client,
+    )
+    try:
+        with pytest.raises(AuthInvalidError):
+            await verifier.verify(_token(RSA_PRIVATE, kid="missing-1"))
+        with pytest.raises(AuthInvalidError):
+            await verifier.verify(_token(RSA_PRIVATE, kid="missing-2"))
+    finally:
+        await verifier.aclose()
+        await client.aclose()
+
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_failed_unknown_kid_refresh_returns_unavailable_during_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_http.asyncio, "sleep", _async_no_sleep)
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={"keys": [_jwk(RSA_PRIVATE, kid="key-1", algorithm="RS256")]},
+            )
+        raise httpx.ConnectError("connection unavailable", request=request)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    verifier = SupabaseJwtVerifier(
+        supabase_url=SUPABASE_URL,
+        config=AuthConfig(),
+        client=client,
+    )
+    try:
+        with pytest.raises(AuthProviderUnavailableError):
+            await verifier.verify(_token(RSA_PRIVATE, kid="missing-1"))
+        with pytest.raises(AuthProviderUnavailableError):
+            await verifier.verify(_token(RSA_PRIVATE, kid="missing-2"))
+    finally:
+        await verifier.aclose()
+        await client.aclose()
+
+    assert calls == 3

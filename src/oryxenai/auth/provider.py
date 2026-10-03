@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -13,6 +14,9 @@ from oryxenai.auth.errors import (
     AuthProviderUnavailableError,
     AuthRateLimitedError,
 )
+from oryxenai.auth.http import AuthHttpClient
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderIdentityClient(Protocol):
@@ -32,18 +36,19 @@ class SupabaseAuthProvider:
     ) -> None:
         self._url = supabase_url.rstrip("/")
         self._publishable_key = publishable_key
-        self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(timeout_seconds))
-        self._owns_client = client is None
+        self._http = AuthHttpClient(
+            timeout=httpx.Timeout(timeout_seconds),
+            client=client,
+        )
 
     async def aclose(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
+        await self._http.aclose()
 
     async def get_user(self, token: str, expected_subject: UUID) -> ProviderIdentity:
         if not self._url or not self._publishable_key:
             raise AuthProviderUnavailableError()
         try:
-            response = await self._client.get(
+            response = await self._http.get(
                 f"{self._url}/auth/v1/user",
                 headers={
                     "Accept": "application/json",
@@ -51,21 +56,26 @@ class SupabaseAuthProvider:
                     "Authorization": f"Bearer {token}",
                 },
             )
-        except httpx.TimeoutException as exc:
-            raise AuthProviderUnavailableError() from exc
         except httpx.RequestError as exc:
+            logger.warning("Supabase identity lookup failed (%s)", type(exc).__name__)
             raise AuthProviderUnavailableError() from exc
         if response.status_code == 429:
+            logger.warning("Supabase identity lookup returned HTTP 429")
             raise AuthRateLimitedError()
         if response.status_code in {401, 403}:
             raise AuthInvalidError()
         if response.status_code >= 500:
+            logger.warning("Supabase identity lookup returned HTTP %s", response.status_code)
             raise AuthProviderUnavailableError()
         if response.status_code != 200:
+            logger.warning("Supabase identity lookup returned HTTP %s", response.status_code)
             raise AuthProviderUnavailableError()
         try:
             body: Any = response.json()
         except ValueError as exc:
+            logger.warning(
+                "Supabase identity response could not be parsed (%s)", type(exc).__name__
+            )
             raise AuthProviderUnavailableError() from exc
         if not isinstance(body, dict):
             raise AuthProviderUnavailableError()
