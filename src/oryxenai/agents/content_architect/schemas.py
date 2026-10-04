@@ -110,6 +110,7 @@ class ContentArchitectIntake(BaseModel):
     discovery_brief_hash: str = ""
     discovery_session_revision: int = 0
     selected_theme_id: str = ""
+    allow_illustrative_work: bool = False
 
 
 class ContentArchitectPreferences(BaseModel):
@@ -207,6 +208,46 @@ class ConnectContent(BaseModel):
     destinations: list[ConnectDestination] = Field(default_factory=list)
 
 
+class AtlasExperience(BaseModel):
+    role: str = ""
+    organization: str = ""
+    dates: str = ""
+    description: str = ""
+
+
+class AtlasEducation(BaseModel):
+    credential: str = ""
+    institution: str = ""
+    dates: str = ""
+
+
+class AtlasStatistic(BaseModel):
+    value: str = ""
+    label: str = ""
+
+
+class AtlasProject(BaseModel):
+    kind: str = "real"
+    title: str = ""
+    summary: str = ""
+    role: str = ""
+    period: str = ""
+    problem: str = ""
+    approach: str = ""
+    outcome: str = ""
+    external_url: str = ""
+
+
+class AtlasPages(BaseModel):
+    about_heading: str = ""
+    about_intro: str = ""
+    about_quote: str = ""
+    experience: list[AtlasExperience] = Field(default_factory=list)
+    education: list[AtlasEducation] = Field(default_factory=list)
+    statistics: list[AtlasStatistic] = Field(default_factory=list)
+    projects: list[AtlasProject] = Field(default_factory=list)
+
+
 class PortfolioPageContent(BaseModel):
     """Every visitor-facing string of the one pinned portfolio template."""
 
@@ -223,6 +264,7 @@ class PortfolioPageContent(BaseModel):
         default_factory=ProfessionalContextContent
     )
     connect: ConnectContent = Field(default_factory=ConnectContent)
+    atlas: AtlasPages = Field(default_factory=AtlasPages)
 
 
 class ContentStoryStrategy(BaseModel):

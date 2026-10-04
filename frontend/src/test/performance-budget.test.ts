@@ -12,7 +12,9 @@ declare const process: { cwd: () => string };
 // feature growth, not an unexplained regression.
 const JS_RAW_BUDGET_BYTES = 170 * 1024;
 const JS_GZIP_BUDGET_BYTES = 50 * 1024;
-const CSS_RAW_BUDGET_BYTES = 70 * 1024;
+// Four visual theme choices add a small amount of shell CSS; transfer remains
+// under the existing 16 KiB gzip ceiling.
+const CSS_RAW_BUDGET_BYTES = 72 * 1024;
 const CSS_GZIP_BUDGET_BYTES = 16 * 1024;
 
 describe("Phase 5 Performance & Asset Budgets (docs/Frontend/05 §14, §18)", () => {

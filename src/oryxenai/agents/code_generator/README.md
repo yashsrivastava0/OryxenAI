@@ -3,8 +3,9 @@
 Stage 3 of the portfolio flow. It turns the approved Content Architect
 `page_content` into one verified, previewable page using the immutable theme
 selected in Discovery, and lets the owner change the page's **content** in a
-chat. Each theme is a separate stylesheet and markup contract; scripts and
-per-user style edits are outside this build.
+chat. Each theme has a separate stylesheet and markup contract. Cobalt Atlas v2
+also pins one reviewed `theme.js`; generated scripts and per-user style edits
+are outside this build.
 
 The workflow never chains by itself: the API starts a build only on
 `POST /api/v1/sessions/{id}/code-generator/start`. The product UI sends that
@@ -30,9 +31,10 @@ approved page_content + selected theme id
   (`interpret_change`, then `generate_page`); a reply-only message makes one;
   a restore makes none.
 * The model writes the visible markup only. The host owns the technical
-  `<head>` (charset, viewport, title, description, stylesheet link).
-* New sessions use one of three installed packages: Editorial Forest Motion,
-  Cobalt Atlas, or Obsidian Signal. Existing approved sessions without a
+  `<head>` (charset, viewport, title, description, stylesheet link and any
+  theme-owned script).
+* New sessions use one of four Discovery choices: Editorial Forest Motion,
+  Cobalt Atlas, Obsidian Signal, or scripted Cobalt Atlas v2. Existing approved sessions without a
   selection use the configured default theme. The pinned theme id travels with
   the build, version, chat edits, restore, and preview.
 
@@ -106,9 +108,10 @@ include one.
   `PREVIEW_GRANT_SECRET` shares grants between API instances; without it each
   process uses a random key and the Studio simply asks for a new link.
 * Every preview response carries `Content-Security-Policy: sandbox ...` without
-  `allow-same-origin` or `allow-scripts`, `Referrer-Policy: no-referrer`,
-  `nosniff` and `noindex`. The Studio embeds it in an iframe sandboxed the same
-  way, so generated markup can never reach the app's storage or API.
+  `allow-same-origin`, plus `Referrer-Policy: no-referrer`, `nosniff` and
+  `noindex`. The reviewed scripted theme alone receives `allow-scripts` and
+  `script-src 'self'`; CSS-only themes remain scriptless. The Studio applies
+  the matching iframe sandbox from the server's theme capability.
 * Grants are redacted from application and server access logs.
 
 ## Chat changes

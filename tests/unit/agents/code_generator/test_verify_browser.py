@@ -42,8 +42,27 @@ def _custom(body: str, *, with_head: bool = True) -> SiteBundle:
         else "<!doctype html><html lang=en><head><meta charset=utf-8><title>x</title></head><body>"
     )
     html = head + body + THEME.contract.render_tail()
+    data = html.encode()
+    index_hash = hashlib.sha256(data).hexdigest()
     return SiteBundle(
-        THEME.theme_id, THEME.css_sha256, "en", html, hashlib.sha256(html.encode()).hexdigest(), {}
+        THEME.theme_id,
+        THEME.css_sha256,
+        "en",
+        html,
+        index_hash,
+        {
+            "contract_version": "SiteBundle/v1",
+            "theme_id": THEME.theme_id,
+            "files": [
+                {
+                    "path": "index.html",
+                    "sha256": index_hash,
+                    "bytes": len(data),
+                    "source": "version",
+                },
+                *THEME.manifest_entries(),
+            ],
+        },
     )
 
 
@@ -119,6 +138,29 @@ async def test_selected_designs_pass_browser_verification(theme_id: str) -> None
             assert result.issues == []
             return
     pytest.skip("no headless browser can be started on this machine")
+
+
+@pytest.mark.asyncio
+async def test_atlas_sparse_page_routes_and_artwork_pass_browser_verification() -> None:
+    from copy import deepcopy
+
+    from oryxenai.themes.cobalt_atlas.v2.contract import _symbolic_content
+
+    theme = get_theme("cobalt-atlas/v2")
+    content = deepcopy(HEAD_CONTENT)
+    content["atlas"] = _symbolic_content()["atlas"]
+    content["atlas"]["projects"] = []
+    bundle = build_bundle(
+        content,
+        theme.contract.derive(content),
+        theme.contract.render_reference_body(content),
+        "en",
+        theme,
+    )
+    result = await BrowserVerifier(_config(viewports=[390, 1280])).verify(bundle, theme)
+    if result.status == "unavailable":
+        pytest.skip("no headless browser can be started on this machine")
+    assert result.status == "passed", [issue.to_dict() for issue in result.issues]
 
 
 @pytest.mark.asyncio

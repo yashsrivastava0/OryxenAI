@@ -19,6 +19,7 @@ class QuestionKind(StrEnum):
     MULTI_SELECT = "multi_select"
     BOOLEAN = "boolean"
     PALETTE_SELECT = "palette_select"
+    WORK_DETAIL = "work_detail"
 
 
 class AnswerMode(StrEnum):
@@ -476,6 +477,7 @@ class DiscoveryState(BaseModel):
     operation_a: OperationAState = Field(default_factory=OperationAState)
     answers: AnswersState = Field(default_factory=AnswersState)
     selected_theme_id: str = ""
+    allow_illustrative_work: bool = False
     brief: BriefState = Field(default_factory=BriefState)
     memory: dict[str, Any] = Field(default_factory=dict)
     latest_error: dict[str, Any] | None = None

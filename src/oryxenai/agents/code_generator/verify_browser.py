@@ -186,7 +186,11 @@ class BrowserVerifier:
         app.state.preview_provider = StaticBundleProvider(
             {
                 (session_id, version_id): ServedBundle(
-                    bundle.index_html, theme.theme_id, theme.css_sha256
+                    bundle.index_html,
+                    theme.theme_id,
+                    theme.css_sha256,
+                    bundle.index_sha256,
+                    bundle.manifest,
                 )
             }
         )
@@ -207,7 +211,9 @@ class BrowserVerifier:
                     async with httpx.AsyncClient(transport=transport, base_url=_ORIGIN) as client:
                         for width in self._config.viewports:
                             pages.append(
-                                await self._check_viewport(browser, client, entry, width, findings)
+                                await self._check_viewport(
+                                    browser, client, entry, width, findings, theme
+                                )
                             )
                     version = browser.version
                 finally:
@@ -224,7 +230,13 @@ class BrowserVerifier:
         return VerificationResult("failed" if errors else "passed", findings.issues, details)
 
     async def _check_viewport(
-        self, browser: Any, client: httpx.AsyncClient, entry: str, width: int, findings: _Findings
+        self,
+        browser: Any,
+        client: httpx.AsyncClient,
+        entry: str,
+        width: int,
+        findings: _Findings,
+        theme: ThemePackage,
     ) -> dict[str, Any]:
         origin = f"viewport:{width}"
         context = await browser.new_context(
@@ -286,6 +298,29 @@ class BrowserVerifier:
             await context.close()
             return {"viewport": width, "loaded": False}
         load_ms = round((time.perf_counter() - loaded) * 1000, 1)
+        if theme.allows_scripts:
+            try:
+                await page.wait_for_function(
+                    "window.AtlasTheme && document.body.dataset.router === 'ready'",
+                    timeout=self._config.page_timeout_seconds * 1000,
+                )
+                await page.evaluate("() => window.AtlasTheme.go('about')")
+                await page.wait_for_function("!document.getElementById('about').hidden")
+                await page.go_back()
+                await page.wait_for_function("!document.getElementById('home').hidden")
+                if await page.locator("#case-1").count():
+                    await page.evaluate("() => window.AtlasTheme.go('case-1')")
+                    await page.wait_for_function("!document.getElementById('case-1').hidden")
+            except Exception as exc:
+                findings.add(
+                    Issue(
+                        "SCRIPT_BEHAVIOR",
+                        "error",
+                        "The theme script did not complete routing.",
+                        found=_reason(exc),
+                        origin=origin,
+                    )
+                )
         await context.close()
 
         for url in external[:_MAX_FINDINGS_PER_KIND]:

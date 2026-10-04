@@ -218,6 +218,48 @@ async def _full_flow(client, sid: str, *, choice: str = "forest_copper", note: s
 
 
 class TestFullHttpFlow:
+    async def test_atlas_choice_asks_once_and_pins_illustrative_opt_in(self, client):
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        palette = ready["discovery"]["operation_a"]["items"][-1]
+        answer = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": True,
+                "answers": [
+                    {
+                        "question_id": palette["id"],
+                        "mode": "answered",
+                        "value": {"choice_id": "cobalt_atlas_interactive", "note": ""},
+                    }
+                ],
+            },
+        )
+        assert answer.status_code == 200, answer.text
+        state = answer.json()["discovery"]
+        assert state["status"] == "answers_in_progress"
+        assert state["selected_theme_id"] == "cobalt-atlas/v2"
+        work = state["operation_a"]["items"][-1]
+        assert work["kind"] == "work_detail"
+        answer = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": True,
+                "answers": [
+                    {
+                        "question_id": work["id"],
+                        "mode": "answered",
+                        "value": {"details": "", "allow_illustrative": True},
+                    }
+                ],
+            },
+        )
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["discovery"]["allow_illustrative_work"] is True
+        assert answer.json()["discovery"]["status"] == "brief_running"
+
     @pytest.mark.parametrize(
         ("choice", "theme_id"),
         [
@@ -242,7 +284,7 @@ class TestFullHttpFlow:
         ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         palette = ready["discovery"]["operation_a"]["items"][-1]
         assert palette["kind"] == "palette_select"
-        assert len(palette["options"]) == 3
+        assert len(palette["options"]) == 4
         assert all(len(option["swatches"]) == 3 for option in palette["options"])
 
         for answers, status in (

@@ -65,4 +65,11 @@ FRONTEND_FAILURE_KEYS = {
     "reference",
     "issues",
 }
-GRANT_KEYS = {"url", "expires_at", "expires_in_seconds", "version_id", "version_number"}
+GRANT_KEYS = {
+    "url",
+    "expires_at",
+    "expires_in_seconds",
+    "version_id",
+    "version_number",
+    "allows_scripts",
+}

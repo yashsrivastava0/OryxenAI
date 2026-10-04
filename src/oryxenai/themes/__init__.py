@@ -27,12 +27,14 @@ _THEME_MODULES: dict[str, str] = {
     "editorial-forest/v1": "oryxenai.themes.editorial_forest.v1",
     "editorial-forest-motion/v1": "oryxenai.themes.editorial_forest_motion.v1",
     "cobalt-atlas/v1": "oryxenai.themes.cobalt_atlas.v1",
+    "cobalt-atlas/v2": "oryxenai.themes.cobalt_atlas.v2",
     "obsidian-signal/v1": "oryxenai.themes.obsidian_signal.v1",
 }
 
 _MEDIA_TYPES = {
     ".css": "text/css; charset=utf-8",
     ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
     ".svg": "image/svg+xml",
     ".png": "image/png",
     ".js": "text/javascript; charset=utf-8",
@@ -68,6 +70,11 @@ class ThemePackage:
     @property
     def css_sha256(self) -> str:
         return self.stylesheet.sha256
+
+    @property
+    def allows_scripts(self) -> bool:
+        capabilities = self.manifest.get("capabilities", {})
+        return isinstance(capabilities, Mapping) and capabilities.get("javascript") is True
 
     def file(self, path: str) -> ThemeFile | None:
         return self.files.get(path)

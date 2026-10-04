@@ -55,14 +55,17 @@ One typed object whose regions mirror the pinned template one-to-one
 | `technical_capabilities` | `eyebrow`, `heading`, `intro`, `groups[]` (`heading`, `items[]`) |
 | `professional_context` | `eyebrow`, `heading`, `intro`, `organizations[]` — **names only** (the template has no slot for roles or dates) |
 | `connect` | `eyebrow`, `heading`, `intro`, `destinations[]` (`label`, `url`, `featured`) |
+| `atlas` | Cobalt Atlas v2 only: About heading/intro/optional quote, grounded experience, education, statistics, and up to three projects. |
 
 Deliberately not modeled: hrefs other than `connect.destinations[].url`
 (nav and hero CTAs use template-fixed anchors), numeric indexes, the
 `preview` line of a capability group, and the monogram — the template consumer
 derives those from the fields above so they can never drift. The template has
-no projects, experience, education, or metrics section; that material is
-folded into pillars, the hero intro, and capability groups. Each installed
-theme has its own markup contract for this same content tree.
+no projects, experience, education, or metrics section in the three CSS-only
+themes; that material is folded into pillars, the hero intro, and capability
+groups. Cobalt Atlas v2 adds the `atlas` supplement while retaining the common
+tree. Optional rows are omitted when source facts are missing. An illustrative
+concept requires the owner's explicit Discovery opt-in and a visible label.
 
 Model output extras are dropped (`extra="ignore"`) instead of failing a
 finished run; internal-review key leakage is still rejected.

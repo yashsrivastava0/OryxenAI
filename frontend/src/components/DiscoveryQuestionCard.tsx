@@ -27,20 +27,25 @@ export function DiscoveryQuestionCard({
   const [textAnswer, setTextAnswer] = useState("");
   const [selectedSingleOption, setSelectedSingleOption] = useState<string | null>(null);
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  const [allowIllustrative, setAllowIllustrative] = useState(false);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const draftKey = `oryxenai.draft.${question.id}`;
   const singleKey = `${draftKey}.single`;
   const multiKey = `${draftKey}.multi`;
+  const illustrativeKey = `${draftKey}.illustrative`;
   const locked = disabled || inFlight;
   const questionOrdinalText = `Question ${String(ordinal).padStart(2, "0")} of ${String(total).padStart(2, "0")}`;
   const canSubmit = question.kind === "palette_select"
     ? Boolean(selectedSingleOption)
+    : question.kind === "work_detail"
+      ? Boolean(textAnswer.trim() || allowIllustrative)
     : Boolean(textAnswer.trim() || selectedSingleOption || selectedOptions.length > 0);
 
   useEffect(() => {
     setTextAnswer(safeSessionStorage.getItem(draftKey) ?? "");
     setSelectedSingleOption(safeSessionStorage.getItem(singleKey));
+    setAllowIllustrative(safeSessionStorage.getItem(illustrativeKey) === "true");
     const savedOptions = safeSessionStorage.getItem(multiKey);
     try {
       const parsed: unknown = JSON.parse(savedOptions ?? "[]");
@@ -49,7 +54,7 @@ export function DiscoveryQuestionCard({
       setSelectedOptions([]);
     }
     setError(null);
-  }, [draftKey, singleKey, multiKey]);
+  }, [draftKey, singleKey, multiKey, illustrativeKey]);
 
   const updateText = (value: string) => {
     setTextAnswer(value);
@@ -60,9 +65,11 @@ export function DiscoveryQuestionCard({
     safeSessionStorage.removeItem(draftKey);
     safeSessionStorage.removeItem(singleKey);
     safeSessionStorage.removeItem(multiKey);
+    safeSessionStorage.removeItem(illustrativeKey);
     setTextAnswer("");
     setSelectedSingleOption(null);
     setSelectedOptions([]);
+    setAllowIllustrative(false);
   };
 
   const submit = async (skip = false) => {
@@ -80,6 +87,8 @@ export function DiscoveryQuestionCard({
     const customText = textAnswer.trim();
     const value = question.kind === "palette_select"
       ? { choice_id: selectedSingleOption, note: customText }
+      : question.kind === "work_detail"
+        ? { details: customText, allow_illustrative: allowIllustrative }
       : customText
         ? selectedText ? `${selectedText}. ${customText}` : customText
         : selectedValue;
@@ -265,16 +274,31 @@ export function DiscoveryQuestionCard({
           </fieldset>
         )}
 
+        {question.kind === "work_detail" && (
+          <label className="choice-tile">
+            <input
+              type="checkbox"
+              checked={allowIllustrative}
+              disabled={locked}
+              onChange={(event) => {
+                const checked = (event.target as HTMLInputElement).checked;
+                setAllowIllustrative(checked);
+                safeSessionStorage.setItem(illustrativeKey, String(checked));
+              }}
+            />
+            <span>If I have no usable real project, show a clearly labeled illustrative concept.</span>
+          </label>
+        )}
         <div className="text-composer-group">
             <label className="choice-group-hint composer-label" htmlFor={`discovery-answer-${question.id}`}>
-              {question.kind === "text" ? "Your answer" : question.kind === "palette_select" ? "Optional note for your reference" : "Add context or write your own answer"}
+              {question.kind === "text" ? "Your answer" : question.kind === "palette_select" ? "Optional note for your reference" : question.kind === "work_detail" ? "Optional real project details" : "Add context or write your own answer"}
             </label>
             <textarea
               maxLength={question.kind === "palette_select" ? 1000 : undefined}
               id={`discovery-answer-${question.id}`}
               className="workbench-textarea composer-textarea"
-              rows={question.kind === "text" ? 4 : 3}
-              placeholder={question.kind === "text" ? "Write what feels important…" : question.kind === "palette_select" ? "A detail you want to remember about this look…" : "Optional details, or a different answer…"}
+              rows={question.kind === "text" || question.kind === "work_detail" ? 4 : 3}
+              placeholder={question.kind === "text" ? "Write what feels important…" : question.kind === "palette_select" ? "A detail you want to remember about this look…" : question.kind === "work_detail" ? "Project name, problem, your contribution, approach and outcome, if known…" : "Optional details, or a different answer…"}
               value={textAnswer}
               onInput={(event) => updateText((event.target as HTMLTextAreaElement).value)}
               onKeyDown={onComposerKeyDown}

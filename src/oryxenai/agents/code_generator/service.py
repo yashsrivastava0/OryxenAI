@@ -30,7 +30,7 @@ from oryxenai.agents.code_generator.diagnostics import (
 )
 from oryxenai.agents.code_generator.grants import PreviewGrantSigner
 from oryxenai.agents.code_generator.schemas import FailureEnvelope
-from oryxenai.agents.code_generator.serving import PREVIEW_PREFIX
+from oryxenai.agents.code_generator.serving import PREVIEW_PREFIX, ServedBundle, bundle_integrity_ok
 from oryxenai.agents.code_generator.state import (
     CodeGeneratorSourceRef,
     CodeGeneratorStatus,
@@ -161,7 +161,16 @@ class CodeGeneratorService:
                 details={"content_architect_status": content.status.value},
             )
         page_content = content.page_content.model_dump(mode="json")
-        issues = content_admission_issues(page_content)
+        theme_id = (
+            content.intake.selected_theme_id
+            or self._settings.code_generator.theme_id
+            or DEFAULT_THEME_ID
+        )
+        issues = content_admission_issues(
+            page_content,
+            theme_id=theme_id,
+            allow_illustrative_work=content.intake.allow_illustrative_work,
+        )
         if issues:
             envelope = failure_from_admission(issues, reference=reference_for(session_id, "admit"))
             raise CodeGeneratorOperationError(
@@ -170,11 +179,6 @@ class CodeGeneratorService:
                 status_code=422,
                 details={"failure": envelope.to_payload()},
             )
-        theme_id = (
-            content.intake.selected_theme_id
-            or self._settings.code_generator.theme_id
-            or DEFAULT_THEME_ID
-        )
         try:
             get_theme(theme_id)
         except ThemeError as exc:
@@ -218,6 +222,7 @@ class CodeGeneratorService:
                 "content_sha256": content_sha256(page_content),
                 "source_ref": source_ref.model_dump(mode="json"),
                 "theme_id": theme_id,
+                "allow_illustrative_work": content.intake.allow_illustrative_work,
                 "version_id": str(version_id),
                 "instruction": "",
                 "model_profile": "",
@@ -372,6 +377,8 @@ class CodeGeneratorService:
                 "CODE_GENERATOR_NOT_READY", "The live page is not available to edit."
             )
 
+        content = await self._repo.get_content_architect_state(session_id)
+
         from oryxenai.agents.shared.model_runtime import get_model_runtime
 
         policy_snapshot = get_model_runtime(self._settings.models).router.policy_snapshot()
@@ -397,6 +404,7 @@ class CodeGeneratorService:
                 "content_sha256": base.content_sha256,
                 "source_ref": state.source_ref.model_dump(mode="json"),
                 "theme_id": base.theme_id,
+                "allow_illustrative_work": content.intake.allow_illustrative_work,
                 "version_id": str(version_id),
                 "base_version_id": str(base.id),
                 "instruction": text,
@@ -539,7 +547,16 @@ class CodeGeneratorService:
             theme = get_theme(version.theme_id)
         except ThemeError:
             return "The theme this version was built with is no longer installed."
-        if theme.css_sha256 != version.theme_sha256:
+        if not bundle_integrity_ok(
+            ServedBundle(
+                version.index_html,
+                version.theme_id,
+                version.theme_sha256,
+                version.index_sha256,
+                version.manifest,
+            ),
+            theme,
+        ):
             return "The theme files changed since this version was built."
         return ""
 
@@ -599,6 +616,10 @@ class CodeGeneratorService:
                 status_code=404,
             )
         ttl = self._settings.code_generator.preview_grant_ttl_seconds
+        try:
+            scripts = get_theme(version.theme_id).allows_scripts
+        except ThemeError:
+            scripts = False
         token, expires_at = self._signer.mint(session_id, version.id, ttl)
         return {
             "url": f"{PREVIEW_PREFIX}/{token}/index.html",
@@ -606,6 +627,7 @@ class CodeGeneratorService:
             "expires_in_seconds": ttl,
             "version_id": str(version.id),
             "version_number": version.version_number,
+            "allows_scripts": scripts,
         }
 
     # ── internals ────────────────────────────────────────────────────────────

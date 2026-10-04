@@ -351,6 +351,30 @@ function ContentReviewSurface({
                     <p className="content-card-muted">No public links were supplied.</p>
                   )}
                 </FieldCard>
+
+                {page.atlas.aboutHeading && (
+                  <FieldCard id="content-card-atlas" className={cardClass("content-card-atlas")} eyebrow="COBALT ATLAS · ADDITIONAL PAGES" title="About and selected work">
+                    <h4>{page.atlas.aboutHeading}</h4>
+                    <p>{page.atlas.aboutIntro}</p>
+                    {page.atlas.aboutQuote && <blockquote>{page.atlas.aboutQuote}</blockquote>}
+                    {page.atlas.experience.map((row, index) => <p key={`role-${index}`}><strong>{row.role}</strong> · {row.organization} · {row.dates}<br />{row.description}</p>)}
+                    {page.atlas.education.map((row, index) => <p key={`education-${index}`}><strong>{row.credential}</strong> · {row.institution} · {row.dates}</p>)}
+                    {page.atlas.statistics.map((row, index) => <p key={`stat-${index}`}><strong>{row.value}</strong> · {row.label}</p>)}
+                    {page.atlas.projects.length === 0 && <p className="content-card-muted">The portfolio will show a designed Work area until a project is added.</p>}
+                    {page.atlas.projects.map((project, index) => (
+                      <div key={`project-${index}`} className="content-capability-group">
+                        <h4>{project.title} {project.kind === "illustrative" && <span className="content-badge">Illustrative concept — not real client work</span>}</h4>
+                        <p>{project.summary}</p>
+                        {project.role && <p>Role: {project.role}</p>}
+                        {project.period && <p>Period: {project.period}</p>}
+                        {project.problem && <p>Problem: {project.problem}</p>}
+                        {project.approach && <p>Approach: {project.approach}</p>}
+                        {project.outcome && <p>Outcome: {project.outcome}</p>}
+                        {project.externalUrl && <p>Link: {project.externalUrl}</p>}
+                      </div>
+                    ))}
+                  </FieldCard>
+                )}
               </>
             )}
 

@@ -12,16 +12,17 @@ Run with the repo's existing interpreter (no `uv sync`, no lockfile changes):
 
 Options: --pages, --widths, --schemes, --shots DIR, --csp, --modes ..., --matrix, --axe PATH
 """
+
 from __future__ import annotations
 
 import argparse
 import http.server
-import json
 import re
 import socketserver
 import sys
 import threading
 from pathlib import Path
+from typing import ClassVar
 
 from playwright.sync_api import Browser, BrowserContext, Page, sync_playwright
 
@@ -86,7 +87,7 @@ try {
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     policy = "none"  # none | csp
-    extensions_map = {
+    extensions_map: ClassVar[dict[str, str]] = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
         ".js": "text/javascript",
         ".css": "text/css",
@@ -145,10 +146,29 @@ def new_context(browser: Browser, width: int, scheme: str, **extra) -> BrowserCo
 def watch(page: Page, bucket: dict[str, list[str]]) -> None:
     page.add_init_script(INIT_JS)
     fonts_host = lambda url: any(h in (url or "") for h in FONT_HOSTS)  # noqa: E731
-    page.on("console", lambda m: bucket["console"].append(f"{m.type}: {m.text}") if m.type in ("error", "warning") and not fonts_host((m.location or {}).get("url")) else None)
+    page.on(
+        "console",
+        lambda m: (
+            bucket["console"].append(f"{m.type}: {m.text}")
+            if m.type in ("error", "warning") and not fonts_host((m.location or {}).get("url"))
+            else None
+        ),
+    )
     page.on("pageerror", lambda e: bucket["pageerror"].append(str(e)))
-    page.on("requestfailed", lambda r: bucket["failed"].append(f"{r.url} ({r.failure})") if not fonts_host(r.url) else None)
-    page.on("response", lambda r: bucket["http"].append(f"{r.status} {r.url}") if r.status >= 400 and not fonts_host(r.url) else None)
+    page.on(
+        "requestfailed",
+        lambda r: (
+            bucket["failed"].append(f"{r.url} ({r.failure})") if not fonts_host(r.url) else None
+        ),
+    )
+    page.on(
+        "response",
+        lambda r: (
+            bucket["http"].append(f"{r.status} {r.url}")
+            if r.status >= 400 and not fonts_host(r.url)
+            else None
+        ),
+    )
 
 
 def fresh_bucket() -> dict[str, list[str]]:
@@ -192,12 +212,25 @@ def scroll_through(page: Page) -> None:
 
 def goto_route(page: Page, base: str, route: str) -> None:
     page.evaluate("(id) => { location.hash = id; }", route)
-    poll(page, "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }", route, timeout=4000)
+    poll(
+        page,
+        "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }",
+        route,
+        timeout=4000,
+    )
     page.wait_for_timeout(120)
     scroll_through(page)
 
 
-def check_page(browser: Browser, report: Report, base: str, name: str, width: int, scheme: str, shots: Path | None) -> None:
+def check_page(
+    browser: Browser,
+    report: Report,
+    base: str,
+    name: str,
+    width: int,
+    scheme: str,
+    shots: Path | None,
+) -> None:
     tag = f"{name}@{width}/{scheme}"
     ctx = new_context(browser, width, scheme)
     page = ctx.new_page()
@@ -205,10 +238,18 @@ def check_page(browser: Browser, report: Report, base: str, name: str, width: in
     watch(page, bucket)
     page.goto(f"{base}/{name}", wait_until="load")
     wait_ready(page)
-    report.check(page.evaluate("document.documentElement.classList.contains('js')"), f"{tag} html.js")
+    report.check(
+        page.evaluate("document.documentElement.classList.contains('js')"), f"{tag} html.js"
+    )
     if width == 1280 and scheme == "light":
-        loaded = page.evaluate("() => [...document.fonts].filter(f => /Geist|Instrument/.test(f.family) && f.status === 'loaded').map(f => f.family)")
-        report.check(len(set(loaded)) >= 3, f"{tag} Google Fonts loaded (needs network)", ", ".join(sorted(set(loaded))) or "none")
+        loaded = page.evaluate(
+            "() => [...document.fonts].filter(f => /Geist|Instrument/.test(f.family) && f.status === 'loaded').map(f => f.family)"
+        )
+        report.check(
+            len(set(loaded)) >= 3,
+            f"{tag} Google Fonts loaded (needs network)",
+            ", ".join(sorted(set(loaded))) or "none",
+        )
     audit = page.evaluate("window.AtlasTheme.audit()")
     report.check(not audit["errors"], f"{tag} audit errors", "; ".join(audit["errors"][:4]))
     for warning in audit["warnings"]:
@@ -217,9 +258,17 @@ def check_page(browser: Browser, report: Report, base: str, name: str, width: in
     for route in ids:
         goto_route(page, base, route)
         result = page.evaluate(OVERFLOW_JS)
-        report.check(not result["offenders"], f"{tag} #{route} overflow", "; ".join(result["offenders"]))
-        report.check(result["scrollX"] == 0, f"{tag} #{route} horizontal scroll possible", str(result["scrollX"]))
-        h1 = page.evaluate("[...document.querySelectorAll('h1')].filter(h => h.offsetParent !== null).length")
+        report.check(
+            not result["offenders"], f"{tag} #{route} overflow", "; ".join(result["offenders"])
+        )
+        report.check(
+            result["scrollX"] == 0,
+            f"{tag} #{route} horizontal scroll possible",
+            str(result["scrollX"]),
+        )
+        h1 = page.evaluate(
+            "[...document.querySelectorAll('h1')].filter(h => h.offsetParent !== null).length"
+        )
         report.check(h1 == 1, f"{tag} #{route} visible h1 count", str(h1))
         if shots:
             shots.mkdir(parents=True, exist_ok=True)
@@ -232,14 +281,29 @@ def check_page(browser: Browser, report: Report, base: str, name: str, width: in
     for key, items in bucket.items():
         if expected:
             # Intentional 404 (broken-image test): allow exactly those requests.
-            items = [i for i in items if not any(token in i for token in expected) and not i.startswith("error: Failed to load resource")]
+            items = [
+                i
+                for i in items
+                if not any(token in i for token in expected)
+                and not i.startswith("error: Failed to load resource")
+            ]
         report.check(not items, f"{tag} {key}", "; ".join(items[:3]))
     if expected:
         # A sandboxed (opaque-origin) page sees the 404 as ERR_BLOCKED_BY_ORB, so look in both lists.
-        broken = [i for i in bucket["http"] + bucket["failed"] if any(token in i for token in expected)]
-        report.check(len(broken) == len(expected), f"{tag} intentional broken images requested once each", str(broken))
+        broken = [
+            i for i in bucket["http"] + bucket["failed"] if any(token in i for token in expected)
+        ]
+        report.check(
+            len(broken) == len(expected),
+            f"{tag} intentional broken images requested once each",
+            str(broken),
+        )
         errors = page.evaluate("document.querySelectorAll('.is-error').length")
-        report.check(errors == len(expected), f"{tag} every broken image got the .is-error fallback", str(errors))
+        report.check(
+            errors == len(expected),
+            f"{tag} every broken image got the .is-error fallback",
+            str(errors),
+        )
     csp = page.evaluate("window.__csp")
     report.check(not csp, f"{tag} CSP violations", "; ".join(csp[:3]))
     ctx.close()
@@ -248,8 +312,16 @@ def check_page(browser: Browser, report: Report, base: str, name: str, width: in
 # --------------------------------------------------------------------------
 # Mode tests: no-JS, reduced motion, motion + intro, routing, keyboard, a11y
 # --------------------------------------------------------------------------
-def open_page(browser: Browser, base: str, name: str, width: int = 1280, scheme: str = "light",
-              query: str = "", wait: str = "load", **ctx_kwargs):
+def open_page(
+    browser: Browser,
+    base: str,
+    name: str,
+    width: int = 1280,
+    scheme: str = "light",
+    query: str = "",
+    wait: str = "load",
+    **ctx_kwargs,
+):
     ctx = new_context(browser, width, scheme, **ctx_kwargs)
     page = ctx.new_page()
     bucket = fresh_bucket()
@@ -258,11 +330,18 @@ def open_page(browser: Browser, base: str, name: str, width: int = 1280, scheme:
     return ctx, page, bucket
 
 
-def expect_clean(report: Report, tag: str, bucket: dict[str, list[str]], page: Page | None = None) -> None:
+def expect_clean(
+    report: Report, tag: str, bucket: dict[str, list[str]], page: Page | None = None
+) -> None:
     tokens = next((t for n, t in EXPECTED_BROKEN.items() if tag.startswith(n)), [])
     for key, items in bucket.items():
         if tokens:  # intentional broken-image test page: its 404s are expected
-            items = [i for i in items if not any(t in i for t in tokens) and not i.startswith("error: Failed to load resource")]
+            items = [
+                i
+                for i in items
+                if not any(t in i for t in tokens)
+                and not i.startswith("error: Failed to load resource")
+            ]
         report.check(not items, f"{tag} {key}", "; ".join(items[:3]))
     if page is not None:
         csp = page.evaluate("() => window.__csp")
@@ -270,7 +349,9 @@ def expect_clean(report: Report, tag: str, bucket: dict[str, list[str]], page: P
 
 
 def active_view(page: Page) -> str:
-    return page.evaluate("() => { const v = [...document.querySelectorAll('[data-view]')].filter(x => !x.hidden); return v.map(x => x.id).join(','); }")
+    return page.evaluate(
+        "() => { const v = [...document.querySelectorAll('[data-view]')].filter(x => !x.hidden); return v.map(x => x.id).join(','); }"
+    )
 
 
 def mode_storage_blocked(browser: Browser, report: Report, base: str, strict: bool) -> None:
@@ -278,8 +359,14 @@ def mode_storage_blocked(browser: Browser, report: Report, base: str, strict: bo
         return
     ctx, page, bucket = open_page(browser, base, "index.html")
     wait_ready(page)
-    outcome = page.evaluate("() => { try { localStorage.getItem('x'); return 'ok'; } catch (e) { return e.name; } }")
-    report.check(outcome == "SecurityError", "sandbox really is an opaque origin (localStorage throws)", str(outcome))
+    outcome = page.evaluate(
+        "() => { try { localStorage.getItem('x'); return 'ok'; } catch (e) { return e.name; } }"
+    )
+    report.check(
+        outcome == "SecurityError",
+        "sandbox really is an opaque origin (localStorage throws)",
+        str(outcome),
+    )
     expect_clean(report, "storage-blocked", bucket, page)
     ctx.close()
 
@@ -290,7 +377,7 @@ def mode_no_js(browser: Browser, report: Report, base: str, name: str, shots: Pa
         ctx = new_context(browser, width, "light", java_script_enabled=False)
         page = ctx.new_page()
         failures: list[str] = []
-        page.on("requestfailed", lambda r: failures.append(r.url))
+        page.on("requestfailed", lambda r, failures=failures: failures.append(r.url))
         page.goto(f"{base}/{name}", wait_until="load")
         views = page.locator("[data-view]")
         count = views.count()
@@ -305,8 +392,10 @@ def mode_no_js(browser: Browser, report: Report, base: str, name: str, shots: Pa
         report.check(page.locator(".atlas-loader").count() == 0, f"{tag} no loader")
         try:
             overflow = page.evaluate(OVERFLOW_JS)
-            report.check(not overflow["offenders"], f"{tag} overflow", "; ".join(overflow["offenders"]))
-        except Exception as error:  # noqa: BLE001
+            report.check(
+                not overflow["offenders"], f"{tag} overflow", "; ".join(overflow["offenders"])
+            )
+        except Exception as error:
             report.note(f"{tag}: evaluate unavailable with JS disabled ({type(error).__name__})")
         report.check(not failures, f"{tag} failed requests", "; ".join(failures[:3]))
         if shots and width == 360:
@@ -317,13 +406,27 @@ def mode_no_js(browser: Browser, report: Report, base: str, name: str, shots: Pa
 
 def mode_reduced_motion(browser: Browser, report: Report, base: str, name: str) -> None:
     tag = f"{name} reduced-motion"
-    ctx, page, bucket = open_page(browser, base, name, reduced_motion="reduce", query="?atlas-motion=1&intro=1")
+    ctx, page, bucket = open_page(
+        browser, base, name, reduced_motion="reduce", query="?atlas-motion=1&intro=1"
+    )
     wait_ready(page)
-    report.check(page.evaluate("() => !document.documentElement.hasAttribute('data-motion')"), f"{tag} data-motion off")
-    report.check(page.evaluate("() => document.querySelectorAll('.atlas-loader,[data-split],.count').length === 0"), f"{tag} no loader/split/counters")
-    hidden = page.evaluate("() => [...document.querySelectorAll('.atlas-appear')].filter(e => e.offsetParent && getComputedStyle(e).opacity !== '1').length")
+    report.check(
+        page.evaluate("() => !document.documentElement.hasAttribute('data-motion')"),
+        f"{tag} data-motion off",
+    )
+    report.check(
+        page.evaluate(
+            "() => document.querySelectorAll('.atlas-loader,[data-split],.count').length === 0"
+        ),
+        f"{tag} no loader/split/counters",
+    )
+    hidden = page.evaluate(
+        "() => [...document.querySelectorAll('.atlas-appear')].filter(e => e.offsetParent && getComputedStyle(e).opacity !== '1').length"
+    )
     report.check(hidden == 0, f"{tag} nothing left transparent", str(hidden))
-    infinite = page.evaluate("() => document.getAnimations().filter(a => a.effect && a.effect.getComputedTiming().iterations === Infinity && a.playState === 'running').length")
+    infinite = page.evaluate(
+        "() => document.getAnimations().filter(a => a.effect && a.effect.getComputedTiming().iterations === Infinity && a.playState === 'running').length"
+    )
     report.check(infinite == 0, f"{tag} no infinite animations running", str(infinite))
     expect_clean(report, tag, bucket, page)
     ctx.close()
@@ -331,7 +434,9 @@ def mode_reduced_motion(browser: Browser, report: Report, base: str, name: str) 
 
 def mode_motion(browser: Browser, report: Report, base: str, name: str, shots: Path | None) -> None:
     tag = f"{name} motion+intro"
-    ctx, page, bucket = open_page(browser, base, name, query="?atlas-motion=1&intro=1", wait="commit")
+    ctx, page, bucket = open_page(
+        browser, base, name, query="?atlas-motion=1&intro=1", wait="commit"
+    )
     seen_loader = False
     for _ in range(40):
         if page.evaluate("() => !!document.querySelector('.atlas-loader')"):
@@ -341,54 +446,98 @@ def mode_motion(browser: Browser, report: Report, base: str, name: str, shots: P
     report.check(seen_loader, f"{tag} loader appears")
     wait_ready(page, timeout=6000)
     page.wait_for_timeout(1400)
-    report.check(page.evaluate("() => !document.querySelector('.atlas-loader') && !document.documentElement.classList.contains('is-loading')"), f"{tag} loader finished and removed")
-    report.check(page.evaluate("() => document.documentElement.dataset.motion === 'on'"), f"{tag} data-motion on")
+    report.check(
+        page.evaluate(
+            "() => !document.querySelector('.atlas-loader') && !document.documentElement.classList.contains('is-loading')"
+        ),
+        f"{tag} loader finished and removed",
+    )
+    report.check(
+        page.evaluate("() => document.documentElement.dataset.motion === 'on'"),
+        f"{tag} data-motion on",
+    )
     ids = page.evaluate("() => window.AtlasTheme.audit().views")
     for route in ids:
         goto_route(page, base, route)
         scroll_through(page)
         page.wait_for_timeout(1500)
-        pending = page.evaluate("() => [...document.querySelectorAll('[data-view]:not([hidden]) .atlas-appear')].filter(e => !e.classList.contains('is-in-view')).length")
+        pending = page.evaluate(
+            "() => [...document.querySelectorAll('[data-view]:not([hidden]) .atlas-appear')].filter(e => !e.classList.contains('is-in-view')).length"
+        )
         report.check(pending == 0, f"{tag} #{route} all reveals fired", str(pending))
-        faded = page.evaluate("() => [...document.querySelectorAll('[data-view]:not([hidden]) .atlas-appear')].filter(e => getComputedStyle(e).opacity !== '1').length")
+        faded = page.evaluate(
+            "() => [...document.querySelectorAll('[data-view]:not([hidden]) .atlas-appear')].filter(e => getComputedStyle(e).opacity !== '1').length"
+        )
         report.check(faded == 0, f"{tag} #{route} reveals fully opaque", str(faded))
         split_bad = page.evaluate("""() => [...document.querySelectorAll('[data-view]:not([hidden]) [data-split]')].filter(h => {
             const norm = (s) => s.replace(/\\s+/g, ' ').trim();
             return norm(h.getAttribute('aria-label') || '') !== norm(h.innerText);
           }).map(h => h.textContent.slice(0, 30)).length""")
-        report.check(split_bad == 0, f"{tag} #{route} split headings keep their text", str(split_bad))
-        counters = page.evaluate("() => [...document.querySelectorAll('[data-view]:not([hidden]) .count')].filter(c => c.textContent !== c.dataset.final).length")
-        report.check(counters == 0, f"{tag} #{route} counters land on the real number", str(counters))
-        title_ok = page.evaluate("() => { const v = document.querySelector('[data-view]:not([hidden])'); return document.title === (v.dataset.title || document.title); }")
+        report.check(
+            split_bad == 0, f"{tag} #{route} split headings keep their text", str(split_bad)
+        )
+        counters = page.evaluate(
+            "() => [...document.querySelectorAll('[data-view]:not([hidden]) .count')].filter(c => c.textContent !== c.dataset.final).length"
+        )
+        report.check(
+            counters == 0, f"{tag} #{route} counters land on the real number", str(counters)
+        )
+        title_ok = page.evaluate(
+            "() => { const v = document.querySelector('[data-view]:not([hidden])'); return document.title === (v.dataset.title || document.title); }"
+        )
         report.check(title_ok, f"{tag} #{route} document.title follows the view")
-        focused = page.evaluate("() => { const a = document.activeElement; return a ? a.tagName : ''; }")
-        report.check(focused in ("H1", "H2", "H3"), f"{tag} #{route} focus moved to heading", focused)
-        current = page.evaluate("() => document.querySelectorAll('.site-nav a[aria-current=page]').length")
+        focused = page.evaluate(
+            "() => { const a = document.activeElement; return a ? a.tagName : ''; }"
+        )
+        report.check(
+            focused in ("H1", "H2", "H3"), f"{tag} #{route} focus moved to heading", focused
+        )
+        current = page.evaluate(
+            "() => document.querySelectorAll('.site-nav a[aria-current=page]').length"
+        )
         report.check(current <= 1, f"{tag} #{route} at most one nav item current", str(current))
         if shots and route == ids[0]:
             shots.mkdir(parents=True, exist_ok=True)
-            page.screenshot(path=str(shots / f"motion-{Path(name).stem}-{route}.png"), full_page=True)
+            page.screenshot(
+                path=str(shots / f"motion-{Path(name).stem}-{route}.png"), full_page=True
+            )
     # Rapid navigation must not throw or leave two views visible.
     if len(ids) >= 3:
-        page.evaluate("(ids) => { location.hash = ids[1]; setTimeout(() => { location.hash = ids[2]; }, 10); setTimeout(() => { location.hash = ids[0]; }, 25); }", ids)
+        page.evaluate(
+            "(ids) => { location.hash = ids[1]; setTimeout(() => { location.hash = ids[2]; }, 10); setTimeout(() => { location.hash = ids[0]; }, 25); }",
+            ids,
+        )
         page.wait_for_timeout(1500)
-        report.check(active_view(page) == ids[0], f"{tag} rapid navigation settles on the last route", active_view(page))
+        report.check(
+            active_view(page) == ids[0],
+            f"{tag} rapid navigation settles on the last route",
+            active_view(page),
+        )
     # Theme toggle (view-transition path).
     before = page.evaluate("() => getComputedStyle(document.body).backgroundColor")
     page.click(".theme-toggle")
     page.wait_for_timeout(1100)
-    flipped = page.evaluate("() => ({t: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor, p: document.querySelector('.theme-toggle').getAttribute('aria-pressed')})")
-    report.check(flipped["t"] == "dark" and flipped["bg"] != before and flipped["p"] == "true", f"{tag} theme toggle flips to dark", str(flipped))
+    flipped = page.evaluate(
+        "() => ({t: document.documentElement.dataset.theme, bg: getComputedStyle(document.body).backgroundColor, p: document.querySelector('.theme-toggle').getAttribute('aria-pressed')})"
+    )
+    report.check(
+        flipped["t"] == "dark" and flipped["bg"] != before and flipped["p"] == "true",
+        f"{tag} theme toggle flips to dark",
+        str(flipped),
+    )
     page.click(".theme-toggle")
     page.wait_for_timeout(1100)
-    report.check(page.evaluate("() => document.documentElement.dataset.theme") == "light", f"{tag} theme toggle flips back")
+    report.check(
+        page.evaluate("() => document.documentElement.dataset.theme") == "light",
+        f"{tag} theme toggle flips back",
+    )
     expect_clean(report, tag, bucket, page)
     ctx.close()
 
 
 def mode_routing(browser: Browser, report: Report, base: str, name: str) -> None:
     tag = f"{name} routing"
-    ctx, page, bucket = open_page(browser, base, name)
+    ctx, page, _bucket = open_page(browser, base, name)
     wait_ready(page)
     ids = page.evaluate("() => window.AtlasTheme.audit().views")
     ctx.close()
@@ -397,7 +546,11 @@ def mode_routing(browser: Browser, report: Report, base: str, name: str) -> None
         wait_ready(p)
         p.wait_for_timeout(300)
         report.check(active_view(p) == route, f"{tag} deep link #{route}", active_view(p))
-        report.check(p.evaluate("() => window.scrollY") < 6, f"{tag} deep link #{route} starts at top", str(p.evaluate("() => window.scrollY")))
+        report.check(
+            p.evaluate("() => window.scrollY") < 6,
+            f"{tag} deep link #{route} starts at top",
+            str(p.evaluate("() => window.scrollY")),
+        )
         expect_clean(report, f"{tag} deep #{route}", b, p)
         c.close()
     home = ids[0]
@@ -414,7 +567,9 @@ def mode_routing(browser: Browser, report: Report, base: str, name: str) -> None
         wait_ready(p)
         p.wait_for_timeout(500)
         top = p.evaluate("(id) => document.getElementById(id).getBoundingClientRect().top", anchor)
-        report.check(active_view(p) == owner, f"{tag} #{anchor} shows its owning view", active_view(p))
+        report.check(
+            active_view(p) == owner, f"{tag} #{anchor} shows its owning view", active_view(p)
+        )
         report.check(-5 <= top <= 220, f"{tag} #{anchor} scrolled into place", str(round(top)))
         c.close()
     # History: forward / back across views, and the skip link must not change the view.
@@ -423,12 +578,22 @@ def mode_routing(browser: Browser, report: Report, base: str, name: str) -> None
         wait_ready(p)
         for route in (ids[1], ids[2]):
             p.evaluate("(id) => { location.hash = id; }", route)
-            poll(p, "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }", route)
+            poll(
+                p,
+                "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }",
+                route,
+            )
         p.go_back()
-        poll(p, "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }", ids[1])
-        report.check(active_view(p) == ids[1], f"{tag} Back returns to previous view", active_view(p))
+        poll(
+            p, "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }", ids[1]
+        )
+        report.check(
+            active_view(p) == ids[1], f"{tag} Back returns to previous view", active_view(p)
+        )
         p.go_forward()
-        poll(p, "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }", ids[2])
+        poll(
+            p, "(id) => { const v = document.getElementById(id); return !!v && !v.hidden; }", ids[2]
+        )
         report.check(active_view(p) == ids[2], f"{tag} Forward returns", active_view(p))
         expect_clean(report, f"{tag} history", b, p)
         c.close()
@@ -445,19 +610,27 @@ def mode_routing(browser: Browser, report: Report, base: str, name: str) -> None
     p.focus(".skip-link")
     p.keyboard.press("Enter")
     p.wait_for_timeout(500)
-    report.check(active_view(p) == target, f"{tag} skip link keeps the current view", active_view(p))
+    report.check(
+        active_view(p) == target, f"{tag} skip link keeps the current view", active_view(p)
+    )
     expect_clean(report, f"{tag} skip", b, p)
     c.close()
     # Case-study table of contents (when the page has one).
     for route in ids:
         c, p, b = open_page(browser, base, name, query=f"#{route}")
         wait_ready(p)
-        n = p.evaluate("() => document.querySelectorAll('[data-view]:not([hidden]) .case-toc a').length")
+        n = p.evaluate(
+            "() => document.querySelectorAll('[data-view]:not([hidden]) .case-toc a').length"
+        )
         if n >= 2:
             p.click("[data-view]:not([hidden]) .case-toc a:nth-child(2)")
             p.wait_for_timeout(900)
-            report.check(active_view(p) == route, f"{tag} TOC click keeps the case view", active_view(p))
-            cur = p.evaluate("() => document.querySelectorAll('[data-view]:not([hidden]) .case-toc a[aria-current=true]').length")
+            report.check(
+                active_view(p) == route, f"{tag} TOC click keeps the case view", active_view(p)
+            )
+            cur = p.evaluate(
+                "() => document.querySelectorAll('[data-view]:not([hidden]) .case-toc a[aria-current=true]').length"
+            )
             report.check(cur == 1, f"{tag} TOC marks one current section", str(cur))
             expect_clean(report, f"{tag} toc", b, p)
             c.close()
@@ -489,20 +662,29 @@ def mode_keyboard(browser: Browser, report: Report, base: str, name: str) -> Non
     # Palette
     page.keyboard.press("Control+k")
     page.wait_for_timeout(400)
-    report.check(page.evaluate("() => !!document.querySelector('dialog.palette[open]')"), f"{tag} Ctrl+K opens the palette")
+    report.check(
+        page.evaluate("() => !!document.querySelector('dialog.palette[open]')"),
+        f"{tag} Ctrl+K opens the palette",
+    )
     page.keyboard.type("a")
     page.wait_for_timeout(150)
     options = page.evaluate("() => document.querySelectorAll('.palette-list [role=option]').length")
     report.check(options >= 1, f"{tag} palette lists results", str(options))
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
-    report.check(page.evaluate("() => !document.querySelector('dialog.palette[open]')"), f"{tag} Escape closes the palette")
+    report.check(
+        page.evaluate("() => !document.querySelector('dialog.palette[open]')"),
+        f"{tag} Escape closes the palette",
+    )
     page.keyboard.press("Control+k")
     page.wait_for_timeout(300)
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     page.wait_for_timeout(700)
-    report.check(page.evaluate("() => !document.querySelector('dialog.palette[open]')"), f"{tag} Enter chooses and closes")
+    report.check(
+        page.evaluate("() => !document.querySelector('dialog.palette[open]')"),
+        f"{tag} Enter chooses and closes",
+    )
     # Tab order: every stop is a real, visible control with a focus indicator.
     page.evaluate("() => { location.hash = ''; window.scrollTo(0, 0); }")
     page.wait_for_timeout(300)
@@ -525,19 +707,34 @@ def mode_keyboard(browser: Browser, report: Report, base: str, name: str) -> Non
     wait_ready(page)
     page.click(".menu-toggle")
     page.wait_for_timeout(500)
-    state = page.evaluate("() => ({e: document.querySelector('.menu-toggle').getAttribute('aria-expanded'), o: document.querySelector('.site-nav').hasAttribute('data-open'), v: getComputedStyle(document.querySelector('.site-nav')).visibility})")
-    report.check(state == {"e": "true", "o": True, "v": "visible"}, f"{tag} menu opens and stays open", str(state))
+    state = page.evaluate(
+        "() => ({e: document.querySelector('.menu-toggle').getAttribute('aria-expanded'), o: document.querySelector('.site-nav').hasAttribute('data-open'), v: getComputedStyle(document.querySelector('.site-nav')).visibility})"
+    )
+    report.check(
+        state == {"e": "true", "o": True, "v": "visible"},
+        f"{tag} menu opens and stays open",
+        str(state),
+    )
     page.keyboard.press("Escape")
     page.wait_for_timeout(400)
-    closed = page.evaluate("() => ({o: document.querySelector('.site-nav').hasAttribute('data-open'), f: document.activeElement.className})")
-    report.check(not closed["o"] and "menu-toggle" in closed["f"], f"{tag} Escape closes the menu and returns focus", str(closed))
+    closed = page.evaluate(
+        "() => ({o: document.querySelector('.site-nav').hasAttribute('data-open'), f: document.activeElement.className})"
+    )
+    report.check(
+        not closed["o"] and "menu-toggle" in closed["f"],
+        f"{tag} Escape closes the menu and returns focus",
+        str(closed),
+    )
     page.click(".menu-toggle")
     page.wait_for_timeout(400)
     links = page.locator(".site-nav a")
     if links.count() > 1:
         links.nth(1).click()
         page.wait_for_timeout(500)
-        report.check(page.evaluate("() => !document.querySelector('.site-nav').hasAttribute('data-open')"), f"{tag} choosing a link closes the menu")
+        report.check(
+            page.evaluate("() => !document.querySelector('.site-nav').hasAttribute('data-open')"),
+            f"{tag} choosing a link closes the menu",
+        )
     expect_clean(report, f"{tag} mobile", bucket, page)
     ctx.close()
 
@@ -545,7 +742,7 @@ def mode_keyboard(browser: Browser, report: Report, base: str, name: str) -> Non
 def mode_axe(browser: Browser, report: Report, base: str, name: str, axe_src: str) -> None:
     for width, scheme in ((1280, "light"), (1280, "dark"), (360, "light")):
         tag = f"{name}@{width}/{scheme} axe"
-        ctx, page, bucket = open_page(browser, base, name, width=width, scheme=scheme)
+        ctx, page, _bucket = open_page(browser, base, name, width=width, scheme=scheme)
         wait_ready(page)
         page.evaluate(axe_src)
         ids = page.evaluate("() => window.AtlasTheme.audit().views")
@@ -560,12 +757,18 @@ def mode_axe(browser: Browser, report: Report, base: str, name: str, axe_src: st
             }""")
             hard = [v for v in result["v"] if v["impact"] in ("serious", "critical")]
             soft = [v for v in result["v"] if v["impact"] not in ("serious", "critical")]
-            report.check(not hard, f"{tag} #{route} serious/critical violations", "; ".join(f"{v['id']}({v['n']}) {v['sample']}" for v in hard[:4]))
+            report.check(
+                not hard,
+                f"{tag} #{route} serious/critical violations",
+                "; ".join(f"{v['id']}({v['n']}) {v['sample']}" for v in hard[:4]),
+            )
             for v in soft:
                 report.note(f"{tag} #{route} {v['impact']}: {v['id']} x{v['n']} {v['sample']}")
             for v in result["inc"]:
                 if v["id"] == "color-contrast":
-                    report.note(f"{tag} #{route} contrast needs manual review on {v['n']} node(s) (gradient/blended backgrounds)")
+                    report.note(
+                        f"{tag} #{route} contrast needs manual review on {v['n']} node(s) (gradient/blended backgrounds)"
+                    )
         ctx.close()
 
 
@@ -630,6 +833,7 @@ HIDE_TEXT_JS = """
 
 def _lum(rgb):
     import numpy as np
+
     c = np.asarray(rgb, dtype="float64") / 255.0
     c = np.where(c <= 0.03928, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
     return 0.2126 * c[..., 0] + 0.7152 * c[..., 1] + 0.0722 * c[..., 2]
@@ -665,7 +869,10 @@ def mode_contrast(browser: Browser, report: Report, base: str, name: str) -> Non
                     skipped += 1
                     continue
                 x0, y0 = max(0, int(item["x"])), max(0, int(item["y"]))
-                x1, y1 = min(wide, int(item["x"] + item["w"]) + 1), min(height, int(item["y"] + item["h"]) + 1)
+                x1, y1 = (
+                    min(wide, int(item["x"] + item["w"]) + 1),
+                    min(height, int(item["y"] + item["h"]) + 1),
+                )
                 if x1 <= x0 or y1 <= y0:
                     continue
                 region = pixels[y0:y1, x0:x1].reshape(-1, 3)
@@ -676,21 +883,25 @@ def mode_contrast(browser: Browser, report: Report, base: str, name: str) -> Non
                 fg = np.asarray(item["fg"][:3], dtype="float64")
                 ratios = []
                 for pct in (2, 50, 98):
-                    pick = region[np.argsort(lums)[int(len(lums) * pct / 100.0) if pct < 100 else -1]]
+                    pick = region[
+                        np.argsort(lums)[int(len(lums) * pct / 100.0) if pct < 100 else -1]
+                    ]
                     blended = fg * alpha + pick.astype("float64") * (1 - alpha)
                     lf, lb = float(_lum(blended)), float(_lum(pick))
                     ratios.append((max(lf, lb) + 0.05) / (min(lf, lb) + 0.05))
                 ratio = min(ratios)
                 large = item["size"] >= 24 or (item["size"] >= 18.66 and item["weight"] >= 700)
                 need = 3.0 if large else 4.5
-                key = f"{item['sel']} \"{item['text']}\""
+                key = f'{item["sel"]} "{item["text"]}"'
                 if ratio < need and (key not in worst or ratio < worst[key][0]):
                     worst[key] = (ratio, f"need {need}")
             for key, (ratio, need) in sorted(worst.items(), key=lambda kv: kv[1][0])[:6]:
                 report.check(False, f"{tag} #{route} low contrast", f"{key} = {ratio:.2f} ({need})")
             report.checks += 1
             if skipped:
-                report.note(f"{tag} #{route}: {skipped} gradient-text node(s) not measured (large display numerals)")
+                report.note(
+                    f"{tag} #{route}: {skipped} gradient-text node(s) not measured (large display numerals)"
+                )
         expect_clean(report, tag, bucket)
         ctx.close()
 
@@ -708,13 +919,23 @@ def check_two_files(report: Report) -> None:
     report.check("fonts.googleapis.com" in css, "style.css imports its fonts from Google Fonts")
     report.check("data:font" not in css, "style.css embeds no font data")
     js = (ROOT / "theme.js").read_text(encoding="utf-8")
-    report.check(not re.search(r"\b(fetch|XMLHttpRequest|eval|importScripts)\s*\(", js) and "new Function" not in js, "theme.js makes no network calls and uses no eval")
+    report.check(
+        not re.search(r"\b(fetch|XMLHttpRequest|eval|importScripts)\s*\(", js)
+        and "new Function" not in js,
+        "theme.js makes no network calls and uses no eval",
+    )
     allowed = ("style.css", "theme.js")
     for page in PAGES:
         html = (ROOT / page).read_text(encoding="utf-8")
         tokens = EXPECTED_BROKEN.get(page, [])
-        refs = [r for r in re.findall(r'(?:src|href)="(\./[^"]+)"', html) if not r.endswith(allowed) and not any(t in r for t in tokens)]
-        report.check(not refs, f"{page} references only style.css and theme.js", "; ".join(refs[:3]))
+        refs = [
+            r
+            for r in re.findall(r'(?:src|href)="(\./[^"]+)"', html)
+            if not r.endswith(allowed) and not any(t in r for t in tokens)
+        ]
+        report.check(
+            not refs, f"{page} references only style.css and theme.js", "; ".join(refs[:3])
+        )
     for stray in ("fonts", "assets", "build", "LICENSES"):
         report.check(not (ROOT / stray).exists(), f"no {stray}/ folder")
 
@@ -725,11 +946,19 @@ def main() -> int:
     parser.add_argument("--widths", nargs="*", type=int, default=WIDTHS)
     parser.add_argument("--schemes", nargs="*", default=["light", "dark"])
     parser.add_argument("--shots", default="")
-    parser.add_argument("--csp", action="store_true", help="emulate the Studio's old strict CSP + sandbox")
+    parser.add_argument(
+        "--csp", action="store_true", help="emulate the Studio's old strict CSP + sandbox"
+    )
     parser.add_argument("--axe", default="", help="path to axe.min.js (test-only; not shipped)")
-    parser.add_argument("--matrix", action="store_true", help="only the page x width x scheme matrix")
-    parser.add_argument("--modes", nargs="*", default=None,
-                        help="subset of: storage nojs reduced motion routing keyboard axe contrast (storage needs --csp)")
+    parser.add_argument(
+        "--matrix", action="store_true", help="only the page x width x scheme matrix"
+    )
+    parser.add_argument(
+        "--modes",
+        nargs="*",
+        default=None,
+        help="subset of: storage nojs reduced motion routing keyboard axe contrast (storage needs --csp)",
+    )
     args = parser.parse_args()
 
     report = Report()
@@ -739,8 +968,15 @@ def main() -> int:
     base = f"http://127.0.0.1:{port}"
     shots = Path(args.shots) if args.shots else None
     pages = [p for p in args.pages if (ROOT / p).exists()]
-    wanted = set(args.modes) if args.modes is not None else {"storage", "nojs", "reduced", "motion", "routing", "keyboard", "axe", "contrast"} - (set() if args.csp else {"storage"})
-    axe_src = Path(args.axe).read_text(encoding="utf-8") if args.axe and Path(args.axe).exists() else ""
+    wanted = (
+        set(args.modes)
+        if args.modes is not None
+        else {"storage", "nojs", "reduced", "motion", "routing", "keyboard", "axe", "contrast"}
+        - (set() if args.csp else {"storage"})
+    )
+    axe_src = (
+        Path(args.axe).read_text(encoding="utf-8") if args.axe and Path(args.axe).exists() else ""
+    )
     if "axe" in wanted and not axe_src and not args.matrix:
         report.note("axe pass skipped: pass --axe path/to/axe.min.js")
     with sync_playwright() as pw:
@@ -749,14 +985,24 @@ def main() -> int:
         def guarded(label: str, fn, *fn_args) -> None:
             try:
                 fn(*fn_args)
-            except Exception as error:  # noqa: BLE001 - report and continue
+            except Exception as error:
                 report.check(False, f"{label} crashed", repr(error)[:300])
 
         if args.modes is None or args.matrix or not args.modes:
             for name in pages:
                 for width in args.widths:
                     for scheme in args.schemes:
-                        guarded(f"{name}@{width}/{scheme}", check_page, browser, report, base, name, width, scheme, shots)
+                        guarded(
+                            f"{name}@{width}/{scheme}",
+                            check_page,
+                            browser,
+                            report,
+                            base,
+                            name,
+                            width,
+                            scheme,
+                            shots,
+                        )
         if not args.matrix:
             if "storage" in wanted and args.csp:
                 guarded("storage", mode_storage_blocked, browser, report, base, True)

@@ -13,6 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from oryxenai.agents.content_architect.page_content import (
+    atlas_page_errors,
     page_completeness_errors,
     page_shape_errors,
 )
@@ -69,11 +70,21 @@ def _too_long(path: str, value: Any, limit: int) -> Issue | None:
     return None
 
 
-def content_admission_issues(page_content: Mapping[str, Any]) -> list[Issue]:
+def content_admission_issues(
+    page_content: Mapping[str, Any],
+    *,
+    theme_id: str = "",
+    allow_illustrative_work: bool = False,
+) -> list[Issue]:
     """Everything wrong with ``page_content`` for building a page (empty = buildable)."""
     content = dict(page_content)
     issues: list[Issue] = []
-    for message in [*page_shape_errors(content), *page_completeness_errors(content)]:
+    atlas_errors = (
+        atlas_page_errors(content, allow_illustrative_work=allow_illustrative_work)
+        if theme_id == "cobalt-atlas/v2"
+        else []
+    )
+    for message in [*page_shape_errors(content), *page_completeness_errors(content), *atlas_errors]:
         match = _PATH_PREFIX.match(message)
         issues.append(
             Issue(

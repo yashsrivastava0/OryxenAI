@@ -201,6 +201,7 @@ export interface StudioPreviewGrant {
   expires_in_seconds: number;
   version_id: string;
   version_number: number | null;
+  allows_scripts?: boolean;
 }
 
 export interface MeProjection {

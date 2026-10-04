@@ -12,10 +12,12 @@ from oryxenai.agents.discovery.schemas import (
 )
 
 PALETTE_GAP_ID = "visual_palette_v1"
+WORK_GAP_ID = "atlas_work_v1"
 PALETTE_TO_THEME = {
     "forest_copper": "editorial-forest-motion/v1",
     "cobalt_white": "cobalt-atlas/v1",
     "obsidian_lime": "obsidian-signal/v1",
+    "cobalt_atlas_interactive": "cobalt-atlas/v2",
 }
 
 
@@ -45,6 +47,12 @@ def palette_question() -> DiscoveryQuestion:
                 description="Bold modernity · high contrast and energetic",
                 swatches=["#0c0e0d", "#d9fc73", "#f0f2eb"],
             ),
+            QuestionOption(
+                id="cobalt_atlas_interactive",
+                label="Cobalt & volt",
+                description="Interactive editorial · layered and vivid",
+                swatches=["#f8f8f5", "#3656d6", "#d7fa76"],
+            ),
         ],
         allow_skip=False,
     )
@@ -72,3 +80,28 @@ def palette_answer(value: Any) -> tuple[str, str] | None:
     if not isinstance(note, str) or len(note.strip()) > 1000:
         return None
     return choice, note.strip()
+
+
+def atlas_work_question(question_id: str) -> DiscoveryQuestion:
+    return DiscoveryQuestion(
+        id=question_id,
+        gap_id=WORK_GAP_ID,
+        text="Is there a project you want to feature?",
+        help_text=(
+            "Share a real project if you like. You can also allow a clearly labeled "
+            "illustrative concept if your material has no usable project."
+        ),
+        kind=QuestionKind.WORK_DETAIL,
+        allow_skip=True,
+    )
+
+
+def atlas_work_answer(value: Any) -> tuple[str, bool] | None:
+    if not isinstance(value, dict) or set(value) != {"details", "allow_illustrative"}:
+        return None
+    details, allowed = value["details"], value["allow_illustrative"]
+    if not isinstance(details, str) or not isinstance(allowed, bool):
+        return None
+    if len(details.strip()) > 12000 or (not details.strip() and not allowed):
+        return None
+    return details.strip(), allowed

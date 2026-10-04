@@ -28,6 +28,7 @@ from oryxenai.jobs.handlers.code_generator import CodeGeneratorBuildHandler
 from oryxenai.jobs.repository import JobRepository
 from oryxenai.main import create_app
 from oryxenai.themes import get_theme
+from oryxenai.themes.cobalt_atlas.v2.contract import _symbolic_content
 from tests.conftest import install_test_identity
 from tests.unit.agents.code_generator.helpers import sample_content
 
@@ -69,10 +70,13 @@ async def _approve_content(
         repo = ContentArchitectRepository(db)
         session = await repo.get_session(UUID(session_id))
         assert session is not None
+        page = sample_content("01_strong_profile")
+        if theme_id == "cobalt-atlas/v2":
+            page["atlas"] = _symbolic_content()["atlas"]
         state = ContentArchitectState(
             status=ContentArchitectStatus.APPROVED,
             intake=ContentArchitectIntake(selected_theme_id=theme_id),
-            page_content=PortfolioPageContent.model_validate(sample_content("01_strong_profile")),
+            page_content=PortfolioPageContent.model_validate(page),
             approved=ContentArchitectApproval(
                 approved_at="2026-10-02T00:00:00+00:00", content_hash="h1"
             ),
@@ -204,6 +208,28 @@ async def test_selected_theme_builds_and_serves_its_own_css(client, theme_id: st
     assert html.status_code == css.status_code == 200
     assert sample_content("01_strong_profile")["hero"]["name"] in html.text
     assert css.content == get_theme(theme_id).stylesheet.data
+
+
+@pytest.mark.asyncio
+async def test_atlas_scripted_theme_builds_and_serves_the_pinned_pair(client) -> None:
+    session_id = await _create_session(client)
+    await _approve_content(client, session_id, theme_id="cobalt-atlas/v2")
+    base = f"/api/v1/sessions/{session_id}/code-generator"
+    started = await client.post(f"{base}/start")
+    assert started.status_code == 202, started.text
+    result = await _run_build(client, started.json())
+    assert result["status"] == "succeeded", result
+    grant = (await client.get(f"{base}/preview-grant")).json()
+    assert grant["allows_scripts"] is True
+    html = await client.get(grant["url"])
+    css = await client.get(grant["url"].replace("index.html", "style.css"))
+    script = await client.get(grant["url"].replace("index.html", "theme.js"))
+    assert html.status_code == css.status_code == script.status_code == 200
+    assert 'id="case-1"' in html.text
+    assert "sandbox allow-scripts" in html.headers["content-security-policy"]
+    theme = get_theme("cobalt-atlas/v2")
+    assert css.content == theme.stylesheet.data
+    assert script.content == theme.file("theme.js").data
 
 
 @pytest.mark.asyncio

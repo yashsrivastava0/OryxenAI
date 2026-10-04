@@ -1,3 +1,13 @@
+## D-131 — Fourth scripted Atlas theme and grounded sparse work
+
+- **Date & Time:** 2026-10-04 12:25 +05:30 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** The owner supplied a fourth, more advanced pre-built design as `style.css` plus `theme.js`. Its Home, About, and optional case-study routes need more content than the three existing CSS-only themes. Owners may have no project details or photo yet.
+- **Decision:** Package the supplied pair as immutable `cobalt-atlas/v2`, with local licensed fonts, fixed host-owned script inclusion, a closed markup contract, full bundle hashes, and an opaque scripted preview sandbox. Discovery offers a fourth visual choice and one optional project-detail question. Content Architect fills an Atlas-specific supplement from approved evidence. If work is absent, the generated HTML shows abstract CSS artwork and a designed work invitation; one clearly labeled illustrative concept is allowed only after explicit Discovery opt-in and cannot claim a client or result. The current profile visual uses derived initials. Studio chat may edit existing Atlas copy and rechecks the selected theme's admission rules.
+- **Rejected alternatives:** User-specific CSS/JavaScript, unreviewed model-written scripts, invented achievements or numeric results, silently using a fictional project, blocking otherwise complete content for missing optional work, and a photo upload before the workspace storage flow exists.
+- **Trade-off:** A scripted preview has a larger trust boundary and the content plan has Atlas-only optional fields. The fixed script runs under CSP `sandbox allow-scripts` without `allow-same-origin`, and browser verification covers its routes when browser policy is enabled. Photo upload and per-user asset workspaces remain separate future work.
+- **Consequence:** Supersedes D-128's research-only proposal for this package while preserving v1 versions. No publishing, cloud setting, or deployment branch changes.
+
 ## D-130 — Resilient Supabase authentication provider reads
 
 - **Date & Time:** 2026-10-04 — Codex (OpenAI)

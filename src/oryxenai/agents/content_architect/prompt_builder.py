@@ -66,7 +66,6 @@ def build_instructions(
 
     Returns (system_prompt, full_task, version, module_manifest).
     """
-    del source_packet
     from oryxenai.agents.content_architect.schemas import ContentArchitectOutput
 
     if operation not in _OPERATION_PROMPT_FILE:
@@ -77,6 +76,10 @@ def build_instructions(
     )
 
     system_prompt = _load_text("system.md")
+    atlas_prompt = ""
+    if source_packet.get("selected_theme_id") == "cobalt-atlas/v2":
+        atlas_prompt = _load_text("atlas_pages.md")
+        system_prompt = f"{system_prompt}\n\n{atlas_prompt}"
     operation_prompt = _load_text(_OPERATION_PROMPT_FILE[operation])
     task = (
         f"{operation_prompt}\n\n"
@@ -92,4 +95,6 @@ def build_instructions(
         _OPERATION_PROMPT_FILE[operation]: _hash16(operation_prompt),
         "schema": hashlib.sha256(schema.encode("utf-8")).hexdigest()[:16],
     }
+    if atlas_prompt:
+        manifest["atlas_pages.md"] = _hash16(atlas_prompt)
     return system_prompt, task, version, manifest

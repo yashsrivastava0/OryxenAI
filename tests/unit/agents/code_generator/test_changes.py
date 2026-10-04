@@ -20,6 +20,7 @@ from oryxenai.agents.code_generator.changes import (
 from oryxenai.agents.code_generator.prompt_builder import build_instructions
 from oryxenai.agents.code_generator.schemas import ChangeIntent, ChangeOperation, ChangePlanEnvelope
 from oryxenai.themes import get_theme
+from oryxenai.themes.cobalt_atlas.v2.contract import _symbolic_content
 from tests.unit.agents.code_generator.helpers import sample_content
 
 CONTENT = sample_content("01_strong_profile")
@@ -40,6 +41,21 @@ def test_set_replaces_text_fields_and_trims() -> None:
     updated = apply_operations(CONTENT, [op("set", "hero.intro", "  A shorter intro.  ")])
     assert updated["hero"]["intro"] == "A shorter intro."
     assert CONTENT["hero"]["intro"] != "A shorter intro."  # the input is never mutated
+
+
+def test_atlas_chat_edits_existing_case_copy_with_theme_admission() -> None:
+    content = copy.deepcopy(CONTENT)
+    content["atlas"] = _symbolic_content()["atlas"]
+    content["atlas"]["projects"][0]["kind"] = "illustrative"
+    change = plan(ops=[op("set", "atlas.projects[0].summary", "A proposed concept.").model_dump()])
+    accepted = decide_change(
+        content, change, theme_id="cobalt-atlas/v2", allow_illustrative_work=True
+    )
+    assert accepted.kind == "build"
+    assert accepted.new_content is not None
+    assert accepted.new_content["atlas"]["projects"][0]["summary"] == "A proposed concept."
+    rejected = decide_change(content, change, theme_id="cobalt-atlas/v2")
+    assert rejected.kind == "reply"
 
 
 def test_set_edits_one_pillar_without_touching_the_others() -> None:
