@@ -27,4 +27,52 @@ The current Studio contract deliberately forbids scripts and accepts a one-page 
 
 ## Prototype limits
 
-The illustrations are CSS concepts, not real product screenshots. The provided resume and its metrics are fictional. The optional Google Fonts import in this test can fall back to local system fonts; production should self-host pinned fonts. This test does not modify the Studio backend or its security policy.
+The illustrations are CSS concepts, not real product screenshots. The provided resume, the extra fixtures and all metrics are fictional. Fonts are imported from Google Fonts by `style.css` (the theme is exactly `style.css` + `theme.js`); the fixtures' small images are inline `data:` URIs and any image URL works. The earlier embedded-font experiment was dropped in favour of this simpler setup. This test does not modify the Studio backend or its security policy.
+
+## 2026 research pass (theme v2)
+
+Goal: find out how top-tier portfolio sites are built with HTML, CSS and JavaScript in 2026, and decide what a **content-independent** theme should adopt.
+
+### What advanced sites actually run on
+
+- Award-level portfolio sites are mostly framework apps (typically Next.js) with **GSAP + ScrollTrigger** for scroll and timeline choreography, **Lenis** for smooth scrolling kept in sync with GSAP on one animation frame loop, and **Three.js/WebGL** for 3D hero scenes. Page transitions come from GSAP timelines or the View Transitions API.
+- GSAP became free (including SplitText, ScrollTrigger, Flip, MorphSVG) in 2025 after Webflow acquired it, but under a **proprietary "no charge" licence**, not an open-source one. Its terms restrict use in tools that compete with Webflow's visual animation building. A product that *generates* sites for other people is a grey area, and the file would also have to be vendored through the Studio's sealing and CSP. **Decision: do not depend on it.**
+- Lenis is MIT and small, and it keeps native scrolling, but replacing scroll behaviour is a contested accessibility trade-off and adds a vendored file. **Decision: skip it; use native scrolling.**
+- Three.js/WebGL gives the strongest wow but is heavy and fragile under a sandbox. **Decision: out of scope**; CSS gradients (with `@property`-animated coordinates) give a similar feel without a GPU dependency.
+
+### What the platform now covers natively (and what the theme uses)
+
+| Capability | Status found | Use in the theme |
+| --- | --- | --- |
+| Same-document View Transitions | Chrome 111, Safari 18, Firefox 144 | Route crossfade, shared-element art morph, circular theme reveal. Plain swap without support. |
+| Cross-document View Transitions | Chrome 126, Safari 18.2 | Not used (single-document hash routing). |
+| Scroll-driven animations (`animation-timeline`) | Chrome 115, Safari 26; Firefox stable still behind a flag | Progress bar and parallax under `@supports`; JS fills in for Firefox. |
+| `light-dark()`, `oklch()`, `color-mix()`, `@property`, `:has()`, container queries, `@layer`, `text-wrap` | Baseline | Core of the token system and layout. |
+| `@starting-style`, `linear()`, anchor positioning | Shipping in current engines | Palette/dialog entry. |
+| `sibling-index()`, `scroll-state()` queries, `corner-shape`, `scroll-target-group`, `contrast-color()` | Chromium-only or very new | Deliberately **not** relied on. |
+
+### Patterns adopted from current top-tier sites
+
+Large type hierarchy with a serif-italic accent, bento/modular stat grids, kinetic (word-reveal) headlines, spotlight and magnetic micro-interactions on fine pointers only, animated mesh gradients, marquees, a command palette, dark mode with an OS default, shared-element transitions, and skeleton/bounded-intro loading states (skeletons mirror real layout, avoid full-page spinners, and show nothing for sub-100 ms waits).
+
+### Constraint that shaped everything else
+
+A generated portfolio must work for any profession and any volume of content, inside a sandbox with a strict CSP and an opaque origin. That ruled out libraries and external assets, forced every effect to be optional, and led to features that make the theme robust instead of just pretty: headline size tiers, container-query cards, character-count-aware numerals, a boot veil to prevent re-flow, metric-matched fallback fonts, and an automation mode that shows the finished page.
+
+### Sources
+
+Read in full: Chrome "What's new in web UI" (I/O 2026), web.dev "Interop 2026", LogRocket "CSS in 2026", MDN View Transition API, MDN Scroll-driven animations, the GSAP Standard License page and the Lenis repository README. Seen only as search-result summaries (not read in full, treat as indicative): Awwwards listings, the Codrops write-up of a GSAP + Three.js + Lenis site (the page returned HTTP 403), the 2026 web design trend roundups, UX Planet's recruiter-portfolio article, and skeleton-loading guidance from design-system docs.
+
+- https://developer.chrome.com/blog/new-in-web-ui-io26
+- https://web.dev/blog/interop-2026
+- https://blog.logrocket.com/css-in-2026/
+- https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API
+- https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Scroll-driven_animations
+- https://developer.chrome.com/docs/web-platform/view-transitions/cross-document
+- https://gsap.com/standard-license/
+- https://css-tricks.com/gsap-is-now-completely-free-even-for-commercial-use/
+- https://github.com/darkroomengineering/lenis
+- https://tympanus.net/codrops/2026/07/15/the-architecture-behind-trionn-coordinating-gsap-three-js-lenis-and-web-audio/
+- https://uxplanet.org/how-recruiters-judge-ux-portfolios-2026-59f77143ce1e
+
+Browser-support figures above come from those pages and the search summaries; re-check them against caniuse before relying on a specific version number.
