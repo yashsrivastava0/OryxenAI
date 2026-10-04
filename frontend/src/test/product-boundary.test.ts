@@ -56,11 +56,11 @@ describe("authenticated product boundary", () => {
     expect(flow).toContain('completed !== "approve"');
   });
 
-  it("embeds the generated page only in a script-less, opaque-origin sandbox", async () => {
+  it("embeds the generated page in a theme-specific opaque-origin sandbox", async () => {
     const preview = await readSource("src/components/studio/PreviewPane.tsx");
-    expect(preview).toContain('sandbox="allow-popups allow-popups-to-escape-sandbox"');
+    expect(preview).toContain('frame.allowsScripts ? "allow-scripts allow-popups allow-popups-to-escape-sandbox" : "allow-popups allow-popups-to-escape-sandbox"');
     expect(preview).not.toContain("allow-same-origin");
-    expect(preview).not.toContain("allow-scripts");
+    expect(preview).toContain("grant.allows_scripts === true");
     expect(preview).toContain('referrerPolicy="no-referrer"');
   });
 

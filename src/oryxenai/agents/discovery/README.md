@@ -53,7 +53,9 @@ plain text without normalizing their content.
    model recovery runs and unresolved gaps pass to the brief. The server appends the fixed visual
    question after at most three model-authored contextual questions.
    Palette choices map deterministically to a pinned theme id; the optional
-   mood note does not alter that mapping or enter the factual dossier. User
+   mood note does not alter that mapping or enter the factual dossier. Choosing
+   Cobalt Atlas v2 adds one optional question for project details and explicit
+   permission for a labeled illustrative concept when no real project is usable. User
    answers and skips are persisted with their history and answer-source spans.
 4. Submitting the final answer or skip queues brief preparation immediately.
    `continue_with_current_information` remains an API-compatible way to end
