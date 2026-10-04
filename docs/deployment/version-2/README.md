@@ -72,6 +72,7 @@ Free VM is free but is a VM again.
 | 3 | `03-manual-setup-checklist.md` | you or a browser-control AI | Supabase, Google Cloud, Render, Namecheap, UptimeRobot click-paths and exact values |
 | 4 | `05-acceptance-and-troubleshooting.md` | you / agent | End-to-end test script, failure table, weekly care |
 | 5 | `04-azure-vm-cleanup.md` | you | Freeing the VM — only after step 4 passes |
+| — | `06-handoff-browser-agent.md` | a browser-control AI | Self-contained briefing: context, rules, values, phased tasks, reporting |
 
 `deployment-strategy.md` (Railway, paid) is kept only as the paid fallback.
 `free-tier-migration-guide.md` is now a pointer to this folder.
