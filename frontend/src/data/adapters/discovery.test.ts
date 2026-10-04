@@ -32,14 +32,23 @@ describe("adaptDiscovery", () => {
         { id: "forest_copper", label: "Forest & copper", description: "Warm, editorial", swatches: ["#14231c", "#f3f1e9", "#9a3f29"] },
         { id: "cobalt_white", label: "Cobalt & white", description: "Bright, structured", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
         { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold, energetic", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
+        { id: "cobalt_atlas_interactive", label: "Cobalt & volt", description: "Interactive editorial", swatches: ["#f8f8f5", "#3656d6", "#d7fa76"] },
       ],
       allow_skip: false,
     };
     const raw = { status: "questions_ready", operation_a: { items: [palette] }, answers: { items: {} } };
     const question = adaptDiscovery(raw).currentQuestions[0];
     expect(question?.kind).toBe("palette_select");
+    expect(question?.options).toHaveLength(4);
     expect(question?.allowSkip).toBe(false);
     expect(question?.options.map((option) => option.swatches)).toEqual(palette.options.map((option) => option.swatches));
+  });
+
+  it("keeps the optional Atlas project question kind", () => {
+    const raw = { status: "questions_ready", operation_a: { items: [{ id: "work", text: "Feature a project?", kind: "work_detail", options: [], allow_skip: true }] }, answers: { items: {} } };
+    const question = adaptDiscovery(raw).currentQuestions[0];
+    expect(question?.kind).toBe("work_detail");
+    expect(question?.allowSkip).toBe(true);
   });
 
   it("treats questions_ready with no remaining unanswered question as working, not an empty composer", () => {
