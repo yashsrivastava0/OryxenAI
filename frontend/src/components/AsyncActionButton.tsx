@@ -1,4 +1,6 @@
 import { useState } from "preact/hooks";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface AsyncActionButtonProps {
   label: string;
@@ -22,16 +24,19 @@ export function AsyncActionButton({
 }: AsyncActionButtonProps) {
   const [localInFlight, setLocalInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
   const busy = inFlight || localInFlight;
 
   const handleClick = async () => {
     if (disabled || busy) return;
     setLocalInFlight(true);
     setError(null);
+    setFailure(null);
     try {
       await onAction();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The stage could not be started. Try again.");
+      setFailure(captureFailure(reason, "portfolio", label, "The stage could not be started. Try again."));
     } finally {
       setLocalInFlight(false);
     }
@@ -47,7 +52,7 @@ export function AsyncActionButton({
       >
         {busy ? busyLabel : label}
       </button>
-      {error ? <p className="start-error" role="alert">{error}</p> : null}
+      {error ? <p className="start-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</p> : null}
     </div>
   );
 }

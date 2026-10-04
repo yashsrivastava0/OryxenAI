@@ -6,6 +6,8 @@ import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { ChatPane } from "../../components/studio/ChatPane";
 import { FailurePanel } from "../../components/studio/FailurePanel";
 import { PreviewPane } from "../../components/studio/PreviewPane";
+import type { FailureDiagnosticInput } from "../../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "../../components/CopyDiagnosticsButton";
 
 export interface StudioStageProps {
   view: StudioViewModel | null;
@@ -16,6 +18,7 @@ export interface StudioStageProps {
   inFlight: boolean;
   /** Why the automatic start after approval did not begin, if it did not. */
   startError?: string | null;
+  startFailure?: FailureDiagnosticInput | null;
   loadPreview: (versionId: string) => Promise<StudioPreviewGrant>;
   onStart: () => Promise<void>;
   onStop: () => Promise<void>;
@@ -30,6 +33,7 @@ export function StudioStage({
   canMutate,
   inFlight,
   startError = null,
+  startFailure = null,
   loadPreview,
   onStart,
   onStop,
@@ -69,7 +73,7 @@ export function StudioStage({
         <p className="available-desc">
           The Studio writes your one-page portfolio from exactly the copy you approved, checks every word and link, then shows it live next to a chat where you can ask for changes.
         </p>
-        {startError ? <p className="studio-inline-error" role="alert">{startError}</p> : null}
+        {startError ? <p className="studio-inline-error" role="alert">{startError} {startFailure && <CopyDiagnosticsButton failure={startFailure} />}</p> : null}
         <div className="available-actions">
           <button
             type="button"
@@ -107,6 +111,7 @@ export function StudioStage({
         {view.lastError ? (
           <FailurePanel
             failure={view.lastError}
+            occurredAt={view.versions.find((version) => version.failure?.reference === view.lastError?.reference)?.completedAt ?? view.job?.finishedAt}
             title={
               view.lastError.code === "JOB_CANCELLED"
                 ? "The build was stopped"
@@ -121,6 +126,7 @@ export function StudioStage({
           <div className="studio-failure" role="alert">
             <h3>Your portfolio could not be built yet</h3>
             <p>The builder stopped without a report. Your approved content is safe.</p>
+            <CopyDiagnosticsButton failure={{ stage: "studio", action: "build", summary: "The builder stopped without a report.", code: "BUILD_REPORT_MISSING", jobId: view.job?.id, occurredAt: view.job?.finishedAt }} />
             <button type="button" className="btn-primary" onClick={() => void onStart()} disabled={inFlight}>
               Try building again
             </button>

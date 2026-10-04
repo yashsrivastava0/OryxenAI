@@ -1,5 +1,8 @@
 from oryxenai.agents.shared.observability import durable_model_metadata
-from oryxenai.agents.shared.providers.errors import ModelOutputInvalidError
+from oryxenai.agents.shared.providers.errors import (
+    ModelOutputInvalidError,
+    safe_operation_failure,
+)
 from oryxenai.jobs.worker import _safe_handler_error, _timeout_decision
 
 
@@ -18,6 +21,40 @@ def test_model_output_contract_failure_remains_retryable_and_redacted() -> None:
     assert error.retryable is True
     assert "private generated validation detail" not in error.message
     assert error.message == "The model returned output that did not satisfy the required structure."
+
+
+def test_safe_model_failure_keeps_only_structured_diagnostic_paths() -> None:
+    error = ModelOutputInvalidError()
+    error.details.update(
+        {
+            "suboperation": "approval_readiness",
+            "issue_count": 2,
+            "issues": [
+                {
+                    "code": "coverage_path_unpopulated",
+                    "source_id": "fact/f4",
+                    "path": "page_content.atlas.education[0]",
+                },
+                {
+                    "code": "coverage_path_unpopulated",
+                    "source_id": "fact/private token",
+                    "path": "hero.intro",
+                },
+            ],
+        }
+    )
+    safe = safe_operation_failure(error, operation="content_architect.build")
+
+    assert safe["suboperation"] == "approval_readiness"
+    assert safe["issue_count"] == 2
+    assert safe["issues"] == [
+        {
+            "code": "coverage_path_unpopulated",
+            "source_id": "fact/f4",
+            "path": "page_content.atlas.education[0]",
+        }
+    ]
+    assert "occurred_at" in safe
 
 
 def test_timeout_hook_and_queue_share_retry_decision() -> None:

@@ -1,3 +1,12 @@
+## D-134 — Canonical Content Architect evidence paths and failure-only diagnostics
+
+- **Date & Time:** 2026-10-04 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** A fresh Content Architect run received successful Explabs responses but failed approval readiness because twelve coverage entries used `page_content.`-prefixed field paths. An explicit Retry replayed the same owner-scoped cached stage results. Workflow failures exposed a generic message and reference without a copyable, time-stamped report.
+- **Decision:** Normalize only the exact `page_content.` root on claim and coverage field paths at the Content Architect response boundary, including cache hits; keep all other path and publication checks unchanged. Explicit user retries bypass the structured result cache, while normal runs retain it. Persist bounded, content-free validation locations in safe failure envelopes. Offer one shared Copy diagnostics action only on portfolio workflow failure surfaces, assembling the page, failure time, operation, code, reference, and safe issue paths at copy time.
+- **Rejected alternatives:** Loosening the evidence path resolver for arbitrary prefixes; returning raw model output or portfolio text in diagnostics; clearing owner-wide caches on pipeline reset; adding a new diagnostics service or database table.
+- **Consequence:** The recorded failed output validates after canonicalization. Future manual retries make fresh Explabs transmissions. Diagnostic reports remain small and user-initiated, and regular form validation does not show the copy action.
+
 ## D-132 — Theme exemplars use `{path}` placeholders, never sample copy
 
 - **Date & Time:** 2026-10-04 — Claude Code (Anthropic)

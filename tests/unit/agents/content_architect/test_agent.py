@@ -12,6 +12,7 @@ from oryxenai.agents.content_architect.agent import (
     ContentArchitectModelOutputError,
     _approval_readiness_errors,
 )
+from oryxenai.agents.content_architect.diagnostics import output_issue_locations
 from oryxenai.agents.discovery.schemas import StructuredModelResult
 from oryxenai.agents.shared.context import build_context
 from oryxenai.agents.shared.contracts import AgentKey
@@ -128,6 +129,48 @@ async def test_writer_refreshes_claim_field_paths():
     ]
 
 
+async def test_writer_canonicalizes_json_rooted_evidence_paths():
+    """The live failure used page_content.* paths for otherwise valid copy."""
+    dossier = {"contract_version": "DiscoveryDossier/v1", "facts": [{"id": "f1"}]}
+    plan = plan_payload(content_included=False)
+    pages = pages_payload()
+    pages["claim_grounding"] = [claim("claim:f1", field_paths=["page_content.hero.intro"])]
+    pages["coverage_ledger"] = [
+        {
+            "source_id": "fact/f1",
+            "disposition": "used",
+            "field_paths": ["page_content.hero.intro"],
+        }
+    ]
+    context = _context()
+    context.agent_input["intake"]["dossier"] = dossier
+    result = await ContentArchitectAgent(
+        model_client=_FakeModelClient({"plan_content": plan, "write_pages": pages})
+    ).run(context)
+
+    assert result.output["claim_grounding"][0]["field_paths"] == ["hero.intro"]
+    assert result.output["coverage_ledger"][0]["field_paths"] == ["hero.intro"]
+
+
+async def test_writer_does_not_repair_other_invalid_evidence_paths():
+    dossier = {"contract_version": "DiscoveryDossier/v1", "facts": [{"id": "f1"}]}
+    plan = plan_payload(content_included=False)
+    pages = pages_payload(integration_needed=True)
+    pages["coverage_ledger"] = [
+        {"source_id": "fact/f1", "disposition": "used", "field_paths": ["other.hero.intro"]}
+    ]
+    integration = integrate_payload()
+    integration["coverage_ledger"] = pages["coverage_ledger"]
+    context = _context()
+    context.agent_input["intake"]["dossier"] = dossier
+    with pytest.raises(ContentArchitectModelOutputError, match="approval_readiness"):
+        await ContentArchitectAgent(
+            model_client=_FakeModelClient(
+                {"plan_content": plan, "write_pages": pages, "integrate_content": integration}
+            )
+        ).run(context)
+
+
 def test_dossier_backed_content_requires_complete_coverage():
     dossier = {
         "contract_version": "DiscoveryDossier/v1",
@@ -162,6 +205,20 @@ def test_dossier_backed_content_requires_complete_coverage():
         "invalid disposition" in error
         for error in _approval_readiness_errors(**kwargs, coverage_ledger=legacy)
     )
+
+
+def test_model_issue_locations_do_not_copy_generated_values():
+    assert output_issue_locations(
+        [
+            "hero.intro is required",
+            "'mode' must be PAGES_READY; got 'private text'",
+            "Claim 'secret' is invalid",
+        ]
+    ) == [
+        {"code": "invalid_output_field", "path": "hero.intro"},
+        {"code": "invalid_output_field", "path": "mode"},
+        {"code": "invalid_output_field", "path": "claim_grounding"},
+    ]
 
 
 async def test_integration_pass_runs_when_explicitly_flagged():

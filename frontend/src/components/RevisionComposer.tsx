@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import { safeSessionStorage } from "../data/safe-storage";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface RevisionComposerProps {
   artifactName: string; // e.g. "portfolio brief" or "content plan"
@@ -18,6 +20,7 @@ export function RevisionComposer({
   const [requestText, setRequestText] = useState("");
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
@@ -30,6 +33,7 @@ export function RevisionComposer({
     setRequestText(value);
     safeSessionStorage.setItem(draftKey, value);
     if (error) setError(null);
+    if (failure) setFailure(null);
   };
 
   const handleSubmit = async (e?: Event) => {
@@ -38,17 +42,20 @@ export function RevisionComposer({
     const text = requestText.trim();
     if (!text) {
       setError("Please describe the adjustments or revisions you would like made.");
+      setFailure(null);
       return;
     }
 
     setInFlight(true);
     setError(null);
+    setFailure(null);
     try {
       await onSubmit(text);
       safeSessionStorage.removeItem(draftKey);
       setRequestText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Revision request failed. Please try again.");
+      setFailure(captureFailure(err, artifactName, "revise", "Revision request failed. Please try again."));
     } finally {
       setInFlight(false);
     }
@@ -90,7 +97,7 @@ export function RevisionComposer({
         disabled={inFlight || disabled}
       />
 
-      {error && <p className="revision-error" role="alert">{error}</p>}
+      {error && <p className="revision-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</p>}
 
       <div className="revision-actions">
         <button

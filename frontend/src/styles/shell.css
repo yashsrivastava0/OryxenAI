@@ -2815,7 +2815,11 @@ button:disabled, textarea:disabled, input:disabled {
 
 .attention-retry-error { color: var(--critical); }
 
-.attention-actions { margin-top: 1.3rem; }
+.attention-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-top: 1.3rem; }
+
+.diagnostic-copy-button { margin-left: .5rem; padding: .4rem .7rem; font-size: .76rem; white-space: nowrap; }
+.attention-actions .diagnostic-copy-button,
+.studio-failure-actions .diagnostic-copy-button { margin-left: 0; }
 
 .attention-technical { margin-top: 1.5rem; }
 

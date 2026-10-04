@@ -6,6 +6,7 @@
 // flight; the browser only ever renders that.
 
 import { selectStageJob } from "./job";
+import { formatFailureDiagnostics, type FailureDiagnosticInput } from "../failure-diagnostics";
 import type { StageState, StageViewModel } from "./types";
 
 export type StudioStatus = "not_started" | "build_running" | "ready" | "needs_attention";
@@ -307,22 +308,31 @@ export function readyVersions(versions: StudioVersionVM[]): StudioVersionVM[] {
     .sort((left, right) => (right.versionNumber ?? 0) - (left.versionNumber ?? 0));
 }
 
+export function studioFailureDiagnostic(
+  failure: StudioFailureVM,
+  occurredAt?: string | null,
+): FailureDiagnosticInput {
+  return {
+    stage: "studio",
+    action: failure.stage,
+    summary: failure.summary,
+    occurredAt,
+    code: failure.code,
+    suboperation: failure.owner,
+    supportReference: /^[A-Za-z0-9_-]{1,80}$/.test(failure.reference) ? failure.reference : undefined,
+    issueCount: failure.issueCount,
+    issues: failure.issues
+      .filter((issue) => /^[A-Z0-9_]{1,80}$/i.test(issue.code))
+      .slice(0, 12)
+      .map((issue) => ({
+        code: issue.code,
+        path: /^[A-Za-z_][A-Za-z0-9_.\[\]]{0,159}$/.test(issue.path)
+          ? issue.path
+          : undefined,
+      })),
+  };
+}
+
 export function failureDiagnostics(failure: StudioFailureVM): string {
-  return JSON.stringify(
-    {
-      code: failure.code,
-      stage: failure.stage,
-      summary: failure.summary,
-      cause: failure.cause,
-      owner: failure.owner,
-      where: failure.where,
-      expected: failure.expected || undefined,
-      found: failure.found || undefined,
-      reference: failure.reference,
-      issue_count: failure.issueCount,
-      issues: failure.issues,
-    },
-    null,
-    2,
-  );
+  return formatFailureDiagnostics(studioFailureDiagnostic(failure));
 }
