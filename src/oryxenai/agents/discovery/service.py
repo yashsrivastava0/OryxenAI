@@ -13,11 +13,13 @@ from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
 from oryxenai.agents.discovery.palette import (
+    PALETTE_GAP_ID,
     PALETTE_TO_THEME,
     WORK_GAP_ID,
     atlas_work_answer,
     atlas_work_question,
     palette_answer,
+    palette_question,
 )
 from oryxenai.agents.discovery.schemas import (
     AnswerMode,
@@ -250,6 +252,7 @@ class DiscoveryService:
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
         state = await self._recover_failed_question_job(state)
+        state = _refresh_open_palette(state)
         if state.status not in {
             DiscoveryStatus.QUESTIONS_READY,
             DiscoveryStatus.ANSWERS_IN_PROGRESS,
@@ -752,6 +755,7 @@ class DiscoveryService:
     async def get_discovery_state(self, session_id: UUID) -> dict[str, Any]:
         session = await self._require_session(session_id)
         state = await self._repository.get_discovery_state(session_id)
+        state = _refresh_open_palette(state)
 
         jobs: list[dict[str, Any]] = []
         for job_id in (state.operation_a.job_id, state.brief.job_id):
@@ -870,6 +874,36 @@ class DiscoveryService:
             f"Discovery is not ready to {operation} from state '{status}'.",
             details={"status": status},
         )
+
+
+def _refresh_open_palette(state: DiscoveryState) -> DiscoveryState:
+    """Show current server-owned choices in interviews saved before a theme release."""
+    if state.status not in {
+        DiscoveryStatus.QUESTIONS_READY,
+        DiscoveryStatus.ANSWERS_IN_PROGRESS,
+        DiscoveryStatus.NEEDS_INPUT,
+        DiscoveryStatus.NEEDS_ATTENTION,
+    }:
+        return state
+    current = palette_question()
+    revised: list[DiscoveryQuestion] = []
+    changed = False
+    for item in state.operation_a.items:
+        if (
+            item.kind is QuestionKind.PALETTE_SELECT
+            and item.gap_id == PALETTE_GAP_ID
+            and item.id not in state.answers.items
+        ):
+            replacement = current.model_copy(update={"id": item.id})
+            revised.append(replacement)
+            changed = changed or replacement != item
+        else:
+            revised.append(item)
+    if not changed:
+        return state
+    refreshed = state.model_copy(deep=True)
+    refreshed.operation_a.items = revised
+    return refreshed
 
 
 def _brief_hash(
