@@ -8,6 +8,8 @@ import {
 import { safeSessionStorage } from "../data/safe-storage";
 import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
 import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
+import { ActionDock } from "./ActionDock";
+import { HelpDisclosure } from "./HelpDisclosure";
 
 interface DiscoveryQuestionCardProps {
   question: DiscoveryQuestionVM;
@@ -131,7 +133,7 @@ export function DiscoveryQuestionCard({
             <span className="question-ordinal">{questionOrdinalText}</span>
           </div>
           <h2 className="question-prompt">{question.text}</h2>
-          {question.helpText && <p className="question-help">{question.helpText}</p>}
+          {question.helpText && <div className="question-help-row"><p className="question-help">{question.helpText}</p><HelpDisclosure label="this question">Your answer helps shape the brief. You can review it before the next stage begins.</HelpDisclosure></div>}
         </div>
 
         {error && <div className="discovery-error-callout" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</div>}
@@ -169,6 +171,7 @@ export function DiscoveryQuestionCard({
         {question.kind === "palette_select" && (
           <fieldset className="choice-fieldset palette-fieldset">
             <legend className="choice-group-hint">CHOOSE YOUR COMPLETE LOOK</legend>
+            <div className="palette-intro">Choose the color, type, and layout direction that feels most like you. <HelpDisclosure label="visual direction">Each choice sets the overall look of your page. You will review the content before your page is built.</HelpDisclosure></div>
             <div className="palette-choice-list" role="radiogroup" aria-label={question.text}>
               {question.options.map((option) => {
                 const selected = selectedSingleOption === option.id;
@@ -186,18 +189,19 @@ export function DiscoveryQuestionCard({
                       }}
                     />
                     <span className="palette-choice__demo" aria-hidden="true">
-                      <span className="palette-demo__top" />
+                      <span className="palette-demo__top"><i /><i /><i /></span>
                       <span className="palette-demo__body">
                         <span className="palette-demo__eyebrow" />
                         <span className="palette-demo__headline"><span /><span /><span /></span>
                         <span className="palette-demo__accent" />
+                        <span className="palette-demo__detail"><i /><i /><i /></span>
                       </span>
                     </span>
                     <span className="palette-choice__swatches" aria-hidden="true">
                       {option.swatches.map((color) => <span key={color} style={{ backgroundColor: color }} />)}
                     </span>
                     <span className="palette-choice__footer">
-                      <span><strong>{option.label}</strong><small>{option.description}</small></span>
+                      <span><strong>{option.label}</strong><small>{option.description}</small>{option.id === "cobalt_atlas_interactive" && <em>Interactive details</em>}</span>
                       <span className="palette-choice__check" aria-hidden="true">{selected ? "✓" : "○"}</span>
                     </span>
                   </label>
@@ -312,26 +316,16 @@ export function DiscoveryQuestionCard({
             {Boolean(textAnswer.trim()) && <div className="draft-status-row" aria-live="polite">Draft saved</div>}
         </div>
 
-        <div className="question-actions">
-          <button
-            type="button"
-            className="btn-primary btn-next-question"
-            disabled={locked || !canSubmit}
-            onClick={() => void submit()}
-          >
-            {inFlight ? "Saving answer…" : question.kind === "palette_select" && selectedSingleOption === "cobalt_atlas_interactive" ? "Continue to project details" : isLast ? "Continue to brief" : "Next question"}
-          </button>
-          {question.allowSkip && (
-            <button
-              type="button"
-              className="btn-quiet btn-skip-question"
-              disabled={locked}
-              onClick={() => void submit(true)}
-            >
-              Skip question
-            </button>
-          )}
-        </div>
+        <ActionDock
+          primaryLabel={isLast ? "Continue to brief" : "Next question"}
+          busyLabel="Saving answer…"
+          busy={inFlight}
+          disabled={locked || !canSubmit}
+          onPrimary={() => submit()}
+          note={questionOrdinalText}
+        >
+          {question.allowSkip && <button type="button" className="btn-quiet btn-skip-question" disabled={locked} onClick={() => void submit(true)}>Skip question</button>}
+        </ActionDock>
       </div>
     </div>
   );

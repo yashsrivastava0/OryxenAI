@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f3f0e8">
-  <meta name="description" content="Sign in to shape your portfolio brief and develop its content architecture.">
+  <meta name="description" content="Shape your portfolio through Discovery, Content Architect, and a private Studio preview.">
   <meta name="oryxenai-supabase-url" content="{{ auth_config.supabaseUrl }}">
   <meta name="oryxenai-publishable-key" content="{{ auth_config.publishableKey }}">
   <meta name="oryxenai-admission-mode" content="{{ auth_config.admissionMode }}">
@@ -43,7 +43,7 @@
         {%- elif page == "account-unavailable" -%}Workspace paused
         {%- elif page == "onboarding" -%}Workspace setup
         {%- elif page in ["controller", "callback"] -%}Secure verification
-        {%- else -%}Review before publish{%- endif -%}
+        {%- else -%}Private portfolio studio{%- endif -%}
       </span>
     </div>
   </header>
@@ -64,7 +64,7 @@
             <h1 id="sign-in-title" class="sign-in-headline">Open your private portfolio workspace.</h1>
 
             <p class="sign-in-lede">
-              Turn resumes, work history, and project notes into a reviewable portfolio. Discovery asks what is missing, structure follows, and nothing advances without your approval.
+              Turn your résumé, work history, and project notes into a portfolio you can review. Move through Discovery, shape the content, then see your page in a private Studio preview. You approve each step.
             </p>
 
             <div class="cta-block">
@@ -110,7 +110,7 @@
                   <polyline points="16 18 22 12 16 6"/>
                   <polyline points="8 6 2 12 8 18"/>
                 </svg>
-                <span>Production source code output</span>
+                <span>A page you can review and refine</span>
               </div>
               <div class="trust-item">
                 <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -119,7 +119,7 @@
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                   <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
-                <span>No public publishing without approval</span>
+                <span>Private preview for the owner</span>
               </div>
             </div>
           </section>
@@ -323,12 +323,12 @@
         <div class="drafting-sweep-line" aria-hidden="true"></div>
 
         <div class="rail-header">
-          <span class="rail-title">TWO-STAGE PORTFOLIO WORKFLOW</span>
+          <span class="rail-title">THREE STEPS, EACH IN YOUR HANDS</span>
           <span class="rail-motto">IDEAS IN, OPPORTUNITIES OUT.</span>
         </div>
 
         <!-- ACTIVE WORKFLOW RAIL -->
-        <div class="stage-rail-wrap" aria-label="Two-stage workflow">
+        <div class="stage-rail-wrap" aria-label="Portfolio workflow">
           <div class="rail-track" aria-hidden="true">
             <div id="rail-active-segment" class="rail-active-segment"></div>
             <div id="rail-traveling-highlight" class="rail-traveling-highlight"></div>
@@ -346,6 +346,13 @@
               <div class="node-meta">
                 <span class="node-name">Content</span>
                 <span class="node-sub">SHAPE NARRATIVE</span>
+              </div>
+            </li>
+            <li class="stage-rail-node" data-stage="studio">
+              <span class="node-badge">3</span>
+              <div class="node-meta">
+                <span class="node-name">Studio</span>
+                <span class="node-sub">SEE YOUR PAGE</span>
               </div>
             </li>
           </ol>
@@ -387,7 +394,7 @@
             </article>
 
             <!-- CARD 1: PORTFOLIO BRIEF (HERO CENTERPIECE) -->
-            <article class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 2: Portfolio brief sample">
+            <article class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 1: Portfolio brief sample">
               <div class="brief-topbar">
                 <div class="brief-brand-badge">
                   <img class="brief-brand-icon" src="/auth-static/brand-mark.png" width="16" height="16" alt="" aria-hidden="true" />
@@ -470,25 +477,34 @@
               <div class="card-header-line">
                 <span class="card-step-tag">02 Content</span>
               </div>
-              <h2 class="card-headline">Narrative architecture & claims.</h2>
-              <p class="card-subhead">Grounding key achievements in structured, verified evidence.</p>
+              <h2 class="card-headline">The right words, in the right order.</h2>
+              <p class="card-subhead">Review the sections, claims, and details that will appear on your page.</p>
               <div class="content-preview-routes">
                 <div class="route-item">
-                  <span class="route-slug">/</span>
-                  <span class="route-role">Core positioning & verified claims</span>
+                  <span class="route-slug">INTRO</span>
+                  <span class="route-role">Your position and point of view</span>
                 </div>
                 <div class="route-item">
-                  <span class="route-slug">/work</span>
-                  <span class="route-role">Case studies with metric backing</span>
+                  <span class="route-slug">WORK</span>
+                  <span class="route-role">Selected projects and outcomes</span>
                 </div>
                 <div class="route-item">
-                  <span class="route-slug">/about</span>
-                  <span class="route-role">Operating principles & trajectory</span>
+                  <span class="route-slug">ABOUT</span>
+                  <span class="route-role">Experience and what drives you</span>
                 </div>
               </div>
               <div class="card-footer-note">
                 <span class="script-annotation">Proof over generic marketing statements.</span>
               </div>
+            </article>
+
+            <!-- CARD 3: OWNER-ONLY STUDIO PREVIEW -->
+            <article class="showcase-card card-studio" data-card-index="3" aria-label="Stage 3: Studio preview sample">
+              <div class="card-header-line"><span class="card-step-tag">03 Studio</span><span class="studio-sample-private">PRIVATE PREVIEW</span></div>
+              <h2 class="card-headline">See the page. Make it yours.</h2>
+              <p class="card-subhead">Open a checked page beside a conversation for refining its words.</p>
+              <div class="studio-sample-preview" aria-hidden="true"><div class="studio-sample-head"></div><div class="studio-sample-title"><i></i><i></i></div><div class="studio-sample-columns"><span></span><span></span><span></span></div></div>
+              <div class="card-footer-note"><span class="script-annotation">A private view, ready for your review.</span></div>
             </article>
 
           </div>
@@ -505,6 +521,7 @@
               <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Discovery card" data-index="0" type="button"></button>
               <button class="showcase-dot active" role="tab" aria-selected="true" aria-label="Portfolio Brief card" data-index="1" type="button"></button>
               <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Content structure card" data-index="2" type="button"></button>
+              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Studio preview card" data-index="3" type="button"></button>
             </div>
 
             <button class="showcase-nav-btn showcase-nav-next" type="button" aria-label="Next showcase card" title="Next">

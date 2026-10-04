@@ -6,10 +6,12 @@ describe("portfolio URL state", () => {
     expect(parseAppUrlState("?stage=discover&view=work")).toEqual({
       stage: "discover",
       view: "work",
+      screen: null,
     });
     expect(parseAppUrlState("?stage=content&view=artifact")).toEqual({
       stage: "content",
       view: "artifact",
+      screen: null,
     });
   });
 
@@ -17,10 +19,12 @@ describe("portfolio URL state", () => {
     expect(parseAppUrlState("?stage=retired&view=artifact")).toEqual({
       stage: null,
       view: "artifact",
+      screen: null,
     });
     expect(parseAppUrlState("?stage=unknown&view=unknown")).toEqual({
       stage: null,
       view: null,
+      screen: null,
     });
   });
 
@@ -29,5 +33,11 @@ describe("portfolio URL state", () => {
       "?stage=content&view=artifact",
     );
     expect(serializeAppUrlState({})).toBe("");
+  });
+
+  it("routes private pages without a stale stage and rejects unknown pages", () => {
+    expect(parseAppUrlState("?screen=guide&stage=studio")).toEqual({ screen: "guide", stage: null, view: null });
+    expect(serializeAppUrlState({ screen: "home", stage: "studio" })).toBe("?screen=home");
+    expect(parseAppUrlState("?screen=unknown").screen).toBeNull();
   });
 });

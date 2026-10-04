@@ -42,13 +42,21 @@ def test_visual_palette_cards_fit_and_remain_keyboard_selectable(
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
     cards = page.locator(".palette-choice")
-    assert cards.count() == 3
+    assert cards.count() == 4
     assert [card.locator("small").inner_text() for card in cards.all()] == [
         "Editorial warmth · layered and considered",
         "Minimal clarity · bright and structured",
         "Bold modernity · high contrast and energetic",
+        "Interactive editorial · layered and vivid",
     ]
     assert page.get_by_role("textbox", name="Optional note for your reference").is_visible()
+    if width >= 1180:
+        note = page.get_by_role("textbox", name="Optional note for your reference").bounding_box()
+        card = cards.last.bounding_box()
+        dock = page.locator(".action-dock").bounding_box()
+        assert note and card and dock
+        assert note["y"] + note["height"] <= dock["y"] + 1
+        assert card["y"] + card["height"] <= dock["y"] + 1
     assert_no_horizontal_overflow(page)
 
     first = cards.nth(0).locator('input[type="radio"]')
@@ -125,7 +133,10 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
     prompt_box = page.locator(".starting-points-grid").bounding_box()
     dock_box = page.locator(".intake-dock").bounding_box()
     assert prompt_box and dock_box
-    assert dock_box["y"] >= prompt_box["y"] + prompt_box["height"]
+    assert dock_box["y"] + dock_box["height"] <= 768
+    page.locator(".starting-points-grid").scroll_into_view_if_needed()
+    prompt_box = page.locator(".starting-points-grid").bounding_box()
+    assert prompt_box and prompt_box["y"] + prompt_box["height"] <= dock_box["y"] + 1
     assert_no_horizontal_overflow(page)
     _shot(page, "discovery-intake-1366")
 

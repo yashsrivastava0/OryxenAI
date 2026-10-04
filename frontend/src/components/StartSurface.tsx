@@ -3,6 +3,7 @@ import { safeSessionStorage } from "../data/safe-storage";
 import type { ExtractedDocument } from "../data/api-client";
 import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
 import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
+import { ActionDock } from "./ActionDock";
 
 export interface StartSurfaceProps {
   onStart: (intakeText: string, attachment?: ExtractedDocument | null) => Promise<void>;
@@ -243,27 +244,15 @@ export function StartSurface({
           : "Start with what you have. You can clarify gaps and review the evidence before approving the brief."}
       </p>
 
-      {/* Reserved action area matching 02-discovery-intake.png; intake keeps
-          this dock in normal flow so the prompt deck is never obscured. */}
-      <div className="action-dock intake-dock">
-        <div className="action-dock-content">
-          <div className="action-dock-right">
-            <div className="dock-button-wrapper">
-              <button
-                type="button"
-                className="btn-primary btn-cobalt"
-                onClick={submit}
-                disabled={disabled || inFlight || extracting || (!intakeText.trim() && !attachment?.text.trim())}
-              >
-                {inFlight
-                  ? continuation ? "Adding details…" : "Starting Discovery…"
-                  : continuation ? "Add details and continue →" : "Start Discovery →"}
-              </button>
-              <span className="dock-reassurance">Long source material is accepted; the server will report any transport limit.</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      <ActionDock
+        className="intake-dock"
+        primaryLabel={continuation ? "Add details and continue" : "Start Discovery"}
+        onPrimary={submit}
+        disabled={disabled || extracting || (!intakeText.trim() && !attachment?.text.trim())}
+        busy={inFlight}
+        busyLabel={continuation ? "Adding details…" : "Starting Discovery…"}
+        note="Start with what you have. You can review the brief before continuing."
+      />
     </div>
   );
 }

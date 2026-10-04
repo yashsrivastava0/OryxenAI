@@ -25,6 +25,8 @@ export interface PreviewPaneProps {
   loadPreview: (versionId: string) => Promise<StudioPreviewGrant>;
   /** A change is being built: the current page stays until the new one loads. */
   updating?: boolean;
+  onReady?: () => void;
+  onError?: () => void;
 }
 
 const GRANT_MARGIN_MS = 60_000;
@@ -39,7 +41,7 @@ export function previewScale(paneWidth: number, deviceWidth: number, fit: boolea
  * version until the next one has finished loading (two frames, swapped on load),
  * so an update never blanks the preview.
  */
-export function PreviewPane({ versionId, versionNumber, loadPreview, updating = false }: PreviewPaneProps) {
+export function PreviewPane({ versionId, versionNumber, loadPreview, updating = false, onReady, onError }: PreviewPaneProps) {
   const [device, setDevice] = useState<PreviewDevice>("desktop");
   const [fit, setFit] = useState(true);
   const [frames, setFrames] = useState<PreviewFrame[]>([]);
@@ -50,6 +52,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
   const [host, setHost] = useState({ width: 0, height: 0 });
   const hostRef = useRef<HTMLDivElement | null>(null);
   const keyRef = useRef(0);
+  const loadTimerRef = useRef<number | null>(null);
   const grantRef = useRef<{ url: string; expiresAt: number } | null>(null);
 
   useLayoutEffect(() => {
@@ -69,6 +72,14 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
     setLoading(true);
     setError(null);
     setFailure(null);
+    if (loadTimerRef.current !== null) window.clearTimeout(loadTimerRef.current);
+    loadTimerRef.current = window.setTimeout(() => {
+      if (cancelled) return;
+      setLoading(false);
+      setError("The verified page is taking too long to open. Try again.");
+      setFailure(captureFailure(null, "studio", "load preview", "The verified page is taking too long to open."));
+      onError?.();
+    }, 12_000);
     void loadPreview(versionId)
       .then((grant) => {
         if (cancelled) return;
@@ -82,23 +93,28 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
+        if (loadTimerRef.current !== null) window.clearTimeout(loadTimerRef.current);
         setLoading(false);
         setError(reason instanceof Error ? reason.message : "The preview could not be loaded.");
         setFailure(captureFailure(reason, "studio", "load preview", "The preview could not be loaded."));
+        onError?.();
       });
     return () => {
       cancelled = true;
+      if (loadTimerRef.current !== null) window.clearTimeout(loadTimerRef.current);
     };
-  }, [versionId, reloadNonce, loadPreview]);
+  }, [versionId, reloadNonce, loadPreview, onError]);
 
   const onFrameLoad = useCallback((key: number) => {
+    if (loadTimerRef.current !== null) window.clearTimeout(loadTimerRef.current);
     setLoading(false);
+    onReady?.();
     setFrames((previous) =>
       previous
         .map((frame) => (frame.key === key ? { ...frame, ready: true } : frame))
         .filter((frame, _index, all) => !(frame.ready && all.some((other) => other.ready && other.key > frame.key))),
     );
-  }, []);
+  }, [onReady]);
 
   const current = [...frames].reverse().find((frame) => frame.ready) ?? null;
   const spec = DEVICES.find((item) => item.id === device) ?? DEVICES[0]!;

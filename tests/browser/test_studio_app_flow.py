@@ -18,6 +18,7 @@ from tests.browser.helpers import (
     assert_no_horizontal_overflow,
     expect,
     install_sample_page,
+    shot,
 )
 
 SESSION = "session-e2e"
@@ -278,6 +279,24 @@ def _open_app(page: Any, backend_kwargs: dict[str, Any]) -> FakeBackend:
     return backend
 
 
+def _release_first_build_scene(page: Any, backend: FakeBackend) -> None:
+    """Age the presentation marker after the fake worker reports a ready page."""
+    for _ in range(15):
+        if backend.status == "ready":
+            break
+        page.wait_for_timeout(1000)
+    assert backend.status == "ready"
+    page.evaluate("""() => {
+      const key = 'oryxenai.studio_presentation:session-e2e';
+      const marker = JSON.parse(sessionStorage.getItem(key));
+      marker.startedAt = Date.now() - 31000;
+      sessionStorage.setItem(key, JSON.stringify(marker));
+    }""")
+    # The fixture uses ?app=1 to select the production AppShell; its normal
+    # history update intentionally strips that fixture-only switch.
+    page.goto(f"{BASE_URL}/?app=1&stage=studio", wait_until="domcontentloaded")
+
+
 def test_one_click_approves_the_plan_then_builds_and_opens_the_live_studio(
     browser_page: Any,
 ) -> None:
@@ -290,9 +309,20 @@ def test_one_click_approves_the_plan_then_builds_and_opens_the_live_studio(
     expect(button).to_be_visible(timeout=8000)
     button.click()
 
-    expect(page.get_by_role("heading", name="Building your portfolio")).to_be_visible(timeout=8000)
+    expect(page.get_by_role("heading", name="Your page is taking shape.")).to_be_visible(
+        timeout=8000
+    )
     expect(page).to_have_url(re.compile(r"stage=studio"))
-    expect(page.get_by_text("Writing your page").first).to_be_visible()
+    expect(page.get_by_text("Illustrative view")).to_be_visible()
+    for _ in range(15):
+        if backend.status == "ready":
+            break
+        page.wait_for_timeout(1000)
+    assert backend.status == "ready"
+    expect(page.get_by_role("heading", name="Your page is taking shape.")).to_be_visible()
+    assert page.locator(".studio-workspace.is-preloading").count() == 1
+    shot(page, "studio-build-scene-desktop")
+    _release_first_build_scene(page, backend)
     # The build finishes through polling and the live page appears in the preview.
     frame = page.frame_locator("iframe.studio-frame.is-visible")
     expect(frame.locator("h1")).to_be_visible(timeout=20000)
@@ -362,6 +392,7 @@ def test_a_failed_first_build_is_explained_and_retry_recovers(browser_page: Any)
     expect(page.get_by_text("cg-e2e0001")).to_be_visible()
     expect(page.get_by_text("hero.intro").first).to_be_visible()
     page.get_by_role("button", name="Try building again").click()
+    _release_first_build_scene(page, backend)
     expect(page.locator("iframe.studio-frame.is-visible")).to_have_count(1, timeout=20000)
     expect(page.get_by_text("Version 1", exact=True)).to_be_visible()
 
@@ -370,9 +401,57 @@ def test_a_second_tab_started_build_is_shown_as_building_not_restarted(browser_p
     page = browser_page
     backend = _open_app(page, {"content": "approved", "studio": "not_started"})
     backend._begin("initial", "")  # another tab already started the build
-    expect(page.get_by_role("heading", name="Building your portfolio")).to_be_visible(timeout=8000)
+    expect(page.get_by_role("heading", name="Your page is taking shape.")).to_be_visible(
+        timeout=8000
+    )
     expect(page.locator("iframe.studio-frame.is-visible")).to_have_count(1, timeout=20000)
     assert "POST /code-generator/start" not in backend.log
+
+
+def test_private_home_guide_and_resume_routes(browser_page: Any) -> None:
+    page = browser_page
+    _open_app(page, {"content": "approved", "studio": "ready"})
+    page.get_by_role("button", name="Home", exact=True).click()
+    expect(page).to_have_url(re.compile(r"screen=home"))
+    expect(page.get_by_role("heading", name="Your portfolio is ready to review.")).to_be_visible()
+    expect(page.get_by_role("button", name="Open Studio preview")).to_be_visible()
+    shot(page, "workspace-home-desktop")
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert_no_horizontal_overflow(page)
+    shot(page, "workspace-home-mobile")
+    page.set_viewport_size({"width": 1366, "height": 800})
+    page.get_by_role("button", name="Guide", exact=True).click()
+    expect(page).to_have_url(re.compile(r"screen=guide"))
+    expect(
+        page.get_by_role("heading", name="From raw material to a page you can see.")
+    ).to_be_visible()
+    page.get_by_label("About private preview").click()
+    expect(
+        page.get_by_text("Only the signed-in owner can open this preview.", exact=False)
+    ).to_be_visible()
+    shot(page, "workspace-guide-desktop")
+    page.set_viewport_size({"width": 390, "height": 844})
+    assert_no_horizontal_overflow(page)
+    shot(page, "workspace-guide-mobile")
+    page.set_viewport_size({"width": 1366, "height": 800})
+    page.go_back()
+    expect(page.get_by_role("heading", name="Your portfolio is ready to review.")).to_be_visible()
+    page.get_by_role("button", name="Open Studio preview").click()
+    expect(page).to_have_url(re.compile(r"stage=studio"))
+    page.set_viewport_size({"width": 1024, "height": 768})
+    assert_no_horizontal_overflow(page)
+    brand = page.locator(".app-brand").bounding_box()
+    nav = page.locator(".workspace-topnav").bounding_box()
+    journey = page.locator(".journey-nav").bounding_box()
+    actions = page.locator(".app-topbar-actions").bounding_box()
+    assert brand and nav and journey and actions
+    assert brand["x"] + brand["width"] <= nav["x"] + 1
+    assert nav["x"] + nav["width"] <= journey["x"] + 1
+    assert journey["x"] + journey["width"] <= actions["x"] + 1
+    page.goto(f"{BASE_URL}/?app=1&screen=guide", wait_until="domcontentloaded")
+    expect(
+        page.get_by_role("heading", name="From raw material to a page you can see.")
+    ).to_be_visible()
 
 
 def test_the_fake_backend_speaks_the_real_envelope() -> None:

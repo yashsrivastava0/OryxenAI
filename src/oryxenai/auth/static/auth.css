@@ -2335,6 +2335,16 @@ body:not([data-page="admin"])::before {
   transform: translate3d(0, 16px, -70px) scale(0.88);
 }
 
+.card-studio .card-header-line { display: flex; justify-content: space-between; align-items: center; }
+.studio-sample-private { color: var(--signal); font: 600 .62rem var(--font-mono); letter-spacing: .08em; }
+.studio-sample-preview { display: flex; flex-direction: column; gap: .65rem; flex: 1; min-height: 0; margin-top: .8rem; padding: .8rem; background: #f4f6fb; border: 1px solid #d8e0ef; overflow: hidden; }
+.studio-sample-head { height: 12%; background: #264bc5; }
+.studio-sample-title { display: grid; gap: .4rem; padding: .5rem; background: #fff; }
+.studio-sample-title i { display: block; height: .5rem; width: 75%; background: #1e2d4e; }
+.studio-sample-title i:last-child { width: 46%; background: #97ae43; }
+.studio-sample-columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; flex: 1; }
+.studio-sample-columns span { background: #dce4f4; border-top: 2px solid #3656d6; }
+
 /* CARD 1: PORTFOLIO BRIEF */
 .brief-topbar {
   display: flex;

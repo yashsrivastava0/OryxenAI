@@ -1,13 +1,14 @@
-import { useCallback, useState } from "preact/hooks";
+import { useCallback, useEffect, useState } from "preact/hooks";
 import type { StudioPreviewGrant } from "../../data/api-client";
-import { studioMilestones, type StudioViewModel } from "../../data/adapters/studio";
-import { ProgressSurface } from "../../components/ProgressSurface";
+import type { StudioViewModel } from "../../data/adapters/studio";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { ChatPane } from "../../components/studio/ChatPane";
 import { FailurePanel } from "../../components/studio/FailurePanel";
 import { PreviewPane } from "../../components/studio/PreviewPane";
 import type { FailureDiagnosticInput } from "../../data/failure-diagnostics";
 import { CopyDiagnosticsButton } from "../../components/CopyDiagnosticsButton";
+import { ActionDock } from "../../components/ActionDock";
+import { BuildScene } from "../../components/studio/BuildScene";
 
 export interface StudioStageProps {
   view: StudioViewModel | null;
@@ -25,6 +26,9 @@ export interface StudioStageProps {
   onSend: (message: string, clientMessageId: string) => Promise<void>;
   onRestore: (versionId: string) => Promise<void>;
   onBackToContent?: () => void;
+  presentationStartMs?: number | null;
+  presentationVersionId?: string | null;
+  onPresentationComplete?: () => void;
 }
 
 export function StudioStage({
@@ -40,9 +44,39 @@ export function StudioStage({
   onSend,
   onRestore,
   onBackToContent,
+  presentationStartMs = null,
+  presentationVersionId = null,
+  onPresentationComplete,
 }: StudioStageProps) {
   const [tab, setTab] = useState<"chat" | "preview">("preview");
+  const [now, setNow] = useState(Date.now);
+  const [previewLoaded, setPreviewLoaded] = useState(false);
+  const [previewProblem, setPreviewProblem] = useState(false);
   const stableLoadPreview = useCallback((versionId: string) => loadPreview(versionId), [loadPreview]);
+  const onPreviewReady = useCallback(() => setPreviewLoaded(true), []);
+  const onPreviewError = useCallback(() => setPreviewProblem(true), []);
+
+  useEffect(() => {
+    setPreviewLoaded(false);
+    setPreviewProblem(false);
+  }, [view?.activeVersionId]);
+  useEffect(() => {
+    if (view?.state !== "working" && presentationStartMs === null) return undefined;
+    const update = () => { if (!document.hidden) setNow(Date.now()); };
+    const interval = window.setInterval(update, 160);
+    document.addEventListener("visibilitychange", update);
+    return () => { window.clearInterval(interval); document.removeEventListener("visibilitychange", update); };
+  }, [presentationStartMs, view?.state]);
+  const matchingPresentation = presentationStartMs !== null && presentationVersionId !== null &&
+    (view?.inFlight?.versionId === presentationVersionId || view?.activeVersionId === presentationVersionId);
+  const sceneElapsedMs = matchingPresentation
+    ? Math.max(0, now - presentationStartMs)
+    : Math.max(0, (view?.inFlight?.elapsedSeconds ?? 0) * 1000);
+  const holdingPreview = Boolean(matchingPresentation && view?.activeVersionId && !view?.building &&
+    !previewProblem && (sceneElapsedMs < 30_000 || (!previewLoaded && sceneElapsedMs < 40_000)));
+  useEffect(() => {
+    if (matchingPresentation && view?.activeVersionId && !view.building && !holdingPreview) onPresentationComplete?.();
+  }, [holdingPreview, matchingPresentation, onPresentationComplete, view?.activeVersionId, view?.building]);
 
   if (!contentApproved || !view || view.state === "locked") {
     return (
@@ -74,34 +108,14 @@ export function StudioStage({
           The Studio writes your one-page portfolio from exactly the copy you approved, checks every word and link, then shows it live next to a chat where you can ask for changes.
         </p>
         {startError ? <p className="studio-inline-error" role="alert">{startError} {startFailure && <CopyDiagnosticsButton failure={startFailure} />}</p> : null}
-        <div className="available-actions">
-          <button
-            type="button"
-            className="btn-primary btn-cobalt"
-            onClick={() => void onStart()}
-            disabled={!canMutate || inFlight}
-          >
-            {inFlight ? "Starting…" : "Generate my portfolio →"}
-          </button>
-        </div>
+        <ActionDock primaryLabel="Generate my portfolio" onPrimary={onStart} disabled={!canMutate} busy={inFlight} busyLabel="Starting…" note="Your approved content will become a private preview." />
       </div>
     );
   }
 
   if (view.state === "working" && view.inFlight) {
-    const stage = view.inFlight.stage;
     return (
-      <ProgressSurface
-        stageLabel="Stage 03 / Studio"
-        title="Building your portfolio"
-        currentMilestone={
-          stage === "queued" ? "Waiting for a free builder — your page starts as soon as one is available" : "Writing and checking your page"
-        }
-        milestones={studioMilestones(stage)}
-        elapsedSeconds={view.inFlight.elapsedSeconds}
-        onStop={onStop}
-        stopLabel="Stop building"
-      />
+      <BuildScene elapsedMs={sceneElapsedMs} inFlight={view.inFlight} onStop={onStop} />
     );
   }
 
@@ -138,7 +152,9 @@ export function StudioStage({
 
   // Workspace: chat on the left, the live preview on the right.
   return (
-    <div className="studio-workspace" data-tab={tab}>
+    <div className="studio-presentation-wrap">
+    {holdingPreview && <BuildScene elapsedMs={sceneElapsedMs} inFlight={null} />}
+    <div className={`studio-workspace${holdingPreview ? " is-preloading" : ""}`} data-tab={tab} aria-hidden={holdingPreview ? "true" : undefined}>
       <div className="studio-tabs" role="tablist" aria-label="Studio panels">
         <button type="button" role="tab" aria-selected={tab === "chat"} onClick={() => setTab("chat")}>
           Chat
@@ -166,8 +182,11 @@ export function StudioStage({
           versionNumber={view.activeVersionNumber}
           loadPreview={stableLoadPreview}
           updating={view.building}
+          onReady={onPreviewReady}
+          onError={onPreviewError}
         />
       </div>
+    </div>
     </div>
   );
 }

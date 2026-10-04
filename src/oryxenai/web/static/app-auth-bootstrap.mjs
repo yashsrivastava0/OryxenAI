@@ -1,3 +1,5 @@
+import { rememberPrivateDestination } from "../../auth/static/return-route.mjs";
+
 function replace(location, destination) {
   if (location?.pathname !== destination) location?.replace?.(destination);
 }
@@ -122,6 +124,7 @@ export async function bootProductShell({
       storage,
       stopActivity: () => appController?.stop?.(),
     });
+    rememberPrivateDestination(location, globalRef);
     replace(location, signIn);
   };
 
@@ -183,6 +186,7 @@ export async function bootProductShell({
         "This browser could not restore secure auth storage. Please allow site storage and retry.",
       );
     }
+    rememberPrivateDestination(location, globalRef);
     replace(location, signIn);
     return context;
   }
@@ -221,11 +225,13 @@ export async function bootProductShell({
     return context;
   }
   if (context.kind !== "authenticated") {
+    rememberPrivateDestination(location, globalRef);
     replace(location, signIn);
     return context;
   }
 
   if (context.me?.onboarding_required) {
+    rememberPrivateDestination(location, globalRef);
     replace(location, onboarding);
     return { ...context, kind: "onboarding" };
   }
