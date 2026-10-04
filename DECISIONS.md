@@ -1,3 +1,13 @@
+## D-132 — Theme exemplars use `{path}` placeholders, never sample copy
+
+- **Date & Time:** 2026-10-04 — Claude Code (Anthropic)
+- **Status:** implemented-locally
+- **Context:** Cobalt Atlas v2 rendered its prompt exemplar from realistic sample words ("Project", "Example Name"). The model copied them into composed values (`aria-label="Project case study"`, route `data-title`), so every Studio build with that design failed closed-world validation. A live run then showed the exemplar also never exercised a link-only project before a later case, so the model renumbered case ids.
+- **Decision:** A theme exemplar is rendered from `placeholderize(sample)` (`oryxenai.themes.placeholders`): every string is its own `{data-field path}` and every optional branch of the template appears once, including gaps in numbering. Contract rules state that braces are placeholders. A unit test validates each exemplar against its own placeholder content. Validator messages for composed values report expected and found.
+- **Rejected alternatives:** A repair/retry call or a deterministic fallback renderer (AGENTS.md forbids automatic repair; one model call stays the design); loosening the closed-world text check.
+- **Trade-off:** Contract authors maintain one slightly larger sample per scripted theme.
+- **Consequence:** Future CSS+JS themes must follow the same exemplar rule. No theme bytes or manifests changed. Prototype and Editorial Forest contracts already used placeholders.
+
 ## D-131 — Fourth scripted Atlas theme and grounded sparse work
 
 - **Date & Time:** 2026-10-04 12:25 +05:30 — Codex (OpenAI)

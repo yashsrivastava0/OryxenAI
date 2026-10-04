@@ -14,6 +14,7 @@ from oryxenai.agents.content_architect.page_content import resolve_field_path
 from oryxenai.themes.editorial_forest.v1.contract import _css_classes, monogram
 from oryxenai.themes.htmltree import Element, normalize_text, select, select_one
 from oryxenai.themes.issues import Issue
+from oryxenai.themes.placeholders import placeholderize
 
 _LANG = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$")
 _ARTS = ("orbit", "bars", "grid", "waves", "stack", "dots")
@@ -156,7 +157,11 @@ class AtlasContract:
 
     def derive(self, page_content: Mapping[str, Any]) -> dict[str, Any]:
         name = str(_region(page_content, "hero").get("name", ""))
-        return {"monogram": monogram(name), "home_label": f"{name}, home", "arts": _ARTS}
+        return {
+            "monogram": "{derived.monogram}" if name == "{hero.name}" else monogram(name),
+            "home_label": f"{name}, home",
+            "arts": _ARTS,
+        }
 
     def approved_text(
         self, page_content: Mapping[str, Any], derived: Mapping[str, Any]
@@ -243,7 +248,7 @@ class AtlasContract:
 
     def prompt_contract(self) -> str:
         return (self.root / "contract_rules.md").read_text(encoding="utf-8").strip() + (
-            "\n\n<exemplar>\n" + self.render_reference_body(_symbolic_content()) + "</exemplar>"
+            "\n\n<exemplar>\n" + self.render_reference_body(exemplar_content()) + "</exemplar>"
         )
 
     def validate_body(
@@ -287,8 +292,9 @@ class AtlasContract:
                     Issue(
                         "ATLAS_TITLE",
                         "error",
-                        "Route title differs from approved copy.",
-                        found=str(view.get("id")),
+                        f"The data-title of route #{view.get('id')} differs from approved copy.",
+                        expected=expected_title,
+                        found=str(view.get("data-title")),
                     )
                 )
         if select_one(root, "#work") is None or select_one(root, "#contact") is None:
@@ -347,6 +353,48 @@ class AtlasContract:
             except (ValueError, IndexError):
                 pass
         return ""
+
+
+def exemplar_content() -> dict[str, Any]:
+    """Placeholder content (``{path}`` strings) the prompt exemplar is rendered from."""
+    sample = _symbolic_content()
+    sample["hero"]["location"] = "Location"
+    sample["marquee_keywords"] = ["Practice", "Practice"]
+    sample["systems_practice"]["pillars"] *= 2
+    sample["technical_capabilities"]["groups"] = [
+        {"heading": "Skills", "items": ["Skill", "Skill"]}
+    ] * 2
+    sample["connect"]["destinations"] = [{"label": "Label", "url": "https://example.com"}] * 2
+    link_only = {
+        "kind": "real",
+        "title": "Title",
+        "summary": "Summary",
+        "role": "",
+        "period": "Period",
+        "problem": "",
+        "approach": "",
+        "outcome": "",
+        "external_url": "https://example.com",
+    }
+    full = dict(sample["atlas"]["projects"][0], role="Role", period="Period", outcome="Outcome")
+    illustrative = dict(full, kind="illustrative", role="", period="", outcome="")
+    sample["atlas"].update(
+        about_quote="Quote",
+        experience=[
+            {
+                "dates": "Dates",
+                "role": "Role",
+                "organization": "Organization",
+                "description": "Text",
+            }
+        ]
+        * 2,
+        education=[{"credential": "Credential", "institution": "Institution", "dates": "Dates"}]
+        * 2,
+        statistics=[{"value": "Value", "label": "Label"}] * 2,
+        projects=[full, link_only, illustrative],
+    )
+    return placeholderize(sample)  # type: ignore[no-any-return]
 
 
 def _symbolic_content() -> dict[str, Any]:
