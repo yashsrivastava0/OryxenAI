@@ -159,10 +159,14 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
     requested_profile = str(input_payload.get("model_profile", "") or "")
     runtime_profile_id = runtime.policy_profile_name("content_architect", "plan_content")
     input_payload["runtime_profile_id"] = runtime_profile_id
-    result_cache = build_result_cache(
-        settings,
-        owner_user_id=run.owner_user_id if run is not None else None,
-        portfolio_session_id=session_id,
+    result_cache = (
+        None
+        if input_payload.get("bypass_result_cache") is True
+        else build_result_cache(
+            settings,
+            owner_user_id=run.owner_user_id if run is not None else None,
+            portfolio_session_id=session_id,
+        )
     )
 
     async with sessionmaker() as db:
@@ -207,6 +211,13 @@ async def _execute_persisted(payload: dict[str, Any], instance_id: str) -> dict[
         )
         retry_error = ModelOutputInvalidError()
         retry_error.retryable = False
+        retry_error.details.update(
+            {
+                "suboperation": exc.operation,
+                "issue_count": len(exc.errors),
+                "issues": exc.issues,
+            }
+        )
         await _persist_failure(
             sessionmaker,
             session_id,

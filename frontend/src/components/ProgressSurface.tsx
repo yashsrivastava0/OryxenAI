@@ -5,6 +5,8 @@
 
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface ProgressMilestoneItem {
   id: string;
@@ -27,20 +29,24 @@ export interface ProgressSurfaceProps {
 interface ProgressStopActionProps {
   onStop: () => Promise<void>;
   stopLabel: string;
+  stageLabel: string;
 }
 
-function ProgressStopAction({ onStop, stopLabel }: ProgressStopActionProps) {
+function ProgressStopAction({ onStop, stopLabel, stageLabel }: ProgressStopActionProps) {
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
 
   const handleStop = async () => {
     if (stopping) return;
     setStopping(true);
     setStopError(null);
+    setFailure(null);
     try {
       await onStop();
     } catch (error) {
       setStopError(error instanceof Error ? error.message : "Could not stop this process.");
+      setFailure(captureFailure(error, stageLabel, "stop", "Could not stop this process."));
     } finally {
       setStopping(false);
     }
@@ -53,7 +59,7 @@ function ProgressStopAction({ onStop, stopLabel }: ProgressStopActionProps) {
           {stopping ? "Stopping..." : stopLabel}
         </button>
       </div>
-      {stopError && <p className="error-copy" role="alert">{stopError}</p>}
+      {stopError && <p className="error-copy" role="alert">{stopError} {failure && <CopyDiagnosticsButton failure={failure} />}</p>}
     </>
   );
 }
@@ -121,7 +127,7 @@ export function ProgressSurface({
         {leaveNote && <p className="progress-leave-note">{leaveNote}</p>}
 
         {onStop && (
-          <ProgressStopAction onStop={onStop} stopLabel={stopLabel} />
+          <ProgressStopAction onStop={onStop} stopLabel={stopLabel} stageLabel={stageLabel} />
         )}
       </div>
 

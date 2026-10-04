@@ -130,6 +130,7 @@ class ContentArchitectService:
         intake_payload = intake.model_dump(mode="json")
         prefs_payload = prefs.model_dump(mode="json")
         retry_nonce = state.attempt if state.status is ContentArchitectStatus.NEEDS_ATTENTION else 0
+        bypass_result_cache = state.status is ContentArchitectStatus.NEEDS_ATTENTION
         key = self._idempotency_key(
             session_id,
             "build",
@@ -154,6 +155,7 @@ class ContentArchitectService:
                 "model_profile": resolved_profile,
                 "input_classification": "personal",
                 "routing_policy_snapshot": policy_snapshot,
+                "bypass_result_cache": bypass_result_cache,
             },
             state_before=dict(session.current_state),
             idempotency_key=key,

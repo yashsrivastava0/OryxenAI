@@ -1,7 +1,11 @@
 import { useState } from "preact/hooks";
 import type { SafeStageError } from "../data/adapters/types";
+import type { StageJobViewModel } from "../data/adapters/job";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface AttentionPanelProps {
+  stage: string;
   title?: string;
   summary: string;
   preservedWorkNote?: string;
@@ -9,7 +13,8 @@ export interface AttentionPanelProps {
   onRetry?: () => void | Promise<void>;
   retryAvailable?: boolean;
   technicalDetails?: string | null;
-  errorDetails?: Pick<SafeStageError, "providerLabel" | "operationLabel" | "retryAfterSeconds" | "supportReference">;
+  errorDetails?: SafeStageError;
+  job?: StageJobViewModel | null;
   inFlight?: boolean;
 }
 
@@ -33,6 +38,7 @@ function friendlyOperation(label?: string): string | undefined {
 }
 
 export function AttentionPanel({
+  stage,
   title = "This stage needs attention",
   summary,
   preservedWorkNote = "Your previous approved work and inputs are safely preserved.",
@@ -41,11 +47,25 @@ export function AttentionPanel({
   retryAvailable = true,
   technicalDetails = null,
   errorDetails,
+  job,
   inFlight = false,
 }: AttentionPanelProps) {
   const operationName = friendlyOperation(errorDetails?.operationLabel);
   const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState<string | null>(null);
+  const [retryError, setRetryError] = useState<FailureDiagnosticInput | null>(null);
+  const diagnostic: FailureDiagnosticInput = {
+    stage,
+    action: "background job",
+    summary,
+    occurredAt: errorDetails?.occurredAt ?? job?.finishedAt,
+    code: errorDetails?.code ?? job?.error?.code,
+    jobId: job?.id,
+    operation: errorDetails?.operationLabel,
+    suboperation: errorDetails?.suboperation,
+    supportReference: errorDetails?.supportReference,
+    issueCount: errorDetails?.issueCount,
+    issues: errorDetails?.issues,
+  };
 
   const handleRetry = async () => {
     if (!onRetry || retrying || inFlight) return;
@@ -54,7 +74,7 @@ export function AttentionPanel({
     try {
       await onRetry();
     } catch (reason) {
-      setRetryError(reason instanceof Error ? reason.message : "Retry could not be started. Please try again.");
+      setRetryError(captureFailure(reason, stage, "retry", "Retry could not be started. Please try again."));
     } finally {
       setRetrying(false);
     }
@@ -84,10 +104,10 @@ export function AttentionPanel({
       {errorDetails?.supportReference ? (
         <p className="attention-reference">Reference: {errorDetails.supportReference}</p>
       ) : null}
-      {retryError ? <p className="attention-retry-error" role="alert">{retryError}</p> : null}
+      {retryError ? <p className="attention-retry-error" role="alert">{retryError.summary} <CopyDiagnosticsButton failure={retryError} /></p> : null}
 
-      {onRetry && retryAvailable ? (
-        <div className="attention-actions">
+      <div className="attention-actions">
+        {onRetry && retryAvailable ? (
           <button
             type="button"
             className="btn-primary attention-retry-btn"
@@ -96,10 +116,11 @@ export function AttentionPanel({
           >
             {retrying || inFlight ? "Retrying..." : retryLabel}
           </button>
-        </div>
-      ) : (
-        <p className="attention-refresh-note">Refresh to check the latest state, or contact support if this continues.</p>
-      )}
+        ) : (
+          <p className="attention-refresh-note">Refresh to check the latest state, or contact support if this continues.</p>
+        )}
+        <CopyDiagnosticsButton failure={diagnostic} />
+      </div>
 
       {technicalDetails && (
         <details className="attention-technical">

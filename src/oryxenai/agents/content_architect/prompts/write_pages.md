@@ -1,6 +1,6 @@
 <!--
   Operation: write_pages (only runs when plan_content set content_included=false)
-  Version: content_architect.write_pages.v7
+  Version: content_architect.write_pages.v8
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -29,7 +29,8 @@ first-person solo achievement.
 
 Return claim_grounding as the COMPLETE list (same claim_ids as given, unchanged statuses) with
 field_paths filled in: every "approved" claim lists the page_content fields that rely on it, using
-the system prompt's path syntax; every "pending" or "blocked" claim keeps field_paths [] and its
+the system prompt's path syntax. Paths start at the page's top-level fields, such as
+"atlas.projects[0].title"; never add a "page_content." prefix. Every "pending" or "blocked" claim keeps field_paths [] and its
 exact detail must not appear in any field — omit it or write a safe neutral statement.
 
 Give each pillar and capability group only what the material supports — do not stretch a thin area
@@ -41,7 +42,7 @@ from what exists, never invented specialties.
 Return the coverage_ledger for the entire dossier: one entry per fact, role, project, and evidence
 item, using the six dispositions from the system prompt. used/condensed entries list the
 field_paths that hold the copy; every other disposition has an empty field_paths and a concrete
-reason.
+reason. Use the same page-relative path syntax without a "page_content." prefix.
 </coverage_ledger_rule>
 
 <detail_rule>

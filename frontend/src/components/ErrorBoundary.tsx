@@ -4,6 +4,7 @@
 // recovery surface with reload/retry capability.
 
 import { Component, type ComponentChildren } from "preact";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface ErrorBoundaryProps {
   children: ComponentChildren;
@@ -15,16 +16,17 @@ export interface ErrorBoundaryProps {
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
+  occurredAt: string | null;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, occurredAt: null };
   }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
+    return { hasError: true, error, occurredAt: new Date().toISOString() };
   }
 
   componentDidCatch(error: Error, errorInfo: unknown): void {
@@ -35,7 +37,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   handleRetry = (): void => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, occurredAt: null });
     this.props.onReset?.();
   };
 
@@ -58,6 +60,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </p>
             )}
             <div className="error-boundary-actions">
+              <CopyDiagnosticsButton failure={{ stage: "workspace", action: "render stage", summary: message, code: "UI_RENDER_ERROR", occurredAt: this.state.occurredAt }} />
               <button
                 type="button"
                 className="btn-primary"

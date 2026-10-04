@@ -1,7 +1,7 @@
 <!--
   Operation: integrate_content (runs when integration_needed was signaled, or as the one
   bounded repair pass when the deterministic approval-readiness check found errors)
-  Version: content_architect.integrate_content.v7
+  Version: content_architect.integrate_content.v8
   Output model: ContentArchitectOutput (see schema in the task block below)
 -->
 
@@ -12,7 +12,8 @@ consistent across every field, as if one author had written the whole page. Use 
 dossier in the packet to check that corrections do not change factual meaning or drop a
 restriction; never rely on a shorter prior summary when the dossier is present. Keep
 coverage_ledger aligned with the final copy: preserve every source_id and update field_paths or
-disposition if a correction changes what is published.
+disposition if a correction changes what is published. All field_paths start at the page's
+top-level fields (for example "atlas.projects[0].title"), never "page_content.atlas...".
 The packet may also include approval_readiness_errors from a deterministic check. When it does,
 correct every listed error — fill missing required fields, bring the pillars to exactly four,
 repair or empty claim field_paths, and complete the coverage ledger — while keeping the facts the

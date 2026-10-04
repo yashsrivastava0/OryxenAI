@@ -8,6 +8,8 @@ import {
   type StudioVersionVM,
 } from "../../data/adapters/studio";
 import { FailurePanel } from "./FailurePanel";
+import { captureFailure, type FailureDiagnosticInput } from "../../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "../CopyDiagnosticsButton";
 
 export const MAX_MESSAGE_CHARS = 1500;
 
@@ -59,7 +61,9 @@ export function ChatPane({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [sendFailure, setSendFailure] = useState<FailureDiagnosticInput | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [restoreFailure, setRestoreFailure] = useState<FailureDiagnosticInput | null>(null);
   const [showFailure, setShowFailure] = useState(false);
   const logRef = useRef<HTMLDivElement | null>(null);
   const attemptId = useRef<string | null>(null);
@@ -84,12 +88,14 @@ export function ChatPane({
     attemptId.current ??= `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     setSending(true);
     setSendError(null);
+    setSendFailure(null);
     try {
       await onSend(message, attemptId.current);
       attemptId.current = null;
       setDraft("");
     } catch (error) {
       setSendError(error instanceof Error ? error.message : "Your message could not be sent.");
+      setSendFailure(captureFailure(error, "studio", "send chat change", "Your message could not be sent."));
     } finally {
       setSending(false);
     }
@@ -97,10 +103,12 @@ export function ChatPane({
 
   const restore = async (versionId: string) => {
     setRestoreError(null);
+    setRestoreFailure(null);
     try {
       await onRestore(versionId);
     } catch (error) {
       setRestoreError(error instanceof Error ? error.message : "That version could not be restored.");
+      setRestoreFailure(captureFailure(error, "studio", "restore version", "That version could not be restored."));
     }
   };
 
@@ -154,6 +162,7 @@ export function ChatPane({
           {showFailure ? (
             <FailurePanel
               failure={lastError}
+              occurredAt={versions.find((version) => version.failure?.reference === lastError.reference)?.completedAt}
               compact
               title="That change did not go through"
               preservedNote="Your live page is unchanged. Ask again, or word the change differently."
@@ -188,7 +197,7 @@ export function ChatPane({
               );
             })}
           </ul>
-          {restoreError ? <p className="studio-inline-error" role="alert">{restoreError}</p> : null}
+          {restoreError ? <p className="studio-inline-error" role="alert">{restoreError} {restoreFailure && <CopyDiagnosticsButton failure={restoreFailure} />}</p> : null}
         </details>
       ) : null}
 
@@ -232,7 +241,7 @@ export function ChatPane({
             {sending ? "Sending…" : "Send"}
           </button>
         </div>
-        {sendError ? <p className="studio-inline-error" role="alert">{sendError}</p> : null}
+        {sendError ? <p className="studio-inline-error" role="alert">{sendError} {sendFailure && <CopyDiagnosticsButton failure={sendFailure} />}</p> : null}
       </form>
     </section>
   );

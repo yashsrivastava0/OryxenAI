@@ -4,6 +4,11 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 — Codex (OpenAI) — Content Architect path repair and failure diagnostics
+
+Traced the post-reset Content Architect failure to model-authored coverage paths prefixed with `page_content.` and an explicit Retry that reused the same cached stage outputs. Canonicalized those paths for fresh and cached responses, made manual retries bypass structured result caching, and clarified the page-relative path prompts. Added bounded, content-free validation locations and a failure-only Copy diagnostics action across the portfolio workflow. Replayed the recorded failed response through the agent without a provider call; the resulting content passed readiness. See D-134.
+
+
 ### 2026-10-04 — Claude Code (Anthropic) — Fix Cobalt & Volt build failures
 
 Cobalt Atlas v2 builds failed with `PAGE_COPY_MISMATCH` because the prompt exemplar contained literal sample copy that the model reproduced. The exemplar is now generated from `{path}` placeholders (shared `themes/placeholders.py`), shows every optional branch including case-id gaps, and the title diagnostic reports expected and found. Added a regression test; verified live generation and browser verification on three consecutive runs. See D-132.

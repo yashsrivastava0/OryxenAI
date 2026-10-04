@@ -1,6 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "preact/hooks";
 import { safeSessionStorage } from "../data/safe-storage";
 import type { ExtractedDocument } from "../data/api-client";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface StartSurfaceProps {
   onStart: (intakeText: string, attachment?: ExtractedDocument | null) => Promise<void>;
@@ -40,6 +42,7 @@ export function StartSurface({
   const [intakeText, setIntakeText] = useState(() => safeSessionStorage.getItem("oryxenai.discovery_intake_draft") ?? "");
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [attachment, setAttachment] = useState<ExtractedDocument | null>(null);
   const [extracting, setExtracting] = useState(false);
@@ -72,16 +75,19 @@ export function StartSurface({
     const value = intakeText.trim();
     if (!value && !attachment?.text.trim()) {
       setError("Write some details or attach a resume before starting Discovery.");
+      setFailure(null);
       return;
     }
     setInFlight(true);
     setError(null);
+    setFailure(null);
     try {
       await onStart(value, attachment);
       safeSessionStorage.removeItem("oryxenai.discovery_intake_draft");
       setAttachment(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Discovery could not start. Try again.");
+      setFailure(captureFailure(reason, "discovery", "start", "Discovery could not start. Try again."));
     } finally {
       setInFlight(false);
     }
@@ -94,10 +100,12 @@ export function StartSurface({
     if (!file) return;
     setExtracting(true);
     setError(null);
+    setFailure(null);
     try {
       setAttachment(await onExtractDocument(file));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "This file could not be read.");
+      setFailure(captureFailure(reason, "discovery", "extract document", "This file could not be read."));
     } finally {
       setExtracting(false);
     }
@@ -155,7 +163,7 @@ export function StartSurface({
           >
             <span aria-hidden="true">+</span> {extracting ? "Reading file…" : "Attach file"}
           </button>
-          {error && <span className="discovery-intake-error" role="alert">{error}</span>}
+          {error && <span className="discovery-intake-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</span>}
           <span className="discovery-intake-counter">{wordCount.toLocaleString()} words</span>
         </div>
       </div>

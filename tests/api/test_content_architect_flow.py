@@ -334,6 +334,17 @@ class TestFullHttpFlow:
         current = (await client.get(f"/api/v1/sessions/{sid}/content-architect")).json()
         assert current["content_architect"]["status"] == "needs_attention"
 
+        retried = await client.post(f"/api/v1/sessions/{sid}/content-architect/start", json={})
+        assert retried.status_code == 202, retried.text
+        retry_run_id = retried.json()["content_architect"]["run_id"]
+        from oryxenai.db.models.agent_run import AgentRun
+
+        app = client._transport.app
+        async with app.state.sessionmaker() as db:
+            retry_run = await db.get(AgentRun, UUID(retry_run_id))
+            assert retry_run is not None
+            assert retry_run.input_payload["bypass_result_cache"] is True
+
     async def test_duplicate_approve_is_idempotent(self, client):
         sid = await _approve_discovery(client)
         await _build_content(client, sid)
