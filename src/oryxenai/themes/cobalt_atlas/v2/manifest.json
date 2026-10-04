@@ -1,0 +1,61 @@
+{
+  "theme_id": "cobalt-atlas/v2",
+  "display_name": "Cobalt Atlas Interactive",
+  "contract_version": "ThemeContract/v2",
+  "stylesheet": "style.css",
+  "script": "theme.js",
+  "capabilities": {
+    "javascript": true,
+    "generated_css": false
+  },
+  "files": [
+    {
+      "path": "assets/fonts/geist-400.ttf",
+      "sha256": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+      "bytes": 72916,
+      "media_type": "font/ttf"
+    },
+    {
+      "path": "assets/fonts/geist-500.ttf",
+      "sha256": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+      "bytes": 72996,
+      "media_type": "font/ttf"
+    },
+    {
+      "path": "assets/fonts/geist-600.ttf",
+      "sha256": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+      "bytes": 73048,
+      "media_type": "font/ttf"
+    },
+    {
+      "path": "assets/fonts/geist-700.ttf",
+      "sha256": "1a9874b3be0fc168692a3d2327bccb4d28835653d3b91537a755296a467a83e3",
+      "bytes": 72984,
+      "media_type": "font/ttf"
+    },
+    {
+      "path": "assets/fonts/geist-mono-500.ttf",
+      "sha256": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+      "bytes": 71212,
+      "media_type": "font/ttf"
+    },
+    {
+      "path": "assets/fonts/instrument-serif-italic.ttf",
+      "sha256": "fecf4861d5202405b8bd45c683858b6870642a026784fe0dbf88ff55dedee8a0",
+      "bytes": 64208,
+      "media_type": "font/ttf"
+    },
+    {
+      "path": "style.css",
+      "sha256": "665aaec68ade8ddab62404d4ee4d4efcc4dcfc477b72857bfb98a8c57fc1c9ba",
+      "bytes": 65272,
+      "media_type": "text/css; charset=utf-8"
+    },
+    {
+      "path": "theme.js",
+      "sha256": "46c752093f6c939ce2e49cf64c80574a411a17fc6c3ac4e96bd1d36c08c9f5db",
+      "bytes": 45698,
+      "media_type": "text/javascript; charset=utf-8"
+    }
+  ]
+}

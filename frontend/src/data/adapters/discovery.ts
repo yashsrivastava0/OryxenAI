@@ -15,7 +15,7 @@ import {
   type StageViewModel,
 } from "./types";
 
-export type DiscoveryQuestionKind = "text" | "single_select" | "multi_select" | "boolean" | "palette_select";
+export type DiscoveryQuestionKind = "text" | "single_select" | "multi_select" | "boolean" | "palette_select" | "work_detail";
 
 export interface DiscoveryQuestionOption {
   id: string;

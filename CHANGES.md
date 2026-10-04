@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 — Codex (OpenAI) — Fourth interactive portfolio theme
+
+Added the immutable Cobalt Atlas v2 CSS/JavaScript pair, local fonts, a checked multi-route HTML contract, full-asset integrity checks, and scripted sandbox preview. Discovery now offers the fourth visual choice and one optional work-detail question with explicit illustrative-concept opt-in. Content Architect writes Atlas-specific About, project, experience, education, and statistic fields; sparse profiles receive abstract artwork and a designed work placeholder without invented results. Studio regenerates the same theme for supported Atlas copy edits. Recorded D-131. No push or deployment.
+
 ### 2026-10-04 — Codex (OpenAI) — Supabase auth recovery
 
 Added a self-healing, bounded HTTP client for Supabase authentication, resilient

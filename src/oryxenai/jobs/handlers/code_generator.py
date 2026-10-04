@@ -244,7 +244,12 @@ async def _execute(payload: dict[str, Any]) -> dict[str, Any]:
             )
             trace.setdefault("calls", []).append(interpreted.call.to_dict())
             trace["plan"] = interpreted.plan.model_dump(mode="json")
-            decision = decide_change(page_content, interpreted.plan)
+            decision = decide_change(
+                page_content,
+                interpreted.plan,
+                theme_id=theme_id,
+                allow_illustrative_work=bool(input_payload.get("allow_illustrative_work", False)),
+            )
             if decision.kind == "reply":
                 return await _finish_reply(sessionmaker, payload, decision.reply, interpreted.plan)
             assert decision.new_content is not None

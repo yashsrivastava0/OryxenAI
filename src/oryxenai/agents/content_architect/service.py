@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
-from oryxenai.agents.content_architect.page_content import coverage_errors
+from oryxenai.agents.content_architect.page_content import atlas_page_errors, coverage_errors
 from oryxenai.agents.content_architect.schemas import (
     ContentArchitectIntake,
     ContentArchitectPreferences,
@@ -280,12 +280,23 @@ class ContentArchitectService:
             return await self.get_content_architect_state(session_id)
 
         page_payload = state.page_content.model_dump(mode="json")
+        if state.intake.selected_theme_id == "cobalt-atlas/v2":
+            atlas_errors = atlas_page_errors(
+                page_payload, allow_illustrative_work=state.intake.allow_illustrative_work
+            )
+            if atlas_errors:
+                raise ContentArchitectOperationError(
+                    "CONTENT_ARCHITECT_ATLAS_INCOMPLETE",
+                    "The selected design needs its About and project copy reviewed.",
+                    details={"errors": atlas_errors},
+                )
         coverage_payload = [entry.model_dump(mode="json") for entry in state.coverage_ledger]
         content_hash = _content_hash(
             page_payload,
             claim_grounding=[claim.model_dump(mode="json") for claim in state.claim_grounding],
             coverage_ledger=coverage_payload,
             selected_theme_id=state.intake.selected_theme_id,
+            allow_illustrative_work=state.intake.allow_illustrative_work,
         )
         try:
             approved = apply_approval(state, content_hash)
@@ -470,6 +481,7 @@ def _intake_from_discovery(
         discovery_brief_hash=discovery.brief.approved.brief_hash,
         discovery_session_revision=session_revision,
         selected_theme_id=discovery.selected_theme_id,
+        allow_illustrative_work=discovery.allow_illustrative_work,
     )
 
 
@@ -479,6 +491,7 @@ def _content_hash(
     claim_grounding: Any = None,
     coverage_ledger: Any = None,
     selected_theme_id: str = "",
+    allow_illustrative_work: bool = False,
 ) -> str:
     combined = json.dumps(
         {
@@ -486,6 +499,7 @@ def _content_hash(
             "claim_grounding": claim_grounding,
             "coverage_ledger": coverage_ledger,
             **({"selected_theme_id": selected_theme_id} if selected_theme_id else {}),
+            **({"allow_illustrative_work": True} if allow_illustrative_work else {}),
         },
         sort_keys=True,
         default=str,

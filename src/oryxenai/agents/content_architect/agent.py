@@ -22,6 +22,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from oryxenai.agents.content_architect.page_content import (
+    atlas_page_errors,
     claim_binding_errors,
     coverage_errors,
     page_completeness_errors,
@@ -100,6 +101,8 @@ class ContentArchitectAgent(Agent):
 
         # ── Stage 1: plan_content (always) ──────────────────────────────
         plan_packet = {
+            "selected_theme_id": intake.get("selected_theme_id", ""),
+            "allow_illustrative_work": intake.get("allow_illustrative_work", False),
             "approved_brief_title": intake.get("approved_brief_title", ""),
             "user_summary": intake.get("user_summary", ""),
             "profile": model_profile,
@@ -146,6 +149,8 @@ class ContentArchitectAgent(Agent):
         # ── Stage 2: write_pages (only if stage 1 deferred content) ─────
         if not content_included:
             pages_packet = {
+                "selected_theme_id": intake.get("selected_theme_id", ""),
+                "allow_illustrative_work": intake.get("allow_illustrative_work", False),
                 "site_story_strategy": site_story_strategy,
                 "claim_grounding": claim_grounding,
                 "dossier": intake.get("dossier", {}),
@@ -174,6 +179,8 @@ class ContentArchitectAgent(Agent):
         # ── Stage 3: integrate_content (only if warranted) ──────────────
         if integration_needed:
             integrate_packet = {
+                "selected_theme_id": intake.get("selected_theme_id", ""),
+                "allow_illustrative_work": intake.get("allow_illustrative_work", False),
                 "page_content": page_content,
                 "claim_grounding": claim_grounding,
                 "coverage_ledger": coverage_ledger,
@@ -200,9 +207,13 @@ class ContentArchitectAgent(Agent):
             claim_grounding=claim_grounding,
             coverage_ledger=coverage_ledger,
             dossier=dossier,
+            selected_theme_id=str(intake.get("selected_theme_id", "")),
+            allow_illustrative_work=bool(intake.get("allow_illustrative_work", False)),
         )
         if readiness_errors and len(stages_run) < 3:
             repair_packet = {
+                "selected_theme_id": intake.get("selected_theme_id", ""),
+                "allow_illustrative_work": intake.get("allow_illustrative_work", False),
                 "page_content": page_content,
                 "claim_grounding": claim_grounding,
                 "coverage_ledger": coverage_ledger,
@@ -223,6 +234,8 @@ class ContentArchitectAgent(Agent):
                 claim_grounding=claim_grounding,
                 coverage_ledger=coverage_ledger,
                 dossier=dossier,
+                selected_theme_id=str(intake.get("selected_theme_id", "")),
+                allow_illustrative_work=bool(intake.get("allow_illustrative_work", False)),
             )
         if readiness_errors:
             raise ContentArchitectModelOutputError("approval_readiness", readiness_errors)
@@ -316,6 +329,8 @@ class ContentArchitectAgent(Agent):
             "profile": raw.get("profile", {}) or {},
             "dossier": raw.get("dossier", {}) or {},
             "open_items": raw.get("open_items", []) or [],
+            "selected_theme_id": str(raw.get("selected_theme_id", "") or ""),
+            "allow_illustrative_work": bool(raw.get("allow_illustrative_work", False)),
         }
 
 
@@ -325,11 +340,18 @@ def _approval_readiness_errors(
     claim_grounding: list[dict[str, Any]],
     coverage_ledger: list[dict[str, Any]] | None = None,
     dossier: dict[str, Any] | None = None,
+    selected_theme_id: str = "",
+    allow_illustrative_work: bool = False,
 ) -> list[str]:
     """Deterministic gate mirroring what approval will enforce later."""
     return [
         *page_shape_errors(page_content),
         *page_completeness_errors(page_content),
+        *(
+            atlas_page_errors(page_content, allow_illustrative_work=allow_illustrative_work)
+            if selected_theme_id == "cobalt-atlas/v2"
+            else []
+        ),
         *claim_binding_errors(page_content, claim_grounding),
         *coverage_errors(dossier or {}, coverage_ledger or [], page_content),
     ]

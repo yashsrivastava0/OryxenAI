@@ -13,6 +13,7 @@ interface PreviewFrame {
   key: number;
   url: string;
   ready: boolean;
+  allowsScripts: boolean;
 }
 
 export interface PreviewPaneProps {
@@ -73,7 +74,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
         };
         keyRef.current += 1;
         const key = keyRef.current;
-        setFrames((previous) => [...previous.filter((frame) => frame.ready).slice(-1), { key, url: grant.url, ready: false }]);
+        setFrames((previous) => [...previous.filter((frame) => frame.ready).slice(-1), { key, url: grant.url, ready: false, allowsScripts: grant.allows_scripts === true }]);
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
@@ -192,7 +193,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
                 className={`studio-frame${visible ? " is-visible" : ""}`}
                 title="Portfolio preview"
                 src={frame.url}
-                sandbox="allow-popups allow-popups-to-escape-sandbox"
+                sandbox={frame.allowsScripts ? "allow-scripts allow-popups allow-popups-to-escape-sandbox" : "allow-popups allow-popups-to-escape-sandbox"}
                 referrerPolicy="no-referrer"
                 style={{
                   width: `${spec.width}px`,

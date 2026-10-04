@@ -255,6 +255,68 @@ def page_completeness_errors(page: Any) -> list[str]:
     return errors
 
 
+def atlas_page_errors(page: Any, *, allow_illustrative_work: bool) -> list[str]:
+    """Additional content rules for the optional Cobalt Atlas v2 pages."""
+    if not isinstance(page, dict) or not isinstance(page.get("atlas"), dict):
+        return ["page_content.atlas is required for Cobalt Atlas v2"]
+    atlas = page["atlas"]
+    errors: list[str] = []
+    for field in ("about_heading", "about_intro"):
+        if not _text(atlas.get(field)):
+            errors.append(f"atlas.{field} is required")
+    for field in ("experience", "education", "statistics", "projects"):
+        if not isinstance(atlas.get(field), list):
+            errors.append(f"atlas.{field} must be a list")
+    for field, maximum in (("about_heading", 160), ("about_intro", 1400), ("about_quote", 500)):
+        if len(_text(atlas.get(field))) > maximum:
+            errors.append(f"atlas.{field} exceeds {maximum} characters")
+    for field, maximum in (("experience", 12), ("education", 8), ("statistics", 4)):
+        rows = atlas.get(field)
+        if isinstance(rows, list):
+            if len(rows) > maximum:
+                errors.append(f"atlas.{field} has at most {maximum} entries")
+            for index, row in enumerate(rows):
+                if isinstance(row, dict):
+                    for key, value in row.items():
+                        if isinstance(value, str) and len(value.strip()) > 900:
+                            errors.append(f"atlas.{field}[{index}].{key} exceeds 900 characters")
+    projects = atlas.get("projects") if isinstance(atlas.get("projects"), list) else []
+    if len(projects) > 3:
+        errors.append("atlas.projects has at most three featured entries")
+    illustrative = 0
+    real = 0
+    for index, project in enumerate(projects):
+        if not isinstance(project, dict):
+            errors.append(f"atlas.projects[{index}] must be an object")
+            continue
+        kind = project.get("kind", "real")
+        if kind == "real":
+            real += 1
+        elif kind == "illustrative":
+            illustrative += 1
+            if _text(project.get("outcome")):
+                errors.append(f"atlas.projects[{index}].outcome must be empty for illustration")
+        else:
+            errors.append(f"atlas.projects[{index}].kind is invalid")
+        if not _text(project.get("title")) or not _text(project.get("summary")):
+            errors.append(f"atlas.projects[{index}] needs title and summary")
+        for field, maximum in (
+            ("title", 160),
+            ("summary", 600),
+            ("problem", 1400),
+            ("approach", 1400),
+            ("outcome", 700),
+        ):
+            if len(_text(project.get(field))) > maximum:
+                errors.append(f"atlas.projects[{index}].{field} exceeds {maximum} characters")
+        url = _text(project.get("external_url"))
+        if url and not url.lower().startswith(("https://", "http://")):
+            errors.append(f"atlas.projects[{index}].external_url must be http(s)")
+    if illustrative and (not allow_illustrative_work or real or illustrative > 1):
+        errors.append("atlas illustrative work needs explicit opt-in and no real project")
+    return errors
+
+
 def _section_errors(page: dict[str, Any], key: str) -> list[str]:
     region = _region(page, key)
     return [

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from hashlib import sha256
 from typing import Protocol
 from uuid import UUID
 
@@ -38,6 +39,12 @@ _CSP = (
     "base-uri 'none'; form-action 'none'; frame-ancestors 'self'; "
     "sandbox allow-popups allow-popups-to-escape-sandbox"
 )
+_SCRIPT_CSP = (
+    "default-src 'none'; script-src 'self'; script-src-attr 'none'; "
+    "style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'; "
+    "base-uri 'none'; form-action 'none'; frame-ancestors 'self'; "
+    "sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +52,8 @@ class ServedBundle:
     index_html: str
     theme_id: str
     theme_sha256: str
+    index_sha256: str | None = None
+    manifest: Mapping[str, object] | None = None
 
 
 class BundleProvider(Protocol):
@@ -65,6 +74,8 @@ class DbBundleProvider:
                         PortfolioSiteVersion.index_html,
                         PortfolioSiteVersion.theme_id,
                         PortfolioSiteVersion.theme_sha256,
+                        PortfolioSiteVersion.index_sha256,
+                        PortfolioSiteVersion.manifest,
                     )
                     .join(
                         PortfolioSession,
@@ -82,7 +93,13 @@ class DbBundleProvider:
             ).first()
         if row is None or row[0] is None:
             return None
-        return ServedBundle(index_html=str(row[0]), theme_id=str(row[1]), theme_sha256=str(row[2]))
+        return ServedBundle(
+            index_html=str(row[0]),
+            theme_id=str(row[1]),
+            theme_sha256=str(row[2]),
+            index_sha256=str(row[3]) if row[3] else None,
+            manifest=row[4],
+        )
 
 
 class StaticBundleProvider:
@@ -95,10 +112,12 @@ class StaticBundleProvider:
         return self._bundles.get((session_id, version_id))
 
 
-def preview_headers(*, html: bool, etag: str | None = None) -> dict[str, str]:
+def preview_headers(
+    *, html: bool, etag: str | None = None, scripts: bool = False
+) -> dict[str, str]:
     """Headers for every preview response (pages, theme files and error pages)."""
     headers = {
-        "Content-Security-Policy": _CSP,
+        "Content-Security-Policy": _SCRIPT_CSP if scripts else _CSP,
         "Referrer-Policy": "no-referrer",
         "X-Content-Type-Options": "nosniff",
         "X-Robots-Tag": "noindex, nofollow",
@@ -133,6 +152,35 @@ def _unsafe_path(path: str) -> bool:
         or "\x00" in path
         or any(segment in {"..", "."} for segment in path.split("/"))
         or len(path) > 200
+    )
+
+
+def bundle_integrity_ok(bundle: ServedBundle, theme: object) -> bool:
+    """Compare the stored page and complete theme manifest before serving."""
+    from oryxenai.themes import ThemePackage
+
+    if not isinstance(theme, ThemePackage) or theme.css_sha256 != bundle.theme_sha256:
+        return False
+    if (
+        bundle.index_sha256
+        and sha256(bundle.index_html.encode("utf-8")).hexdigest() != bundle.index_sha256
+    ):
+        return False
+    if bundle.manifest is None:
+        return not theme.allows_scripts  # older versions pinned only the stylesheet
+    entries = bundle.manifest.get("files")
+    if not isinstance(entries, list):
+        return False
+    stored = {str(row.get("path")): row for row in entries if isinstance(row, dict)}
+    expected_paths = {"index.html", *theme.files}
+    if set(stored) != expected_paths:
+        return False
+    index = stored["index.html"]
+    if index.get("sha256") != sha256(bundle.index_html.encode("utf-8")).hexdigest():
+        return False
+    return all(
+        stored[path].get("sha256") == item.sha256 and stored[path].get("bytes") == item.size
+        for path, item in theme.files.items()
     )
 
 
@@ -178,7 +226,7 @@ def create_preview_router() -> APIRouter:
                 "Preview unavailable",
                 "The theme this version was built with is not installed.",
             )
-        if theme.css_sha256 != bundle.theme_sha256:
+        if not bundle_integrity_ok(bundle, theme):
             logger.warning(
                 "preview theme hash differs from the version pin theme_id=%s", theme.theme_id
             )
@@ -191,17 +239,24 @@ def create_preview_router() -> APIRouter:
         if requested == "index.html":
             data = bundle.index_html.encode("utf-8")
             return Response(
-                data, media_type=media_type_for("index.html"), headers=preview_headers(html=True)
+                data,
+                media_type=media_type_for("index.html"),
+                headers=preview_headers(html=True, scripts=theme.allows_scripts),
             )
         entry = theme.file(requested)
         if entry is None:
             return _notice(404, "Not found", "Not found.")
         if request.headers.get("if-none-match", "").strip('"') == entry.sha256:
-            return Response(status_code=304, headers=preview_headers(html=False, etag=entry.sha256))
+            return Response(
+                status_code=304,
+                headers=preview_headers(
+                    html=False, etag=entry.sha256, scripts=theme.allows_scripts
+                ),
+            )
         return Response(
             entry.data,
             media_type=entry.media_type,
-            headers=preview_headers(html=False, etag=entry.sha256),
+            headers=preview_headers(html=False, etag=entry.sha256, scripts=theme.allows_scripts),
         )
 
     return router

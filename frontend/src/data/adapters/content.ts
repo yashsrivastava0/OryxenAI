@@ -79,6 +79,15 @@ export interface PageContentVM {
   technicalCapabilities: TechnicalCapabilitiesVM;
   professionalContext: ProfessionalContextVM;
   connect: ConnectVM;
+  atlas: {
+    aboutHeading: string;
+    aboutIntro: string;
+    aboutQuote: string;
+    experience: Array<{ role: string; organization: string; dates: string; description: string }>;
+    education: Array<{ credential: string; institution: string; dates: string }>;
+    statistics: Array<{ value: string; label: string }>;
+    projects: Array<{ kind: string; title: string; summary: string; role: string; period: string; problem: string; approach: string; outcome: string; externalUrl: string }>;
+  };
 }
 
 export interface ClaimGroundingVM {
@@ -198,6 +207,7 @@ export function adaptPageContent(raw: unknown): PageContentVM {
   const context = region(page, "professional_context");
   const connect = region(page, "connect");
   const metadata = region(page, "metadata");
+  const atlas = region(page, "atlas");
   return {
     hero: adaptHero(region(page, "hero")),
     metadataTitle: str(metadata.title),
@@ -236,6 +246,15 @@ export function adaptPageContent(raw: unknown): PageContentVM {
         url: str(d.url),
         featured: d.featured === true,
       })),
+    },
+    atlas: {
+      aboutHeading: str(atlas.about_heading),
+      aboutIntro: str(atlas.about_intro),
+      aboutQuote: str(atlas.about_quote),
+      experience: records(atlas.experience).map((row) => ({ role: str(row.role), organization: str(row.organization), dates: str(row.dates), description: str(row.description) })),
+      education: records(atlas.education).map((row) => ({ credential: str(row.credential), institution: str(row.institution), dates: str(row.dates) })),
+      statistics: records(atlas.statistics).map((row) => ({ value: str(row.value), label: str(row.label) })),
+      projects: records(atlas.projects).map((row) => ({ kind: str(row.kind), title: str(row.title), summary: str(row.summary), role: str(row.role), period: str(row.period), problem: str(row.problem), approach: str(row.approach), outcome: str(row.outcome), externalUrl: str(row.external_url) })),
     },
   };
 }

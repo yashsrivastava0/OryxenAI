@@ -2149,9 +2149,6 @@ button:disabled, textarea:disabled, input:disabled {
   margin-top: 0.5rem;
 }
 
-/* ==========================================================================
-   Responsive Adaptations matching 10-mobile-review.png
-   ========================================================================== */
 @media (max-width: 1280px) {
   .topbar-motto, .topbar-dot { display: none; }
   .journey-rail { --journey-gap: clamp(1.5rem, 3vw, 3rem); }
@@ -2159,7 +2156,7 @@ button:disabled, textarea:disabled, input:disabled {
 
 .palette-choice-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.8rem;
 }
 .palette-choice {
@@ -2179,6 +2176,8 @@ button:disabled, textarea:disabled, input:disabled {
 .palette-choice[data-look="forest_copper"] { --demo-bg: #14231c; --demo-ink: #f3f1e9; --demo-accent: #9a3f29; }
 .palette-choice[data-look="cobalt_white"] { --demo-bg: #f7f9fc; --demo-ink: #17253c; --demo-accent: #2849c9; }
 .palette-choice[data-look="obsidian_lime"] { --demo-bg: #0c0e0d; --demo-ink: #f0f2eb; --demo-accent: #d9fc73; }
+.palette-choice[data-look="cobalt_atlas_interactive"]{--demo-bg:#f8f8f5;--demo-ink:#17253c;--demo-accent:#3656d6}
+.palette-choice[data-look="cobalt_atlas_interactive"] .palette-demo__accent{border-color:#d7fa76;box-shadow:0 0 0 .9rem #3656d6}
 .palette-demo__top { display: flex; align-items: center; gap: 0.22rem; height: 1.2rem; padding: 0 0.7rem; border-bottom: 1px solid currentColor; opacity: 0.5; }
 .palette-demo__body { position: relative; display: block; height: calc(100% - 1.2rem); padding: 1.25rem 1.1rem; }
 .palette-demo__eyebrow, .palette-demo__headline span { display: block; height: 0.16rem; background: currentColor; border-radius: 2px; }
@@ -2214,6 +2213,7 @@ button:disabled, textarea:disabled, input:disabled {
   .palette-choice-list { grid-template-columns: 1fr; }
   .palette-choice__demo { height: 8rem; }
 }
+@media (min-width: 761px) and (max-width: 1100px) { .palette-choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) {
   .palette-choice { transition: none; }
   .palette-choice:hover { transform: none; }

@@ -58,6 +58,26 @@ _TEXT_PATHS: frozenset[str] = frozenset(
         "professional_context.organizations[]",
         "connect.destinations[].label",
         "connect.destinations[].url",
+        "atlas.about_heading",
+        "atlas.about_intro",
+        "atlas.about_quote",
+        "atlas.experience[].role",
+        "atlas.experience[].organization",
+        "atlas.experience[].dates",
+        "atlas.experience[].description",
+        "atlas.education[].credential",
+        "atlas.education[].institution",
+        "atlas.education[].dates",
+        "atlas.statistics[].value",
+        "atlas.statistics[].label",
+        "atlas.projects[].title",
+        "atlas.projects[].summary",
+        "atlas.projects[].role",
+        "atlas.projects[].period",
+        "atlas.projects[].problem",
+        "atlas.projects[].approach",
+        "atlas.projects[].outcome",
+        "atlas.projects[].external_url",
     }
 )
 _STRING_LISTS: frozenset[str] = frozenset(
@@ -91,6 +111,8 @@ EDITABLE_PATHS_HELP = (
     "professional_context.organizations (set list | append str | remove [i]); "
     "connect.destinations (append {label,url,featured} | remove [i]), "
     "connect.destinations[i].{label,url,featured}"
+    "; Atlas: atlas.{about_heading,about_intro,about_quote}, "
+    "atlas.{experience,education,statistics,projects}[i] text fields (existing entries only)"
 )
 
 
@@ -329,7 +351,13 @@ class ChangeDecision:
     removed: frozenset[str] = frozenset()
 
 
-def decide_change(base_content: Mapping[str, Any], plan: ChangePlanEnvelope) -> ChangeDecision:
+def decide_change(
+    base_content: Mapping[str, Any],
+    plan: ChangePlanEnvelope,
+    *,
+    theme_id: str = "",
+    allow_illustrative_work: bool = False,
+) -> ChangeDecision:
     """Turn the interpreter's plan into a build, or into the reply the person should read."""
     reply = clean_reply(plan.reply)
     if plan.intent is ChangeIntent.NEEDS_CLARIFICATION:
@@ -367,7 +395,9 @@ def decide_change(base_content: Mapping[str, Any], plan: ChangePlanEnvelope) -> 
         return ChangeDecision(
             "reply", "I could not make that change because it would break the page structure."
         )
-    issues = content_admission_issues(shaped)
+    issues = content_admission_issues(
+        shaped, theme_id=theme_id, allow_illustrative_work=allow_illustrative_work
+    )
     if issues:
         return ChangeDecision("reply", f"I could not make that change: {issues[0].message}")
     if shaped == PortfolioPageContent.model_validate(dict(base_content)).model_dump(mode="json"):

@@ -12,7 +12,13 @@ from datetime import UTC, datetime
 from typing import Any, NoReturn
 from uuid import UUID, uuid4
 
-from oryxenai.agents.discovery.palette import PALETTE_TO_THEME, palette_answer
+from oryxenai.agents.discovery.palette import (
+    PALETTE_TO_THEME,
+    WORK_GAP_ID,
+    atlas_work_answer,
+    atlas_work_question,
+    palette_answer,
+)
 from oryxenai.agents.discovery.schemas import (
     AnswerMode,
     DiscoveryAnswer,
@@ -21,6 +27,7 @@ from oryxenai.agents.discovery.schemas import (
     DiscoveryState,
     DiscoveryStatus,
     QuestionAnswerRevision,
+    QuestionHistoryEvent,
     QuestionKind,
     SourceDocument,
 )
@@ -288,6 +295,14 @@ class DiscoveryService:
                         status_code=400,
                     )
                 continue
+            if question.kind is QuestionKind.WORK_DETAIL:
+                if answer.mode is AnswerMode.ANSWERED and atlas_work_answer(answer.value) is None:
+                    raise DiscoveryOperationError(
+                        "DISCOVERY_INVALID_ANSWER",
+                        "Share project details or choose the illustrative concept option.",
+                        status_code=400,
+                    )
+                continue
             if answer.mode is AnswerMode.ANSWERED and not (
                 isinstance(answer.value, str)
                 or (question.kind is QuestionKind.MULTI_SELECT and isinstance(answer.value, list))
@@ -315,6 +330,7 @@ class DiscoveryService:
         answer_documents: list[SourceDocument] = []
         question_events = [event.model_copy(deep=True) for event in state.question_events]
         next_theme_id = state.selected_theme_id
+        allow_illustrative_work = state.allow_illustrative_work
         for answer in answers:
             if answer.question_id:
                 previous = answer_map.get(answer.question_id)
@@ -324,6 +340,11 @@ class DiscoveryService:
                     palette_choice = palette_answer(answer.value)
                     assert palette_choice is not None
                     next_theme_id = PALETTE_TO_THEME[palette_choice[0]]
+                    if next_theme_id != "cobalt-atlas/v2":
+                        allow_illustrative_work = False
+                elif question.kind is QuestionKind.WORK_DETAIL:
+                    work_choice = atlas_work_answer(answer.value)
+                    allow_illustrative_work = bool(work_choice and work_choice[1])
                 event = next(
                     (item for item in question_events if item.question_id == answer.question_id),
                     None,
@@ -343,18 +364,24 @@ class DiscoveryService:
                                 )
                             )
                     else:
-                        answer_text = _answer_text(
-                            answer.value, active_questions[answer.question_id]
-                        )
+                        answer_text = _answer_text(answer.value, question)
                         event.status = "answered"
                         event.answer = answer_text
                         if changed:
                             event.answer_source_refs = []
-                            answer_document = (
-                                None
-                                if question.kind is QuestionKind.PALETTE_SELECT
-                                else document_from_answer(answer.question_id, answer_text)
-                            )
+                            if question.kind is QuestionKind.PALETTE_SELECT:
+                                answer_document = None
+                            elif question.kind is QuestionKind.WORK_DETAIL:
+                                work_answer = atlas_work_answer(answer.value)
+                                answer_document = (
+                                    document_from_answer(answer.question_id, work_answer[0])
+                                    if work_answer and work_answer[0]
+                                    else None
+                                )
+                            else:
+                                answer_document = document_from_answer(
+                                    answer.question_id, answer_text
+                                )
                             if answer_document is not None:
                                 answer_documents.append(answer_document)
                                 event.answer_source_refs = [
@@ -375,12 +402,38 @@ class DiscoveryService:
         next_state.answers.revision += 1
         next_state.answers.items = answer_map
         next_state.selected_theme_id = next_theme_id
+        next_state.allow_illustrative_work = allow_illustrative_work
         next_state.question_events = question_events
         next_state.source_documents.extend(answer_documents)
         next_state.latest_error = None
 
+        # The visual choice is last in the original round. Add one optional,
+        # server-authored work question before scheduling the brief.
+        if next_theme_id == "cobalt-atlas/v2" and not any(
+            item.gap_id == WORK_GAP_ID for item in next_state.operation_a.items
+        ):
+            work_question = atlas_work_question(f"{next_state.operation_a.run_id}:atlas-work")
+            next_state.operation_a.items.append(work_question)
+            next_state.question_events.append(
+                QuestionHistoryEvent(
+                    question_id=work_question.id,
+                    gap_id=work_question.gap_id,
+                    question=work_question.text,
+                    status="pending",
+                )
+            )
+            complete = False
+
         operation = ""
         if complete:
+            if any(
+                item.gap_id == WORK_GAP_ID and item.id not in next_state.answers.items
+                for item in next_state.operation_a.items
+            ):
+                raise DiscoveryOperationError(
+                    "DISCOVERY_WORK_CHOICE_REQUIRED",
+                    "Answer or skip the optional work question before continuing.",
+                )
             if (
                 any(
                     question.kind is QuestionKind.PALETTE_SELECT
@@ -640,6 +693,7 @@ class DiscoveryService:
             profile=state.brief.profile.model_dump(mode="json"),
             open_items=state.brief.open_items,
             selected_theme_id=state.selected_theme_id,
+            allow_illustrative_work=state.allow_illustrative_work,
         )
         approved = apply_approval(state, brief_hash)
         updated = await self._repository.save_discovery_state(
@@ -827,6 +881,7 @@ def _brief_hash(
     profile: dict[str, Any] | None = None,
     open_items: list[str] | None = None,
     selected_theme_id: str = "",
+    allow_illustrative_work: bool = False,
 ) -> str:
     payload = {
         "title": title,
@@ -838,6 +893,8 @@ def _brief_hash(
     }
     if selected_theme_id:
         payload["selected_theme_id"] = selected_theme_id
+    if allow_illustrative_work:
+        payload["allow_illustrative_work"] = True
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
@@ -902,6 +959,17 @@ def _answer_text(value: Any, question: DiscoveryQuestion) -> str:
         if selected is not None:
             label = next(option.label for option in question.options if option.id == selected[0])
             return f"{label}. {selected[1]}" if selected[1] else label
+    if question.kind is QuestionKind.WORK_DETAIL:
+        work_selected = atlas_work_answer(value)
+        if work_selected is not None:
+            details, allowed = work_selected
+            return (
+                f"{details} | Illustrative concept allowed"
+                if details and allowed
+                else "Illustrative concept allowed"
+                if allowed
+                else details
+            )
     if question.kind is QuestionKind.BOOLEAN and isinstance(value, str):
         return {"true": "Yes", "false": "No"}.get(value, value)
     if question.kind in {QuestionKind.SINGLE_SELECT, QuestionKind.MULTI_SELECT}:
