@@ -9,6 +9,9 @@
     U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+@font-face { font-family: "Space Grotesk"; src: url("/auth-static/space-grotesk-400.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Space Grotesk"; src: url("/auth-static/space-grotesk-600.woff2") format("woff2"); font-style: normal; font-weight: 600 700; font-display: swap; }
+
 :root {
   color-scheme: light;
 
@@ -42,7 +45,7 @@
   --preview-frame: #171a19;
 
   --font-display: "Newsreader", Georgia, "Times New Roman", serif;
-  --font-body: "Segoe UI Variable Text", "Aptos", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Space Grotesk", "Segoe UI Variable Text", "Aptos", system-ui, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
   --type-display: 600 clamp(2.75rem, 7vw, 5.75rem) / 0.96 var(--font-display);

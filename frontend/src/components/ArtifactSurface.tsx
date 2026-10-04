@@ -230,28 +230,15 @@ export function ArtifactSurface({
               is exposed after the approved state is rendered below. */}
           {!isApproved && canMutate && onApproveAndContinue && (
             <div className="artifact-review-actions">
-              <div className="action-buttons-row">
-                <button
-                  type="button"
-                  className={`btn-primary handoff-cta ${approving ? "is-approving" : ""}`}
-                  disabled={approving}
-                  onClick={() => void handleApproveAndContinue()}
-                >
-                  <span className="handoff-cta-label">
-                    {approving ? "Saving approval..." : (approveLabel ?? `Approve ${artifactTypeName}`)}
-                  </span>
-                </button>
-                {onRevise && (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={approving}
-                    onClick={() => setShowRevisionComposer(true)}
-                  >
-                    Revise
-                  </button>
-                )}
-              </div>
+              <ActionDock
+                primaryLabel={approveLabel ?? `Approve ${artifactTypeName}`}
+                onPrimary={handleApproveAndContinue}
+                busy={approving}
+                busyLabel="Saving approval..."
+                secondaryLabel={onRevise ? "Revise" : undefined}
+                onSecondary={onRevise ? () => setShowRevisionComposer(true) : undefined}
+                note="Review the plan before approving it."
+              />
 
               {/* Revision Composer, the one alternative to approving as-is */}
               {showRevisionComposer && onRevise && (

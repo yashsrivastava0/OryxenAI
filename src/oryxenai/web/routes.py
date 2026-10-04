@@ -95,6 +95,7 @@ def _set_shell_headers(response: Response, settings: Any) -> Response:
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     return response
 
 

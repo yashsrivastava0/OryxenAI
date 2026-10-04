@@ -36,6 +36,9 @@ async def test_app_serves_preact_shell_when_enabled_and_built(client, monkeypatc
         in resp.text
     )
     assert "auth-bootstrap.css" in resp.text
+    assert resp.headers["X-Robots-Tag"] == "noindex, nofollow, noarchive"
+    assert 'meta name="robots" content="noindex, nofollow, noarchive"' in resp.text
+    assert (await c.get("/auth/static/return-route.mjs")).status_code == 200
     assert 'id="chat-card"' not in resp.text
 
 
