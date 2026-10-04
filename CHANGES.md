@@ -4,6 +4,11 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 — Codex (OpenAI) — Show all four palette choices in the workspace
+
+The Discovery API already returned four choices, but the frontend adapter kept only three. Preserve four options for the fixed palette while retaining the three-option cap for model-authored questions. Also preserve the Atlas work-detail question kind so its optional illustrative-concept control appears. Rebuilt the product bundle and verified the fourth choice in the open local Edge workspace.
+
+
 ### 2026-10-04 — Codex (OpenAI) — Refresh saved Discovery visual choices
 
 An in-progress Discovery interview created before the fourth theme existed kept its three-choice palette snapshot. Open, unanswered palette questions now display the current server-owned choices on read and persist them when answered, preserving existing answers and the session. Added an API regression test for selecting Cobalt Atlas v2 from a legacy question. Restarted the local API; no deployment.
