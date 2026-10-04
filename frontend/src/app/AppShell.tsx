@@ -24,6 +24,8 @@ import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics"
 import { ClientTraceNotice } from "../components/ClientTraceNotice";
 import { OutputInspector } from "../components/OutputInspector";
 import { StageContextStrip } from "../components/StageContextStrip";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "../components/CopyDiagnosticsButton";
 
 export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
@@ -129,6 +131,9 @@ export function AppShell({
   const [mutatingStage, setMutatingStage] = useState<JourneyStageId | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [resetFailure, setResetFailure] = useState<FailureDiagnosticInput | null>(null);
+  const [connectionFailure, setConnectionFailure] = useState<FailureDiagnosticInput | null>(null);
+  const [shellFailure, setShellFailure] = useState<FailureDiagnosticInput | null>(null);
 
   // Normal users receive their single owner-scoped session from /me. Admins
   // can work across explicitly created sessions, so retain only an
@@ -153,6 +158,7 @@ export function AppShell({
   const studioLock = useRef(false);
   const [studioBusy, setStudioBusy] = useState(false);
   const [studioStartError, setStudioStartError] = useState<string | null>(null);
+  const [studioStartFailure, setStudioStartFailure] = useState<FailureDiagnosticInput | null>(null);
   const invalidationChannelRef = useRef<InvalidationChannel | null>(null);
   const initialNormalizationDone = useRef(false);
   const seenCacheReceipts = useRef(new Set<string>());
@@ -269,6 +275,10 @@ export function AppShell({
       type: "connection/set",
       state: results.every((result) => result.status === "fulfilled") ? "confirmed" : "stale",
     });
+    const rejected = results.find((result) => result.status === "rejected");
+    setConnectionFailure(rejected?.status === "rejected"
+      ? captureFailure(rejected.reason, "workspace", "refresh state", "The latest check did not complete.")
+      : null);
   }, [api, initialUrl.stage, inspectCacheReceipt, selectStage, state.sessionId]);
 
   useEffect(() => {
@@ -304,7 +314,10 @@ export function AppShell({
       dispatch({ type: "stage/select", stage });
     };
     const onOnline = () => void refetchCurrentSession();
-    const onOffline = () => dispatch({ type: "connection/set", state: "offline" });
+    const onOffline = () => {
+      dispatch({ type: "connection/set", state: "offline" });
+      setConnectionFailure(captureFailure(null, "workspace", "refresh state", "The browser is offline."));
+    };
     window.addEventListener("popstate", onPopState);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
@@ -329,11 +342,13 @@ export function AppShell({
           dispatch({ type: "discovery/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
+          setConnectionFailure(null);
           if (view.state === "review") {
             dispatch({ type: "announce", message: "Portfolio brief ready for review." });
           }
         } catch (error) {
           dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
+          setConnectionFailure(captureFailure(error, "discovery", "poll stage", "Discovery status could not be refreshed."));
           throw error;
         }
       }, false);
@@ -352,11 +367,13 @@ export function AppShell({
           dispatch({ type: "content/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
+          setConnectionFailure(null);
           if (view.state === "review") {
             dispatch({ type: "announce", message: "Content plan ready for review." });
           }
         } catch (error) {
           dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
+          setConnectionFailure(captureFailure(error, "content_architect", "poll stage", "Content Architect status could not be refreshed."));
           throw error;
         }
       }, false);
@@ -386,6 +403,7 @@ export function AppShell({
           dispatch({ type: "studio/set", view });
           dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
           dispatch({ type: "connection/set", state: "confirmed" });
+          setConnectionFailure(null);
           if (!view.building) {
             dispatch({
               type: "announce",
@@ -396,6 +414,7 @@ export function AppShell({
           }
         } catch (error) {
           dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
+          setConnectionFailure(captureFailure(error, "studio", "poll stage", "Studio status could not be refreshed."));
           throw error;
         }
       }, false);
@@ -769,9 +788,11 @@ export function AppShell({
 
   const startContentAfterApproval = async () => {
     try {
+      setShellFailure(null);
       await runContentMutation("start");
       selectStage("content");
     } catch (error) {
+      setShellFailure(captureFailure(error, "content_architect", "start after discovery approval", "Content Architect could not start."));
       dispatch({ type: "announce", message: `Content Architect could not start: ${error instanceof Error ? error.message : "try again."}` });
     }
   };
@@ -828,10 +849,12 @@ export function AppShell({
   // (it has no composer to show an error in), so it records instead of throwing.
   const startStudio = async () => {
     setStudioStartError(null);
+    setStudioStartFailure(null);
     try {
       await runStudioMutation("start");
     } catch (error) {
       setStudioStartError(error instanceof Error ? error.message : "The build could not start. Please try again.");
+      setStudioStartFailure(captureFailure(error, "studio", "start build", "The build could not start. Please try again."));
     }
   };
 
@@ -852,11 +875,13 @@ export function AppShell({
 
   const handleStopStudio = async () => {
     if (!state.sessionId) return;
+    setShellFailure(null);
     recordClientEvent({ kind: "user_action", stage: "studio", action: "stop" });
     studioPollerRef.current?.unsubscribe("code_generator");
     try {
       await runStudioMutation("stop");
     } catch {
+      setShellFailure(captureFailure(null, "studio", "stop build", "The build could not be stopped."));
       dispatch({ type: "announce", message: "The build could not be stopped. Refreshing its status." });
     }
   };
@@ -878,6 +903,7 @@ export function AppShell({
     const sessionId = state.sessionId;
     setResetting(true);
     setResetError(null);
+    setResetFailure(null);
     try {
       const result = await api.resetSession(sessionId);
       safeSessionStorage.removeItem("oryxenai.discovery_intake_draft");
@@ -891,6 +917,7 @@ export function AppShell({
       );
     } catch (reason) {
       setResetError(reason instanceof Error ? reason.message : "The pipeline could not be reset.");
+      setResetFailure(captureFailure(reason, "workspace", "reset pipeline", "The pipeline could not be reset."));
     } finally {
       setResetting(false);
     }
@@ -946,8 +973,9 @@ export function AppShell({
           </div>
         </header>
 
-        <ConnectionBanner state={state.connection} />
-        {resetError && <div className="pipeline-reset-error" role="alert">{resetError}</div>}
+        <ConnectionBanner state={state.connection} failure={connectionFailure} />
+        {shellFailure && <div className="pipeline-reset-error" role="alert">{shellFailure.summary} <CopyDiagnosticsButton failure={shellFailure} /></div>}
+        {resetError && <div className="pipeline-reset-error" role="alert">{resetError} {resetFailure && <CopyDiagnosticsButton failure={resetFailure} />}</div>}
         <CacheNotice key={cacheNotice?.id ?? "empty"} message={cacheNotice?.message ?? null} />
         {developer ? (
           <ClientTraceNotice traceId={getClientTraceId()} />
@@ -1014,6 +1042,7 @@ export function AppShell({
                   canMutate={mutatingStage === null}
                   inFlight={studioBusy}
                   startError={studioStartError}
+                  startFailure={studioStartFailure}
                   loadPreview={loadStudioPreview}
                   onStart={startStudio}
                   onStop={handleStopStudio}

@@ -7,6 +7,8 @@ Callers never need to know which provider generated the error.
 from __future__ import annotations
 
 import hashlib
+import re
+from datetime import UTC, datetime
 from typing import Any
 
 MODEL_PROVIDER_CREDIT_EXHAUSTED = "MODEL_PROVIDER_CREDIT_EXHAUSTED"
@@ -570,6 +572,7 @@ def safe_operation_failure(
         "provider_label": str(details.get("provider_label") or provider_label),
         "operation_label": str(operation or "model operation"),
         "support_reference": f"model-{reference}",
+        "occurred_at": datetime.now(UTC).isoformat(),
         "retryable": bool(
             error.get("retryable", False)
             if isinstance(error, dict)
@@ -583,4 +586,48 @@ def safe_operation_failure(
         payload["validation_categories"] = [
             category for category in categories[:5] if category in {"empty_brief", "invalid_shape"}
         ]
+    suboperation = details.get("suboperation")
+    if suboperation in {
+        "plan_content",
+        "write_pages",
+        "integrate_content",
+        "approval_readiness",
+    }:
+        payload["suboperation"] = suboperation
+    issue_count = details.get("issue_count")
+    if isinstance(issue_count, int) and not isinstance(issue_count, bool) and issue_count >= 0:
+        payload["issue_count"] = min(issue_count, 1000)
+    raw_issues = details.get("issues")
+    if isinstance(raw_issues, list):
+        safe_issues = []
+        for issue in raw_issues[:12]:
+            if not isinstance(issue, dict) or issue.get("code") not in {
+                "coverage_path_unpopulated",
+                "invalid_output_field",
+            }:
+                continue
+            source_id = issue.get("source_id")
+            path = issue.get("path")
+            if (
+                (
+                    issue["code"] == "invalid_output_field"
+                    or (
+                        isinstance(source_id, str)
+                        and re.fullmatch(
+                            r"(?:fact|role|project|evidence)/[A-Za-z0-9:_-]{1,64}", source_id
+                        )
+                    )
+                )
+                and isinstance(path, str)
+                and len(path) <= 160
+                and re.fullmatch(
+                    r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*", path
+                )
+            ):
+                safe_issue = {"code": issue["code"], "path": path}
+                if issue["code"] == "coverage_path_unpopulated":
+                    safe_issue["source_id"] = source_id
+                safe_issues.append(safe_issue)
+        if safe_issues:
+            payload["issues"] = safe_issues
     return payload

@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
-import { copyJson, type CopyJsonResult } from "../../data/clipboard";
-import { failureDiagnostics, type StudioFailureVM } from "../../data/adapters/studio";
+import { studioFailureDiagnostic, type StudioFailureVM } from "../../data/adapters/studio";
+import { CopyDiagnosticsButton } from "../CopyDiagnosticsButton";
+import { captureFailure, type FailureDiagnosticInput } from "../../data/failure-diagnostics";
 
 const STAGE_LABEL: Record<string, string> = {
   start: "Starting the build",
@@ -42,6 +43,7 @@ export interface FailurePanelProps {
   inFlight?: boolean;
   /** A smaller version for the chat column. */
   compact?: boolean;
+  occurredAt?: string | null;
 }
 
 /**
@@ -56,25 +58,22 @@ export function FailurePanel({
   onRetry,
   inFlight = false,
   compact = false,
+  occurredAt,
 }: FailurePanelProps) {
-  const [copyState, setCopyState] = useState<"idle" | CopyJsonResult>("idle");
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
-
-  const copy = async () => {
-    const result = await copyJson(failureDiagnostics(failure));
-    setCopyState(result);
-    window.setTimeout(() => setCopyState("idle"), 1800);
-  };
+  const [retryFailure, setRetryFailure] = useState<FailureDiagnosticInput | null>(null);
 
   const retry = async () => {
     if (!onRetry || retrying || inFlight) return;
     setRetrying(true);
     setRetryError(null);
+    setRetryFailure(null);
     try {
       await onRetry();
     } catch (error) {
       setRetryError(error instanceof Error ? error.message : "Could not start again. Please try again.");
+      setRetryFailure(captureFailure(error, "studio", "retry build", "Could not start again. Please try again."));
     } finally {
       setRetrying(false);
     }
@@ -155,7 +154,7 @@ export function FailurePanel({
         {stage} · {owner}
         {failure.reference ? <> · Reference <code>{failure.reference}</code></> : null}
       </p>
-      {retryError ? <p className="studio-inline-error" role="alert">{retryError}</p> : null}
+      {retryError ? <p className="studio-inline-error" role="alert">{retryError} {retryFailure && <CopyDiagnosticsButton failure={retryFailure} />}</p> : null}
 
       <div className="studio-failure-actions">
         {onRetry && failure.retryable ? (
@@ -168,12 +167,7 @@ export function FailurePanel({
             {retrying || inFlight ? "Starting…" : retryLabel}
           </button>
         ) : null}
-        <button type="button" className="btn-secondary" onClick={() => void copy()}>
-          {copyState === "copied" || copyState === "fallback" ? "Diagnostics copied" : "Copy diagnostics"}
-        </button>
-        {copyState === "unavailable" ? (
-          <span role="status" className="studio-failure-detail">Clipboard unavailable.</span>
-        ) : null}
+        <CopyDiagnosticsButton failure={studioFailureDiagnostic(failure, occurredAt)} />
       </div>
     </section>
   );

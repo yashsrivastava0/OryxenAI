@@ -6,6 +6,8 @@ import {
   type DiscoveryAnswerSubmission,
 } from "../data/discovery-answer";
 import { safeSessionStorage } from "../data/safe-storage";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 interface DiscoveryQuestionCardProps {
   question: DiscoveryQuestionVM;
@@ -30,6 +32,7 @@ export function DiscoveryQuestionCard({
   const [allowIllustrative, setAllowIllustrative] = useState(false);
   const [inFlight, setInFlight] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
   const draftKey = `oryxenai.draft.${question.id}`;
   const singleKey = `${draftKey}.single`;
   const multiKey = `${draftKey}.multi`;
@@ -54,6 +57,7 @@ export function DiscoveryQuestionCard({
       setSelectedOptions([]);
     }
     setError(null);
+    setFailure(null);
   }, [draftKey, singleKey, multiKey, illustrativeKey]);
 
   const updateText = (value: string) => {
@@ -102,6 +106,7 @@ export function DiscoveryQuestionCard({
       clearDraft();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "We couldn't save that answer. Try again.");
+      setFailure(captureFailure(reason, "discovery", "answer question", "We couldn't save that answer. Try again."));
     } finally {
       setInFlight(false);
     }
@@ -129,7 +134,7 @@ export function DiscoveryQuestionCard({
           {question.helpText && <p className="question-help">{question.helpText}</p>}
         </div>
 
-        {error && <div className="discovery-error-callout" role="alert">{error}</div>}
+        {error && <div className="discovery-error-callout" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</div>}
 
         {question.kind === "single_select" && (
           <fieldset className="choice-fieldset">

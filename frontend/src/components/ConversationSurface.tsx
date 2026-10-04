@@ -3,6 +3,8 @@ import type { DiscoveryQuestionVM } from "../data/adapters/discovery";
 import type { StageJobViewModel } from "../data/adapters/job";
 import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
 import { DiscoveryQuestionCard } from "./DiscoveryQuestionCard";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface AnsweredTurn {
   questionId: string;
@@ -45,6 +47,7 @@ export function ConversationSurface({
   const [inFlight, setInFlight] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
   const [statusAnnouncement, setStatusAnnouncement] = useState<string>("");
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -92,6 +95,7 @@ export function ConversationSurface({
   const handleSubmitAnswer = async (answer: DiscoveryAnswerSubmission, isComplete: boolean) => {
     if (disabled) throw new Error("Discovery is currently busy.");
     setError(null);
+    setFailure(null);
     setPendingIds((ids) => [...ids, answer.questionId]);
     const generation = saveGeneration.current;
     const save = saveTail.current.then(async () => {
@@ -108,6 +112,7 @@ export function ConversationSurface({
         saveGeneration.current += 1;
         setPendingIds([]);
         setError(reason instanceof Error ? reason.message : "Could not save that answer.");
+        setFailure(captureFailure(reason, "discovery", "save answer", "Could not save that answer."));
       }
       throw reason;
     }
@@ -116,10 +121,12 @@ export function ConversationSurface({
     if (!onStop || stopping || disabled) return;
     setStopping(true);
     setError(null);
+    setFailure(null);
     try {
       await onStop();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not stop Discovery.");
+      setFailure(captureFailure(err, "discovery", "stop", "Could not stop Discovery."));
     } finally {
       setStopping(false);
     }
@@ -129,10 +136,12 @@ export function ConversationSurface({
     if (!onContinueWithCurrentInformation || inFlight || disabled) return;
     setInFlight(true);
     setError(null);
+    setFailure(null);
     try {
       await onContinueWithCurrentInformation();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Discovery could not continue with the current information.");
+      setFailure(captureFailure(reason, "discovery", "continue", "Discovery could not continue with the current information."));
     } finally {
       setInFlight(false);
     }
@@ -282,7 +291,7 @@ export function ConversationSurface({
             disabled={disabled || inFlight}
             onSubmitAnswer={handleSubmitAnswer}
           />
-          {error && <p className="start-error" role="alert">{error}</p>}
+          {error && <p className="start-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</p>}
         </div>
       )}
       {!isWorking && !currentQuestion && pendingIds.length > 0 && (
@@ -310,7 +319,7 @@ export function ConversationSurface({
             <p className="ready-thesis">
               Discovery has enough context to prepare your review brief.
             </p>
-            {error && <p className="start-error" role="alert">{error}</p>}
+            {error && <p className="start-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</p>}
             <div className="question-actions">
               <button
                 type="button"

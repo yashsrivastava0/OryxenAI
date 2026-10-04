@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import type { StudioPreviewGrant } from "../../data/api-client";
+import { captureFailure, type FailureDiagnosticInput } from "../../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "../CopyDiagnosticsButton";
 
 export type PreviewDevice = "desktop" | "tablet" | "mobile";
 
@@ -42,6 +44,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
   const [fit, setFit] = useState(true);
   const [frames, setFrames] = useState<PreviewFrame[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
   const [loading, setLoading] = useState(false);
   const [reloadNonce, setReloadNonce] = useState(0);
   const [host, setHost] = useState({ width: 0, height: 0 });
@@ -65,6 +68,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setFailure(null);
     void loadPreview(versionId)
       .then((grant) => {
         if (cancelled) return;
@@ -80,6 +84,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
         if (cancelled) return;
         setLoading(false);
         setError(reason instanceof Error ? reason.message : "The preview could not be loaded.");
+        setFailure(captureFailure(reason, "studio", "load preview", "The preview could not be loaded."));
       });
     return () => {
       cancelled = true;
@@ -107,8 +112,9 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
     try {
       const fresh = await loadPreview(versionId);
       window.open(fresh.url, "_blank", "noopener,noreferrer");
-    } catch {
+    } catch (reason) {
       setError("The preview link could not be refreshed. Try Reload.");
+      setFailure(captureFailure(reason, "studio", "refresh preview link", "The preview link could not be refreshed. Try Reload."));
     }
   };
 
@@ -169,6 +175,7 @@ export function PreviewPane({ versionId, versionNumber, loadPreview, updating = 
         {error ? (
           <div className="studio-preview-note" role="alert">
             <p>{error}</p>
+            {failure && <CopyDiagnosticsButton failure={failure} />}
             <button type="button" className="btn-secondary" onClick={() => setReloadNonce((count) => count + 1)}>
               Try again
             </button>

@@ -66,12 +66,14 @@ export function DiscoveryStage({
     return (
       <>
       <AttentionPanel
+        stage="discovery"
         title="Discovery needs attention"
         summary={view.safeError?.summary || "An issue occurred while processing your discovery answers."}
         preservedWorkNote="All your answered questions and input notes are preserved."
         retryLabel="Retry Discovery"
         onRetry={onRetryDiscovery}
         errorDetails={view.safeError ?? undefined}
+        job={view.job}
       />
       {view.brief?.markdown && <section className="discovery-previous-brief" aria-label="Saved brief"><SafeMarkdown content={view.brief.markdown} /></section>}
       </>

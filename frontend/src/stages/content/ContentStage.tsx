@@ -94,12 +94,14 @@ export function ContentStage({
   if (view.state === "attention") {
     return (
       <AttentionPanel
+        stage="content_architect"
         title="Content Architect needs attention"
         summary={view.safeError?.summary || "Content synthesis encountered an issue and can be restarted."}
         preservedWorkNote="Your approved Discovery brief remains intact."
         retryLabel="Retry Content Architect"
         onRetry={onStart}
         errorDetails={view.safeError ?? undefined}
+        job={view.job}
       />
     );
   }

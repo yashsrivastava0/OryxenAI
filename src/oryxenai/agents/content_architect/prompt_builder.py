@@ -21,8 +21,8 @@ _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 PROMPT_VERSION_SYSTEM = "content_architect.system.v5"
 PROMPT_VERSION_PLAN_CONTENT = "content_architect.plan_content.v8"
-PROMPT_VERSION_WRITE_PAGES = "content_architect.write_pages.v7"
-PROMPT_VERSION_INTEGRATE_CONTENT = "content_architect.integrate_content.v7"
+PROMPT_VERSION_WRITE_PAGES = "content_architect.write_pages.v8"
+PROMPT_VERSION_INTEGRATE_CONTENT = "content_architect.integrate_content.v8"
 
 _OPERATION_VERSION_MAP = {
     "plan_content": PROMPT_VERSION_PLAN_CONTENT,

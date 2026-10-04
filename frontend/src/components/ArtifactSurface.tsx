@@ -4,6 +4,8 @@ import { SafeMarkdown, extractHeadings } from "./SafeMarkdown";
 import { RevisionComposer } from "./RevisionComposer";
 import { ActionDock } from "./ActionDock";
 import { copyJson, formatJson, type CopyJsonResult } from "../data/clipboard";
+import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
+import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 
 export interface ArtifactSectionItem {
   id: string;
@@ -66,6 +68,7 @@ export function ArtifactSurface({
   const [approving, setApproving] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | CopyJsonResult>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<FailureDiagnosticInput | null>(null);
 
   // Extract headings from markdown if present
   const markdownHeadings = useMemo(() => extractHeadings(markdownContent), [markdownContent]);
@@ -78,6 +81,7 @@ export function ArtifactSurface({
     if (!onApproveAndContinue || approving) return;
     setApproving(true);
     setError(null);
+    setFailure(null);
     try {
       await onApproveAndContinue();
       // On success this component usually unmounts anyway (the shell
@@ -89,6 +93,7 @@ export function ArtifactSurface({
       setApproving(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Approval could not be saved. Please try again.");
+      setFailure(captureFailure(err, artifactTypeName, "approve", "Approval could not be saved. Please try again."));
       setApproving(false);
     }
   };
@@ -219,7 +224,7 @@ export function ArtifactSurface({
             </details>
           )}
 
-          {error && <p className="artifact-error" role="alert">{error}</p>}
+          {error && <p className="artifact-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</p>}
 
           {/* Review actions commit only this artifact. Starting the next stage
               is exposed after the approved state is rendered below. */}

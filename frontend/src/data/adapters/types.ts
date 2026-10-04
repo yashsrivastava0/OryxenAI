@@ -33,8 +33,13 @@ export interface StageViewModel {
  */
 export interface SafeStageError {
   summary: string;
+  code?: string;
   providerLabel?: string;
   operationLabel?: string;
+  suboperation?: string;
+  occurredAt?: string;
+  issueCount?: number;
+  issues?: Array<{ code: string; sourceId?: string; path?: string }>;
   retryAfterSeconds?: number;
   supportReference?: string;
   retryable?: boolean;
@@ -63,9 +68,32 @@ export function readSafeStageError(raw: unknown, summary: string): SafeStageErro
       : undefined;
   const supportReference = safeBoundedString(value.support_reference, 64);
   const result: SafeStageError = { summary };
+  const code = safeBoundedString(value.code, 80);
+  if (code) result.code = code;
   if (providerLabel && SAFE_PROVIDER_LABELS.has(providerLabel)) result.providerLabel = providerLabel;
   const operationLabel = safeBoundedString(value.operation_label ?? value.operation);
   if (operationLabel) result.operationLabel = operationLabel;
+  const suboperation = safeBoundedString(value.suboperation, 80);
+  if (suboperation && ["plan_content", "write_pages", "integrate_content", "approval_readiness"].includes(suboperation)) {
+    result.suboperation = suboperation;
+  }
+  const occurredAt = safeBoundedString(value.occurred_at, 40);
+  if (occurredAt && !Number.isNaN(Date.parse(occurredAt))) result.occurredAt = occurredAt;
+  if (typeof value.issue_count === "number" && Number.isInteger(value.issue_count) && value.issue_count >= 0) {
+    result.issueCount = value.issue_count;
+  }
+  if (Array.isArray(value.issues)) {
+    result.issues = value.issues.slice(0, 12).flatMap((entry) => {
+      if (typeof entry !== "object" || entry === null) return [];
+      const issue = entry as Record<string, unknown>;
+      if (issue.code !== "coverage_path_unpopulated" && issue.code !== "invalid_output_field") return [];
+      const sourceId = safeBoundedString(issue.source_id, 80);
+      const path = safeBoundedString(issue.path, 160);
+      if (!path || !/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/.test(path)) return [];
+      if (issue.code === "coverage_path_unpopulated" && (!sourceId || !/^(fact|role|project|evidence)\/[A-Za-z0-9:_-]{1,64}$/.test(sourceId))) return [];
+      return [{ code: issue.code, sourceId, path }];
+    });
+  }
   if (retryAfterSeconds !== undefined) result.retryAfterSeconds = retryAfterSeconds;
   if (supportReference && /^model-[a-f0-9]{12}$/i.test(supportReference)) {
     result.supportReference = supportReference;

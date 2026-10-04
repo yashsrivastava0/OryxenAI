@@ -21,6 +21,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from oryxenai.agents.content_architect.diagnostics import output_issue_locations
+from oryxenai.agents.content_architect.field_paths import normalize_output_field_paths
 from oryxenai.agents.content_architect.page_content import (
     atlas_page_errors,
     claim_binding_errors,
@@ -43,6 +45,7 @@ from oryxenai.agents.shared.model_cache import (
     generate_with_cache,
     prompt_cache_context,
 )
+from oryxenai.agents.shared.providers.errors import ProviderError
 from oryxenai.core.logging import get_logger
 
 logger = get_logger("oryxenai.agents.content_architect")
@@ -51,9 +54,16 @@ logger = get_logger("oryxenai.agents.content_architect")
 class ContentArchitectModelOutputError(Exception):
     """Raised when a stage's model output fails the output contract."""
 
-    def __init__(self, operation: str, errors: list[str]) -> None:
+    def __init__(
+        self,
+        operation: str,
+        errors: list[str],
+        *,
+        issues: list[dict[str, str]] | None = None,
+    ) -> None:
         self.operation = operation
         self.errors = errors
+        self.issues = issues if issues is not None else output_issue_locations(errors)
         super().__init__(
             f"Content Architect {operation} output failed validation: {'; '.join(errors[:5])}"
         )
@@ -238,7 +248,12 @@ class ContentArchitectAgent(Agent):
                 allow_illustrative_work=bool(intake.get("allow_illustrative_work", False)),
             )
         if readiness_errors:
-            raise ContentArchitectModelOutputError("approval_readiness", readiness_errors)
+            issue_locations = _unpopulated_coverage_paths(page_content, coverage_ledger)
+            raise ContentArchitectModelOutputError(
+                "approval_readiness",
+                readiness_errors,
+                issues=issue_locations or output_issue_locations(readiness_errors),
+            )
 
         try:
             normalized_strategy = ContentStoryStrategy.model_validate(site_story_strategy)
@@ -300,22 +315,33 @@ class ContentArchitectAgent(Agent):
             if not validation.is_valid:
                 raise ContentArchitectModelOutputError(operation, validation.errors)
 
-        result = await generate_with_cache(
-            client=self._model_client,
-            result_cache=self._result_cache,
-            agent_key=self.key.value,
-            operation=operation,
-            system_prompt=system_prompt,
-            instructions=task_prompt,
-            input_payload=source_packet,
-            output_model=ContentArchitectOutput,
-            model_profile=self._profile_name,
-            profile_fingerprint=self._profile_fingerprint,
-            request_context=prompt_cache_context(self.key.value, operation, manifest, context),
-            strict_schema=False,
-            validator=validate,
-        )
-        parsed = _parsed_output(result)
+        try:
+            result = await generate_with_cache(
+                client=self._model_client,
+                result_cache=self._result_cache,
+                agent_key=self.key.value,
+                operation=operation,
+                system_prompt=system_prompt,
+                instructions=task_prompt,
+                input_payload=source_packet,
+                output_model=ContentArchitectOutput,
+                model_profile=self._profile_name,
+                profile_fingerprint=self._profile_fingerprint,
+                request_context=prompt_cache_context(self.key.value, operation, manifest, context),
+                strict_schema=False,
+                validator=validate,
+            )
+        except ProviderError as exc:
+            exc.details.setdefault("suboperation", operation)
+            if isinstance(exc.__cause__, ContentArchitectModelOutputError):
+                exc.details["issue_count"] = len(exc.__cause__.errors)
+                exc.details["issues"] = exc.__cause__.issues
+            raise
+        # Cached responses take this same boundary as fresh provider responses.
+        # A previous run may have cached a stage-valid output with paths rooted
+        # at the JSON property name rather than at the page object.
+        parsed = normalize_output_field_paths(_parsed_output(result))
+        validate(parsed)
         return parsed, version, _metadata(result, manifest, operation)
 
     @staticmethod
@@ -355,6 +381,31 @@ def _approval_readiness_errors(
         *claim_binding_errors(page_content, claim_grounding),
         *coverage_errors(dossier or {}, coverage_ledger or [], page_content),
     ]
+
+
+def _unpopulated_coverage_paths(
+    page_content: dict[str, Any], coverage_ledger: list[dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Return bounded, copy-safe path locations without any portfolio copy."""
+    from oryxenai.agents.content_architect.page_content import path_is_populated
+
+    issues: list[dict[str, str]] = []
+    for entry in coverage_ledger:
+        if not isinstance(entry, dict) or entry.get("disposition") not in {"used", "condensed"}:
+            continue
+        source_id = entry.get("source_id")
+        paths = entry.get("field_paths")
+        if not isinstance(source_id, str) or not isinstance(paths, list):
+            continue
+        for path in paths:
+            if isinstance(path, str) and not path_is_populated(page_content, path):
+                issues.append(
+                    {"code": "coverage_path_unpopulated", "source_id": source_id, "path": path}
+                )
+                if len(issues) >= 12:
+                    return issues
+                break
+    return issues
 
 
 def _parsed_output(result: Any) -> dict[str, Any]:
