@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 — Claude Code (Anthropic) — Fix Cobalt & Volt build failures
+
+Cobalt Atlas v2 builds failed with `PAGE_COPY_MISMATCH` because the prompt exemplar contained literal sample copy that the model reproduced. The exemplar is now generated from `{path}` placeholders (shared `themes/placeholders.py`), shows every optional branch including case-id gaps, and the title diagnostic reports expected and found. Added a regression test; verified live generation and browser verification on three consecutive runs. See D-132.
+
 ### 2026-10-04 — Codex (OpenAI) — Show all four palette choices in the workspace
 
 The Discovery API already returned four choices, but the frontend adapter kept only three. Preserve four options for the fixed palette while retaining the three-option cap for model-authored questions. Also preserve the Atlas work-detail question kind so its optional illustrative-concept control appears. Rebuilt the product bundle and verified the fourth choice in the open local Edge workspace.
