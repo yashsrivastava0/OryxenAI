@@ -218,6 +218,41 @@ async def _full_flow(client, sid: str, *, choice: str = "forest_copper", note: s
 
 
 class TestFullHttpFlow:
+    async def test_open_legacy_palette_gains_fourth_choice_without_restart(self, client):
+        from oryxenai.db.repositories.discovery import DiscoveryRepository
+
+        sid = await _create_session(client)
+        started = await _start(client, sid)
+        await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
+        async with client._transport.app.state.sessionmaker() as db:
+            repo = DiscoveryRepository(db)
+            session = await repo.get_session(UUID(sid))
+            assert session is not None
+            saved = await repo.get_discovery_state(UUID(sid))
+            saved.operation_a.items[-1].options = saved.operation_a.items[-1].options[:3]
+            await repo.save_discovery_state(UUID(sid), saved, session.revision)
+            await db.commit()
+
+        current = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
+        palette = current["discovery"]["operation_a"]["items"][-1]
+        assert len(palette["options"]) == 4
+        assert palette["options"][-1]["label"] == "Cobalt & volt"
+        chosen = await client.put(
+            f"/api/v1/sessions/{sid}/discovery/answers",
+            json={
+                "complete": True,
+                "answers": [
+                    {
+                        "question_id": palette["id"],
+                        "mode": "answered",
+                        "value": {"choice_id": "cobalt_atlas_interactive", "note": ""},
+                    }
+                ],
+            },
+        )
+        assert chosen.status_code == 200, chosen.text
+        assert chosen.json()["discovery"]["selected_theme_id"] == "cobalt-atlas/v2"
+
     async def test_atlas_choice_asks_once_and_pins_illustrative_opt_in(self, client):
         sid = await _create_session(client)
         started = await _start(client, sid)

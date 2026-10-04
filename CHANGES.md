@@ -4,6 +4,11 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 — Codex (OpenAI) — Refresh saved Discovery visual choices
+
+An in-progress Discovery interview created before the fourth theme existed kept its three-choice palette snapshot. Open, unanswered palette questions now display the current server-owned choices on read and persist them when answered, preserving existing answers and the session. Added an API regression test for selecting Cobalt Atlas v2 from a legacy question. Restarted the local API; no deployment.
+
+
 ### 2026-10-04 — Codex (OpenAI) — Fourth interactive portfolio theme
 
 Added the immutable Cobalt Atlas v2 CSS/JavaScript pair, local fonts, a checked multi-route HTML contract, full-asset integrity checks, and scripted sandbox preview. Discovery now offers the fourth visual choice and one optional work-detail question with explicit illustrative-concept opt-in. Content Architect writes Atlas-specific About, project, experience, education, and statistic fields; sparse profiles receive abstract artwork and a designed work placeholder without invented results. Studio regenerates the same theme for supported Atlas copy edits. Recorded D-131. No push or deployment.
