@@ -314,7 +314,7 @@ export function DiscoveryQuestionCard({
             disabled={locked || !canSubmit}
             onClick={() => void submit()}
           >
-            {inFlight ? "Saving answer…" : isLast ? "Continue to brief" : "Next question"}
+            {inFlight ? "Saving answer…" : question.kind === "palette_select" && selectedSingleOption === "cobalt_atlas_interactive" ? "Continue to project details" : isLast ? "Continue to brief" : "Next question"}
           </button>
           {question.allowSkip && (
             <button

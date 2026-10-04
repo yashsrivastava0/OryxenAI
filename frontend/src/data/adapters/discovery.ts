@@ -467,7 +467,7 @@ function adaptStructuredProfile(raw: unknown): StructuredProfileVM {
 function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
   if (!isRecord(raw) || typeof raw.id !== "string" || typeof raw.text !== "string") return null;
   const kind: DiscoveryQuestionKind =
-    raw.kind === "single_select" || raw.kind === "multi_select" || raw.kind === "boolean" || raw.kind === "palette_select" ? raw.kind : "text";
+    raw.kind === "single_select" || raw.kind === "multi_select" || raw.kind === "boolean" || raw.kind === "palette_select" || raw.kind === "work_detail" ? raw.kind : "text";
   const options: DiscoveryQuestionOption[] = Array.isArray(raw.options)
     ? raw.options
         .filter((option): option is Record<string, unknown> => isRecord(option))
@@ -480,7 +480,7 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
             : [],
         }))
         .filter((option) => option.id && option.label)
-        .slice(0, 3)
+        .slice(0, kind === "palette_select" ? 4 : 3)
     : [];
   return {
     id: raw.id,
