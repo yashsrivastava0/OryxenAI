@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-04 18:55 +05:30 — Codex (OpenAI) — Private workspace navigation and Studio presentation
+
+Standardized viewport-visible stage actions, added private Home and Guide routes with safe sign-in return, redesigned the four visual-choice cards, and introduced a timed illustrative Studio build scene that yields only to a verified preview or real failure. Updated sign-in copy and its three-stage showcase, self-hosted interface type, private-page indexing headers, and browser coverage. See D-135. No publishing, export, or deployment capability was added.
+
 ### 2026-10-04 — Codex (OpenAI) — Content Architect path repair and failure diagnostics
 
 Traced the post-reset Content Architect failure to model-authored coverage paths prefixed with `page_content.` and an explicit Retry that reused the same cached stage outputs. Canonicalized those paths for fresh and cached responses, made manual retries bypass structured result caching, and clarified the page-relative path prompts. Added bounded, content-free validation locations and a failure-only Copy diagnostics action across the portfolio workflow. Replayed the recorded failed response through the agent without a provider call; the resulting content passed readiness. See D-134.

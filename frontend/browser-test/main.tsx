@@ -208,6 +208,7 @@ function StageFixture() {
                 { id: "forest_copper", label: "Forest & copper", description: "Editorial warmth · layered and considered", swatches: ["#14231c", "#f3f1e9", "#9a3f29"] },
                 { id: "cobalt_white", label: "Cobalt & white", description: "Minimal clarity · bright and structured", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
                 { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold modernity · high contrast and energetic", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
+                { id: "cobalt_atlas_interactive", label: "Cobalt & volt", description: "Interactive editorial · layered and vivid", swatches: ["#3656d6", "#d7fa76", "#f8f8f5"] },
               ],
             }],
           },

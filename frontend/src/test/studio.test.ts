@@ -91,7 +91,8 @@ describe("StudioStage states", () => {
       true,
     );
     const html = render(stage(view));
-    expect(html).toContain("Building your portfolio");
+    expect(html).toContain("Your page is taking shape");
+    expect(html).toContain("Illustrative view");
     expect(html).toContain("Checking every word, link and section");
     expect(html).toContain("Stop building");
     expect(html).toContain("Elapsed:");
@@ -260,7 +261,7 @@ describe("journey, url and store integration", () => {
   });
 
   it("round-trips the studio stage in the URL", () => {
-    expect(parseAppUrlState("?stage=studio&view=work")).toEqual({ stage: "studio", view: "work" });
+    expect(parseAppUrlState("?stage=studio&view=work")).toEqual({ stage: "studio", view: "work", screen: null });
     expect(serializeAppUrlState({ stage: "studio", view: "work" })).toBe("?stage=studio&view=work");
   });
 

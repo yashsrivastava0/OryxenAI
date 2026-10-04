@@ -6,6 +6,7 @@
  * without a DOM, Supabase, Google, or network access.
  */
 
+import { consumePrivateDestination } from "./return-route.mjs";
 import {
   AUTH_BOOTSTRAP_TIMEOUT_MS,
   AuthBootstrapTimeoutError,
@@ -186,7 +187,7 @@ export async function routeController({
   }
   if (path === reviewed.onboarding) {
     ui.panel?.("app");
-    replace(reviewed.app);
+    replace(consumePrivateDestination());
     return { kind: "app", me };
   }
   if (path === reviewed.admin && me.role === "admin" && me.admin_available) {
@@ -195,7 +196,7 @@ export async function routeController({
     return { kind: "admin", me };
   }
   ui.panel?.("app");
-  replace(reviewed.app);
+  replace(consumePrivateDestination());
   return { kind: "app", me };
 }
 
@@ -410,7 +411,7 @@ export async function bootstrapAuthPage() {
         body: JSON.stringify({ username: input.value }),
       });
       if (!response.ok) throw await responseError(response);
-      window.location.replace(config.paths.app);
+      window.location.replace(consumePrivateDestination(window));
     } catch (caught) {
       if (error) {
         error.textContent = caught instanceof AuthRequestError ? caught.message : "Username could not be claimed.";

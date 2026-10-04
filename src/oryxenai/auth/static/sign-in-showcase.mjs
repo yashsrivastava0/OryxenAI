@@ -27,8 +27,8 @@ export function initSignInShowcase() {
   let autoplayTimer = null;
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Map each showcase card to the active two-stage workflow rail.
-  const cardToStageIndex = [0, 1, 1];
+  // Map each illustrative card to the real three-stage workflow.
+  const cardToStageIndex = [0, 0, 1, 2];
 
   function updateCards(index) {
     currentIndex = index;

@@ -7,6 +7,7 @@ import { AttentionPanel } from "../../components/AttentionPanel";
 import { ContentCoverageInspector } from "../../components/ContentCoverageInspector";
 import { ProgressSurface } from "../../components/ProgressSurface";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
+import { ActionDock } from "../../components/ActionDock";
 
 export interface ContentStageProps {
   view: ContentViewModel | null;
@@ -56,16 +57,7 @@ export function ContentStage({
         <p className="available-desc">
           Content Architect will consume your approved brief to write the finished copy for every section of your one-page portfolio.
         </p>
-        <div className="available-actions">
-          <button
-            type="button"
-            className="btn-primary btn-cobalt"
-            onClick={onStart}
-            disabled={!canMutate || inFlight}
-          >
-            {inFlight ? "Starting Content Architect…" : "Start Content Architect →"}
-          </button>
-        </div>
+        <ActionDock primaryLabel="Start Content Architect" onPrimary={onStart} disabled={!canMutate} busy={inFlight} busyLabel="Starting Content Architect…" note="Your approved brief is ready." />
       </div>
     );
   }

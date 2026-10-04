@@ -18,7 +18,7 @@ import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { ContentStage } from "../stages/content/ContentStage";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { StudioStage } from "../stages/studio/StudioStage";
-import { parseAppUrlState, serializeAppUrlState, type JourneyStageId } from "./url-state";
+import { parseAppUrlState, serializeAppUrlState, type JourneyStageId, type WorkspaceScreenId } from "./url-state";
 import { safeSessionStorage } from "../data/safe-storage";
 import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics";
 import { ClientTraceNotice } from "../components/ClientTraceNotice";
@@ -26,6 +26,7 @@ import { OutputInspector } from "../components/OutputInspector";
 import { StageContextStrip } from "../components/StageContextStrip";
 import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
 import { CopyDiagnosticsButton } from "../components/CopyDiagnosticsButton";
+import { WorkspaceGuide, WorkspaceHome } from "../components/WorkspacePages";
 
 export interface AppShellProps {
   authorizedFetch: AuthorizedFetch;
@@ -58,6 +59,18 @@ function stagePurposeText(stage: JourneyStageId): string {
 
 function activeSessionStorageKey(userId: string): string {
   return `oryxenai.active_session_id:${userId}`;
+}
+
+interface StudioPresentationMarker { startedAt: number; versionId: string }
+function presentationKey(sessionId: string): string { return `oryxenai.studio_presentation:${sessionId}`; }
+function readPresentation(sessionId: string | null): StudioPresentationMarker | null {
+  if (!sessionId) return null;
+  try {
+    const value: unknown = JSON.parse(safeSessionStorage.getItem(presentationKey(sessionId)) ?? "null");
+    if (!isRecord(value) || typeof value.startedAt !== "number" || typeof value.versionId !== "string") return null;
+    if (value.startedAt > Date.now() || Date.now() - value.startedAt > 86_400_000) return null;
+    return { startedAt: value.startedAt, versionId: value.versionId };
+  } catch { return null; }
 }
 
 // Reconciles the stage requested by the URL (or the "discover" default)
@@ -128,6 +141,7 @@ export function AppShell({
   );
   const initialStage = initialUrl.stage ?? "discover";
   const [activeStage, setActiveStage] = useState<JourneyStageId>(initialStage);
+  const [activeScreen, setActiveScreen] = useState<WorkspaceScreenId | null>(initialUrl.screen);
   const [mutatingStage, setMutatingStage] = useState<JourneyStageId | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -150,6 +164,8 @@ export function AppShell({
     sessionId: initialSessionId,
     activeStage: initialStage,
   });
+  const [presentation, setPresentation] = useState<StudioPresentationMarker | null>(() => readPresentation(initialSessionId));
+  useEffect(() => { setPresentation(readPresentation(state.sessionId)); }, [state.sessionId]);
 
   const api = useMemo(() => createApiClient(authorizedFetch), [authorizedFetch]);
   const pollerRef = useRef<PollCoordinator | null>(null);
@@ -193,11 +209,18 @@ export function AppShell({
   }, [cacheNotice]);
 
   const selectStage = useCallback((stage: JourneyStageId, replace = false) => {
+    setActiveScreen(null);
     setActiveStage(stage);
     dispatch({ type: "stage/select", stage });
     const query = serializeAppUrlState({ stage, view: viewForStage(stage) });
     const method = replace ? "replaceState" : "pushState";
     window.history[method]({}, "", `${window.location.pathname}${query}`);
+  }, []);
+
+  const selectScreen = useCallback((screen: WorkspaceScreenId, replace = false) => {
+    setActiveScreen(screen);
+    const method = replace ? "replaceState" : "pushState";
+    window.history[method]({}, "", `${window.location.pathname}${serializeAppUrlState({ screen })}`);
   }, []);
 
   const refetchCurrentSession = useCallback(async () => {
@@ -252,7 +275,11 @@ export function AppShell({
       initialNormalizationDone.current = true;
       const requested = initialUrl.stage;
       const resolved = resolveInitialStage(requested, discoveryApproved, contentApproved);
-      if (resolved.corrected && resolved.stage) {
+      if (initialUrl.screen) {
+        if (window.location.search !== serializeAppUrlState({ screen: initialUrl.screen })) {
+          selectScreen(initialUrl.screen, true);
+        }
+      } else if (resolved.corrected && resolved.stage) {
         selectStage(resolved.stage, true);
         dispatch({
           type: "announce",
@@ -279,7 +306,7 @@ export function AppShell({
     setConnectionFailure(rejected?.status === "rejected"
       ? captureFailure(rejected.reason, "workspace", "refresh state", "The latest check did not complete.")
       : null);
-  }, [api, initialUrl.stage, inspectCacheReceipt, selectStage, state.sessionId]);
+  }, [api, initialUrl.screen, initialUrl.stage, inspectCacheReceipt, selectScreen, selectStage, state.sessionId]);
 
   useEffect(() => {
     const poller = new PollCoordinator();
@@ -309,9 +336,15 @@ export function AppShell({
   useEffect(() => {
     const onPopState = () => {
       const parsed = parseAppUrlState(window.location.search);
-      const stage = parsed.stage ?? "discover";
+      setActiveScreen(parsed.screen);
+      if (parsed.screen) return;
+      const resolved = resolveInitialStage(parsed.stage, state.discovery?.state === "complete", state.content?.state === "complete");
+      const stage = resolved.stage ?? parsed.stage ?? "discover";
       setActiveStage(stage);
       dispatch({ type: "stage/select", stage });
+      if (resolved.corrected) {
+        window.history.replaceState({}, "", `${window.location.pathname}${serializeAppUrlState({ stage, view: viewForStage(stage) })}`);
+      }
     };
     const onOnline = () => void refetchCurrentSession();
     const onOffline = () => {
@@ -326,7 +359,7 @@ export function AppShell({
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
-  }, [refetchCurrentSession]);
+  }, [refetchCurrentSession, state.content?.state, state.discovery?.state]);
 
   useEffect(() => {
     const poller = pollerRef.current;
@@ -423,6 +456,18 @@ export function AppShell({
   }, [api, state.sessionId, state.studio?.building]);
 
   const contentApprovedForStudio = state.content?.state === "complete";
+  const discoveryApproved = state.discovery?.state === "complete";
+  const resumeStage: JourneyStageId = contentApprovedForStudio ? "studio" : discoveryApproved ? "content" : "discover";
+  const previewReady = Boolean(state.studio?.activeVersionId);
+
+  useEffect(() => {
+    const page = activeScreen === "home" ? "Home" : activeScreen === "guide" ? "Guide" : stageDisplayName(activeStage);
+    document.title = `${page} · OryxenAI`;
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (description) description.content = activeScreen === "guide"
+      ? "How your private portfolio moves through Discovery, Content Architect, and Studio."
+      : "Your private OryxenAI portfolio workspace.";
+  }, [activeScreen, activeStage]);
   const journey = useMemo<JourneyStageVM[]>(() => {
     const discoveryState = state.discovery?.state ?? "available";
     const discoveryApproved = discoveryState === "complete";
@@ -822,7 +867,16 @@ export function AppShell({
                   base_version_id: state.studio?.activeVersionId ?? null,
                 })
               : await api.restoreStudioVersion(sessionId, argument);
-      dispatch({ type: "studio/set", view: adaptStudio(result, true) });
+      const nextStudio = adaptStudio(result, true);
+      if (operation === "start" && !state.studio?.activeVersionId) {
+        const versionId = nextStudio.inFlight?.versionId ?? nextStudio.activeVersionId;
+        if (versionId) {
+          const marker = { startedAt: Date.now(), versionId };
+          safeSessionStorage.setItem(presentationKey(sessionId), JSON.stringify(marker));
+          setPresentation(marker);
+        }
+      }
+      dispatch({ type: "studio/set", view: nextStudio });
       dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
       dispatch({
         type: "announce",
@@ -911,6 +965,8 @@ export function AppShell({
         clearIdempotencyKey(sessionId, action);
       }
       dispatch({ type: "pipeline/reset", sessionId: result.id, revision: result.revision });
+      safeSessionStorage.removeItem(presentationKey(sessionId));
+      setPresentation(null);
       notifyMutation(sessionId);
       window.location.replace(
         `${window.location.pathname}${serializeAppUrlState({ stage: "discover", view: "work" })}`,
@@ -943,8 +999,11 @@ export function AppShell({
             <span className="header-descriptor">IDEAS TO IMPACT</span>
           </a>
 
-          {/* The journey ends when the approved content plan is ready. */}
-          <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />
+          <nav className="workspace-topnav" aria-label="Workspace pages">
+            <button type="button" className={activeScreen === "home" ? "is-active" : ""} aria-current={activeScreen === "home" ? "page" : undefined} onClick={() => selectScreen("home")}>Home</button>
+            <button type="button" className={activeScreen === "guide" ? "is-active" : ""} aria-current={activeScreen === "guide" ? "page" : undefined} onClick={() => selectScreen("guide")}>Guide</button>
+          </nav>
+          {!activeScreen && <JourneyRail journey={journey} selectedStageId={activeStage} onSelect={selectStage} />}
 
           <div className="app-topbar-actions">
             <span className="topbar-motto" aria-hidden="true">A MORE THOUGHTFUL CREATIVE FUTURE</span>
@@ -982,17 +1041,30 @@ export function AppShell({
         ) : null}
 
         {/* In-flow Stage Context Strip matching 01-shell-overview.png */}
-        <StageContextStrip
+        {!activeScreen && <StageContextStrip
           stageName={stageDisplayName(activeStage)}
           stagePurpose={stagePurposeText(activeStage)}
           tagline="A STRONG START LEADS FURTHER"
-        />
+        />}
 
         <main className="app-work-surface">
           <div className="app-stage-layout">
             <ErrorBoundary fallbackTitle="Unable to display this stage" onReset={refetchCurrentSession}>
-              <section id="workspace-stage" className="stage-frame" data-stage={activeStage} tabIndex={-1}>
-              <div key={activeStage} className="stage-transition-layer">
+              <section id="workspace-stage" className="stage-frame" data-stage={activeScreen ?? activeStage} tabIndex={-1}>
+              {activeScreen === "home" ? (
+                <WorkspaceHome
+                  nextStage={resumeStage}
+                  hasSession={Boolean(state.sessionId)}
+                  discoveryApproved={discoveryApproved}
+                  contentApproved={contentApprovedForStudio}
+                  previewReady={previewReady}
+                  working={Boolean(state.discovery?.state === "working" || state.content?.state === "working" || state.studio?.building)}
+                  onResume={() => selectStage(resumeStage)}
+                  onGuide={() => selectScreen("guide")}
+                />
+              ) : activeScreen === "guide" ? (
+                <WorkspaceGuide nextStage={resumeStage} onResume={() => selectStage(resumeStage)} />
+              ) : <div key={activeStage} className="stage-transition-layer">
               {!state.sessionId ? (
                 <StartSurface
                   onStart={handleStartPortfolio}
@@ -1049,11 +1121,17 @@ export function AppShell({
                   onSend={(message, clientMessageId) => runStudioMutation("message", message, clientMessageId)}
                   onRestore={(versionId) => runStudioMutation("restore", versionId)}
                   onBackToContent={() => selectStage("content")}
+                  presentationStartMs={presentation?.startedAt}
+                  presentationVersionId={presentation?.versionId}
+                  onPresentationComplete={() => {
+                    if (state.sessionId) safeSessionStorage.removeItem(presentationKey(state.sessionId));
+                    setPresentation(null);
+                  }}
                 />
               ) : null}
 
 
-              </div>
+              </div>}
               </section>
             </ErrorBoundary>
             <OutputInspector entries={outputEntries} activeStage={activeStage} enabled={Boolean(developer && state.sessionId)} />
