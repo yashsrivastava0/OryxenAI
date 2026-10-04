@@ -57,6 +57,8 @@ plain text without normalizing their content.
    Cobalt Atlas v2 adds one optional question for project details and explicit
    permission for a labeled illustrative concept when no real project is usable. User
    answers and skips are persisted with their history and answer-source spans.
+   An open palette saved by an earlier release displays current server-owned
+   choices when the session is read; the updated question is persisted on answer.
 4. Submitting the final answer or skip queues brief preparation immediately.
    `continue_with_current_information` remains an API-compatible way to end
    a partial contextual batch, but cannot bypass the palette choice. A model
