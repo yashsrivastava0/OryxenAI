@@ -1,12 +1,19 @@
-# Paid production strategy v2: Railway + Supabase
+# Paid fallback: Railway + Supabase
+
+> **Status (2026-10-04): paid fallback only.** The current plan is the free
+> Render + Supabase deployment described in [`README.md`](./README.md). Use this
+> document only if the free deployment fails acceptance and you decide to pay.
+> It was written earlier and has **not** been independently re-verified; check
+> its repository claims (for example branch contents and `config/app.production.toml`)
+> against `02-code-and-config-changes.md` before following it. In particular,
+> the free overlay and light PDF engine described there also apply on Railway
+> if you want to keep memory low.
 
 **Research snapshot:** 2026-10-03
 
 **Recommendation in this document:** Railway Hobby for the application, worker,
 and PostgreSQL; retain the existing Supabase project for authentication. This
-is the paid, always-on upgrade path, not the strict-free pilot selection. For
-the latest request to stay on free tiers, follow
-[`free-tier-migration-guide.md`](./free-tier-migration-guide.md).
+is the paid, always-on upgrade path, not the strict-free pilot selection.
 
 **Status:** This is a deployment plan only. No cloud service, DNS record, or
 production data was changed; no production branch was promoted or deployed.
