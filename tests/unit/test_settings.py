@@ -63,6 +63,33 @@ def test_database_url_environment_override_rejects_non_postgresql(monkeypatch):
         _ = Settings().database_url
 
 
+def test_database_url_environment_override_accepts_encoded_at_in_password(monkeypatch):
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://managed:pass%40word@db.example:5432/app?sslmode=require",
+    )
+
+    from sqlalchemy.engine import make_url
+
+    url = make_url(Settings().database_url)
+    assert url.host == "db.example"
+    expected_credential = "pass@word"
+    assert url.password == expected_credential
+    assert url.query["ssl"] == "require"
+
+
+def test_database_url_environment_override_rejects_unescaped_at_without_secret(monkeypatch):
+    credential = "private@password"
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        f"postgresql://managed:{credential}@db.example:5432/app?sslmode=require",
+    )
+
+    with pytest.raises(ValueError, match="unescaped @") as error:
+        _ = Settings().database_url
+    assert credential not in str(error.value)
+
+
 def test_managed_host_origin_overrides_configured_auth_origins(monkeypatch):
     monkeypatch.setenv("ORYXENAI_AUTH_PRIMARY_ORIGIN", "https://portfolio.example")
     monkeypatch.setenv("ORYXENAI_AUTH_ALLOWED_ORIGINS", "https://portfolio.example")
