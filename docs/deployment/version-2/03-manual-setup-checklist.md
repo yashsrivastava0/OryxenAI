@@ -55,9 +55,10 @@ Dashboard: <https://supabase.com/dashboard/project/diiestlnmpaarhhexwhi>
    Keep this screen for Step 4. Do **not** use "Transaction pooler" (6543):
    it breaks prepared statements and the worker's advisory lock.
    Replace `[YOUR-PASSWORD]` with the database password, URL-encoding any
-   special characters, and keep `sslmode=require`. If you do not know the
-   password, resetting it is a decision for you, not the AI: it affects every
-   other user of that database password.
+   special characters (`a@b` becomes `a%40b`), and keep `sslmode=require`.
+   The complete URI has only one literal `@`, between credentials and host.
+   If you do not know the password, resetting it is a decision for you, not
+   the AI: it affects every other user of that database password.
 6. **SQL Editor (read-only check):**
    ```sql
    select pg_size_pretty(pg_database_size(current_database()));
