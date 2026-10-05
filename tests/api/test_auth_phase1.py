@@ -30,6 +30,29 @@ def _settings() -> Settings:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["/privacy", "/terms"])
+async def test_project_information_is_public_without_auth_configuration(path: str) -> None:
+    app = create_app(_settings())
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://localhost:8000"
+    ) as client:
+        response = await client.get(path)
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert 'http-equiv="refresh"' not in response.text
+    assert "<script" not in response.text
+    assert "oryxenai-publishable-key" not in response.text
+    assert "admin1@example.com" not in response.text
+    assert "sb_secret_test" not in response.text
+    assert 'href="/privacy"' in response.text
+    assert 'href="/terms"' in response.text
+    assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+    if path == "/terms":
+        assert "up to 15 normal users" in response.text
+
+
+@pytest.mark.asyncio
 async def test_me_requires_one_bearer_token_and_uses_structured_errors() -> None:
     app = create_app(_settings())
     async with httpx.AsyncClient(

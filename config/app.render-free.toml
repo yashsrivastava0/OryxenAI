@@ -18,7 +18,7 @@ pool_recycle = 1800
 required = true
 pipeline_mode = "attached"
 development_harness_mode = "attached"
-admission_mode = "allowlist"
+admission_mode = "open"
 # These are runtime-overridden by ORYXENAI_AUTH_PRIMARY_ORIGIN and
 # ORYXENAI_AUTH_ALLOWED_ORIGINS. Set both to Render's generated HTTPS origin.
 primary_origin = "https://replace-with-render-host.onrender.com"
