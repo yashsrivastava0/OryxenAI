@@ -1,0 +1,30 @@
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink);
+  font: var(--type-body);
+}
+
+header, main, footer {
+  width: min(48rem, calc(100% - 3rem));
+  margin-inline: auto;
+}
+
+header, footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block: 1.5rem;
+}
+
+header { border-bottom: 1px solid var(--rule); }
+header span { color: var(--graphite); }
+main { padding-block: 3rem; }
+h1 { margin: 0 0 1.5rem; font: var(--type-h1); }
+h2 { margin: 2rem 0 0.75rem; font: var(--type-h3); }
+p { margin: 0 0 1rem; }
+a { color: var(--signal); text-underline-offset: 0.2em; }
+a:focus-visible { outline: 2px solid var(--rule-focus); outline-offset: 4px; }
+footer { border-top: 1px solid var(--rule); }
+nav { display: flex; gap: 1.5rem; }
