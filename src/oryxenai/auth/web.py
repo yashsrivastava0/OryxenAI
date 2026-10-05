@@ -99,6 +99,33 @@ def create_auth_web_router() -> APIRouter:
     async def callback(request: Request) -> Any:
         return await render_shell(request, "callback")
 
+    async def render_information(request: Request, page: str) -> HTMLResponse:
+        settings = request.app.state.settings
+        response = templates.TemplateResponse(
+            request=request,
+            name="public_information.html",
+            context={
+                "app_name": settings.app.name,
+                "page": page,
+                "normal_user_limit": settings.auth.normal_user_limit,
+                "tokens_css_version": _asset_version("tokens.css"),
+                "information_css_version": _asset_version("public-information.css"),
+            },
+        )
+        response.headers["Content-Security-Policy"] = auth_csp("")
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
+
+    @router.get("/privacy", response_class=HTMLResponse)
+    async def privacy(request: Request) -> HTMLResponse:
+        return await render_information(request, "privacy")
+
+    @router.get("/terms", response_class=HTMLResponse)
+    async def terms(request: Request) -> HTMLResponse:
+        return await render_information(request, "terms")
+
     @router.get("/access-not-approved", response_class=HTMLResponse)
     async def access_not_approved(request: Request) -> Any:
         return await render_shell(request, "access-not-approved")

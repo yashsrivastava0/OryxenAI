@@ -256,3 +256,7 @@ Fenced worker claims on config-bound capability proofs, grouped equivalent profi
 ### YYYY-MM-DD HH:MM TZ — <Agent/Tool> (<Model/Provider>) — [<commit-sha>] — <files/areas>
 <One or two concise sentences describing the outcome, rationale, and related decision references. Keep deployment diagnostics in docs/deployment/deployment-issues.md.>
 ```
+
+### 2026-10-06 01:36 +05:30 — Codex (OpenAI) — Open Google admission release preparation
+
+Prepared open admission in the Render and production overlays in an isolated checkout based on the live Render commit. Added public Privacy and Terms pages and sign-in links, verified authentication and web regression coverage, lint, formatting, typing, frontend build, and browser previews. Confirmed Supabase signups and Google sign-in are enabled and the callback/client match; saved Google branding links so publication is available. Bootstrap admin emails and the normal-user capacity policy are unchanged. The protected production release, Google publication, and real non-admin sign-in acceptance remain pending operator review; see `docs/deployment/open-google-admission.md`.
