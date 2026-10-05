@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from docling.datamodel.base_models import ConversionStatus
 from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from oryxenai.agents.discovery import document_extract
 from oryxenai.agents.discovery.document_extract import (
@@ -27,6 +28,29 @@ def _pdf(*, page_count: int = 1, password: str | None = None, prefix: bytes = b"
     output = BytesIO()
     writer.write(output)
     return prefix + output.getvalue()
+
+
+def _text_pdf() -> bytes:
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=300, height=300)
+    font = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Font"),
+            NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"),
+        }
+    )
+    page[NameObject("/Resources")] = DictionaryObject(
+        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})}
+    )
+    stream = DecodedStreamObject()
+    stream.set_data(
+        b"BT /F1 12 Tf 30 240 Td (A readable portfolio resume with several projects.) Tj ET"
+    )
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()
 
 
 def _install_fake_converter(
@@ -129,6 +153,34 @@ def test_pdf_needs_bundled_ocr_artifacts() -> None:
             _pdf(),
             artifacts_path="missing-docling-models",
             **LIMITS,
+        )
+
+
+def test_light_pdf_extracts_text_without_docling() -> None:
+    name, extracted, page_count, warnings = extract_document(
+        "resume.pdf", _text_pdf(), engine="light", light_ocr=False, **LIMITS
+    )
+    assert name == "resume.pdf"
+    assert "readable portfolio resume" in extracted
+    assert page_count == 1
+    assert warnings == ["Layout and tables are simplified on this server; review the text."]
+
+
+def test_light_pdf_ocr_and_empty_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    with pytest.raises(DocumentExtractionError, match="no selectable text"):
+        extract_document("blank.pdf", _pdf(), engine="light", light_ocr=False, **LIMITS)
+
+    monkeypatch.setattr(document_extract, "_ocr_page", lambda _bitmap: "Scanned resume text")
+    _, text, _, _ = extract_document("scan.pdf", _pdf(), engine="light", **LIMITS)
+    assert text == "Scanned resume text"
+
+
+def test_light_pdf_keeps_shared_validation() -> None:
+    with pytest.raises(DocumentExtractionError, match="Password protected"):
+        extract_document("locked.pdf", _pdf(password="test-only"), engine="light", **LIMITS)  # noqa: S106
+    with pytest.raises(DocumentExtractionError, match="too many pages"):
+        extract_document(
+            "long.pdf", _pdf(page_count=2), engine="light", **{**LIMITS, "max_pdf_pages": 1}
         )
 
 

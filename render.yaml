@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: oryxenai
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: deployment
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python -m oryxenai.deployment.render_web
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: OryxenAI_CONFIG_OVERLAY
+        value: config/app.render-free.toml
+      - key: ORYXENAI_AUTH_PRIMARY_ORIGIN
+        value: https://app.oryxenai.me
+      - key: ORYXENAI_AUTH_ALLOWED_ORIGINS
+        value: https://app.oryxenai.me
+      - key: SUPABASE_URL
+        value: https://diiestlnmpaarhhexwhi.supabase.co
+      - key: EXPLABS_BASE_URL
+        value: https://api.experientiallabs.ai/v1
+      - key: PREVIEW_GRANT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: ORYXENAI_ADMIN_BOOTSTRAP_EMAILS
+        sync: false
+      - key: ORYXENAI_ALLOWED_USER_EMAILS
+        sync: false
+      - key: EXPLABS_API_KEY
+        sync: false

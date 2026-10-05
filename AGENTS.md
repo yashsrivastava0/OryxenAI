@@ -23,7 +23,7 @@
 | **Model Invocations** | Provider-neutral `ModelClient` configured via `config/models.toml`. Never hardcode provider names or model IDs in business logic. |
 | **Configuration** | Secrets strictly in git-ignored `.env`. Non-secret settings in `config/app.toml` and overlays. |
 | **Verification Suite** | `uv run ruff check .` &bull; `uv run ruff format --check .` &bull; `uv run mypy src` &bull; `uv run pytest` &bull; `uv run alembic upgrade head` |
-| **Branch Safety** | `staging` = routine development &bull; `deployment` = production Azure VM. **Never target or merge to `deployment` without explicit human sign-off in the active session.** |
+| **Branch Safety** | `staging` = CI integration &bull; `deployment` = Render release. Push a CI-passing staging SHA to `deployment` to deploy. Agents still need an explicit user instruction to make a live release. |
 | **Multi-Agent Rules** | Check `DECISIONS.md` before making architectural choices. Log commit-sized work to `CHANGES.md`. Commit verified units locally by default. |
 
 ---
@@ -161,7 +161,7 @@ Browser / Client (Preact UI)
 ### Native Local Launchers
 ```powershell
 # Windows PowerShell
-.\scripts\bootstrap.ps1            # Initialize workspace and virtualenv
+.\scripts\bootstrap.ps1            # Initialize workspace and full local PDF engine
 .\scripts\run-native.ps1 align-db  # Align local PostgreSQL instance
 .\scripts\run-native.ps1 migrate   # Apply Alembic migrations
 .\scripts\run-native.ps1 dev       # Start API and worker concurrently
@@ -211,13 +211,13 @@ tests/browser/       # Headless-browser UI tests (Studio fixtures and AppShell f
 5. Verify health: `.\scripts\test.ps1` and `.\scripts\check.ps1`.
 
 ### Branch Workflow: `staging` vs `deployment`
-* **`staging` Branch (Development):** All routine development occurs here. Push and open PRs freely. GitHub Actions runs continuous integration (lint, type-check, tests, Docker smoke test). Pushes to `staging` never trigger production deployments.
-* **`deployment` Branch (Production):** Wired to Azure VM self-hosted runner. Protected by branch rules. Merging to `deployment` automatically redeploys production.
-* **Zero Autonomous Deployment Rule:** An AI agent must **never** open a PR targeting `deployment` or merge into `deployment` without explicit, real-time human instruction in the active session.
+* **`staging` Branch (Integration):** Routine work reaches this branch first. GitHub Actions runs lint, type-checking, tests, and the light Docker smoke test. It has no Render service.
+* **`deployment` Branch (Render):** A fast-forward push of the exact CI-passing staging commit triggers CI again, then Render deploys after checks pass. No PR or reviewer is required. The GitHub ruleset still blocks force pushes and deletion and requires the `quality` check.
+* **Release instruction for agents:** Do not push to `deployment` without an explicit user instruction to release in the active session. Once instructed, use the same verified SHA; never bypass a failing check.
 
 ### Secrets Protection
 * Never paste raw secrets into chat sessions, logs, or commit messages.
-* `scripts/azure-deploy.sh` contains automated `credential_free_logs()` scans that fail builds if secret patterns appear in logs.
+* The retired Azure deploy script remains available for rollback but is not part of the active CI workflow.
 * Never run destructive overwrite commands like `cp .env.example .env` without verified backups.
 
 ---

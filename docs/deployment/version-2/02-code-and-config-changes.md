@@ -1,9 +1,10 @@
 # 02 — Code and configuration changes (agent work list)
 
-**Audience:** an AI coding agent in a fresh session, and the human supervising
-it. **Read first:** `AGENTS.md`, `DECISIONS.md`, then `README.md` in this
-folder. **Status:** none of this is done yet. Line numbers were checked on
-2026-10-04 against branch `NEW`; re-grep before editing because the tree moves.
+**Historical implementation checklist (2026-10-04).** The active deployment
+contract is the root `render.yaml` and `docs/deployment/ci-cd-runbook.md`.
+This list records the research and original code tasks; its sample Blueprint,
+branch, and dashboard instructions are superseded by those files. Recheck
+current source before using any line numbers below.
 
 ## Ground rules
 

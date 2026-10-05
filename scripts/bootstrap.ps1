@@ -11,4 +11,4 @@ $env:PYTHONPYCACHEPREFIX = "$REPO_ROOT\.workspace\cache\python"
 New-Item -ItemType Directory -Force -Path "$REPO_ROOT\.workspace\venv" | Out-Null
 New-Item -ItemType Directory -Force -Path "$REPO_ROOT\.workspace\cache\python" | Out-Null
 
-uv sync --frozen
+uv sync --frozen --extra pdf-full

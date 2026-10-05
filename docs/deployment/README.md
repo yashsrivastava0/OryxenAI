@@ -1,7 +1,10 @@
 # OryxenAI deployment
 
-This document preserves the Version 1 Azure VM deployment architecture and
-runbooks. For the requested strict-free pilot, use the
+The active deployment is the Render Free and Supabase pilot. The release flow
+is `staging` CI, followed by a fast-forward push to `deployment`; Render deploys
+after that commit passes CI. See the [CI/CD runbook](./ci-cd-runbook.md) and the
+[Version 2 setup guide](./version-2/03-manual-setup-checklist.md). This document
+also preserves the Version 1 Azure VM architecture and runbooks. For the pilot, use the
 [Version 2 free-tier migration guide](./version-2/free-tier-migration-guide.md):
 one Render Free Docker web service plus the existing Supabase project for
 Google Auth and PostgreSQL. The separate
@@ -33,10 +36,8 @@ Version 1 Azure runbooks are grouped into these documents:
   paid always-on option if the free pilot fails its OCR, job, or uptime gates.
 - [Deployment guide](./deployment-guide.md) — research, setup, runbook,
   acceptance, and AI-assisted operations.
-- [CI/CD runbook](./ci-cd-runbook.md) — the self-hosted GitHub Actions runner
-  that deploys automatically on push, how to set it up from scratch, the
-  real SSH key and Windows-permission gotchas hit while building it, and how
-  to re-add an approval gate.
+- [CI/CD runbook](./ci-cd-runbook.md) — current Render release flow and
+  troubleshooting. The old Azure runner guide is archived.
 - [VM-local storage runbook](./vm-local-storage-runbook.md) — bind-mounted
   paths, ownership, capacity, retention, backup/restore, and persistence
   checks for the first release.

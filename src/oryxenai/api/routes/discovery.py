@@ -60,6 +60,8 @@ async def extract_discovery_document(
                 max_pdf_pages=limits.max_pdf_pages,
                 artifacts_path=limits.ocr_artifacts_path,
                 pdf_timeout_seconds=limits.pdf_timeout_seconds,
+                engine=limits.pdf_engine,
+                light_ocr=limits.light_ocr,
             )
         except DocumentExtractionError as exc:
             status_code = 413 if "too much text" in str(exc).lower() else 400

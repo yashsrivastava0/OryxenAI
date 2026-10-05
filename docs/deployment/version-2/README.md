@@ -1,9 +1,8 @@
 # Deployment v2 — leave the Azure VM, run free on Render + Supabase
 
-**Research date:** 2026-10-04 · **Status:** plan and runbooks only. No cloud
-service, DNS record, dashboard setting, branch or code was changed by writing
-these documents. Everything in `02-code-and-config-changes.md` is still to be
-done in a later session.
+**Research date:** 2026-10-04. The code work and deployment state must be
+checked against the current branch and the Render dashboard before use.
+The active release instructions are in `../ci-cd-runbook.md`.
 
 ## The decision in one paragraph
 
@@ -50,7 +49,7 @@ Redis, Celery, object store, preview host or Caddy to run.
 
 | Area | Local | Free deployment | Effect |
 | --- | --- | --- | --- |
-| PDF reading | Docling layout + OCR (PyTorch) | Lightweight engine (`pdf_engine = "light"`) | Text PDFs work. Heading/table structure is simpler. Scanned PDFs are best-effort OCR and must be measured on the real instance. |
+| PDF reading | Docling layout + OCR (PyTorch) | Lightweight engine (`pdf_engine = "light"`, `light_ocr = false`) | Text PDFs work with simpler structure. Scanned PDFs return a clear request for a text-based PDF or pasted text. |
 | Server-side Chromium check of generated pages | optional | off (`browser = "off"`) | Your browser still renders the Studio preview; no headless-browser receipt is produced. |
 | Cold start | none | ~1 min if the pinger stops | The pinger removes this in normal use. |
 | Backups | your disk | Supabase Free has none | Weekly manual `pg_dump` (see 05). |
@@ -68,7 +67,7 @@ Free VM is free but is a VM again.
 | # | File | For | What it contains |
 | --- | --- | --- | --- |
 | 1 | `01-research-and-decision.md` | you | Why Render, what was rejected, sources |
-| 2 | `02-code-and-config-changes.md` | an AI coding agent | Exact code and config work list, in order, with acceptance checks |
+| 2 | `02-code-and-config-changes.md` | historical reference | Original code and config work list; use the root Blueprint and current CI/CD runbook for release settings |
 | 3 | `03-manual-setup-checklist.md` | you or a browser-control AI | Supabase, Google Cloud, Render, Namecheap, UptimeRobot click-paths and exact values |
 | 4 | `05-acceptance-and-troubleshooting.md` | you / agent | End-to-end test script, failure table, weekly care |
 | 5 | `04-azure-vm-cleanup.md` | you | Freeing the VM — only after step 4 passes |

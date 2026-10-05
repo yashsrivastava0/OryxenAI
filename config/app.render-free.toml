@@ -1,12 +1,12 @@
-# Strict-free pilot overlay for one Render Web Service plus the existing
-# Supabase project (Google Auth + application PostgreSQL). This is a best-
-# effort hobby deployment, not an always-on production configuration.
+# Free-host pilot overlay for one web service plus the existing Supabase
+# project (Google Auth + application PostgreSQL).
 
 [app]
 env = "production"
 host = "0.0.0.0"
 enable_dev_ui = false
 enable_product_preact_shell = true
+trusted_client_ip_header = "cf-connecting-ip"
 
 [database.pool]
 pool_size = 1
@@ -48,7 +48,10 @@ model_cache_ttl_days = 30
 batch_size = 100
 
 [discovery]
-ocr_artifacts_path = "/opt/docling-models"
+pdf_engine = "light"
+# A three-page scan exceeded the 120 s extraction deadline at 0.5 CPU and
+# approached the 512 MiB memory limit. Render Free has less CPU.
+light_ocr = false
 
 [code_generator]
 max_versions_per_session = 10

@@ -4,6 +4,23 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-05 — Codex (OpenAI) — Render Free deployment and push-to-deploy flow
+
+Prepared the current product branch for one Render Free Docker web service
+with the API, PostgreSQL worker, and startup migrations. Added the Blueprint,
+Supabase connection settings, Render client-IP handling, a smaller text-PDF
+runtime, and a GitHub CI gate for direct staging-to-deployment promotion.
+Archived the Azure deployment workflow and updated the operator runbook and
+branch policy (D-136–D-137). The light image built at about 392 MB, served
+`/app` and both health routes in a 512 MiB container, and applied migrations
+against a disposable PostgreSQL database. A three-page scanned PDF reached
+about 440 MiB and exceeded the 120-second extraction deadline with 0.5 CPU;
+the Render Free overlay therefore disables OCR and gives users a clear
+text-based PDF instruction. Local development retains the full PDF engine.
+The Python suite passed (1,160 passed, 3 skipped); the frontend type check,
+unit suite and production build passed. Refreshed locked PyJWT and urllib3
+after the dependency audit identified fixed upstream releases.
+
 ### 2026-10-04 18:55 +05:30 — Codex (OpenAI) — Private workspace navigation and Studio presentation
 
 Standardized viewport-visible stage actions, added private Home and Guide routes with safe sign-in return, redesigned the four visual-choice cards, and introduced a timed illustrative Studio build scene that yields only to a verified preview or real failure. Updated sign-in copy and its three-stage showcase, self-hosted interface type, private-page indexing headers, and browser coverage. See D-135. No publishing, export, or deployment capability was added.

@@ -36,10 +36,9 @@ Tick each item; stop at the first failure and use section B.
 - [ ] Create a session, refresh the browser: the session is still there.
 - [ ] Upload a small **text PDF** (and a `.md`/`.txt`): the editable transcript
       preview appears; the warning about simplified layout is shown for PDFs.
-- [ ] Upload a small **scanned PDF** (only if `light_ocr = true`): it either
-      returns recognised text within the timeout or fails with a clear message —
-      and Render's memory graph shows no restart. Record the outcome in
-      `CHANGES.md`.
+- [ ] Upload a small **scanned PDF**: the Free overlay reports that it has no
+      selectable text and asks for a text-based PDF or pasted text. The service
+      remains ready.
 - [ ] Negative uploads: password-protected PDF, empty file, more than the page
       limit, wrong extension → each shows a visible safe error.
 - [ ] Start **Discovery** explicitly; the durable job completes; a brief appears;
@@ -83,7 +82,7 @@ Tick each item; stop at the first failure and use section B.
 | Sign-in returns 403 `ORIGIN_NOT_ALLOWED` on POST | The page origin differs from `ORYXENAI_AUTH_ALLOWED_ORIGINS` (for example you are on the `onrender.com` hostname). Use `app.oryxenai.me`. |
 | Google "access blocked" | Account missing from Test users, or the consent screen is not in Testing. |
 | Signed in but "not allowed" | Email missing from `ORYXENAI_ALLOWED_USER_EMAILS` / admin list; admission mode is `allowlist` in the overlay. |
-| Everyone gets 429 | Proxy headers not trusted: doc 02 task C1 is missing. |
+| Everyone gets 429 | Check the Render overlay's `trusted_client_ip_header` and confirm Render supplies distinct valid `CF-Connecting-IP` values. The middleware ignores a caller-supplied `X-Forwarded-For` prefix. |
 | Jobs stay queued | The service was asleep (pinger down) or the worker child exited; check logs for the worker line and `service_heartbeats`. Same database for API and worker (they share one container, so check `DATABASE_URL`). |
 | Studio preview blank / "grant expired" | `PREVIEW_GRANT_SECRET` set and stable; grant lifetime is 30 minutes — reopen from Studio; browser console for CSP errors; the version row exists in `portfolio_site_versions`. |
 | PDF returns "not ready on this server" | Engine is `docling` but Docling is not installed (overlay not applied: check `OryxenAI_CONFIG_OVERLAY`). |
