@@ -4,6 +4,12 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-05 — Codex (OpenAI) — Declare the Render app domain
+
+The Render Blueprint now associates `app.oryxenai.me` with the existing web
+service. Namecheap's `app` record must point to the service's Render hostname
+before domain verification and TLS issuance can finish.
+
 ### 2026-10-05 — Codex (OpenAI) — Reject malformed managed database URLs safely
 
 The first Render Docker build passed, but startup migrations failed DNS lookup
