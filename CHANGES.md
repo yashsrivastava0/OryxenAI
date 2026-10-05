@@ -4,6 +4,15 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-05 — Codex (OpenAI) — Reject malformed managed database URLs safely
+
+The first Render Docker build passed, but startup migrations failed DNS lookup
+because an unescaped `@` in the Supabase database password changed how the
+connection URI was parsed. Settings now report that format error without
+printing the credential. Added encoded and unescaped password regression
+coverage and updated the operator instructions for correcting the URI in
+Render Environment. The secret itself stays in the provider dashboards.
+
 ### 2026-10-05 — Codex (OpenAI) — Isolate CI migration from the test schema
 
 The first staging run exposed a migration step aimed at `oryxenai_test` via

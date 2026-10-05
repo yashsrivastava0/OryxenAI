@@ -55,6 +55,16 @@ enabling it continuously.
 
 ## Recovery
 
+The first Render build succeeded but startup migrations failed while resolving
+the database host. The entered `DATABASE_URL` had a literal `@` in its password.
+For the existing service, copy Supabase's **Session pooler** URI from Connect,
+keep its supplied host and port `5432`, percent-encode reserved password
+characters (`@` becomes `%40`), and keep `?sslmode=require`. The URI must have
+only one literal `@`, between credentials and host. Replace `DATABASE_URL` in
+Render Environment and choose **Save and deploy**. Never paste the URI into a
+ticket, chat, log, or repository file. Rotate a database password if it has
+appeared in such an output, and update its other consumers.
+
 If CI fails, fix the branch and rerun it; Render keeps the previous successful
 deploy. If the new service fails readiness, inspect its deployment logs for
 migration, database, auth configuration, or memory errors. Redeploy a prior

@@ -901,6 +901,17 @@ class Settings(BaseSettings):
             self.database_url_override.get_secret_value().strip() or self.database.url.strip()
         )
         if override:
+            # SQLAlchemy treats the first literal @ as the end of userinfo.
+            # Catch an unescaped @ in a managed password before it becomes a
+            # misleading DNS failure; never include the URL in the error.
+            try:
+                authority = urlsplit(override).netloc
+            except ValueError as exc:
+                raise ValueError("DATABASE_URL must be a valid PostgreSQL connection URL.") from exc
+            if authority.count("@") > 1:
+                raise ValueError(
+                    "DATABASE_URL credentials contain an unescaped @; encode it as %40."
+                )
             try:
                 url = make_url(override)
             except Exception as exc:
