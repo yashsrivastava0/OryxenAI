@@ -65,6 +65,9 @@ only one literal `@`, between credentials and host. Replace `DATABASE_URL` in
 Render Environment and choose **Save and deploy**. Never paste the URI into a
 ticket, chat, log, or repository file. Rotate a database password if it has
 appeared in such an output, and update its other consumers.
+An earlier Alembic startup path also logged a percent-encoded URI when its
+configuration parser rejected `%40`; rotate any database password used in
+that failed deploy. The current migration path bypasses that parser.
 
 If CI fails, fix the branch and rerun it; Render keeps the previous successful
 deploy. If the new service fails readiness, inspect its deployment logs for
