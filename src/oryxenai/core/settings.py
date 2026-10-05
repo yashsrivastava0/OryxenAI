@@ -84,6 +84,7 @@ class AppConfig(BaseModel):
     # /app serves the Preact studio (docs/Frontend/05) as the canonical
     # normal product UI across all stages. Legacy static pipeline UI is gone.
     enable_product_preact_shell: bool = True
+    trusted_client_ip_header: Literal["", "cf-connecting-ip"] = ""
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -478,6 +479,8 @@ class DiscoveryConfig(BaseModel):
     max_pdf_pages: int = 10
     pdf_timeout_seconds: float = 120.0
     ocr_artifacts_path: str = ".workspace/docling-models"
+    pdf_engine: Literal["docling", "light"] = "docling"
+    light_ocr: bool = True
 
 
 class CodeGeneratorVerificationConfig(BaseModel):

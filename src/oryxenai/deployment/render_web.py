@@ -43,7 +43,12 @@ def main() -> int:
         raise SystemExit("PORT must be an integer between 1 and 65535.")
 
     settings = get_settings()
+    migration_started = time.monotonic()
     subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], check=True)
+    print(
+        f"[render-web] migrations complete in {time.monotonic() - migration_started:.1f}s",
+        flush=True,
+    )
 
     children: list[subprocess.Popen[bytes]] = []
     shutdown_signal: int | None = None
@@ -75,6 +80,7 @@ def main() -> int:
         children.append(api)
         worker = subprocess.Popen([sys.executable, "-m", "oryxenai.jobs.worker"])
         children.append(worker)
+        print(f"[render-web] API and worker started on port {port}", flush=True)
 
         while True:
             if shutdown_signal is not None:

@@ -134,6 +134,8 @@ max_upload_bytes = 10485760
 max_pdf_pages = 10
 pdf_timeout_seconds = 120.0
 ocr_artifacts_path = ".workspace/docling-models"
+pdf_engine = "docling"              # full local PDF engine
+light_ocr = true
 
 [code_generator]
 # Generated-portfolio pipeline (Studio). One build per session at a time.

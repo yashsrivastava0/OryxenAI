@@ -27,7 +27,7 @@ start correctly without them.
 | --- | --- |
 | App origin | `https://app.oryxenai.me` (see the domain note in `README.md`) |
 | Supabase project | `oxygen-ai-development`, ref `diiestlnmpaarhhexwhi` (confirm in the dashboard) |
-| Google Cloud project / client | `Oxygen.ai` / `Oxygen.ai Development` (confirm) |
+| Google Cloud project / client | `OryxenAI` / `Oxygen.ai Development` (confirm) |
 | Render service name | `oryxenai` |
 | Region | Singapore |
 
@@ -69,7 +69,7 @@ Dashboard: <https://supabase.com/dashboard/project/diiestlnmpaarhhexwhi>
 
 ## Step 2 — Google Cloud
 
-Console: <https://console.cloud.google.com/auth/clients> (project `Oxygen.ai`).
+Console: <https://console.cloud.google.com/auth/clients> (project `OryxenAI`).
 
 1. Open web client **Oxygen.ai Development**.
 2. **Authorized JavaScript origins:** keep the two localhost entries, add
@@ -90,12 +90,13 @@ Dashboard: <https://dashboard.render.com/>
 1. Sign up / sign in with GitHub. Keep the workspace on the **Hobby** (free)
    plan and **do not add a payment method** if you want a hard $0 (a service
    that exhausts a free quota is then suspended instead of billed).
-2. **New → Blueprint**, pick the repository, branch `deployment` (or the
-   branch you were told in doc 02 C5), and let it read `render.yaml`. Alternative
+2. In the existing `OryxenAI` Hobby workspace and `Origin AI` project, choose
+   **New → Blueprint**, pick repository `yashsrivastava0/OryxenAI`, branch
+   `deployment`, and let it read `render.yaml`. Alternative
    without the Blueprint: **New → Web Service → Docker**, Region **Singapore**,
    Instance type **Free**, Dockerfile `./Dockerfile`, Docker command
    `python -m oryxenai.deployment.render_web`, Health check path
-   `/health/ready`, Auto-deploy **Off**.
+   `/health/ready`, Auto-deploy **After CI Checks Pass**.
 3. When the Blueprint asks for the `sync: false` values, or in **Environment**
    after creation, enter every variable from the table in doc 02
    ("Render environment variables"). Sources:
@@ -122,8 +123,8 @@ Dashboard: <https://dashboard.render.com/>
    `app.oryxenai.me`. Render shows the target hostname (a `*.onrender.com` name).
 2. Namecheap → **Domain List → oryxenai.me → Manage → Advanced DNS** (DNS must be
    Namecheap BasicDNS/Namecheap nameservers):
-   - Delete the old host records `app` (A → the Azure VM IP) and `preview`
-     (A → same IP). Write down their values first.
+   - Replace only the old `app` A record (to the Azure VM IP). Write down its
+     value first. Leave the apex and mail records alone.
    - Add **CNAME Record**: Host `app`, Value = the Render target, TTL Automatic.
 3. Back in Render, click **Verify**. Wait until the domain shows verified and
    the certificate is issued (minutes, occasionally longer while DNS
@@ -153,11 +154,12 @@ A free Render service stops after 15 idle minutes, which also stops the worker.
 4. Sign in with a normal-user account in another browser profile.
 5. Continue with `05-acceptance-and-troubleshooting.md`.
 
-## Step 7 — Turn on auto-deploy (only after acceptance)
+## Step 7 — Confirm automatic releases
 
-Render → service → **Settings → Build & Deploy → Auto-Deploy → After CI Checks
-Pass**, branch `deployment`. From then on, merging to `deployment` (which needs
-your explicit approval per `AGENTS.md`) is the release action.
+Render → service → **Settings → Build & Deploy → Auto-Deploy** must show
+**After CI Checks Pass**, branch `deployment`. A later fast-forward push of a
+CI-passing `staging` SHA to `deployment` is the release action; no PR review or
+dashboard deploy click is needed. See `../ci-cd-runbook.md`.
 
 ## Quick verification table
 

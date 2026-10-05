@@ -1,0 +1,181 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Lint, type-check, test, audit
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: oryxenai
+          POSTGRES_USER: oryxen
+          POSTGRES_PASSWORD: oryxen_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oryxen -d oryxenai"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      POSTGRES_PASSWORD: oryxen_test
+      # Deliberately NOT set at job level: tests/conftest.py's autouse
+      # `_set_test_overlay` fixture already scopes this overlay to only
+      # integration/worker-marked tests via monkeypatch (auto-reverted per
+      # test). Setting it process-wide here leaks into every plain unit
+      # test too -- including ones that assert config/app.toml's own
+      # defaults -- and monkeypatch.setenv cannot "unset" an ambient value
+      # it didn't set. Set it explicitly only on the one step that needs it
+      # outside of pytest: the migration step below.
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Sync dependencies from lockfile
+        run: uv sync --frozen --all-groups --extra pdf-full
+
+      - name: Install verifier browser
+        run: uv run playwright install --with-deps chromium
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Frontend type check
+        run: npm run typecheck
+        working-directory: frontend
+
+      - name: Frontend unit tests
+        run: npm test
+        working-directory: frontend
+
+      - name: Frontend build
+        run: npm run build
+        working-directory: frontend
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=oryxen_test psql -h localhost -U oryxen -d oryxenai -c "CREATE DATABASE oryxenai_test;" || true
+
+      - name: Run database migrations (application DB)
+        run: uv run alembic upgrade head
+        env:
+          OryxenAI_CONFIG_OVERLAY: config/app.test.toml
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy type check
+        run: uv run mypy src
+
+      - name: Run tests (all, strict integration)
+        run: uv run pytest -v --strict-markers
+
+      - name: Dependency audit
+        run: uv run pip-audit --local
+
+      - name: Secret scan (Gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: detect --source . --no-git --verbose --redact
+
+      - name: Prepare throwaway .env for dev Compose smoke test
+        # compose.yaml's app/worker/migrate services each
+        # declare `env_file: .env`, which Compose requires to physically
+        # exist even though every value it reads (POSTGRES_PASSWORD) is
+        # only used by this stack's own disposable containers, never a real
+        # credential.
+        #
+        # Must reuse the job-level POSTGRES_PASSWORD (oryxen_test), not an
+        # independent placeholder: compose.yaml's postgres service reads
+        # `${POSTGRES_PASSWORD}` via Compose variable substitution, which
+        # resolves from the *host shell's* environment (this job already
+        # exports POSTGRES_PASSWORD: oryxen_test) -- while app/worker/migrate
+        # instead get their POSTGRES_PASSWORD from this .env file's literal
+        # content via env_file. A different value in each place silently
+        # initializes Postgres with one password while the app containers
+        # try to authenticate with another, failing with
+        # asyncpg.exceptions.InvalidPasswordError.
+        #
+        # config/app.docker.toml sets [auth] required = true, which
+        # unconditionally requires exactly settings.py's
+        # bootstrap_admin_count (2) syntactically valid emails in
+        # ORYXENAI_ADMIN_BOOTSTRAP_EMAILS -- app startup otherwise raises
+        # "The bootstrap administrator count is invalid." before the
+        # health endpoints ever come up. No real Google/Supabase
+        # verification happens at startup, so two fake addresses are
+        # sufficient for this smoke test.
+        # config/app.docker.toml also sets [auth] required = true, which
+        # unconditionally requires non-blank SUPABASE_URL/PUBLISHABLE_KEY/
+        # SECRET_KEY (AuthConfig.validate_environment() in settings.py) or
+        # `app` raises "Required Supabase auth coordinates are missing." at
+        # create_app() import time and never becomes healthy. No real
+        # Google/Supabase verification happens at startup, so syntactically
+        # valid fake coordinates are sufficient for this smoke test.
+        run: |
+          cp .env.example .env
+          echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+          echo "ORYXENAI_ADMIN_BOOTSTRAP_EMAILS=ci-admin-1@example.com,ci-admin-2@example.com" >> .env
+          echo "SUPABASE_URL=https://ci-smoke-test.supabase.co" >> .env
+          echo "SUPABASE_PUBLISHABLE_KEY=ci-smoke-test-publishable-key" >> .env
+          echo "SUPABASE_SECRET_KEY=ci-smoke-test-secret-key" >> .env
+
+      - name: Docker build
+        run: docker compose build --build-arg PDF_ENGINE=light
+
+      - name: Docker smoke test
+        run: |
+          docker compose up -d --wait --wait-timeout 1800 app worker
+          curl -fsS http://localhost:8000/health/live
+          curl -fsS http://localhost:8000/health/ready
+          # /api/v1/system/status is admin-gated (require_admin on the whole
+          # router, added by d288077); the smoke test has no real Supabase
+          # session to authenticate with, so the correct, secure response is
+          # 401, not 200. Assert that the route is reachable and actually
+          # enforcing auth rather than expecting it open.
+          status_code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/system/status)
+          if [ "$status_code" != "401" ]; then
+            echo "Expected /api/v1/system/status to require authentication (401), got $status_code" >&2
+            exit 1
+          fi
+          docker compose down -t 5
+
+      - name: Dump Compose logs on smoke test failure
+        if: failure()
+        run: docker compose logs --no-color migrate app worker postgres || true
+
+      - name: Remove throwaway .env
+        if: always()
+        run: rm -f .env

@@ -160,7 +160,7 @@ Copy-Item .env.example .env
 ```bash
 # 1. Install dependencies
 uv python install 3.13
-uv sync --frozen
+uv sync --frozen --extra pdf-full
 
 # 2. Make scripts executable and launch
 chmod +x scripts/*.sh
@@ -303,7 +303,7 @@ To register a new agent in the system:
 * [`CHANGES.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/CHANGES.md) — Append-only chronological release and change history.
 * [`docs/architecture.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/architecture.md) — Architectural rationale and design principles.
 * [`docs/run/run.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/run/run.md) — Operational runbook for production and local environments.
-* [`docs/deployment/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/deployment/) — Infrastructure, Docker Compose, and Azure VM operations.
+* [`docs/deployment/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/deployment/) — Render/Supabase deployment and CI/CD; archived Azure operations.
 
 ---
 

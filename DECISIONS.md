@@ -184,3 +184,18 @@
 - **Decision:** Use one viewport action dock for primary stage actions; add authenticated Home and Guide screens as allowlisted `/app` query views while `/app` continues the furthest actionable stage. Preserve safe private destinations across authentication. Keep the four existing theme IDs and packages, presenting each through a distinct equal-size miniature composition. The first Studio build shows an explicitly illustrative code-like scene for at least 30 seconds after accepted start, with real server status separate; a verified iframe loads behind it, errors interrupt immediately, and preview loading or error is exposed by 40 seconds. Private product pages are noindexed; future public articles belong on separate routes.
 - **Rejected alternatives:** Starting stages when a navigation page opens; fake server logs or success claims; enlarging or default-selecting the fourth theme; exposing incomplete preview content; advertising future download, sharing, deployment, or full-stack features as available.
 - **Consequence:** This is a frontend presentation and routing change. The durable jobs, approval boundaries, sealed versions, signed preview grants, and pinned themes remain the source of truth. Browser tests use an aged presentation marker to verify the handoff without waiting 30 wall-clock seconds.
+## D-137 — Light PDF engine for the Render Free image
+
+- **Date & Time:** 2026-10-05 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Docling and PyTorch load and build heavily for a 512 MB service. A three-page scanned PDF exceeded the 120-second extraction limit in a 512 MiB test container at 0.5 CPU while reaching about 440 MiB; Render Free has 0.1 CPU.
+- **Decision:** Keep Docling as the local full engine and a `pdf-full` optional dependency. The Free overlay selects PDFium text extraction with `light_ocr = false`. Scanned PDFs receive a clear instruction to export a text-based PDF or paste text. Both engines share the upload, encryption, page, time, and character limits. The Docker image defaults to the light path and does not download Docling or Chromium assets at runtime. Keep RapidOCR available for a larger-plan light OCR profile.
+- **Trade-off:** Layout and table fidelity is simpler on the Free host, and scanned PDFs cannot be read there. Browser verification stays off in that overlay while Studio's owner preview remains available.
+
+## D-136 — Render release after a green staging commit
+
+- **Date & Time:** 2026-10-05 — Codex (OpenAI)
+- **Status:** implemented-locally; external setup pending
+- **Context:** The owner wants push-driven CI/CD without PR review, while routine pushes must not change the live domain. The existing `deployment` ruleset requires a PR and its CI deploy job targets the retired Azure VM.
+- **Decision:** `staging` runs CI only. An exact SHA that passes there can be fast-forward pushed to `deployment`; CI runs again and Render deploys only after checks pass. Remove the ruleset's PR requirement while retaining the required quality check, deletion protection, and force-push protection. Use one Render Free Docker web service with Supabase Auth and PostgreSQL, startup migrations, and a combined API/worker process. Keep Azure files for rollback until live acceptance.
+- **Trade-off:** A release still requires a deliberate branch push. Render Free may sleep or exhaust its included hours; the durable queue resumes when the service wakes.
