@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import time
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
@@ -96,19 +97,28 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Minimal in-memory per-IP fixed-window limit for auth and API paths.
 
-    Single Compose `app` container, single uvicorn process (no --workers),
-    so in-memory state needs no cross-process coordination. Requires uvicorn
-    to be started with --proxy-headers/--forwarded-allow-ips behind Caddy,
-    otherwise every request would appear to come from Caddy's own IP.
+    A single uvicorn process keeps in-memory state. On Render, Cloudflare's
+    overwritten connecting-IP header identifies visitors without trusting a
+    potentially client-supplied first X-Forwarded-For address.
     """
 
     _WINDOW_SECONDS = 60.0
     _LIMITS: tuple[tuple[str, int], ...] = (("/auth/", 30), ("/api/", 120))
     _MAX_TRACKED_KEYS = 10_000
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, trusted_client_ip_header: str = "") -> None:
         super().__init__(app)
+        self._trusted_client_ip_header = trusted_client_ip_header
         self._buckets: dict[tuple[str, str], tuple[int, float]] = {}
+
+    def _client_ip(self, request: Request) -> str:
+        if self._trusted_client_ip_header:
+            candidate = request.headers.get(self._trusted_client_ip_header, "")
+            try:
+                return str(ipaddress.ip_address(candidate))
+            except ValueError:
+                pass
+        return request.client.host if request.client else "unknown"
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         prefix: str | None = None
@@ -118,7 +128,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 prefix, limit = path_prefix, path_limit
                 break
         if prefix is not None:
-            client_ip = request.client.host if request.client else "unknown"
+            client_ip = self._client_ip(request)
             now = time.monotonic()
             key = (client_ip, prefix)
             count, window_start = self._buckets.get(key, (0, now))
@@ -248,7 +258,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Middleware (order: outer to inner; last added runs first).
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(AuthOriginMiddleware)
-    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(RateLimitMiddleware, trusted_client_ip_header=s.app.trusted_client_ip_header)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestIdMiddleware)
 

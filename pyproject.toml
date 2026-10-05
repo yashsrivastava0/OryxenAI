@@ -29,6 +29,13 @@ dependencies = [
     "Pillow>=10.4",
     "playwright>=1.50",
     "pypdf>=5.0",
+    "pypdfium2>=5.0",
+    "rapidocr>=3.9",
+    "onnxruntime>=1.30",
+]
+
+[project.optional-dependencies]
+pdf-full = [
     "docling[rapidocr]>=2.116,<3",
     "torch>=2.14,<3",
     "torchvision>=0.29,<1",
@@ -36,6 +43,9 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "docling[rapidocr]>=2.116,<3",
+    "torch>=2.14,<3",
+    "torchvision>=0.29,<1",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
     "ruff>=0.6",

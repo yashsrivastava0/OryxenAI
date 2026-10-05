@@ -9,4 +9,4 @@ export PYTHONPYCACHEPREFIX="$REPO_ROOT/.workspace/cache/python"
 mkdir -p "$REPO_ROOT/.workspace/venv"
 mkdir -p "$REPO_ROOT/.workspace/cache/python"
 
-uv sync --frozen
+uv sync --frozen --extra pdf-full

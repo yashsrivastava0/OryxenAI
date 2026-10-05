@@ -31,6 +31,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.19@sha256:b46b03ddfcfbf8f547af7e9eaefdf8a3
 
 WORKDIR /app
 
+ARG PDF_ENGINE=light
+
 # RapidOCR pulls OpenCV's manylinux wheel. Supply the small set of Debian
 # runtime libraries it expects even though the app never opens a GUI.
 RUN apt-get update \
@@ -42,23 +44,34 @@ RUN apt-get update \
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies into a virtual environment (no dev deps, no project).
-RUN uv sync --frozen --no-dev --no-install-project
+RUN if [ "$PDF_ENGINE" = "full" ]; then \
+        uv sync --frozen --no-dev --no-install-project --extra pdf-full; \
+    else \
+        uv sync --frozen --no-dev --no-install-project; \
+    fi
 
 # Download the exact CPU OCR/layout assets into the image. Runtime requests do
 # not contact Hugging Face or any OCR service.
 COPY scripts/download_docling_models.py ./scripts/download_docling_models.py
-RUN uv run --no-sync python scripts/download_docling_models.py --output-dir /opt/docling-models
+RUN mkdir -p /opt/docling-models \
+    && if [ "$PDF_ENGINE" = "full" ]; then \
+        uv run --no-sync python scripts/download_docling_models.py --output-dir /opt/docling-models; \
+    fi
 
 # Copy application source (config/migrations are not needed to build the
 # wheel, only src/ and README.md), then install the oryxenai project package.
 COPY src/ ./src/
 COPY README.md ./
-RUN uv sync --frozen --no-dev
+RUN if [ "$PDF_ENGINE" = "full" ]; then \
+        uv sync --frozen --no-dev --extra pdf-full; \
+    else \
+        uv sync --frozen --no-dev; \
+    fi
 
 # ---- Stage 2: runtime ----
 FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS runtime
 
-# Required by the CPU OpenCV wheel that RapidOCR uses.
+# Required by the OpenCV wheel used by the light OCR engine.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libglib2.0-0 libgl1 libxcb1 libsm6 libxext6 libxrender1 \
