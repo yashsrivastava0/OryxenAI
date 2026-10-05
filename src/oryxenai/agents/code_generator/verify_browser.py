@@ -89,6 +89,19 @@ def _gate(limit: int) -> asyncio.Semaphore:
     return _gates[loop_id]
 
 
+def _font_load_failed(face: dict[str, str], faces: list[dict[str, str]]) -> bool:
+    if face["status"] != "error":
+        return False
+    family = face["family"]
+    if family.endswith(" Fallback"):
+        primary = family.removesuffix(" Fallback")
+        # A metric-matched local fallback may be absent on CI/Linux. The
+        # bundled primary face already loaded, so this is not a broken page.
+        if any(item["family"] == primary and item["status"] == "loaded" for item in faces):
+            return False
+    return True
+
+
 @dataclass(slots=True)
 class _Findings:
     issues: list[Issue] = field(default_factory=list)
@@ -358,7 +371,7 @@ class BrowserVerifier:
                 )
             )
         for face in metrics["faces"]:
-            if face["status"] == "error":
+            if _font_load_failed(face, metrics["faces"]):
                 findings.add(
                     Issue(
                         "FONT_FAILED",

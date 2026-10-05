@@ -8,7 +8,11 @@ import pytest
 
 from oryxenai.agents.code_generator.bundle import SiteBundle, build_bundle
 from oryxenai.agents.code_generator.dev.reference_renderer import render_body
-from oryxenai.agents.code_generator.verify_browser import BrowserVerifier, build_verifier
+from oryxenai.agents.code_generator.verify_browser import (
+    BrowserVerifier,
+    _font_load_failed,
+    build_verifier,
+)
 from oryxenai.core.settings import CodeGeneratorVerificationConfig
 from oryxenai.themes import get_theme
 from tests.unit.agents.code_generator.helpers import sample_content, shapes
@@ -73,6 +77,15 @@ def test_off_means_no_verifier_at_all() -> None:
     assert build_verifier(_config(browser="off")) is None
     assert isinstance(build_verifier(_config(browser="best_effort")), BrowserVerifier)
     assert isinstance(build_verifier(_config(browser="required")), BrowserVerifier)
+
+
+def test_optional_local_font_fallback_does_not_fail_a_loaded_primary() -> None:
+    faces = [
+        {"family": "Instrument Serif", "status": "loaded", "weight": "400"},
+        {"family": "Instrument Serif Fallback", "status": "error", "weight": "400"},
+    ]
+    assert not _font_load_failed(faces[1], faces)
+    assert _font_load_failed({**faces[0], "status": "error"}, faces[1:])
 
 
 @pytest.mark.asyncio

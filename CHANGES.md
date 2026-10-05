@@ -4,6 +4,16 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-05 — Codex (OpenAI) — Isolate CI migration from the test schema
+
+The first staging run exposed a migration step aimed at `oryxenai_test` via
+`config/app.test.toml`. That left foreign-keyed tables for test fixtures to
+drop and caused integration errors. Pointed the step at the disposable CI
+application database `oryxenai`; pytest still uses `oryxenai_test`. The same
+run exposed an optional local font fallback absent on Linux. The browser
+verifier now accepts that fallback only when its bundled primary face loaded;
+missing primary fonts still fail verification.
+
 ### 2026-10-05 — Codex (OpenAI) — Render Free deployment and push-to-deploy flow
 
 Prepared the current product branch for one Render Free Docker web service
