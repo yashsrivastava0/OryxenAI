@@ -4,6 +4,15 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-05 — Codex (OpenAI) — Keep encoded database URLs out of Alembic config
+
+The first retry with a percent-encoded Supabase password exposed Alembic's
+ConfigParser interpolation of `%40`, which failed migrations and included the
+URI in Render logs. Migrations now pass the settings URL directly to the async
+engine and offline context, avoiding interpolation. Added an offline Alembic
+regression check that uses an encoded fixture credential and asserts that the
+URI is absent from output. The exposed database password must be rotated.
+
 ### 2026-10-05 — Codex (OpenAI) — Declare the Render app domain
 
 The Render Blueprint now associates `app.oryxenai.me` with the existing web

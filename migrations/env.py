@@ -12,7 +12,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from oryxenai.core.settings import get_settings
 from oryxenai.db.base import Base
@@ -40,16 +40,15 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Override the alembic ini sqlalchemy.url with the settings-composed URL.
+# Keep the URL out of Alembic's ConfigParser: percent-encoded passwords such as
+# %40 are otherwise treated as interpolation syntax and included in errors.
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url)
 
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode (emit SQL to script)."""
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -71,11 +70,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     """Run migrations in 'online' mode with an async engine."""
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_async_engine(settings.database_url, poolclass=pool.NullPool)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
