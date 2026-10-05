@@ -5,6 +5,8 @@ services:
     plan: free
     region: singapore
     branch: deployment
+    domains:
+      - app.oryxenai.me
     dockerfilePath: ./Dockerfile
     dockerContext: .
     dockerCommand: python -m oryxenai.deployment.render_web

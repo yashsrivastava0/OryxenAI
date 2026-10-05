@@ -25,8 +25,9 @@ review.
    server keys, two admin emails, permitted user emails, and the configured
    model provider key. The Blueprint generates the persistent preview grant
    secret. Never commit or paste secret values into logs or chat.
-4. Add `app.oryxenai.me` as a Render custom domain. In Namecheap BasicDNS,
-   replace the old `app` A record with the CNAME target displayed by Render.
+4. The Blueprint declares `app.oryxenai.me` as the service's custom domain.
+   After its next sync, in Namecheap BasicDNS replace the old `app` A record
+   with a CNAME to `oryxenai.onrender.com`, then verify the domain in Render.
    Leave the apex A records and mail settings alone. Verify TLS and OAuth at
    the custom domain before treating the release as live.
 
