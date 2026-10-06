@@ -353,3 +353,13 @@ mocked OAuth loading/failure. Authentication Node tests, auth/web API checks,
 lint, tracked Python formatting and source typing passed. Screenshots are stored
 under `.workspace/onboarding/verified-final/`. No real Google sign-in, remote
 push or Render deployment was performed; release approval remains pending.
+
+### 2026-10-06 — Codex (OpenAI) — Reconcile history for the authorized Render release
+
+The operator explicitly authorized pushing and deploying the verified application.
+The previous deployment tip and its replayed source snapshot have identical Git
+trees. Reconciled that existing deployment history with an ours-strategy merge,
+preserving the verified current application and both parent histories without
+rewriting any remote branch. Unrelated untracked work remains excluded. The
+release must pass staging CI on this exact commit before fast-forward promotion
+to deployment and live Render acceptance checks.
