@@ -65,10 +65,10 @@
               <span class="eyebrow-rule" aria-hidden="true"></span>
             </div>
 
-            <h1 id="sign-in-title" class="sign-in-headline">Open your private portfolio workspace.</h1>
+            <h1 id="sign-in-title" class="sign-in-headline">Turn your experience into a portfolio.</h1>
 
             <p class="sign-in-lede">
-              Turn your résumé, work history, and project notes into a portfolio you can review. Move through Explorer, shape the content, then see your page in a private Studio preview. You approve each step.
+              Start with your résumé or notes. Review your story, shape the content, then see your page in a private preview. You approve each step.
             </p>
 
             <div class="cta-block">
@@ -89,7 +89,7 @@
               </button>
 
               <p id="sign-in-error" class="error-text" role="alert" hidden></p>
-              <p id="sign-in-guidance" class="sign-in-guidance">Google confirms who you are. OryxenAI decides workspace access.</p>
+              <p id="sign-in-guidance" class="sign-in-guidance">Use your Google account to enter your private workspace.</p>
             </div>
 
             <div class="trust-divider" aria-hidden="true"></div>
@@ -107,14 +107,14 @@
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   <polyline points="9 12 11 14 15 10"/>
                 </svg>
-                <span>Explicit approval at every stage</span>
+                <span>You approve each step</span>
               </div>
               <div class="trust-item">
                 <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="16 18 22 12 16 6"/>
                   <polyline points="8 6 2 12 8 18"/>
                 </svg>
-                <span>A page you can review and refine</span>
+                <span>Review and refine your page</span>
               </div>
               <div class="trust-item">
                 <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -123,7 +123,7 @@
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                   <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
-                <span>Private preview for the owner</span>
+                <span>Your progress stays saved</span>
               </div>
             </div>
           </section>
@@ -326,18 +326,16 @@
         <div class="drafting-mark mark-tr" aria-hidden="true">+</div>
         <div class="drafting-mark mark-bl" aria-hidden="true">+</div>
         <div class="drafting-mark mark-br" aria-hidden="true">+</div>
-        <div class="drafting-sweep-line" aria-hidden="true"></div>
 
         <div class="rail-header">
           <span class="rail-title">THREE STEPS, EACH IN YOUR HANDS</span>
-          <span class="rail-motto">IDEAS IN, OPPORTUNITIES OUT.</span>
+          <span class="rail-motto">EXAMPLE WORKFLOW</span>
         </div>
 
         <!-- ACTIVE WORKFLOW RAIL -->
         <div class="stage-rail-wrap" aria-label="Portfolio workflow">
           <div class="rail-track" aria-hidden="true">
             <div id="rail-active-segment" class="rail-active-segment"></div>
-            <div id="rail-traveling-highlight" class="rail-traveling-highlight"></div>
           </div>
           <ol class="stage-rail-nodes">
             <li class="stage-rail-node active" data-stage="discover">
@@ -368,7 +366,7 @@
         <div class="sign-in-showcase" aria-label="Interactive portfolio transformation showcase">
           <div class="showcase-deck">
             <!-- CARD 0: EXPLORER -->
-            <article class="showcase-card card-discovery" data-card-index="0" aria-label="Stage 1: Explorer sample">
+            <article id="showcase-explorer" class="showcase-card card-discovery" data-card-index="0" aria-hidden="true" inert aria-label="Stage 1: Explorer sample">
               <div class="card-header-line">
                 <span class="card-step-tag">01 Explorer</span>
               </div>
@@ -400,15 +398,14 @@
             </article>
 
             <!-- CARD 1: PORTFOLIO BRIEF (HERO CENTERPIECE) -->
-            <article class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 1: Portfolio brief sample">
+            <article id="showcase-brief" class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 1: Portfolio brief sample">
               <div class="brief-topbar">
                 <div class="brief-brand-badge">
                   <img class="brief-brand-icon" src="/auth-static/brand-mark.png" width="16" height="16" alt="" aria-hidden="true" />
                   <span class="brief-brand">{{ app_name }}</span>
                 </div>
                 <div class="brief-status-chip">
-                  <span class="cobalt-dot-pulsing" aria-hidden="true"></span>
-                  <span class="live-status-text">Explorer questions forming…</span>
+                  <span>Example brief</span>
                 </div>
               </div>
 
@@ -479,7 +476,7 @@
             </article>
 
             <!-- CARD 2: CONTENT STRUCTURE -->
-            <article class="showcase-card card-content" data-card-index="2" aria-label="Stage 2: Content structure sample">
+            <article id="showcase-content" class="showcase-card card-content" data-card-index="2" aria-hidden="true" inert aria-label="Stage 2: Content structure sample">
               <div class="card-header-line">
                 <span class="card-step-tag">02 Content</span>
               </div>
@@ -505,7 +502,7 @@
             </article>
 
             <!-- CARD 3: OWNER-ONLY STUDIO PREVIEW -->
-            <article class="showcase-card card-studio" data-card-index="3" aria-label="Stage 3: Studio preview sample">
+            <article id="showcase-studio" class="showcase-card card-studio" data-card-index="3" aria-hidden="true" inert aria-label="Stage 3: Studio preview sample">
               <div class="card-header-line"><span class="card-step-tag">03 Studio</span><span class="studio-sample-private">PRIVATE PREVIEW</span></div>
               <h2 class="card-headline">See the page. Make it yours.</h2>
               <p class="card-subhead">Open a checked page beside a conversation for refining its words.</p>
@@ -547,12 +544,6 @@
             </button>
           </div>
 
-          <div class="showcase-callout-annotation" aria-hidden="true">
-            <span class="callout-text">Ideas in, Opportunities out.</span>
-            <svg class="callout-arrow-svg" width="48" height="24" viewBox="0 0 48 24" fill="none" stroke="currentColor" stroke-width="1.2">
-              <path d="M 4 4 Q 28 6 38 18 M 32 18 L 39 19 L 41 12"/>
-            </svg>
-          </div>
         </div>
 
         <footer class="sign-in-right-footer">

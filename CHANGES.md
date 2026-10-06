@@ -333,3 +333,23 @@ backend's alive JSON with HTTP 200. The existing readiness endpoint also
 confirmed the database is up. Recorded management links, evidence and limits
 in the research report and D-139. No application change, paid service change,
 remote push or Render deployment was made; release approval remains pending.
+
+### 2026-10-06 — Codex (OpenAI) — Readable Google sign-in page and calm showcase
+
+Fixed text escaping the sign-in showcase's fixed-height cards by sharing a
+content-sized grid cell. Only the selected example exposes readable content;
+the decorative backing has no text. Simplified the welcome copy, trust messages,
+header/footer wrapping and tablet/mobile layout while retaining the local fonts,
+branding and Google authentication flow. Replaced tilt and competing decorative
+loops with a short card entrance and a slower, pausable example rotation. Hidden
+cards are inert; keyboard navigation and changes to reduced-motion preferences
+are respected. See D-140.
+
+The authentication controller now owns the Google button's loading presentation
+and shows sign-in errors next to it. Removed the showcase's independent button
+reset timer. Browser checks cover all examples at phone, tablet and desktop sizes,
+text containment, zoom, pause/resume, keyboard controls, reduced motion and
+mocked OAuth loading/failure. Authentication Node tests, auth/web API checks,
+lint, tracked Python formatting and source typing passed. Screenshots are stored
+under `.workspace/onboarding/verified-final/`. No real Google sign-in, remote
+push or Render deployment was performed; release approval remains pending.

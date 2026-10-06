@@ -239,7 +239,12 @@ function makeDomUi() {
     },
     panel: show,
     error(message, { retry = false } = {}) {
-      const error = document.getElementById("global-error");
+      const globalError = document.getElementById("global-error");
+      const signInError = document.getElementById("sign-in-error");
+      const error = panels["sign-in"] && !panels["sign-in"].hidden && signInError ? signInError : globalError;
+      for (const other of [globalError, signInError]) {
+        if (other && other !== error) { other.hidden = true; other.textContent = ""; }
+      }
       if (error) {
         error.textContent = message;
         error.hidden = !message;
@@ -292,7 +297,7 @@ export async function bootstrapAuthPage() {
   const openAdmission = config.admissionMode === "open";
   const signInGuidance = document.getElementById("sign-in-guidance");
   if (signInGuidance) {
-    signInGuidance.textContent = "Google confirms who you are. OryxenAI decides workspace access.";
+    signInGuidance.textContent = "Use your Google account to enter your private workspace.";
   }
   const accessDetail = document.getElementById("access-detail");
   if (accessDetail && openAdmission) {
@@ -341,6 +346,7 @@ export async function bootstrapAuthPage() {
   const resetSignInCta = () => {
     if (!signIn) return;
     signIn.disabled = false;
+    signIn.setAttribute("aria-busy", "false");
     signIn.classList.remove("cta-submitting");
     const label = signIn.querySelector(".cta-label");
     if (label) {
@@ -358,6 +364,10 @@ export async function bootstrapAuthPage() {
 
   signIn?.addEventListener("click", async () => {
     signIn.disabled = true;
+    signIn.setAttribute("aria-busy", "true");
+    signIn.classList.add("cta-submitting");
+    const label = signIn.querySelector(".cta-label");
+    if (label) label.textContent = "Opening Google…";
     ui.error("");
     try {
       const response = await auth.signInWithOAuth({

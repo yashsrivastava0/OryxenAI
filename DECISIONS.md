@@ -214,3 +214,12 @@ Compact ledger of active architectural decisions. For historical entries prior t
 - **Decision:** Use one enabled cron-job.org HTTPS GET to the existing `/health/live` endpoint every five minutes, with saved responses and sustained-failure, recovery and deactivation notifications. Keep Render's dependency readiness check, existing compute plan, durable PostgreSQL queue and combined API/worker launcher.
 - **Rejected alternatives:** An in-process or local-PC timer cannot operate independently when its host stops; GitHub schedules lack reliable timing; a paid Render Cron Job adds cost while retaining Free web-service limitations. No agent endpoint is invoked to keep the app awake.
 - **Evidence and limits:** The saved settings, external request results and management links are recorded in `exa-results/render-idle-strategy-2026-10-06.md`. The setup mitigates inactivity sleep without guaranteeing availability or removing shared runtime quotas, platform restarts, crashes or scheduler failures. Paid compute and application release still require separate operator authorization.
+
+## D-140 — Content-sized sign-in examples and one owner for Google feedback
+
+- **Date & Author:** 2026-10-06 — Codex (OpenAI)
+- **Status:** implemented-locally; application release requires operator approval
+- **Context:** The operator reported overlapping text and broken animation on the welcome page containing the Google sign-in button. Fixed card heights clipped sample copy and layered cards exposed competing text; the showcase separately reset the authentication button.
+- **Decision:** Keep the existing sign-in shell, bundled typography, example portfolios and Google authentication flow. Reserve enough grid space for all sample cards while exposing only the selected card. Use a short entrance, pausable rotation, manual keyboard controls, offscreen/hidden-page pausing and reduced-motion support. Label the content as examples rather than simulate agent work. Let the authentication controller own loading feedback and place sign-in errors beside the button.
+- **Rejected alternatives:** Smaller text to force overflow into fixed boxes, overlapping readable cards, pointer tilt and competing status loops, a new animation dependency, or authentication controls owned by decorative JavaScript.
+- **Consequence:** Welcome copy and examples remain readable as screens and text sizes change. Authentication and stage boundaries remain intact; browser checks use a mocked provider and do not initiate real Google login.
