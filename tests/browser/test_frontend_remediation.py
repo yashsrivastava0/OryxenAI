@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 from tests.browser.helpers import (
     BASE_URL,
@@ -21,6 +23,12 @@ def test_workspace_header_has_room_for_brand_journey_and_actions(
     page = browser_page
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
+    visible_copy = page.inner_text("body")
+    assert "EXPLORER" in visible_copy
+    assert not re.search(r"\bdiscover(?:y)?\b", visible_copy, re.IGNORECASE)
+    assert (
+        page.locator('#journey-stage-select option[value="discover"]').inner_text() == "1. Explore"
+    )
     brand = page.locator(".app-brand").bounding_box()
     journey = page.locator(".journey-nav").bounding_box()
     actions = page.locator(".app-topbar-actions").bounding_box()
@@ -111,7 +119,7 @@ def test_mobile_uses_compact_selector_and_locked_options(browser_page: object) -
     assert selector.is_visible()
     options = selector.locator("option")
     assert options.count() == 3
-    assert options.nth(0).inner_text().startswith("1. Discover")
+    assert options.nth(0).inner_text().startswith("1. Explore")
     assert options.nth(1).inner_text().startswith("2. Content")
     assert options.nth(2).inner_text().startswith("3. Studio")
     assert options.nth(0).is_enabled()
@@ -144,7 +152,7 @@ def test_discovery_intake_keeps_prompts_above_reserved_actions(browser_page: obj
 def test_discovery_can_start_with_an_attached_text_file_alone(browser_page: object) -> None:
     page = browser_page
     page.goto(f"{BASE_URL}/?fixture=discovery-input", wait_until="networkidle")
-    start = page.get_by_role("button", name="Start Discovery")
+    start = page.get_by_role("button", name="Start Explorer")
     assert start.is_disabled()
     page.locator('input[type="file"]').set_input_files(
         {"name": "resume.md", "mimeType": "text/markdown", "buffer": b"# My resume"}
@@ -152,7 +160,7 @@ def test_discovery_can_start_with_an_attached_text_file_alone(browser_page: obje
     expect(page.get_by_text("resume.md", exact=False)).to_be_visible()
     assert (
         page.get_by_label(
-            "Discovery will read this text. Correct anything the PDF reader missed."
+            "Explorer will read this text. Correct anything the PDF reader missed."
         ).input_value()
         == "# My resume"
     )

@@ -264,3 +264,18 @@ Prepared open admission in the Render and production overlays in an isolated che
 ### 2026-10-06 — Codex (OpenAI) — Product-first repository presentation
 
 Replaced the root technical overview with a product-focused introduction, custom editorial cover, and an accessible Discovery-to-Studio journey diagram. Updated GitHub About metadata to match the product and current app URL. Prepared main/staging parity from the working staging snapshot, with owner-requested author attribution normalization; application behavior and deployment remain unchanged. Verified README links, SVG structure, and local visual rendering. Full repository verification is recorded separately with the task outcome.
+
+### 2026-10-06 ? Explorer wording and expanded repository presentation
+
+Renamed visible portfolio-stage wording to Explorer Agent / Explore across the
+frontend, authentication pages, safe messages, prompts, and current guides.
+API paths, stored keys, schema contracts, and workflow behavior remain compatible.
+Expanded the README with the approved journey, real artifacts, session and
+version continuity, technology responsibilities, sandboxed preview boundaries,
+and controlled delivery. Updated the cover illustration terminology.
+Contributor cleanup removes operator-requested AI co-author trailers from the
+main/staging histories without changing deployment.
+
+Validation also identified GHSA-68fv-2mgg-jv7q in the existing frontend
+development dependency tree. Updated only source-map-js to its compatible
+patched release; frontend tests/build passed and npm audit reports no findings.

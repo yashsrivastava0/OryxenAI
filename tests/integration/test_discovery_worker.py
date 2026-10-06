@@ -1,4 +1,4 @@
-"""Durable Discovery worker flow using the deterministic test mock client."""
+"""Durable Explorer worker flow using the deterministic test mock client."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ async def test_full_worker_flow_with_mock_client(db_session, monkeypatch) -> Non
     review = await service.get_discovery_state(session_id)
     assert review["discovery"]["status"] == "brief_review"
     assert review["discovery"]["brief"]["title"]
-    assert review["discovery"]["brief"]["markdown"].startswith("# Portfolio Discovery Brief")
+    assert review["discovery"]["brief"]["markdown"].startswith("# Portfolio Explorer Brief")
 
     revised = await service.revise_brief(session_id, "Lead with QueueGuard")
     await db_session.commit()

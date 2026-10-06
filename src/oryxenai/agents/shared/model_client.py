@@ -57,7 +57,7 @@ def _mock_structured_result(
 ) -> Any:
     """Build a deterministic StructuredModelResult for the given output model.
 
-    Discovery and Content Architect output models each get a valid minimal
+    Explorer and Content Architect output models each get a valid minimal
     envelope so the mock-runs development harness can execute those agents
     without network access.
     Any other model falls back to an empty instance.
@@ -116,7 +116,7 @@ def _mock_structured_result(
             assistant_message=(
                 "I have enough to ask a few focused questions."
                 if has_personal_sources
-                else "Share personal or professional source material so Discovery can build a grounded brief."
+                else "Share personal or professional source material so Explorer can build a grounded brief."
             ),
             questions=(
                 [
@@ -158,11 +158,11 @@ def _mock_structured_result(
         parsed = BriefOutput(
             mode=OperationMode.BRIEF_READY,
             assistant_message="The deterministic mock returned a placeholder brief for review.",
-            brief_title="Discovery mock output",
+            brief_title="Explorer mock output",
             brief_markdown=(
-                "# Discovery mock output\n\n"
+                "# Explorer mock output\n\n"
                 "This deterministic mock does not analyze source material or create portfolio claims. "
-                "Use a configured model workflow for a grounded Discovery brief."
+                "Use a configured model workflow for a grounded Explorer brief."
             ),
             user_summary=(
                 "This is a deterministic placeholder. It does not classify source material or make "

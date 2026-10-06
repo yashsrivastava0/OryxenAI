@@ -3,7 +3,7 @@
 Never logs secrets, .env contents, model API keys, database passwords,
 full hidden prompts, or internal chain-of-thought.
 
-Privacy allowlist (Discovery, Section 28):
+Privacy allowlist (Explorer, Section 28):
 
 Safe fields that MAY be logged:
   request_id, session_id (shortened), job_id, agent_run_id, operation,

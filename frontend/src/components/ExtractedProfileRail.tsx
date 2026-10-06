@@ -17,7 +17,7 @@ function isProfileEmpty(profile: StructuredProfileVM): boolean {
 }
 
 /**
- * Renders the StructuredProfile facts the Discovery model already extracts
+ * Renders the StructuredProfile facts the Explorer model already extracts
  * on every brief (agents/discovery/schemas.py::StructuredProfile) — skills,
  * work history, projects, education, links. Previously these were parsed
  * server-side and shipped to the client, then discarded: DiscoveryStage only

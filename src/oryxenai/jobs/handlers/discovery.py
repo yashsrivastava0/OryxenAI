@@ -1,4 +1,4 @@
-"""Discovery agent background job handlers.
+"""Explorer agent background job handlers.
 
 Registered job kinds:
   - discovery.understand_and_question
@@ -64,7 +64,7 @@ _BRIEF_OPS = {"build_or_revise_brief", "build_brief"}
 
 
 async def _on_timeout_persisted(payload: dict[str, Any], error: dict[str, Any]) -> None:
-    """Shared by every Discovery handler kind (worker.py calls this when the
+    """Shared by every Explorer handler kind (worker.py calls this when the
     outer job-handler timeout fires). asyncio.wait_for cancels execute() from
     outside, so its own try/except (which calls _persist_failure) never
     runs — this is the only chance to reflect a terminal timeout into the
@@ -203,7 +203,7 @@ async def _execute_persisted(
         run = await repo.get_run(run_id)
         session = await repo.get_session(session_id)
         if run is None or session is None:
-            raise ValueError("Discovery run or session was not found")
+            raise ValueError("Explorer run or session was not found")
         await repo.mark_run_started(run_id)
         state = await repo.get_discovery_state(session_id)
         if not _job_owns_active_state(state, operation, run_id, job_id):
@@ -221,7 +221,7 @@ async def _execute_persisted(
         running.max_attempts = max_attempts
         saved = await repo.save_discovery_state(session_id, running, session.revision)
         if saved is None:
-            raise ValueError("Discovery state revision changed before the worker started")
+            raise ValueError("Explorer state revision changed before the worker started")
         await db.commit()
         state_snapshot = dict(session.current_state)
         input_payload = dict(run.input_payload)
@@ -336,7 +336,7 @@ async def _execute_persisted(
             payload,
             ProviderError(
                 code="MODEL_OPERATION_FAILED",
-                message=f"Discovery {operation} failed.",
+                message=f"Explorer {operation} failed.",
                 retryable=False,
             ),
             attempt,
@@ -407,7 +407,7 @@ async def _apply_result(
         repo = DiscoveryRepository(db)
         session = await repo.get_session(session_id)
         if session is None:
-            raise ValueError("Discovery session was not found")
+            raise ValueError("Explorer session was not found")
         state = await repo.get_discovery_state(session_id)
         if not _job_owns_active_state(state, operation, run_id, job_id):
             return {"status": "cancelled", "job_id": str(job_id or "")}
@@ -478,7 +478,7 @@ async def _apply_result(
                 current_job is None or current_job.status == JobStatus.CANCELLED.value
             ):
                 return {"status": "cancelled", "job_id": str(job_id)}
-            raise ValueError("Discovery state changed while the job was running")
+            raise ValueError("Explorer state changed while the job was running")
         state_after = dict(updated.current_state)
         await repo.mark_run_succeeded(
             run_id,

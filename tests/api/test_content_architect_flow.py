@@ -1,7 +1,7 @@
 """HTTP-level Content Architect flow tests.
 
 Exercises the full flow through the ASGI app with the deterministic test
-mock client: (Discovery approved) -> start -> build -> content_review ->
+mock client: (Explorer approved) -> start -> build -> content_review ->
 approve, plus revision, discovery-not-approved rejection, staleness
 rejection, and idempotent start.
 """
@@ -84,7 +84,7 @@ _CONTENT_ARCHITECT_HANDLERS = {"content_architect.build": ContentArchitectBuildH
 
 
 async def _approve_discovery(client, *, choice: str = "forest_copper") -> str:
-    """Create a session and drive Discovery to `approved` via the real API."""
+    """Create a session and drive Explorer to `approved` via the real API."""
     sid = await _create_session(client)
     resp = await client.post(
         f"/api/v1/sessions/{sid}/discovery/start",

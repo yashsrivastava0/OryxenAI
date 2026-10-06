@@ -324,7 +324,7 @@ def get_discovery_service(
     registry: AgentRegistry = Depends(get_agent_registry),
     context: DurableAuthorizationContext | None = Depends(get_pipeline_durable_context),
 ) -> DiscoveryService:
-    """Build a Discovery service bound to the request transaction."""
+    """Build a Explorer service bound to the request transaction."""
     return DiscoveryService(DiscoveryRepository(db), JobService(db, context), registry)
 
 

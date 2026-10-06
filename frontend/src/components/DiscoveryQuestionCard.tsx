@@ -129,7 +129,7 @@ export function DiscoveryQuestionCard({
       <div className="question-content">
         <div className="question-header">
           <div className="question-eyebrow-row">
-            <span className="question-stage-tag">DISCOVERY</span>
+            <span className="question-stage-tag">EXPLORER</span>
             <span className="question-ordinal">{questionOrdinalText}</span>
           </div>
           <h2 className="question-prompt">{question.text}</h2>

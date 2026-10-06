@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { answeredDiscoveryQuestion, skippedDiscoveryQuestion } from "./discovery-answer";
 
-describe("Discovery answer transport contract", () => {
+describe("Explorer answer transport contract", () => {
   it.each([
     ["free text", "A detailed answer"],
     ["single choice", "staff-engineering"],

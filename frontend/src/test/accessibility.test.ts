@@ -39,7 +39,7 @@ describe("Phase 5 Accessibility Pass (docs/Frontend/05 §13, §18)", () => {
 
   it("JourneyRail marks active stage with aria-current='step'", () => {
     const stages: JourneyStageVM[] = [
-      { id: "discover", ordinal: 1, label: "Discovery", state: "complete", isSelectable: true },
+      { id: "discover", ordinal: 1, label: "Explorer", state: "complete", isSelectable: true },
       { id: "content", ordinal: 2, label: "Content Architect", state: "review", isSelectable: true },
     ];
     const vnode = JourneyRail({

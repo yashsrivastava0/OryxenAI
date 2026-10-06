@@ -93,7 +93,7 @@ def _build_content_architect_agent(
     """Create a ContentArchitectAgent with the live provider adapter.
 
     override_profile_name is the validated, session-sticky model/provider
-    choice inherited from Discovery (see ContentArchitectService.start).
+    choice inherited from Explorer (see ContentArchitectService.start).
     Unknown or unselectable values fail closed in the shared runtime.
     """
     from oryxenai.agents.content_architect.agent import ContentArchitectAgent
@@ -293,7 +293,7 @@ async def _apply_result(
         if current_hash != state.source_ref.discovery_brief_hash:
             safe_error = {
                 "code": "CONTENT_ARCHITECT_STALE_SOURCE",
-                "message": "Discovery changed while this Content Architect build was running.",
+                "message": "Explorer changed while this Content Architect build was running.",
                 "retryable": False,
             }
             next_state = apply_needs_attention(state, safe_error)

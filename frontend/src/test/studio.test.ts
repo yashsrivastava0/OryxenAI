@@ -248,7 +248,7 @@ describe("journey, url and store integration", () => {
   it("renders three stages in the journey rail", () => {
     const vnode = JourneyRail({
       journey: [
-        { id: "discover", ordinal: 1, label: "Discover", state: "complete", isSelectable: true },
+        { id: "discover", ordinal: 1, label: "Explore", state: "complete", isSelectable: true },
         { id: "content", ordinal: 2, label: "Content", state: "complete", isSelectable: true },
         { id: "studio", ordinal: 3, label: "Studio", state: "available", isSelectable: true },
       ],

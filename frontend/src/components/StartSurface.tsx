@@ -75,7 +75,7 @@ export function StartSurface({
     if (disabled || inFlight || extracting) return;
     const value = intakeText.trim();
     if (!value && !attachment?.text.trim()) {
-      setError("Write some details or attach a resume before starting Discovery.");
+      setError("Write some details or attach a resume before starting Explorer.");
       setFailure(null);
       return;
     }
@@ -87,8 +87,8 @@ export function StartSurface({
       safeSessionStorage.removeItem("oryxenai.discovery_intake_draft");
       setAttachment(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Discovery could not start. Try again.");
-      setFailure(captureFailure(reason, "discovery", "start", "Discovery could not start. Try again."));
+      setError(reason instanceof Error ? reason.message : "Explorer could not start. Try again.");
+      setFailure(captureFailure(reason, "discovery", "start", "Explorer could not start. Try again."));
     } finally {
       setInFlight(false);
     }
@@ -117,12 +117,12 @@ export function StartSurface({
       {/* Editorial Header matching 02-discovery-intake.png */}
       <div className="discovery-intake-header">
         <h1 id="intake-heading" className="discovery-intake-title">
-          {continuation ? "Share more source material." : "Give Discovery the full picture."}
+          {continuation ? "Share more source material." : "Give Explorer the full picture."}
         </h1>
         <p className="discovery-intake-subtitle">
           {continuation
-            ? "Discovery needs more personal or professional detail before it can make a grounded brief. Add notes, work history, project details, or other source material below. Your earlier material is saved."
-            : "Share your goals, work history, projects, preferences, and constraints. You can paste source material as-is; Discovery will organize it and ask about important gaps."}
+            ? "Explorer needs more personal or professional detail before it can make a grounded brief. Add notes, work history, project details, or other source material below. Your earlier material is saved."
+            : "Share your goals, work history, projects, preferences, and constraints. You can paste source material as-is; Explorer will organize it and ask about important gaps."}
         </p>
       </div>
 
@@ -193,7 +193,7 @@ export function StartSurface({
             <p className="discovery-document-warning" role="status" key={warning}>{warning}</p>
           ))}
           <label htmlFor="discovery-document-text">
-            Discovery will read this text. Correct anything the PDF reader missed.
+            Explorer will read this text. Correct anything the PDF reader missed.
           </label>
           <textarea
             id="discovery-document-text"
@@ -240,17 +240,17 @@ export function StartSurface({
 
       <p className="intake-supporting-note">
         {continuation
-          ? "Add the details you have; Discovery will keep the new material with your earlier sources."
+          ? "Add the details you have; Explorer will keep the new material with your earlier sources."
           : "Start with what you have. You can clarify gaps and review the evidence before approving the brief."}
       </p>
 
       <ActionDock
         className="intake-dock"
-        primaryLabel={continuation ? "Add details and continue" : "Start Discovery"}
+        primaryLabel={continuation ? "Add details and continue" : "Start Explorer"}
         onPrimary={submit}
         disabled={disabled || extracting || (!intakeText.trim() && !attachment?.text.trim())}
         busy={inFlight}
-        busyLabel={continuation ? "Adding details…" : "Starting Discovery…"}
+        busyLabel={continuation ? "Adding details…" : "Starting Explorer…"}
         note="Start with what you have. You can review the brief before continuing."
       />
     </div>

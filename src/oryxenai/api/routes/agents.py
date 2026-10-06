@@ -26,7 +26,7 @@ async def list_agents(
     """Return registered mock agents with minimal metadata."""
     info_map: dict[str, str] = {
         "discovery": "Gathers user intent and requirements.",
-        "content_architect": "Turns an approved Discovery brief into final, grounded content and a route plan.",
+        "content_architect": "Turns an approved Explorer brief into final, grounded content and a route plan.",
     }
     result: list[AgentInfo] = []
     for key in sorted(registry.list_keys(), key=lambda k: k.value):

@@ -82,7 +82,7 @@ def _build_context(agent_key: AgentKey, agent_input: dict[str, object]) -> Agent
 
 
 async def test_discovery_agent_deterministic_output():
-    """Discovery agent returns structured output via the test mock client."""
+    """Explorer agent returns structured output via the test mock client."""
     agent = DiscoveryAgent(model_client=_MockModelClient())
     ctx = _build_context(
         AgentKey.DISCOVERY,
@@ -140,7 +140,7 @@ async def test_all_agents_return_same_output_for_different_inputs():
 
 
 def test_discovery_schema_validation():
-    """Discovery schemas accept any input."""
+    """Explorer schemas accept any input."""
     intake = DiscoveryIntake(message="test", document_text="notes", goal="get hired")
     assert intake.message == "test"
     assert intake.document_text == "notes"

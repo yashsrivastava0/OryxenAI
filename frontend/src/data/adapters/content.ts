@@ -345,7 +345,7 @@ function unsupportedView(raw: unknown, jobs: unknown[]): ContentViewModel {
 
 /**
  * Accepts the raw `content_architect` dict from ContentArchitectStateResponse
- * and whether Discovery has been approved.
+ * and whether Explorer has been approved.
  */
 export function adaptContentArchitect(
   raw: unknown,
@@ -361,7 +361,7 @@ export function adaptContentArchitect(
   const failedJob = job?.status === "failed" || job?.status === "cancelled";
   let state: StageState = failedJob ? "attention" : STATE_MAP[status] ?? "unsupported";
 
-  // Upstream gating: if not started and Discovery is not yet approved, this stage is locked.
+  // Upstream gating: if not started and Explorer is not yet approved, this stage is locked.
   if (status === "not_started" && !discoveryApproved) {
     state = "locked";
   }
@@ -384,7 +384,7 @@ export function adaptContentArchitect(
   return {
     state,
     statusText: status === "not_started" && !discoveryApproved
-      ? "Locked until Discovery is approved"
+      ? "Locked until Explorer is approved"
       : STATUS_TEXT[status] ?? "Working on Content",
     raw,
     job,

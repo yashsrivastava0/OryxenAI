@@ -1,4 +1,4 @@
-"""Lenient, compact model-facing Discovery output shapes."""
+"""Lenient, compact model-facing Explorer output shapes."""
 
 from __future__ import annotations
 

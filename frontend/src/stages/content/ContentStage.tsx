@@ -43,7 +43,7 @@ export function ContentStage({
         <p className="eyebrow">Stage 02 / Content Architect</p>
         <h2 className="locked-title">Stage Locked</h2>
         <p className="locked-desc">
-          Content Architect requires an approved portfolio brief from Discovery before writing your page copy.
+          Content Architect requires an approved portfolio brief from Explorer before writing your page copy.
         </p>
       </div>
     );
@@ -73,7 +73,7 @@ export function ContentStage({
         title="Structuring the content proof"
         currentMilestone={view.statusText || "Content Architect is working from the approved brief"}
         milestones={[
-          { id: "brief", label: "Approved Discovery brief received", state: "complete" },
+          { id: "brief", label: "Approved Explorer brief received", state: "complete" },
           { id: "current", label: view.statusText || "Content Architect is working", state: "current" },
         ]}
         elapsedSeconds={view.elapsedSeconds}
@@ -89,7 +89,7 @@ export function ContentStage({
         stage="content_architect"
         title="Content Architect needs attention"
         summary={view.safeError?.summary || "Content synthesis encountered an issue and can be restarted."}
-        preservedWorkNote="Your approved Discovery brief remains intact."
+        preservedWorkNote="Your approved Explorer brief remains intact."
         retryLabel="Retry Content Architect"
         onRetry={onStart}
         errorDetails={view.safeError ?? undefined}

@@ -6,7 +6,7 @@
 // re-maps that into product-facing ApiError copy (errors.ts) rather than
 // re-implementing the fetch boundary.
 //
-// The authenticated product uses the supported Discovery and Content
+// The authenticated product uses the supported Explorer and Content
 // Architect endpoints only.
 
 import { ApiError } from "./errors";

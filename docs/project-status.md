@@ -8,7 +8,7 @@ separately under docs/deployment/.
 
 OryxenAI currently supports an explicit three-stage portfolio flow:
 
-1. Discovery gathers intake and answers, produces a brief, and waits for
+1. Explorer gathers intake and answers, produces a brief, and waits for
    explicit approval.
 2. Content Architect starts only from the approved brief, produces a content
    plan, and waits for explicit approval.
@@ -37,7 +37,7 @@ and audit.
   durable jobs, model usage, and authorization records.
 - A separate worker claims registered jobs with row locking, renews leases,
   and records safe results or errors.
-- Discovery and Content Architect call models through the provider-neutral
+- Explorer and Content Architect call models through the provider-neutral
   ModelClient boundary. config/models.toml is the source of truth for routing.
 - Stage starts and approvals are explicit API actions. Workers reauthorize
   durable work before applying portfolio changes.
@@ -105,7 +105,7 @@ normal verification.
 
 - AGENTS.md — cross-tool context, workflow contract, repository rules.
 - README.md — developer quick start.
-- src/oryxenai/agents/discovery/ — Discovery implementation.
+- src/oryxenai/agents/discovery/ — Explorer implementation.
 - src/oryxenai/agents/content_architect/ — Content Architect implementation.
 - src/oryxenai/api/routes/__init__.py — registered API routers.
 - src/oryxenai/agents/shared/registry.py — registered agent contracts.

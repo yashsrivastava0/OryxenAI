@@ -5,7 +5,7 @@
 -->
 
 <operation>
-Read the approved Discovery snapshot (complete source-linked dossier when available, brief title,
+Read the approved Explorer snapshot (complete source-linked dossier when available, brief title,
 user_summary, legacy structured profile, and open_items) and any stated preferences (goal, audience,
 tone, density). The dossier is authoritative; the profile is only a navigation aid when a dossier
 exists. Account for every dossier fact and entity before choosing public emphasis. Decide the

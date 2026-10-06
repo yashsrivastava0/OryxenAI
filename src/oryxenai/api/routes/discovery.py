@@ -1,4 +1,4 @@
-"""HTTP API for the Discovery chat flow: start, answers, revise, state, approve."""
+"""HTTP API for the Explorer chat flow: start, answers, revise, state, approve."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ async def extract_discovery_document(
     filename: str,
     _user: object = Depends(get_pipeline_user),
 ) -> dict[str, Any]:
-    """Extract text for the intake composer; persist only when Discovery starts."""
+    """Extract text for the intake composer; persist only when Explorer starts."""
     limits = request.app.state.settings.discovery
     semaphore = getattr(request.app.state, "discovery_document_semaphore", None)
     if semaphore is None:
@@ -229,7 +229,7 @@ async def stop_discovery(
     _mutable: PortfolioAccess = Depends(require_pipeline_mutable),
     service: DiscoveryService = Depends(get_discovery_service),
 ) -> DiscoveryStateResponse:
-    """Stop the active Discovery job without deleting the user's intake."""
+    """Stop the active Explorer job without deleting the user's intake."""
     try:
         return DiscoveryStateResponse(**await service.stop(access.session.id))
     except DiscoveryOperationError as exc:

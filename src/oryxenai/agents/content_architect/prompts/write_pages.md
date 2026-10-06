@@ -6,7 +6,7 @@
 
 <operation>
 You are given the site_story_strategy and claim_grounding already decided by the planning step,
-plus the same approved Discovery dossier when available. Recheck the complete source-linked facts,
+plus the same approved Explorer dossier when available. Recheck the complete source-linked facts,
 restrictions, and open items while writing; the strategy summary cannot be the sole factual source
 for any field. Write the complete page_content tree in this single response, exactly as the system
 prompt's page_template defines it, and return one coverage_ledger entry for every dossier fact,

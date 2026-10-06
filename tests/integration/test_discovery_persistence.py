@@ -1,4 +1,4 @@
-"""Persistence tests for Discovery state and intake."""
+"""Persistence tests for Explorer state and intake."""
 
 from __future__ import annotations
 

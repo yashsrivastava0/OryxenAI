@@ -115,7 +115,7 @@ class PayloadTooLargeError(AppError):
 
 
 class DiscoveryError(AppError):
-    """Safe API error for the Discovery workflow."""
+    """Safe API error for the Explorer workflow."""
 
     status_code = 409
 

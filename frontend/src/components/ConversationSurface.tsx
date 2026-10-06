@@ -83,7 +83,7 @@ export function ConversationSurface({
 
   useEffect(() => {
     if (questions.length > 0) {
-      setStatusAnnouncement(`${questions.length} Discovery question${questions.length === 1 ? "" : "s"} ready to answer.`);
+      setStatusAnnouncement(`${questions.length} Explorer question${questions.length === 1 ? "" : "s"} ready to answer.`);
     }
   }, [questions.map((question) => question.id).join("|")]);
 
@@ -93,7 +93,7 @@ export function ConversationSurface({
   }, [questions.map((question) => question.id).join("|")]);
 
   const handleSubmitAnswer = async (answer: DiscoveryAnswerSubmission, isComplete: boolean) => {
-    if (disabled) throw new Error("Discovery is currently busy.");
+    if (disabled) throw new Error("Explorer is currently busy.");
     setError(null);
     setFailure(null);
     setPendingIds((ids) => [...ids, answer.questionId]);
@@ -125,8 +125,8 @@ export function ConversationSurface({
     try {
       await onStop();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not stop Discovery.");
-      setFailure(captureFailure(err, "discovery", "stop", "Could not stop Discovery."));
+      setError(err instanceof Error ? err.message : "Could not stop Explorer.");
+      setFailure(captureFailure(err, "discovery", "stop", "Could not stop Explorer."));
     } finally {
       setStopping(false);
     }
@@ -140,15 +140,15 @@ export function ConversationSurface({
     try {
       await onContinueWithCurrentInformation();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Discovery could not continue with the current information.");
-      setFailure(captureFailure(reason, "discovery", "continue", "Discovery could not continue with the current information."));
+      setError(reason instanceof Error ? reason.message : "Explorer could not continue with the current information.");
+      setFailure(captureFailure(reason, "discovery", "continue", "Explorer could not continue with the current information."));
     } finally {
       setInFlight(false);
     }
   };
 
   return (
-    <section className="conversation-surface" aria-label="Discovery interview">
+    <section className="conversation-surface" aria-label="Explorer interview">
       {/* 1. Spatially Continuous Analysis State (when worker is processing) */}
       {isWorking && (
         <div
@@ -163,7 +163,7 @@ export function ConversationSurface({
 
           <div className="workbench-header">
             <span className="eyebrow">
-              DISCOVERY / {workerStalled ? "WORKER CHECK" : workingPhase.toUpperCase()}
+              EXPLORER / {workerStalled ? "WORKER CHECK" : workingPhase.toUpperCase()}
             </span>
             <span className="status-chip chip-active">
               <span className="status-dot pulsing" aria-hidden="true" />
@@ -174,8 +174,8 @@ export function ConversationSurface({
           <div className="working-body">
             <h2 className="working-headline">
               {workerStalled
-                ? "Discovery is waiting for the background worker"
-                : waitingInLine ? "Discovery is waiting in line" : (workingLabel || "Preparing your brief.")}
+                ? "Explorer is waiting for the background worker"
+                : waitingInLine ? "Explorer is waiting in line" : (workingLabel || "Preparing your brief.")}
             </h2>
             <p className="working-elapsed">{formatDuration(queuedAgeSeconds)} elapsed</p>
 
@@ -220,7 +220,7 @@ export function ConversationSurface({
                       onClick={() => void handleStop()}
                       disabled={disabled || stopping}
                     >
-                      {stopping ? "Stopping..." : "Stop Discovery"}
+                      {stopping ? "Stopping..." : "Stop Explorer"}
                     </button>
                   )}
                 </div>
@@ -239,7 +239,7 @@ export function ConversationSurface({
                       onClick={() => void handleStop()}
                       disabled={disabled || stopping}
                     >
-                      {stopping ? "Stopping..." : "Stop Discovery"}
+                      {stopping ? "Stopping..." : "Stop Explorer"}
                     </button>
                   </div>
                 )}
@@ -281,7 +281,7 @@ export function ConversationSurface({
 
       {/* Reveal the next question while ordered saves complete in the background. */}
       {!isWorking && currentQuestion && (
-        <div className="discovery-question-group" role="group" aria-label="Discovery question">
+        <div className="discovery-question-group" role="group" aria-label="Explorer question">
           <DiscoveryQuestionCard
             key={currentQuestion.id}
             question={currentQuestion}
@@ -307,7 +307,7 @@ export function ConversationSurface({
           </div>
 
           <div className="workbench-header">
-            <span className="eyebrow">DISCOVERY / READY TO CONTINUE</span>
+            <span className="eyebrow">EXPLORER / READY TO CONTINUE</span>
             <span className="status-chip chip-ready">
               <span className="status-dot" aria-hidden="true" />
               Your choice
@@ -317,7 +317,7 @@ export function ConversationSurface({
           <div className="ready-body">
             <h2 className="ready-headline">Continue with the information shared so far?</h2>
             <p className="ready-thesis">
-              Discovery has enough context to prepare your review brief.
+              Explorer has enough context to prepare your review brief.
             </p>
             {error && <p className="start-error" role="alert">{error} {failure && <CopyDiagnosticsButton failure={failure} />}</p>}
             <div className="question-actions">

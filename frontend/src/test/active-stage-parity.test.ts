@@ -6,7 +6,7 @@ import { approved, briefReview, questionsReady } from "../data/adapters/discover
 import { JourneyRail } from "../components/JourneyRail";
 
 describe("active-stage contract parity", () => {
-  it("covers the Discovery input, review, and approved lifecycle", () => {
+  it("covers the Explorer input, review, and approved lifecycle", () => {
     expect(adaptDiscovery(questionsReady).state).toBe("input");
     expect(adaptDiscovery(briefReview).state).toBe("review");
     expect(adaptDiscovery(approved).state).toBe("complete");
@@ -20,7 +20,7 @@ describe("active-stage contract parity", () => {
   it("renders the two active stages in the journey rail", () => {
     const vnode = JourneyRail({
       journey: [
-        { id: "discover", ordinal: 1, label: "Discover", state: "available", isSelectable: true },
+        { id: "discover", ordinal: 1, label: "Explore", state: "available", isSelectable: true },
         { id: "content", ordinal: 2, label: "Content", state: "locked", isSelectable: false },
       ],
       selectedStageId: "discover",

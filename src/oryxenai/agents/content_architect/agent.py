@@ -1,4 +1,4 @@
-"""Content Architect agent — turns an approved Discovery result into the final,
+"""Content Architect agent — turns an approved Explorer result into the final,
 grounded copy for the one pinned single-page portfolio template.
 
 Runs as a single durable job (`operation == "build"`) whose agent makes up to

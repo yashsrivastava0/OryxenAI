@@ -1,6 +1,6 @@
 """Content Architect state machine.
 
-Five statuses, one linear flow — deliberately simpler than Discovery's own
+Five statuses, one linear flow — deliberately simpler than Explorer's own
 two-operation machine because Content Architect runs as a single durable job
 (`content_architect.build`) whose agent makes up to 3 model calls internally.
 There is no separate queued/running pair per stage, and no per-stage status,

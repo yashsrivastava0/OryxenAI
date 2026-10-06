@@ -1,4 +1,4 @@
-"""Unit tests for Discovery domain schemas."""
+"""Unit tests for Explorer domain schemas."""
 
 from __future__ import annotations
 
@@ -129,15 +129,15 @@ class TestBriefOutput:
         output = BriefOutput(
             mode=OperationMode.BRIEF_READY,
             assistant_message="Review the brief.",
-            brief_title="Portfolio Discovery Brief — Test",
-            brief_markdown="# Portfolio Discovery Brief\n\nLong readable content.",
+            brief_title="Portfolio Explorer Brief — Test",
+            brief_markdown="# Portfolio Explorer Brief\n\nLong readable content.",
             user_summary="A short friendly summary for the chat UI.",
             profile=StructuredProfile(name="Test User", skills=["Python"]),
             dossier=DiscoveryDossier(),
             open_items=["no metrics"],
             memory_update={"intent_summary": "x"},
         )
-        assert output.brief_markdown.startswith("# Portfolio Discovery Brief")
+        assert output.brief_markdown.startswith("# Portfolio Explorer Brief")
         assert output.user_summary == "A short friendly summary for the chat UI."
         assert output.profile.name == "Test User"
         assert output.open_items == ["no metrics"]

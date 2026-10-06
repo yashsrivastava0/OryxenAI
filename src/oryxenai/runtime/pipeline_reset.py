@@ -167,7 +167,7 @@ class PipelineResetService:
         request_id: str = "",
         audit_action: str = "owner_pipeline_reset",
     ) -> PortfolioSession:
-        """Fence workers and return one authorized portfolio to empty Discovery."""
+        """Fence workers and return one authorized portfolio to empty Explorer."""
         repo = PortfolioSessionRepository(self.db)
         session = await repo.get_by_id_for_update(session_id)
         if session is None or (

@@ -1,4 +1,4 @@
-"""Compact, stable trusted prompt prefix for Discovery operations."""
+"""Compact, stable trusted prompt prefix for Explorer operations."""
 
 from __future__ import annotations
 

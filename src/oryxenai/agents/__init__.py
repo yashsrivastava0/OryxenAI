@@ -1,1 +1,1 @@
-"""Agents package: shared contracts, registry, executor, and Discovery flow."""
+"""Agents package: shared contracts, registry, executor, and Explorer flow."""

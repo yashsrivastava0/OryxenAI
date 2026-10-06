@@ -1,4 +1,4 @@
-# Frontend behavior specification — Discovery, Content Architect and Studio
+# Frontend behavior specification — Explorer, Content Architect and Studio
 
 This document describes the current authenticated Preact product workspace.
 The active user journey ends in the Studio, where the approved content
@@ -6,7 +6,7 @@ becomes a live, editable portfolio page.
 
 ## 1. Product boundary
 
-The workspace presents Discovery followed by Content Architect. Discovery
+The workspace presents Explorer followed by Content Architect. Explorer
 collects the user's intent, asks clarifying questions when needed, and
 produces a reviewable brief. The user explicitly approves that brief before
 Content Architect can start. Content Architect produces a grounded content
@@ -39,12 +39,12 @@ routes. The browser polls stage and durable-job status; it does not treat
 browser state as an authorization boundary.
 
 The sticky workspace header keeps Reset pipeline in the same position across
-Discovery, Content Architect, and Studio. After explicit confirmation, the
+Explorer, Content Architect, and Studio. After explicit confirmation, the
 owner-scoped reset fences active work and clears intake, answers, plans, page
-versions, and chat, then returns to empty Discovery in the same portfolio
+versions, and chat, then returns to empty Explorer in the same portfolio
 session. The browser clears its local intake draft and reloads server state.
 
-Discovery progresses through question queuing/running, answer collection,
+Explorer progresses through question queuing/running, answer collection,
 brief creation/review, and approval. After any contextual questions, a fixed
 palette question is always shown; even when the model has no clarification to
 ask, the brief waits for that selection.
@@ -57,15 +57,15 @@ approval, with needs_attention for terminal failures. Revisions rerun its
 bounded workflow while the output remains under review. Approved state is
 terminal for both stages.
 
-## 3. Discovery interaction
+## 3. Explorer interaction
 
-Discovery accepts user-provided text and one optional PDF, Markdown, or UTF-8
+Explorer accepts user-provided text and one optional PDF, Markdown, or UTF-8
 plain text attachment, plus a goal. The attachment control is in the intake
-composer and a file alone can start Discovery. The frontend displays an
+composer and a file alone can start Explorer. The frontend displays an
 editable transcript before submission. Selectable PDF text is kept as the
 source of truth; local OCR reads image regions and scanned pages while Docling
 returns headings, lists, reading order, and page boundaries as Markdown. The
-original file bytes are not retained. Discovery receives the reviewed text as
+original file bytes are not retained. Explorer receives the reviewed text as
 an attached source document and can ask focused questions before drafting.
 Every new contextual question shows three relevant options and one custom
 answer box; older saved text or boolean questions remain readable. Users can
@@ -75,7 +75,7 @@ style descriptions, and an optional reference note. A
 palette selection is required to continue; the server maps it to a pinned
 theme, while the note does not affect that mapping.
 
-The Discovery result includes a Markdown brief, a user-facing summary, and a
+The Explorer result includes a Markdown brief, a user-facing summary, and a
 structured dossier and profile. The user can review or request a revision,
 then explicitly approve the current brief. The evidence inspector presents
 facts, roles, projects, open items, and explicit restrictions even when the
@@ -83,9 +83,9 @@ dossier has no span-level coverage rows.
 
 ## 4. Content Architect review
 
-Content Architect starts only from the approved Discovery snapshot. The
+Content Architect starts only from the approved Explorer snapshot. The
 server sends a compact approved projection; raw document text and the full
-Discovery prose are not included in its input.
+Explorer prose are not included in its input.
 
 The workspace presents the route/content plan, publishable copy, and review
 notes needed for user approval. Revisions are allowed until approval. Internal
@@ -94,7 +94,7 @@ are not part of the public content projection.
 
 ## 5. Errors and progress
 
-The UI reads durable stage state and job progress from the API. Discovery polls
+The UI reads durable stage state and job progress from the API. Explorer polls
 while work is active, shows elapsed time and whether a job is queued or
 running, and keeps an earlier brief visible during revision. Retryable
 provider or invalid-output failures follow the configured worker retry policy.
@@ -107,19 +107,19 @@ Model profile choices come from safe, non-secret server projections. Secrets,
 provider credentials, raw stack traces, and server-only endpoints stay on the
 server. Source documents and answers are treated as untrusted input.
 
-Discovery and Content Architect use the provider-neutral ModelClient
+Explorer and Content Architect use the provider-neutral ModelClient
 contract. Configuration in config/models.toml controls model routing.
 
 ## 7. Current limitations
 
 - DOCX, image attachments, and multi-file intake are not yet supported.
   OCR can make recognition errors on low-quality scans; the transcript is
-  shown for review and editing before Discovery starts.
+  shown for review and editing before Explorer starts.
 - Progress uses polling and does not expose token-level model streaming.
 - The generated page is previewed for its owner only; there is no publish,
   export or public hosting step.
 - Chat changes cover wording and content. The palette chooses one of three
-  pre-built themes during Discovery; later chat does not change colors,
+  pre-built themes during Explorer; later chat does not change colors,
   layout, or scripts.
 - Migrations run before API and worker startup; API and worker remain separate
   processes.
@@ -127,7 +127,7 @@ contract. Configuration in config/models.toml controls model routing.
 ## 8. Implementation sources
 
 - frontend/src/app/ and frontend/src/stages/ define the authenticated UI.
-- src/oryxenai/agents/discovery/ defines Discovery state and prompts.
+- src/oryxenai/agents/discovery/ defines Explorer state and prompts.
 - src/oryxenai/agents/content_architect/ defines content review contracts.
 - src/oryxenai/agents/code_generator/ defines the Studio pipeline and API.
 - frontend/src/stages/studio/ and frontend/src/components/studio/ define the Studio UI.

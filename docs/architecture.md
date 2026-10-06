@@ -12,7 +12,7 @@ The stage READMEs describe the running implementation.
 
 ## 1. Explicit Python agents
 
-The active workflow has three agents: Discovery, Content Architect, and Code Generator. They are
+The active workflow has three agents: Explorer, Content Architect, and Code Generator. They are
 ordinary Python implementations of shared protocols, not a framework-managed
 graph. The shared executor persists runs, dispatches jobs, and applies state
 changes; agents receive structured data rather than HTTP or database objects.
@@ -45,10 +45,10 @@ auditing.
 
 ## 6. Explicit workflow and approval
 
-Discovery approval does not automatically start Content Architect. A caller
+Explorer approval does not automatically start Content Architect. A caller
 must make a separate start request. The product's explicit "Approve & generate
 my portfolio" action approves the content plan and starts Code Generator.
-Discovery's fixed palette choice selects one immutable stylesheet package;
+Explorer's fixed palette choice selects one immutable stylesheet package;
 Content Architect carries that selection with the approved content, and Code
 Generator generates HTML against that package's markup contract. The workflow
 ends with an owner-only verified Studio preview.

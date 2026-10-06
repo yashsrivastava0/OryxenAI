@@ -17,13 +17,13 @@ describe("authenticated product boundary", () => {
     expect(source).toContain('id="app-admin-link"');
   });
 
-  it("uses the Discovery and Content Architect session endpoints", async () => {
+  it("uses the Explorer and Content Architect session endpoints", async () => {
     const source = await readSource("src/data/api-client.ts");
     expect(source).toContain("/discovery");
     expect(source).toContain("/content-architect");
   });
 
-  it("commits Discovery approval before offering the Content Architect start", async () => {
+  it("commits Explorer approval before offering the Content Architect start", async () => {
     const appSource = await readSource("src/app/AppShell.tsx");
     const stageSource = await readSource("src/stages/discovery/DiscoveryStage.tsx");
     const approveOnlyHandler = appSource.slice(

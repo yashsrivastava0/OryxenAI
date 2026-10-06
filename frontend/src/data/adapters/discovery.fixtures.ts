@@ -83,7 +83,7 @@ export const approved = {
 
 export const needsAttention = {
   status: "needs_attention",
-  latest_error: { summary: "Discovery could not continue.", code: "MODEL_TIMEOUT" },
+  latest_error: { summary: "Explorer could not continue.", code: "MODEL_TIMEOUT" },
 };
 
 export const unknownFutureStatus = { status: "brief_finalizing_v2" };

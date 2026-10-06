@@ -1,10 +1,10 @@
-# Discovery Agent
+# Explorer Agent
 
-Discovery is the first active OryxenAI workflow. It reads the user's portfolio
+Explorer is the first active OryxenAI workflow. It reads the user's portfolio
 goal and supplied text, preserves addressable source spans, asks adaptive
 clarification when it can materially improve the result, and produces
-a reviewable Discovery Brief plus a compact `DiscoveryDossier/v1`.
-Discovery stops after explicit approval. Content Architect remains a separate,
+a reviewable Explorer Brief plus a compact `DiscoveryDossier/v1`.
+Explorer stops after explicit approval. Content Architect remains a separate,
 explicitly started stage.
 
 ## Responsibilities
@@ -25,7 +25,7 @@ explicitly started stage.
 
 ## Non-responsibilities
 
-Discovery does not write final public website copy, fetch links, analyze
+Explorer does not write final public website copy, fetch links, analyze
 photos, or start another agent. Text supplied by the user remains the evidence
 boundary. The intake adapter uses Docling for PDF structure and local
 RapidOCR for image regions and scanned pages. It accepts UTF-8 Markdown and
@@ -63,7 +63,7 @@ plain text without normalizing their content.
    `continue_with_current_information` remains an API-compatible way to end
    a partial contextual batch, but cannot bypass the palette choice. A model
    `READY_FOR_BRIEF` result still presents that choice before preparing the
-   brief. Discovery waits for approval before Content Architect can start.
+   brief. Explorer waits for approval before Content Architect can start.
 5. `POST .../discovery/revise` regenerates the brief and dossier from the same
    source snapshots, answers, and revision request.
 6. The review surface presents the report alongside an inspector for
@@ -75,7 +75,7 @@ plain text without normalizing their content.
 
 ## Source and dossier contracts
 
-Source documents live in the existing Discovery JSONB session snapshot. Each document preserves the exact original
+Source documents live in the existing Explorer JSONB session snapshot. Each document preserves the exact original
 text, its SHA-256 digest, a label, and non-overlapping spans. Offsets count
 UTF-16 code units so browser `String.slice` can select the same excerpt.
 Answer text is indexed as a source document. Skips and unanswered questions
@@ -103,7 +103,7 @@ Statuses include `not_started`, `questions_queued`, `questions_running`,
 proceeds to `brief_running`; `READY_FOR_BRIEF` skips questions entirely. A
 nonterminal operation can fail into `needs_attention`. Eligible pre-send
 failures can follow the worker retry policy. When a
-provider error has used the run's call allowance, Discovery shows the
+provider error has used the run's call allowance, Explorer shows the
 original provider or output failure and offers an explicit stage retry with
 the saved intake and answers.
 

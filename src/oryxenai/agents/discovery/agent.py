@@ -1,4 +1,4 @@
-"""Discovery's two model operations and server-owned output normalization."""
+"""Explorer's two model operations and server-owned output normalization."""
 
 from __future__ import annotations
 
@@ -31,12 +31,12 @@ _BRIEF_OPERATIONS = {"build_or_revise_brief", "build_brief"}
 
 
 class DiscoveryModelOutputError(Exception):
-    """An output contains no recoverable Discovery content."""
+    """An output contains no recoverable Explorer content."""
 
     def __init__(self, operation: str, errors: list[str]) -> None:
         self.operation = operation
         self.errors = errors
-        super().__init__(f"Discovery {operation} output failed validation: {'; '.join(errors[:5])}")
+        super().__init__(f"Explorer {operation} output failed validation: {'; '.join(errors[:5])}")
 
 
 class DiscoveryAgent(Agent):
@@ -64,7 +64,7 @@ class DiscoveryAgent(Agent):
             return await self._questions(context)
         if operation in _BRIEF_OPERATIONS:
             return await self._brief(context)
-        raise ValueError(f"Unknown Discovery operation: {operation}")
+        raise ValueError(f"Unknown Explorer operation: {operation}")
 
     async def _questions(self, context: AgentContext) -> AgentResult:
         packet, _documents, events = _packet(context.agent_input)

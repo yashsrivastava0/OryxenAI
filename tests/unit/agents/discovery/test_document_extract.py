@@ -1,4 +1,4 @@
-"""Discovery attachment extraction and bounded input checks."""
+"""Explorer attachment extraction and bounded input checks."""
 
 from __future__ import annotations
 

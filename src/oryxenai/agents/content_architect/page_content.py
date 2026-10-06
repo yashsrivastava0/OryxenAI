@@ -355,7 +355,7 @@ def claim_binding_errors(page: Any, claims: list[dict[str, Any]]) -> list[str]:
 
 
 def coverage_errors(dossier: dict[str, Any], ledger: list[Any], page: Any) -> list[str]:
-    """Require a disposition for every fact/entity in a new Discovery dossier."""
+    """Require a disposition for every fact/entity in a new Explorer dossier."""
     if dossier.get("contract_version") != "DiscoveryDossier/v1":
         return []  # Existing approved sessions may predate dossier production.
     expected = {

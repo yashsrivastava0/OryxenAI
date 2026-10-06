@@ -44,9 +44,9 @@ def _mock_discovery_agent_factory(*args, **kwargs):
 
 
 async def _approve_discovery(db_session, session_id, monkeypatch) -> None:
-    """Drive Discovery to `approved` directly via its own service + handlers.
+    """Drive Explorer to `approved` directly via its own service + handlers.
 
-    Must patch Discovery's real agent factory to the deterministic mock —
+    Must patch Explorer's real agent factory to the deterministic mock —
     without this, DiscoveryUnderstandAndQuestionHandler/
     DiscoveryBuildOrReviseBriefHandler build the LIVE provider adapter
     (jobs/handlers/discovery.py::_build_discovery_agent) and make real,

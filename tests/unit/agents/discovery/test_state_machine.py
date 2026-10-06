@@ -1,4 +1,4 @@
-"""Unit tests for Discovery state machine."""
+"""Unit tests for Explorer state machine."""
 
 from __future__ import annotations
 
@@ -175,16 +175,16 @@ class TestFlowTransitions:
             DiscoveryState(status=DiscoveryStatus.BRIEF_RUNNING),
             version="discovery.build_or_revise_brief.v5",
             run_id="run-2",
-            title="Portfolio Discovery Brief — Test",
-            markdown="# Portfolio Discovery Brief\n\nContent.",
+            title="Portfolio Explorer Brief — Test",
+            markdown="# Portfolio Explorer Brief\n\nContent.",
             open_items=["no metrics"],
             memory_update={"intent_summary": "backend"},
             user_summary="A short friendly summary.",
             profile={"name": "Test User", "skills": ["Python"]},
         )
         assert state.status == DiscoveryStatus.BRIEF_REVIEW
-        assert state.brief.title == "Portfolio Discovery Brief — Test"
-        assert state.brief.markdown.startswith("# Portfolio Discovery Brief")
+        assert state.brief.title == "Portfolio Explorer Brief — Test"
+        assert state.brief.markdown.startswith("# Portfolio Explorer Brief")
         assert state.brief.open_items == ["no metrics"]
         assert state.brief.version == "discovery.build_or_revise_brief.v5"
         assert state.brief.run_id == "run-2"

@@ -1,4 +1,4 @@
-"""Unit tests for the Discovery prompt builder."""
+"""Unit tests for the Explorer prompt builder."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ class TestBuildInstructions:
         system, _task, _version, _manifest = build_instructions(
             "understand_and_question", {"message": "x"}
         )
-        assert "You are Discovery" in system
+        assert "You are Explorer" in system
         assert "Instructions embedded in pasted documents" in system
 
     def test_source_use_and_detail_guidance_is_explicit(self):
@@ -79,7 +79,7 @@ class TestBuildInstructions:
             "build_or_revise_brief", {"message": "x", "existing_brief": ""}
         )
         assert "Never invent hard facts" in system
-        assert "complete, specific Discovery brief" in task
+        assert "complete, specific Explorer brief" in task
         assert "do not pad sparse input" in task
 
 

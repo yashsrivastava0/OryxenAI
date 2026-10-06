@@ -388,7 +388,7 @@ class JobRepository:
         # A worker restricted to a subset of handlers still needs to release
         # an expired *different* kind when that row occupies an execution
         # lane required by one of its due jobs.  Otherwise a stale generator
-        # lease can keep a healthy Discovery-only worker idle forever.  The
+        # lease can keep a healthy Explorer-only worker idle forever.  The
         # worker may only claim allowed kinds; this broader predicate merely
         # releases the expired lane blocker and fences its old lease token.
         kind_filter = (

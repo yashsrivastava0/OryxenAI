@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { resolveInitialStage } from "./AppShell";
 
 describe("resolveInitialStage", () => {
-  it("keeps Discovery selected while no approved output exists", () => {
+  it("keeps Explorer selected while no approved output exists", () => {
     expect(resolveInitialStage("discover", false)).toEqual({
       stage: null,
       corrected: false,
@@ -13,14 +13,14 @@ describe("resolveInitialStage", () => {
     });
   });
 
-  it("returns to Discovery when a bookmarked content view has no approved brief", () => {
+  it("returns to Explorer when a bookmarked content view has no approved brief", () => {
     expect(resolveInitialStage("content", false)).toEqual({
       stage: "discover",
       corrected: true,
     });
   });
 
-  it("continues to Content after an approved Discovery brief", () => {
+  it("continues to Content after an approved Explorer brief", () => {
     expect(resolveInitialStage("discover", true)).toEqual({
       stage: "content",
       corrected: true,

@@ -1,5 +1,5 @@
-// Discovery stage adapter. The response contract is defined by the active
-// Discovery API and state schema.
+// Explorer stage adapter. The response contract is defined by the active
+// Explorer API and state schema.
 //
 // Backend contract (verified against source, not just docs):
 // src/oryxenai/agents/discovery/schemas.py::DiscoveryState,
@@ -198,11 +198,11 @@ const STATUS_TEXT: Record<string, string> = {
   questions_running: "Understanding your material",
   questions_ready: "Ready for your next answer",
   answers_in_progress: "Continue your answers",
-  needs_input: "Discovery needs more source material",
+  needs_input: "Explorer needs more source material",
   brief_running: "Shaping your portfolio brief",
   brief_review: "Your brief is ready to review",
   approved: "Brief approved",
-  needs_attention: "Discovery needs your attention",
+  needs_attention: "Explorer needs your attention",
 };
 
 const STATE_MAP: Record<string, StageState> = {
@@ -636,7 +636,7 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
               ? latestError.message
               : typeof latestError?.summary === "string"
                 ? latestError.summary
-                : job?.error?.message ?? "Discovery could not continue.",
+                : job?.error?.message ?? "Explorer could not continue.",
           ),
           retryOperation,
         }
@@ -644,7 +644,7 @@ export function adaptDiscovery(raw: unknown, jobs: unknown[] = []): DiscoveryVie
 
   return {
     state: renderedState,
-    statusText: STATUS_TEXT[status] ?? "Working on Discovery",
+    statusText: STATUS_TEXT[status] ?? "Working on Explorer",
     raw,
     job,
     agentOutput: readAgentOutput(raw),

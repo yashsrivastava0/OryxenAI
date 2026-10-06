@@ -1,4 +1,4 @@
-"""Deterministic source snapshots and span indexing for Discovery."""
+"""Deterministic source snapshots and span indexing for Explorer."""
 
 from __future__ import annotations
 

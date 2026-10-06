@@ -1,4 +1,4 @@
-"""Discovery state machine.
+"""Explorer state machine.
 
 Linear flow with a single transition map and one error state.
 """

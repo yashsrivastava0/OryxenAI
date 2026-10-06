@@ -469,7 +469,7 @@ def _normalize_configured_emails(raw: str) -> tuple[str, ...]:
 
 
 class DiscoveryConfig(BaseModel):
-    """Discovery agent output limits from [discovery] in config/app.toml."""
+    """Explorer agent output limits from [discovery] in config/app.toml."""
 
     max_questions: int = 8
     max_projects: int = 8

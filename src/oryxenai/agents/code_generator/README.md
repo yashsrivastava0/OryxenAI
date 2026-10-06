@@ -2,7 +2,7 @@
 
 Stage 3 of the portfolio flow. It turns the approved Content Architect
 `page_content` into one verified, previewable page using the immutable theme
-selected in Discovery, and lets the owner change the page's **content** in a
+selected in Explorer, and lets the owner change the page's **content** in a
 chat. Each theme has a separate stylesheet and markup contract. Cobalt Atlas v2
 also pins one reviewed `theme.js`; generated scripts and per-user style edits
 are outside this build.
@@ -33,7 +33,7 @@ approved page_content + selected theme id
 * The model writes the visible markup only. The host owns the technical
   `<head>` (charset, viewport, title, description, stylesheet link and any
   theme-owned script).
-* New sessions use one of four Discovery choices: Editorial Forest Motion,
+* New sessions use one of four Explorer choices: Editorial Forest Motion,
   Cobalt Atlas, Obsidian Signal, or scripted Cobalt Atlas v2. Existing approved sessions without a
   selection use the configured default theme. The pinned theme id travels with
   the build, version, chat edits, restore, and preview.

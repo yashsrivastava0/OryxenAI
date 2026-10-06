@@ -197,10 +197,10 @@ _DEFAULT_DOSSIER: dict[str, Any] = {
 
 _DEFAULT_BRIEF: dict[str, Any] = {
     "mode": "BRIEF_READY",
-    "assistant_message": "I prepared the Discovery brief. Review it and change anything before approving.",
-    "brief_title": "Portfolio Discovery Brief — Mock User",
+    "assistant_message": "I prepared the Explorer brief. Review it and change anything before approving.",
+    "brief_title": "Portfolio Explorer Brief — Mock User",
     "brief_markdown": (
-        "# Portfolio Discovery Brief — Mock User\n\n"
+        "# Portfolio Explorer Brief — Mock User\n\n"
         "## Portfolio direction at a glance\n\n"
         "Primary goal: secure backend engineering opportunities.\n\n"
         "## Approval summary\n\n"
@@ -218,9 +218,9 @@ _DEFAULT_BRIEF: dict[str, Any] = {
 
 _DEFAULT_BRIEF_REVISED: dict[str, Any] = {
     **_DEFAULT_BRIEF,
-    "brief_title": "Portfolio Discovery Brief — Mock User (revised)",
+    "brief_title": "Portfolio Explorer Brief — Mock User (revised)",
     "brief_markdown": (
-        "# Portfolio Discovery Brief — Mock User (revised)\n\n"
+        "# Portfolio Explorer Brief — Mock User (revised)\n\n"
         "## Portfolio direction at a glance\n\n"
         "Primary goal: secure backend engineering opportunities. QueueGuard leads the story.\n\n"
         "## Approval summary\n\n"
@@ -291,9 +291,9 @@ class _MockModelClient:
                 dossier["roles"] = []
                 dossier["projects"] = []
                 dossier["other_evidence"] = []
-                parsed["brief_title"] = "Discovery mock output"
+                parsed["brief_title"] = "Explorer mock output"
                 parsed["brief_markdown"] = (
-                    "# Discovery mock output\n\n"
+                    "# Explorer mock output\n\n"
                     "No personal source material was supplied to this deterministic test client."
                 )
                 parsed["user_summary"] = (
@@ -315,7 +315,7 @@ class _MockModelClient:
 
 @pytest.fixture
 def mock_model_client() -> _MockModelClient:
-    """Deterministic test model client for Discovery flow tests."""
+    """Deterministic test model client for Explorer flow tests."""
     return _MockModelClient()
 
 

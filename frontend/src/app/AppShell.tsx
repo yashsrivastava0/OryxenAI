@@ -41,7 +41,7 @@ function viewForStage(stage: JourneyStageId): "work" | "artifact" {
 
 function stageDisplayName(stage: JourneyStageId): string {
   switch (stage) {
-    case "discover": return "Discover";
+    case "discover": return "Explore";
     case "content": return "Content";
     case "studio": return "Studio";
     default: return "Studio";
@@ -97,8 +97,8 @@ export function resolveInitialStage(
 
   // None of the backward branches fired, so the requested stage was never
   // ahead of approved progress. Now check the opposite: the requested/
-  // default stage sitting on "discover" after the Discovery brief is
-  // approved, which otherwise leaves the user stranded on stale Discovery
+  // default stage sitting on "discover" after the Explorer brief is
+  // approved, which otherwise leaves the user stranded on stale Explorer
   // content even though Content is available.
   if (requested === null || requested === "discover") {
     let furthest: JourneyStageId = "discover";
@@ -285,7 +285,7 @@ export function AppShell({
           type: "announce",
           message: requested === null || requested === "discover"
             ? "Continuing from where you left off."
-            : "That stage is locked. Showing Discover instead.",
+            : "That stage is locked. Showing Explore instead.",
         });
       } else if (!requested && window.location.search) {
         selectStage("discover", true);
@@ -381,7 +381,7 @@ export function AppShell({
           }
         } catch (error) {
           dispatch({ type: "connection/set", state: navigator.onLine ? "stale" : "offline" });
-          setConnectionFailure(captureFailure(error, "discovery", "poll stage", "Discovery status could not be refreshed."));
+          setConnectionFailure(captureFailure(error, "discovery", "poll stage", "Explorer status could not be refreshed."));
           throw error;
         }
       }, false);
@@ -465,7 +465,7 @@ export function AppShell({
     document.title = `${page} · OryxenAI`;
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
     if (description) description.content = activeScreen === "guide"
-      ? "How your private portfolio moves through Discovery, Content Architect, and Studio."
+      ? "How your private portfolio moves through Explorer, Content Architect, and Studio."
       : "Your private OryxenAI portfolio workspace.";
   }, [activeScreen, activeStage]);
   const journey = useMemo<JourneyStageVM[]>(() => {
@@ -474,7 +474,7 @@ export function AppShell({
     const contentState = state.content?.state ?? (discoveryApproved ? "available" : "locked");
     const studioState = state.studio?.state ?? (contentState === "complete" ? "available" : "locked");
     return [
-      { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: discoveryState, isSelectable: true },
+      { id: "discover", ordinal: 1, label: "Explore", sublabel: "UNDERSTAND YOUR STORY", state: discoveryState, isSelectable: true },
       { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: contentState, isSelectable: contentState !== "locked" },
       { id: "studio", ordinal: 3, label: "Studio", sublabel: "BUILD YOUR PAGE", state: studioState, isSelectable: studioState !== "locked" },
     ];
@@ -483,7 +483,7 @@ export function AppShell({
   const outputEntries = useMemo(() => [
     {
       id: "discover",
-      label: "Discovery Agent",
+      label: "Explorer Agent",
       state: state.discovery?.state ?? "available",
       agentOutput: state.discovery?.agentOutput ?? null,
       available: hasCopyableOutput("discover", state.discovery?.agentOutput),
@@ -541,7 +541,7 @@ export function AppShell({
       inspectCacheReceipt("discovery", result);
       dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
       dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
-      dispatch({ type: "announce", message: "Discovery started." });
+      dispatch({ type: "announce", message: "Explorer started." });
       notifyMutation(sessionId);
     } finally {
       setMutatingStage(null);
@@ -682,7 +682,7 @@ export function AppShell({
     inspectCacheReceipt("discovery", result);
     dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
     dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-    dispatch({ type: "announce", message: "Discovery retry started." });
+    dispatch({ type: "announce", message: "Explorer retry started." });
     notifyMutation(sessionId);
   };
 
@@ -697,7 +697,7 @@ export function AppShell({
       inspectCacheReceipt("discovery", result);
       dispatch({ type: "discovery/set", view: adaptDiscovery(result.discovery, result.jobs) });
       dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-      dispatch({ type: "announce", message: "Discovery stopped. Your input is preserved." });
+      dispatch({ type: "announce", message: "Explorer stopped. Your input is preserved." });
       notifyMutation(sessionId);
     } catch (error) {
       // The stop request is itself a mutation. If it fails, immediately
@@ -724,7 +724,7 @@ export function AppShell({
         view: adaptContentArchitect(result.content_architect, state.discovery?.state === "complete", result.jobs),
       });
       dispatch({ type: "session/set", sessionId: result.session_id, revision: result.session_revision });
-      dispatch({ type: "announce", message: "Content Architect stopped. Your approved Discovery brief is preserved." });
+      dispatch({ type: "announce", message: "Content Architect stopped. Your approved Explorer brief is preserved." });
       notifyMutation(sessionId);
     } catch (error) {
       void refetchCurrentSession();
@@ -951,7 +951,7 @@ export function AppShell({
   const handleResetPipeline = async () => {
     if (!state.sessionId || resetting || mutatingStage || studioBusy) return;
     const confirmed = window.confirm(
-      "Reset your portfolio pipeline? This permanently removes your Discovery material, content plan, generated page, and chat history. You will start again from an empty Discovery screen.",
+      "Reset your portfolio pipeline? This permanently removes your Explorer material, content plan, generated page, and chat history. You will start again from an empty Explorer screen.",
     );
     if (!confirmed) return;
     const sessionId = state.sessionId;
@@ -1014,7 +1014,7 @@ export function AppShell({
               aria-label="Reset pipeline"
               onClick={handleResetPipeline}
               disabled={!state.sessionId || resetting || Boolean(mutatingStage) || studioBusy}
-              title={state.sessionId ? "Clear this portfolio and start again" : "Start Discovery to create a pipeline"}
+              title={state.sessionId ? "Clear this portfolio and start again" : "Start Explorer to create a pipeline"}
             >
               {resetting ? "Resetting…" : <>Reset <span className="pipeline-reset-word">pipeline</span></>}
             </button>

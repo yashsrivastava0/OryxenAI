@@ -14,7 +14,7 @@ interface WorkspacePagesProps {
 }
 
 const STEP_LABELS: Record<JourneyStageId, string> = {
-  discover: "Discovery",
+  discover: "Explorer",
   content: "Content Architect",
   studio: "Studio",
 };
@@ -35,7 +35,7 @@ export function WorkspaceHome({ nextStage, hasSession, discoveryApproved, conten
         <div className="workspace-home__meta"><span className="status-mark" /> {previewReady ? "Private preview available" : `Next: ${STEP_LABELS[nextStage]}`}</div>
       </div>
       <div className="workspace-home__steps" aria-label="Your progress">
-        <div className="workspace-step" data-complete={discoveryApproved}><span>01</span><strong>Discover</strong><p>Tell us what matters, answer focused questions, and approve the brief.</p></div>
+        <div className="workspace-step" data-complete={discoveryApproved}><span>01</span><strong>Explore</strong><p>Tell us what matters, answer focused questions, and approve the brief.</p></div>
         <div className="workspace-step" data-complete={contentApproved}><span>02</span><strong>Shape the content</strong><p>Review the words and structure that will appear on your page.</p></div>
         <div className="workspace-step" data-complete={previewReady}><span>03</span><strong>See your page</strong><p>Open the verified private preview and refine its content.</p></div>
       </div>
@@ -54,7 +54,7 @@ export function WorkspaceGuide({ nextStage, onResume }: Pick<WorkspacePagesProps
         <p>Bring a résumé, notes, or a rough idea. You make the decisions at each review point.</p>
       </header>
       <div className="guide-steps">
-        <section><span className="guide-number">01 / DISCOVERY</span><h2>Find the story</h2><p>Add your background and goals. We ask a few focused questions, then prepare a brief for your review.</p><HelpDisclosure label="Discovery">The brief is a working summary of your source material. You can revise it before approval.</HelpDisclosure></section>
+        <section><span className="guide-number">01 / EXPLORER</span><h2>Find the story</h2><p>Add your background and goals. We ask a few focused questions, then prepare a brief for your review.</p><HelpDisclosure label="Explorer">The brief is a working summary of your source material. You can revise it before approval.</HelpDisclosure></section>
         <section><span className="guide-number">02 / CONTENT</span><h2>Shape the words</h2><p>Review the proposed page copy and decide whether it represents you. Ask for revisions before you approve it.</p><HelpDisclosure label="Content Architect">This step prepares the page’s content and structure. It does not open a live preview yet.</HelpDisclosure></section>
         <section><span className="guide-number">03 / STUDIO</span><h2>See it come together</h2><p>We build and check your one-page portfolio, then show it in a private preview. You can request changes to the words beside the page.</p><HelpDisclosure label="private preview">Only the signed-in owner can open this preview. Public sharing and publishing are not part of the current workflow.</HelpDisclosure></section>
       </div>

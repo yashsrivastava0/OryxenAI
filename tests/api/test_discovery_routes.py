@@ -1,4 +1,4 @@
-"""Contract checks for the Discovery HTTP surface and frontend chat harness."""
+"""Contract checks for the Explorer HTTP surface and frontend chat harness."""
 
 from __future__ import annotations
 

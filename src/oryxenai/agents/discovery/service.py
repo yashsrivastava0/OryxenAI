@@ -1,4 +1,4 @@
-"""Application service for Discovery source collection, interview, and review.
+"""Application service for Explorer source collection, interview, and review.
 
 The service persists immutable text snapshots, schedules one contextual question
 batch, and requires approval of the resulting brief.
@@ -59,7 +59,7 @@ logger = get_logger("oryxenai.agents.discovery.service")
 
 
 class DiscoveryOperationError(Exception):
-    """Safe, transport-neutral error raised by the Discovery service."""
+    """Safe, transport-neutral error raised by the Explorer service."""
 
     def __init__(
         self,
@@ -77,7 +77,7 @@ class DiscoveryOperationError(Exception):
 
 
 class DiscoveryService:
-    """Coordinates Discovery state, runs, and jobs."""
+    """Coordinates Explorer state, runs, and jobs."""
 
     def __init__(
         self,
@@ -510,7 +510,7 @@ class DiscoveryService:
             state,
             {
                 "code": "DISCOVERY_JOB_FAILED",
-                "message": "Discovery can be retried with the saved answers.",
+                "message": "Explorer can be retried with the saved answers.",
                 "retryable": False,
             },
         )
@@ -707,7 +707,7 @@ class DiscoveryService:
         return await self.get_discovery_state(session_id)
 
     async def stop(self, session_id: UUID) -> dict[str, Any]:
-        """Stop the active Discovery operation and preserve the intake.
+        """Stop the active Explorer operation and preserve the intake.
 
         Cancellation is deliberately recoverable: the session enters the
         existing ``needs_attention`` state so the user can retry from the
@@ -732,7 +732,7 @@ class DiscoveryService:
 
         error = {
             "code": "JOB_CANCELLED",
-            "message": "Discovery was stopped. Your input is preserved and can be retried.",
+            "message": "Explorer was stopped. Your input is preserved and can be retried.",
             "retryable": False,
             "operation": operation,
         }
@@ -813,7 +813,7 @@ class DiscoveryService:
         if sticky and requested != sticky:
             raise DiscoveryOperationError(
                 "MODEL_PROFILE_LOCKED",
-                "The model profile is locked after Discovery starts. Restart the pipeline to change it.",
+                "The model profile is locked after Explorer starts. Restart the pipeline to change it.",
                 status_code=409,
             )
         return requested
@@ -871,7 +871,7 @@ class DiscoveryService:
     def _not_ready(self, operation: str, status: str) -> NoReturn:
         raise DiscoveryOperationError(
             "DISCOVERY_NOT_READY",
-            f"Discovery is not ready to {operation} from state '{status}'.",
+            f"Explorer is not ready to {operation} from state '{status}'.",
             details={"status": status},
         )
 

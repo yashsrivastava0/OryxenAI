@@ -1,4 +1,4 @@
-"""Unit tests for Discovery service helpers."""
+"""Unit tests for Explorer service helpers."""
 
 from __future__ import annotations
 
@@ -133,7 +133,7 @@ class TestAnswerText:
 
 class TestBriefHash:
     def test_deterministic_for_same_markdown(self):
-        markdown = "# Portfolio Discovery Brief\n\nContent."
+        markdown = "# Portfolio Explorer Brief\n\nContent."
         assert _brief_hash(markdown) == _brief_hash(markdown)
 
     def test_differs_for_different_markdown(self):

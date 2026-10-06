@@ -45,7 +45,7 @@ export function DiscoveryStage({
   if (!view) {
     return (
       <div className="agent-working-proof" role="status" aria-live="polite" aria-busy="true">
-        <p className="eyebrow">Discovery / restoring</p>
+        <p className="eyebrow">Explorer / restoring</p>
         <h2>Opening your last confirmed proof</h2>
         <div className="working-rule" aria-hidden="true"><span /></div>
         <p>Your saved answers and brief remain on the server.</p>
@@ -58,7 +58,7 @@ export function DiscoveryStage({
   }
 
   if (view.state === "unsupported") {
-    return <UnsupportedPanel stageName="Discovery" statusText={view.statusText} />;
+    return <UnsupportedPanel stageName="Explorer" statusText={view.statusText} />;
   }
 
   // Attention / Error
@@ -67,10 +67,10 @@ export function DiscoveryStage({
       <>
       <AttentionPanel
         stage="discovery"
-        title="Discovery needs attention"
+        title="Explorer needs attention"
         summary={view.safeError?.summary || "An issue occurred while processing your discovery answers."}
         preservedWorkNote="All your answered questions and input notes are preserved."
-        retryLabel="Retry Discovery"
+        retryLabel="Retry Explorer"
         onRetry={onRetryDiscovery}
         errorDetails={view.safeError ?? undefined}
         job={view.job}
@@ -155,7 +155,7 @@ function DiscoveryReviewPanel({
   const [revisionInFlight, setRevisionInFlight] = useState(false);
 
   const brief = view.brief;
-  const briefTitle = brief?.title || "Discovery brief";
+  const briefTitle = brief?.title || "Explorer brief";
   const briefMarkdown = brief?.markdown || "";
   const userSummary = brief?.userSummary || "";
   const isApproved = view.state === "complete";
@@ -210,7 +210,7 @@ function DiscoveryReviewPanel({
             </section>
           )}
 
-          <section className="discovery-brief-document" aria-label="Complete Discovery brief">
+          <section className="discovery-brief-document" aria-label="Complete Explorer brief">
             {briefMarkdown ? <SafeMarkdown content={briefMarkdown} /> : userSummary ? (
               <p>{userSummary}</p>
             ) : (

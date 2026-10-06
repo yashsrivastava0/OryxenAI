@@ -1,4 +1,4 @@
-"""Repair model output into the strict Discovery state shapes.
+"""Repair model output into the strict Explorer state shapes.
 
 Every function is pure: it returns a new structure and never mutates its input,
 so it can run as the result validator (the executor and cache hand it a shallow
@@ -57,7 +57,7 @@ _DEFAULT_MESSAGES = {
     OperationMode.READY_FOR_BRIEF.value: "Thanks — I have what I need. Preparing your brief now.",
 }
 _DEFAULT_BRIEF_MESSAGE = (
-    "I prepared your Discovery brief. Review it, ask for any changes, or approve it to continue."
+    "I prepared your Explorer brief. Review it, ask for any changes, or approve it to continue."
 )
 _MAX_OPEN_ITEMS = 40
 
@@ -214,7 +214,7 @@ def normalize_brief(
     title = (
         as_text(data.get("brief_title") or data.get("title"))
         or _title_from_markdown(markdown)
-        or "Portfolio Discovery Brief"
+        or "Portfolio Explorer Brief"
     )
     summary = as_text(data.get("user_summary") or data.get("summary")) or _summary_from_markdown(
         markdown

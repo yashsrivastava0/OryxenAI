@@ -1,4 +1,4 @@
-"""HTTP-level Discovery chat flow tests.
+"""HTTP-level Explorer chat flow tests.
 
 Exercises the full flow through the ASGI app with the deterministic test
 mock client: start -> Operation A -> answers -> Operation B -> approve, plus

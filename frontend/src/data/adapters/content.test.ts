@@ -9,13 +9,13 @@ import {
 } from "./content.fixtures";
 
 describe("adaptContentArchitect", () => {
-  it("locks not_started when Discovery is not yet approved", () => {
+  it("locks not_started when Explorer is not yet approved", () => {
     const view = adaptContentArchitect(contentFixtureNotStarted, false);
     expect(view.state).toBe("locked");
-    expect(view.statusText).toBe("Locked until Discovery is approved");
+    expect(view.statusText).toBe("Locked until Explorer is approved");
   });
 
-  it("unlocks to available when Discovery is approved", () => {
+  it("unlocks to available when Explorer is approved", () => {
     const view = adaptContentArchitect(contentFixtureNotStarted, true);
     expect(view.state).toBe("available");
     expect(view.statusText).toBe("Ready to structure portfolio content");

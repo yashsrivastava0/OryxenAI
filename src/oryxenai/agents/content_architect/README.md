@@ -1,7 +1,7 @@
 # Content Architect Agent
 
 Content Architect is the second OryxenAI workflow stage. It
-converts an **approved** Discovery result into the complete, grounded,
+converts an **approved** Explorer result into the complete, grounded,
 person-specific copy for a **single-page portfolio**. Its output is reviewed
 and approved by the user, then Code Generator writes `index.html` against the
 selected, immutable theme package. This agent
@@ -23,12 +23,12 @@ never writes HTML or CSS.
 
 ## Non-responsibilities
 
-Content Architect must NOT re-interview the user, change approved Discovery
+Content Architect must NOT re-interview the user, change approved Explorer
 facts, invent employers, dates, metrics, awards, testimonials, links, or
 outcomes, generate HTML/CSS/React/SVG, or research anything outside the
 snapshot.
 
-## Input: the approved Discovery dossier
+## Input: the approved Explorer dossier
 
 A snapshot of the approved `DiscoveryDossier/v1` (all source-linked facts,
 entities, restrictions, question history, open items), plus the brief title,
@@ -65,7 +65,7 @@ no projects, experience, education, or metrics section in the three CSS-only
 themes; that material is folded into pillars, the hero intro, and capability
 groups. Cobalt Atlas v2 adds the `atlas` supplement while retaining the common
 tree. Optional rows are omitted when source facts are missing. An illustrative
-concept requires the owner's explicit Discovery opt-in and a visible label.
+concept requires the owner's explicit Explorer opt-in and a visible label.
 
 Model output extras are dropped (`extra="ignore"`) instead of failing a
 finished run; internal-review key leakage is still rejected.
@@ -92,12 +92,12 @@ the same checks approval will later enforce; unrepaired defects fail the run
 
 ## Flow
 
-1. `POST /api/v1/sessions/{id}/content-architect/start` requires Discovery
+1. `POST /api/v1/sessions/{id}/content-architect/start` requires Explorer
    `approved`, snapshots the dossier and approval hash, enqueues the build.
 2. The worker runs the build and moves the state to `content_review`.
 3. `POST .../revise` re-runs the build with a natural-language
    `revision_request` and the current content as `prior_output`.
-4. `POST .../approve` re-checks Discovery staleness, page completeness,
+4. `POST .../approve` re-checks Explorer staleness, page completeness,
    claim binding, and dossier coverage, hashes the content, and marks the run
    `approved` (terminal).
 
@@ -129,7 +129,7 @@ readiness gate, the state machine, and the service:
   other disposition carries a reason and no paths.
 
 `evidence_status`, `ownership`, and `publication_status` stay three
-independent fields on each claim. An approved Discovery snapshot authorizes
+independent fields on each claim. An approved Explorer snapshot authorizes
 neutral, factual wording for ordinary supplied facts; missing metrics or
 unclear ownership are reasons to omit or generalize a detail, not to block the
 page. Explicit privacy, NDA, or do-not-publish restrictions remain blocking.
@@ -137,7 +137,7 @@ page. Explicit privacy, NDA, or do-not-publish restrictions remain blocking.
 ## Staleness
 
 Every `start`/`revise`/`approve` call — and the job handler again immediately
-before persisting a successful build — compares the live Discovery approval
+before persisting a successful build — compares the live Explorer approval
 hash with the snapshot. A mismatch is rejected with
 `CONTENT_ARCHITECT_STALE_SOURCE`.
 
@@ -169,7 +169,7 @@ shared JSON schema injected and the source packet appended as untrusted data.
 Provider, model, and routing come from `config/models.toml`:
 `[routing.engine_profiles]` and the per-operation
 `[routing.operation_profiles.content_architect.*]` entries resolve the live
-profile (the same single provider as Discovery). The static
+profile (the same single provider as Explorer). The static
 `[profiles.content_architect]` block is not consulted for live routing while
 those entries exist. The mock-runs dev harness uses the deterministic
 `MockModelClient`, so it never makes network calls.
@@ -179,7 +179,7 @@ those entries exist. The mock-runs dev harness uses the deterministic
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/v1/sessions/{id}/content-architect` | Current state (status, error, attempt, elapsed) |
-| POST | `/api/v1/sessions/{id}/content-architect/start` | Snapshot approved Discovery, enqueue build (202) |
+| POST | `/api/v1/sessions/{id}/content-architect/start` | Snapshot approved Explorer, enqueue build (202) |
 | POST | `/api/v1/sessions/{id}/content-architect/revise` | Natural-language content revision (202) |
 | POST | `/api/v1/sessions/{id}/content-architect/approve` | Approve the reviewed content |
 | POST | `/api/v1/sessions/{id}/content-architect/stop` | Cancel the running build |

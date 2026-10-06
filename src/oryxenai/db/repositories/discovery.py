@@ -1,4 +1,4 @@
-"""Persistence helpers for the Discovery aggregate."""
+"""Persistence helpers for the Explorer aggregate."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionReposito
 
 
 class DiscoveryRepository:
-    """Repository for Discovery state and run history.
+    """Repository for Explorer state and run history.
 
     Methods flush but never commit. The owning API or worker service controls
     the transaction boundary.

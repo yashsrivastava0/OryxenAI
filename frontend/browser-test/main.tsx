@@ -32,7 +32,7 @@ function stageOf(fixture: string): FixtureStage {
 
 function getJourney(stage: FixtureStage): JourneyStageVM[] {
   return [
-    { id: "discover", ordinal: 1, label: "Discover", sublabel: "UNDERSTAND YOUR STORY", state: stage === "discover" ? "current" : "complete", isSelectable: true },
+    { id: "discover", ordinal: 1, label: "Explore", sublabel: "UNDERSTAND YOUR STORY", state: stage === "discover" ? "current" : "complete", isSelectable: true },
     { id: "content", ordinal: 2, label: "Content", sublabel: "SHAPE NARRATIVE", state: stage === "discover" ? "locked" : stage === "studio" ? "complete" : "review", isSelectable: stage !== "discover" },
     { id: "studio", ordinal: 3, label: "Studio", sublabel: "BUILD YOUR PAGE", state: stage === "studio" ? "complete" : "locked", isSelectable: stage === "studio" },
   ];
@@ -62,7 +62,7 @@ function FixtureFrame({ children }: { children: ComponentChildren }) {
       </header>
 
       <StageContextStrip
-        stageName={isDiscover ? "Discover" : stage === "studio" ? "Studio" : "Content"}
+        stageName={isDiscover ? "Explore" : stage === "studio" ? "Studio" : "Content"}
         stagePurpose={isDiscover
           ? "Capture your goal, audience, key message and any reference material."
           : stage === "studio"

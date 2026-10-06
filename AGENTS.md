@@ -17,7 +17,7 @@
 
 | Domain | Quick Reference & Ground Truth |
 | :--- | :--- |
-| **Core Architecture** | Three-stage portfolio flow: **Stage 1: Discovery** &rarr; **Stage 2: Content Architect** &rarr; **Stage 3: Studio (Code Generator)**. Every stage starts only from an explicit user action; the one-click *Approve & generate my portfolio* approves the content plan and then starts the build, and the API never chains stages. The workflow ends with a verified, previewable page. Publishing or hosting that page is not implemented. |
+| **Core Architecture** | Three-stage portfolio flow: **Stage 1: Explorer** &rarr; **Stage 2: Content Architect** &rarr; **Stage 3: Studio (Code Generator)**. Every stage starts only from an explicit user action; the one-click *Approve & generate my portfolio* approves the content plan and then starts the build, and the API never chains stages. The workflow ends with a verified, previewable page. Publishing or hosting that page is not implemented. |
 | **Technology Stack** | Python 3.13 (`uv`), FastAPI, SQLAlchemy Async, PostgreSQL (JSONB state + queue), Preact + TypeScript + Vite frontend. |
 | **Queue & Worker** | PostgreSQL-backed durable jobs (`SELECT ... FOR UPDATE SKIP LOCKED`). Zero Redis/Celery. |
 | **Model Invocations** | Provider-neutral `ModelClient` configured via `config/models.toml`. Never hardcode provider names or model IDs in business logic. |
@@ -31,7 +31,7 @@
 ## 1. What OryxenAI Is (and Isn't)
 
 OryxenAI is an authenticated, intelligent portfolio product. It converts raw user intent and background materials into:
-1. An approved **Discovery Brief**.
+1. An approved **Explorer Brief**.
 2. An approved **Content Architect Plan**.
 3. A generated, verified **one-page portfolio** shown in the **Studio**: a live, sandboxed preview next to a chat that changes the page's content.
 
@@ -48,7 +48,7 @@ The active workflow **ends in the Studio**. The repository generates and preview
 
 ## 2. Current Implementation Status
 
-### Discovery Stage
+### Explorer Stage
 * **Status:** Implemented end-to-end.
 * **Capabilities:** Intake capture, adaptive interview questions, synthesis of brief, durable worker job execution, session-state persistence (JSONB), and five API endpoints.
 * **Boundary:** Stops after explicit brief approval; does not auto-advance to Content Architect.
@@ -56,7 +56,7 @@ The active workflow **ends in the Studio**. The repository generates and preview
 
 ### Content Architect Stage
 * **Status:** Implemented end-to-end.
-* **Capabilities:** Consumes approved Discovery dossier, runs as a single durable background job executing 1 to 3 sequential model operations (`plan_content`, optionally `write_pages`, optionally `integrate_content`).
+* **Capabilities:** Consumes approved Explorer dossier, runs as a single durable background job executing 1 to 3 sequential model operations (`plan_content`, optionally `write_pages`, optionally `integrate_content`).
 * **Boundary:** Started only through explicit API call; stops upon content plan review and approval.
 * **Documentation:** See [`src/oryxenai/agents/content_architect/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/content_architect/README.md).
 
@@ -242,11 +242,11 @@ Multiple AI tools (Claude Code, OpenAI Codex, Antigravity, Cursor) collaborate o
 
 * [`README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/README.md) — Human-facing project overview, visual architecture, and quickstart.
 * [`docs/architecture.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/architecture.md) — Core architectural rationale ("why", not "what").
-* [`docs/frontend-behavior-spec.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/frontend-behavior-spec.md) — Conversational UX contract for Discovery & Content Architect.
+* [`docs/frontend-behavior-spec.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/frontend-behavior-spec.md) — Conversational UX contract for Explorer & Content Architect.
 * [`CHANGES.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/CHANGES.md) — Append-only chronological change history.
 * [`DECISIONS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/DECISIONS.md) — Architecture decisions and rejected alternatives ledger.
 * [`docs/project-status.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/project-status.md) — Release and milestone tracking.
 * [`docs/deployment/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/deployment/) — Deployment architecture, CI/CD runbooks, and issue registry.
-* [`src/oryxenai/agents/discovery/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/discovery/README.md) — Discovery routes, prompts, and states.
+* [`src/oryxenai/agents/discovery/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/discovery/README.md) — Explorer routes, prompts, and states.
 * [`src/oryxenai/agents/content_architect/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/content_architect/README.md) — Content Architect planning pipeline.
 * [`src/oryxenai/agents/code_generator/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/code_generator/README.md) — Studio pipeline, failures, preview security, CLI.

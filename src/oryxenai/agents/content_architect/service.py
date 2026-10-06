@@ -1,9 +1,9 @@
 """Application service for the Content Architect workflow.
 
-Single-job flow: start (complete approved Discovery dossier + preferences)
+Single-job flow: start (complete approved Explorer dossier + preferences)
 -> content_architect.build (up to 3 internal model calls) -> review -> revise
-(optional, re-runs build) -> approve. Requires Discovery to be APPROVED
-before starting, and rejects any further operation once Discovery's approved
+(optional, re-runs build) -> approve. Requires Explorer to be APPROVED
+before starting, and rejects any further operation once Explorer's approved
 brief hash no longer matches the snapshot this run was grounded in.
 """
 
@@ -87,7 +87,7 @@ class ContentArchitectService:
         model_profile: str = "",
         request_id: str = "",
     ) -> dict[str, Any]:
-        """Snapshot the approved Discovery result and enqueue the build job."""
+        """Snapshot the approved Explorer result and enqueue the build job."""
         session = await self._require_session(session_id)
         state = await self._repository.get_content_architect_state(session_id)
 
@@ -101,18 +101,18 @@ class ContentArchitectService:
         if discovery.status is not DiscoveryStatus.APPROVED or discovery.brief.approved is None:
             raise ContentArchitectOperationError(
                 "CONTENT_ARCHITECT_DISCOVERY_NOT_APPROVED",
-                "Discovery must be approved before Content Architect can start.",
+                "Explorer must be approved before Content Architect can start.",
                 details={"discovery_status": discovery.status.value},
             )
 
         # A model/provider choice made on the home page applies for the whole
         # session — if none is explicitly given here, inherit the choice
-        # already recorded on the approved Discovery run rather than asking
+        # already recorded on the approved Explorer run rather than asking
         # the user to pick twice.
         if model_profile and model_profile != discovery.model_profile:
             raise ContentArchitectOperationError(
                 "MODEL_PROFILE_LOCKED",
-                "Content Architect must use the model profile selected in Discovery.",
+                "Content Architect must use the model profile selected in Explorer.",
             )
         resolved_profile = discovery.model_profile
         from oryxenai.agents.shared.model_runtime import get_model_runtime
@@ -328,7 +328,7 @@ class ContentArchitectService:
         return await self.get_content_architect_state(session_id)
 
     async def stop(self, session_id: UUID) -> dict[str, Any]:
-        """Stop the active build while preserving the approved Discovery input."""
+        """Stop the active build while preserving the approved Explorer input."""
         session = await self._require_session(session_id)
         state = await self._repository.get_content_architect_state(session_id)
         if state.status is not ContentArchitectStatus.BUILD_RUNNING:
@@ -336,7 +336,7 @@ class ContentArchitectService:
 
         error = {
             "code": "JOB_CANCELLED",
-            "message": "Content Architect was stopped. Your approved Discovery brief is preserved.",
+            "message": "Content Architect was stopped. Your approved Explorer brief is preserved.",
             "retryable": False,
             "operation": "build",
         }
@@ -409,7 +409,7 @@ class ContentArchitectService:
         if current_hash != state.source_ref.discovery_brief_hash:
             raise ContentArchitectOperationError(
                 "CONTENT_ARCHITECT_STALE_SOURCE",
-                "Discovery has changed since this Content Architect run started. "
+                "Explorer has changed since this Content Architect run started. "
                 "Start a fresh Content Architect run.",
                 details={
                     "expected_discovery_brief_hash": state.source_ref.discovery_brief_hash,
@@ -473,7 +473,7 @@ def _intake_from_discovery(
 ) -> ContentArchitectIntake:
     """Pin the complete approved factual handoff for every writing operation."""
     if discovery.brief.approved is None:
-        raise ValueError("Content Architect intake requires approved Discovery")
+        raise ValueError("Content Architect intake requires approved Explorer")
     return ContentArchitectIntake(
         approved_brief_title=discovery.brief.title,
         user_summary=discovery.brief.user_summary,

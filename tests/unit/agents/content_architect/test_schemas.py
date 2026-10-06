@@ -37,7 +37,7 @@ class TestContentArchitectIntake:
         assert intake.open_items == []
 
     def test_does_not_carry_full_brief_markdown(self):
-        """The full Discovery brief prose is deliberately not part of this schema.
+        """The full Explorer brief prose is deliberately not part of this schema.
 
         The source-linked dossier, rather than duplicate Markdown, now carries
         the complete approved factual handoff for new sessions.

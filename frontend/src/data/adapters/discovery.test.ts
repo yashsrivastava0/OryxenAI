@@ -91,7 +91,7 @@ describe("adaptDiscovery", () => {
   it("maps needs_attention to attention with a safe error summary", () => {
     const vm = adaptDiscovery(fixtures.needsAttention);
     expect(vm.state).toBe("attention");
-    expect(vm.safeError?.summary).toBe("Discovery could not continue.");
+    expect(vm.safeError?.summary).toBe("Explorer could not continue.");
   });
 
   it("tracks the brief job after questions, even when the older question job failed", () => {

@@ -111,9 +111,9 @@ async def public_discovery_outputs(
     questions_run_id: str | None,
     brief_run_id: str | None,
 ) -> dict[str, dict[str, Any] | None] | None:
-    """Return Discovery's complete output for both model operations.
+    """Return Explorer's complete output for both model operations.
 
-    Discovery intentionally has two distinct operation envelopes.  Keeping
+    Explorer intentionally has two distinct operation envelopes.  Keeping
     both under stable operation names lets a caller inspect the question
     generation response and the final brief response without exposing the raw
     intake or job envelope.

@@ -21,8 +21,8 @@ class ContentArchitectRepository:
 
     Methods flush but never commit. The owning API or worker service controls
     the transaction boundary. Composes a read-only DiscoveryRepository to
-    read the approved Discovery snapshot — this repository never writes to
-    Discovery's state.
+    read the approved Explorer snapshot — this repository never writes to
+    Explorer's state.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -35,7 +35,7 @@ class ContentArchitectRepository:
         return await self._sessions.get_by_id(session_id)
 
     async def get_discovery_snapshot(self, session_id: UUID) -> DiscoveryState:
-        """Read-only access to Discovery's current state for the same session."""
+        """Read-only access to Explorer's current state for the same session."""
         return await self._discovery.get_discovery_state(session_id)
 
     async def get_content_architect_state(self, session_id: UUID) -> ContentArchitectState:

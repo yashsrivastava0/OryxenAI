@@ -12,7 +12,7 @@ Architecture:
   4. stale-job recovery (reclaims expired running jobs)
   5. graceful SIGINT/SIGTERM shutdown
 
-The worker never runs migrations or starts the FastAPI app. Discovery model
+The worker never runs migrations or starts the FastAPI app. Explorer model
 calls run here, outside the HTTP request transaction.
 """
 

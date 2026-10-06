@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { finalAgentOutput } from "./final-agent-output";
 
 describe("persisted final agent output", () => {
-  it("returns Discovery's complete persisted output without rebuilding a field allowlist", () => {
+  it("returns Explorer's complete persisted output without rebuilding a field allowlist", () => {
     const output = finalAgentOutput("discovery", {
       agent_output: {
         operation: "build_or_revise_brief",

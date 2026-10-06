@@ -76,7 +76,7 @@ const ELLIPSIS = "…";
 
 const DISCOVERY: Record<string, StatusEntry> = {
   not_started: { working: undefined, done: undefined },
-  questions_queued: { working: "Preparing the first few discovery questions from your intake", isWorking: true },
+  questions_queued: { working: "Preparing the first few explorer questions from your intake", isWorking: true },
   questions_running: { working: "Reading your material to draft up to a handful of focused questions", isWorking: true },
   questions_ready: { done: undefined },
   answers_in_progress: { done: undefined },

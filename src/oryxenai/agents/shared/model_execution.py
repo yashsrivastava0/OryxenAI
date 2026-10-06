@@ -414,7 +414,7 @@ class RoutedModelClient(ModelClient):
     def _build_budget(self) -> OperationBudget:
         # One shared budget covers every operation the engine may run in one
         # invocation, so it is the largest allowance any configured operation
-        # route declares. (Discovery 1/1, Content Architect 3/0, Code Generator 2/0.)
+        # route declares. (Explorer 1/1, Content Architect 3/0, Code Generator 2/0.)
         routes = self._runtime.router.config.routing.operation_profiles.get(self._engine, {})
         normal = max((int(route.normal_calls) for route in routes.values()), default=1)
         recovery = max((int(route.recovery_allowance) for route in routes.values()), default=0)

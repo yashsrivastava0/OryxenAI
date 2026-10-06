@@ -1,4 +1,4 @@
-"""Bounded, structure-aware extraction for user supplied Discovery documents."""
+"""Bounded, structure-aware extraction for user supplied Explorer documents."""
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def extract_document(
             )
         raise DocumentExtractionError(message)
     if len(extracted) > max_chars:
-        raise DocumentExtractionError("The document contains too much text for Discovery.")
+        raise DocumentExtractionError("The document contains too much text for Explorer.")
     return name, extracted, page_count, warnings
 
 

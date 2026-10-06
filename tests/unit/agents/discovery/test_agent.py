@@ -105,8 +105,8 @@ def _brief_payload(project_count: int) -> dict[str, Any]:
     return {
         "mode": "BRIEF_READY",
         "assistant_message": "Review the brief.",
-        "brief_title": "Portfolio Discovery Brief",
-        "brief_markdown": "# Portfolio Discovery Brief\n\nContent.",
+        "brief_title": "Portfolio Explorer Brief",
+        "brief_markdown": "# Portfolio Explorer Brief\n\nContent.",
         "user_summary": "A short summary.",
         "profile": {
             "name": "Test User",

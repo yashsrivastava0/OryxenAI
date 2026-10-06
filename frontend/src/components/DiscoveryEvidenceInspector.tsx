@@ -71,7 +71,7 @@ export function DiscoveryEvidenceInspector({
     <aside className="discovery-evidence-inspector" aria-labelledby="discovery-evidence-heading">
       <div className="discovery-inspector-heading">
         <div>
-          <p className="eyebrow">DISCOVERY / REVIEW BASIS</p>
+          <p className="eyebrow">EXPLORER / REVIEW BASIS</p>
           <h2 id="discovery-evidence-heading">Evidence inspector</h2>
         </div>
         {dossier && <span className="discovery-contract-tag">{dossier.contractVersion}</span>}

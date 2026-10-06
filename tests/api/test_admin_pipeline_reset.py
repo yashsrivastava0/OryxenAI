@@ -128,7 +128,7 @@ async def test_admin_can_reset_pipeline(admin_client: Any) -> None:
         assert reloaded.current_state == {}
         assert reloaded.status == "active"
 
-    # 5. Verify Discovery state returns not_started ("available")
+    # 5. Verify Explorer state returns not_started ("available")
     disc_resp = await client.get(f"/api/v1/sessions/{sid}/discovery")
     assert disc_resp.status_code == 200
     assert disc_resp.json()["discovery"]["status"] == "not_started"

@@ -53,7 +53,7 @@ describe("ConversationSurface discovery question rendering", () => {
       }),
     );
 
-    expect(html).toContain('aria-label="Discovery interview"');
+    expect(html).toContain('aria-label="Explorer interview"');
     expect(html).toContain("SELECT ALL THAT APPLY");
     expect(html).toContain("Which project stories should lead your portfolio?");
     expect(html).toContain("A focused selection helps your strongest contribution come through.");
@@ -66,7 +66,7 @@ describe("ConversationSurface discovery question rendering", () => {
     expect(html).toContain("Skip question");
     expect(html).toContain("Add context or write your own answer");
     expect(html).not.toContain("What primary audience should this portfolio address?");
-    expect(html).toContain('aria-label="Discovery question"');
+    expect(html).toContain('aria-label="Explorer question"');
     expect(html).toContain("Question 01 of 02");
   });
 

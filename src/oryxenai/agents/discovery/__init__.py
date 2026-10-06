@@ -1,4 +1,4 @@
-"""Discovery agent package."""
+"""Explorer agent package."""
 
 from oryxenai.agents.discovery.agent import DiscoveryAgent
 

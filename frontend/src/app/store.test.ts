@@ -31,7 +31,7 @@ describe("two-stage app store", () => {
     expect(state.sessionRevision).toBe(4);
   });
 
-  it("holds the Discovery and Content Architect projections", () => {
+  it("holds the Explorer and Content Architect projections", () => {
     const discovery = adaptDiscovery(approved);
     const content = adaptContentArchitect(contentFixtureReview, true);
     let state = appReducer(initialAppState, { type: "discovery/set", view: discovery });
@@ -43,7 +43,7 @@ describe("two-stage app store", () => {
     expect(Object.keys(state)).not.toContain("preview");
   });
 
-  it("resets both stages and returns to Discovery", () => {
+  it("resets both stages and returns to Explorer", () => {
     const populatedState = {
       ...initialAppState,
       sessionId: "session-123",
