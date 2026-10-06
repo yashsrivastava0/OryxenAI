@@ -382,3 +382,11 @@ jobs; Docker smoke only on relevant path changes; Playwright browser cache; an
 aggregate `quality` job keeps the required check name. On `deployment`, a gate
 skips the heavy jobs when the exact SHA already passed on staging. YAML parses;
 live behaviour is unverified until a staging push.
+
+### 2026-10-06 — Claude Code (Anthropic) — Fix CI startup failure from disallowed actions
+
+The first run of the restructured workflow ended in `startup_failure` because the
+repository only allows `actions/checkout`, `setup-uv`, `setup-node` and
+`gitleaks`; `dorny/paths-filter` and `actions/cache` are not permitted. Replaced
+path detection with a plain `git diff` step and dropped the Playwright cache.
+Repository Actions settings were not changed.
