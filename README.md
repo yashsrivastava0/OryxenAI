@@ -1,312 +1,90 @@
 <div align="center">
 
-# OryxenAI
+<a href="https://app.oryxenai.me"><img src="docs/assets/oryxenai-cover.svg" alt="OryxenAI — Your experience. Your voice. Your portfolio. A guided journey from your story to a personal portfolio." width="100%" /></a>
 
-### Intelligent Multi-Stage Portfolio Planning Engine
+# A portfolio that feels like you.
 
-*Transform raw user intent into an approved Discovery brief, an approved content plan and a live, editable portfolio page.*
+Your experience deserves a clear story and a thoughtful first impression.
+OryxenAI helps you bring both together.
 
-[![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-05998b?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![Preact](https://img.shields.io/badge/Preact-TypeScript-673AB7?style=for-the-badge&logo=preact&logoColor=white)](https://preactjs.com/)
-[![Vite](https://img.shields.io/badge/Vite-Bundler-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
-
-[![Ruff](https://img.shields.io/badge/Linter-Ruff-E68B00?style=flat-square&logo=ruff&logoColor=white)](https://astral.sh/ruff)
-[![Mypy](https://img.shields.io/badge/Types-Mypy%20Strict-2962FF?style=flat-square)](https://mypy-lang.org/)
-[![Docker](https://img.shields.io/badge/Containers-Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Open AGENTS.md](https://img.shields.io/badge/Standard-AGENTS.md-00C853?style=flat-square)](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md)
-
-<br/>
-
-[Quickstart](#quickstart) • [Architecture](#system-architecture) • [API Routes](#api-reference) • [Verification](#quality-gate--testing) • [AI Agent Context](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md)
+**[Open OryxenAI ↗](https://app.oryxenai.me)** &nbsp; · &nbsp; [The journey](#from-a-starting-point-to-a-personal-portfolio) &nbsp; · &nbsp; [What you can do](#make-it-your-own)
 
 </div>
 
----
+<br />
 
-> [!NOTE]
-> **Canonical AI Context:** AI coding assistants (Claude Code, OpenAI Codex, Google Antigravity, Cursor) must read [`AGENTS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md) first. For historical decisions, see [`DECISIONS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/DECISIONS.md); for append-only change logs, see [`CHANGES.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/CHANGES.md).
+## You bring the experience. We help you tell the story.
 
----
+A résumé, a few projects, a career change, or an idea you are still finding words for. There is often more to your work than a list of titles can show.
 
-## Overview
+**OryxenAI is an AI-assisted portfolio workspace** that helps you discover what matters, organize your content, and turn it into a personal portfolio you can preview and refine. Start with what you have. Answer focused questions. Review the story before it becomes a page.
 
-**OryxenAI** is an authenticated, asynchronous portfolio engine with three explicit, reviewable stages:
+For students finding their direction, professionals taking their next step, and independent creators bringing their work together.
 
-```
-┌───────────────────────────┐   ┌───────────────────────────┐   ┌───────────────────────────┐
-│    Stage 1: Discovery     │ ► │ Stage 2: Content Architect│ ► │     Stage 3: Studio       │
-│ Intake ➔ Q&A ➔ Approval   │   │ Plan ➔ Write ➔ Approval   │   │ Build ➔ Preview ➔ Chat    │
-└───────────────────────────┘   └───────────────────────────┘   └───────────────────────────┘
-```
+<br />
 
-1. **Stage 1 (Discovery):** Captures user intent, resumes, or project materials, conducts targeted adaptive questions, and produces a structured markdown brief requiring explicit approval.
-2. **Stage 2 (Content Architect):** Consumes the approved Discovery dossier and produces a multi-page content architecture, site map, and content plan requiring final user sign-off.
-3. **Stage 3 (Studio):** One click on the approved content plan builds the page (an AI-written `index.html` over a pinned, pre-built stylesheet), checks every word, link and section, and opens it in a live, sandboxed preview. A chat on the left changes the page's wording and content; every change is a new version you can restore.
-4. **Workflow Boundary:** Each stage starts only from an explicit user action. The generated page is previewed for its owner; OryxenAI does not publish or host it.
-
----
-
-## Core Capabilities
-
-| Capability | Technical Design |
-| :--- | :--- |
-| **Durable PostgreSQL Queue** | Zero Redis or Celery dependencies. Background jobs run via PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` with automatic lease reclamation and exponential backoff retry. |
-| **Optimistic Concurrency** | Aggregate session state in `portfolio_sessions.current_state` (JSONB) uses monotonically increasing `revision` counters to prevent stale worker results from overwriting newer user changes. |
-| **Provider-Neutral Model Engine** | Model execution is routed through an abstracted `ModelClient` configured via [`config/models.toml`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/config/models.toml) supporting Anthropic Claude, OpenAI, and deterministic offline mock fixtures. |
-| **Owner-Scoped Security** | Strict authorization boundaries guarantee tenants only access their own portfolio sessions, while administrative identities retain auditing and archival cleanup capabilities. |
-| **Immutable Run Ledgers** | Every agent operation records complete input envelopes, `state_before`, model execution metrics, `state_after`, and error states in the append-only `agent_runs` table. |
-
----
-
-## System Architecture
+## From a starting point to a personal portfolio
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor User as User / Client (Preact UI)
-    participant API as FastAPI Gateway
-    participant DB as PostgreSQL (JSONB & Queue)
-    participant Worker as Background Worker
-    participant LLM as Model Provider (via ModelClient)
-
-    User->>API: 1. Submit Intake or Answers (REST API)
-    API->>DB: 2. Save Session State & Enqueue Job (background_jobs)
-    API-->>User: 3. Return 202 Accepted + Session State
-
-    Worker->>DB: 4. Poll & Claim Job (SKIP LOCKED)
-    Worker->>LLM: 5. Execute Prompt Workflow (Discovery / Content Architect)
-    LLM-->>Worker: 6. Structured Output Envelope
-    Worker->>DB: 7. Atomic Commit: Update Run Status & Session (Verify Revision)
-
-    User->>API: 8. Poll State / SSE Notification
-    API-->>User: 9. Deliver Updated Brief / Content Plan for Review
-    User->>API: 10. Explicit Approval Action
+flowchart LR
+    A["01 · DISCOVERY<br/>Find your story"] -->|You review and approve| B["02 · CONTENT<br/>Give it shape"]
+    B -->|You approve and generate| C["03 · STUDIO<br/>Preview and refine"]
+    C --> D["A portfolio that feels like you"]
+    classDef step fill:#f5f3ee,stroke:#b4b9c1,color:#172431,stroke-width:1px;
+    classDef result fill:#184cdb,stroke:#184cdb,color:#ffffff;
+    class A,B,C step;
+    class D result;
 ```
 
----
+### 01 / Discover your story
 
-## Repository Structure
+Share your background, goals, and work. Bring a résumé or notes, or describe yourself in your own words. A guided conversation helps clarify your audience, strengths, and the direction you want to take. Review and approve your brief when it feels right.
 
-```text
-src/oryxenai/
-├── api/routes/          # REST endpoints (health, identity, sessions, discovery, content, studio)
-├── agents/
-│   ├── shared/          # ModelClient boundary, agent registry, executor contracts
-│   ├── discovery/       # Stage 1: Intake parsing, adaptive questions, brief generation
-│   ├── content_architect/ # Stage 2: Planning, page drafting, and content integration
-│   └── code_generator/  # Stage 3: Studio page build, versions, chat edits, preview
-├── themes/              # Immutable pinned theme packages (stylesheet, fonts, markup contract)
-├── auth/                # Supabase / Argon2 identity, tenant entitlements, worker fencing
-├── core/                # Application configuration (TOML), logging, lifespans
-├── db/                  # SQLAlchemy 2.0 Async engine, models, and repositories
-├── jobs/                # Durable queue worker, heartbeat recovery, handler registry
-├── web/                 # FastAPI product web shell and static asset delivery
-└── storage/             # Archival cleanup and retention interfaces
-frontend/                # Authenticated Preact + TypeScript + Vite product client
-config/                  # Committed non-secret TOML settings (app.toml, models.toml)
-migrations/              # Alembic database schema migrations
-scripts/                 # Cross-platform development and deployment automation
-tests/                   # Unit, API, integration, and worker test suites
-```
+### 02 / Give your content shape
 
----
+Turn that direction into a coherent portfolio story. Review the introduction, work, experience, and other sections that suit your background. Refine the wording and approve the content before generating your portfolio.
 
-## Quickstart
+### 03 / See it come together
 
-### Prerequisites
-* **Python 3.13+** and [`uv`](https://docs.astral.sh/uv/) installed
-* **PostgreSQL 16+** (Native or Docker)
-* **Node.js 20+** & npm (only required when building the frontend client)
-* **Docker Desktop** (optional, for Compose mode)
+Open your portfolio in the Studio, with a live preview beside a conversation for content changes. Refine the wording, review the result, and return to an earlier saved version when you need to.
 
-### 1. Configuration & Secrets
+**You decide when to move forward.** Each step gives you a chance to review your work.
 
-Secrets reside strictly in the git-ignored root `.env` file. Non-secret application configuration lives under [`config/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/config/).
+<br />
 
-```powershell
-# Copy template placeholders
-Copy-Item .env.example .env
+## Make it your own
 
-# Edit .env to set your database password (and optional provider API keys)
-```
+| What matters | What OryxenAI helps you do |
+| :--- | :--- |
+| **A useful starting point** | Work from your background, résumé, project notes, and goals. |
+| **A clearer story** | Find the thread connecting your experience and the opportunities you want. |
+| **A visual direction** | Choose a style that suits how you want to present yourself. |
+| **Words you can stand behind** | Review and revise your content before the portfolio takes shape. |
+| **Room to refine** | Request content changes in the Studio and see them in the preview. |
+| **A way back** | Restore a previous saved version as your story evolves. |
 
-> [!TIP]
-> Standard test suites and local development use the deterministic mock model client. No paid API keys are required to build or test the platform.
+<br />
 
----
+## Thoughtful design, with your voice at the center
 
-### 2. Running Locally
+Choose from visual directions ranging from warm editorial layouts to crisp blue compositions and dark, expressive presentations. Your chosen style carries through to the Studio, where your own content gives the portfolio its identity.
 
-#### Option A: Windows PowerShell (Native)
+The aim is simple: help someone understand who you are, what you do, and why your work matters.
 
-```powershell
-# 1. Install dependencies & initialize virtualenv
-.\scripts\bootstrap.ps1
+> **Your workspace is private.** Sign in to create and review your portfolio. Generated portfolios are currently available as private Studio previews; public portfolio publishing and export are not available.
 
-# 2. Align local database and apply migrations
-.\scripts\run-native.ps1 align-db
-.\scripts\run-native.ps1 migrate
-
-# 3. Start API and background worker concurrently
-.\scripts\run-native.ps1 dev
-```
-
-*The product workspace is served at **http://127.0.0.1:8000/app**.*
-
-#### Option B: Linux / macOS (Native)
-
-```bash
-# 1. Install dependencies
-uv python install 3.13
-uv sync --frozen --extra pdf-full
-
-# 2. Make scripts executable and launch
-chmod +x scripts/*.sh
-./scripts/run-native.sh align-db
-./scripts/run-native.sh migrate
-./scripts/run-native.sh dev
-```
-
-#### Option C: Docker Compose
-
-```bash
-# Spin up PostgreSQL, run one-shot migrations, and start API + Worker
-docker compose up --build -d
-
-# Inspect running services
-docker compose ps
-```
-
-*API runs on host port `8000`. PostgreSQL is mapped to host port `5544` (container `5432`).*
-
----
-
-## API Reference
-
-The interactive OpenAPI schema is served at `/docs` in development mode.
-
-| Method | Path | Scope | Purpose |
-| :---: | :--- | :---: | :--- |
-| `GET` | `/health/live` | Public | Process liveness probe |
-| `GET` | `/health/ready` | Public | Database and dependency readiness check |
-| `GET` | `/api/v1/me` | Authenticated | Resolve authenticated identity and tenant roles |
-| `PUT` | `/api/v1/me/username` | Authenticated | Claim or update onboarding username |
-| `GET` | `/api/v1/agents` | Authenticated | List registered agent capabilities |
-| `POST` | `/api/v1/sessions` | Authenticated | Initialize an owner-scoped portfolio session |
-| `GET` | `/api/v1/sessions` | Authenticated | List owned portfolio sessions |
-| `GET` | `/api/v1/sessions/{id}` | Authenticated | Retrieve current session state and revision |
-| `GET` | `/api/v1/sessions/{id}/runs` | Authenticated | List execution history and runs for session |
-| `POST` | `/api/v1/sessions/{id}/runs/mock` | Admin | Execute deterministic mock run for development |
-| `GET` | `/api/v1/sessions/{id}/discovery` | Authenticated | Fetch active Discovery state and brief |
-| `POST` | `/api/v1/sessions/{id}/discovery/start` | Authenticated | Ingest intake materials and enqueue Discovery |
-| `PUT` | `/api/v1/sessions/{id}/discovery/answers` | Authenticated | Submit answers to adaptive interview questions |
-| `POST` | `/api/v1/sessions/{id}/discovery/revise` | Authenticated | Request targeted revisions to the Discovery brief |
-| `POST` | `/api/v1/sessions/{id}/discovery/approve` | Authenticated | Explicitly approve Discovery brief (locks stage) |
-| `GET` | `/api/v1/sessions/{id}/content-architect` | Authenticated | Fetch active Content Architect plan |
-| `POST` | `/api/v1/sessions/{id}/content-architect/start` | Authenticated | Start Content Architect from approved Discovery |
-| `POST` | `/api/v1/sessions/{id}/content-architect/revise` | Authenticated | Request revision on content plan |
-| `POST` | `/api/v1/sessions/{id}/content-architect/approve` | Authenticated | Explicitly approve content plan (end of workflow) |
-
----
-
-## Quality Gate & Testing
-
-OryxenAI enforces strict linting, type-checking, and test isolation.
-
-### One-Command Sanity Suite
-```powershell
-.\scripts\check.ps1    # Runs ruff check, ruff format check, and mypy
-.\scripts\test.ps1     # Runs all pytest suites against test DB
-.\scripts\doctor.ps1   # Validates database connectivity and configuration
-```
-
-### Granular Commands
-```bash
-# Code Quality & Typing
-uv run ruff check .               # Linting
-uv run ruff format .              # Code formatting
-uv run mypy src                   # Static typing
-
-# Test Suites
-uv run pytest tests/unit          # Pure unit tests (no DB required, < 2s)
-uv run pytest tests/api           # HTTP endpoint contract tests
-uv run pytest tests/integration   # PostgreSQL repository tests (uses oryxenai_test)
-uv run pytest tests/worker        # Queue claim, retry, and worker lifecycle tests
-
-# Database Migrations
-uv run alembic upgrade head       # Apply pending migrations
-uv run alembic current            # Inspect current database revision
-```
-
----
-
-## Technical In-Depth & Operations
-
-<details>
-<summary><strong>Optimistic Session Revision & Concurrency Details</strong></summary>
-
-<br/>
-
-OryxenAI stores the current aggregate product state inside `portfolio_sessions.current_state` (PostgreSQL `JSONB`). To prevent race conditions between asynchronous worker completions and real-time user edits:
-
-1. Every write operation checks the session's integer `revision` column.
-2. Background workers capture `revision` when a job is claimed.
-3. Upon task completion, the worker writes the result only if `revision == expected_revision`.
-4. If a user updated state while the agent was running, the worker's result is flagged as stale and archived into `agent_runs` without overwriting newer user work.
-</details>
-
-<details>
-<summary><strong>Extending with Future Agents</strong></summary>
-
-<br/>
-
-To register a new agent in the system:
-1. Define the agent enum in `src/oryxenai/agents/shared/contracts.py` (`AgentKey`).
-2. Create package `src/oryxenai/agents/<agent_name>/` containing:
-   - `agent.py`: Conforming to `Agent` protocol (`async def run(context) -> AgentResult`).
-   - `schemas.py`: Input/output Pydantic schemas.
-   - `prompts/`: Versioned Markdown prompt templates.
-   - `samples/`: Deterministic mock `input.json` and `output.json`.
-3. Register the agent inside `default_registry()` in `src/oryxenai/agents/shared/registry.py`.
-4. All automated tests for the agent must reside under `tests/` (never inside the agent source directory).
-</details>
-
-<details>
-<summary><strong>Troubleshooting Guide</strong></summary>
-
-<br/>
-
-### Database Connection Refused
-* Verify PostgreSQL is active: `docker compose ps` or local service status.
-* Check host port: Docker maps host `5544` &rarr; container `5432` to avoid local PostgreSQL port collisions. Ensure `config/app.toml` matches your target host port.
-
-### Port `5432` or `8000` Collision
-* In native development mode, if local PostgreSQL is already bound to `5432`, set overrides in `.env` without modifying committed TOML:
-  ```ini
-  DB_HOST_OVERRIDE=127.0.0.1
-  DB_PORT_OVERRIDE=5545
-  ```
-
-### Missing Model Credentials
-* The application and worker start cleanly without real provider API keys. Standard mock runs and unit/integration tests operate fully offline.
-* For live model executions, populate the environment variable specified in [`config/models.toml`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/config/models.toml) (e.g., `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`).
-</details>
-
----
-
-## Ecosystem & Documentation Index
-
-* [`AGENTS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/AGENTS.md) — Canonical instructions for Claude Code, OpenAI Codex CLI, and Antigravity.
-* [`DECISIONS.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/DECISIONS.md) — Architecture decision records and rejected alternatives.
-* [`CHANGES.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/CHANGES.md) — Append-only chronological release and change history.
-* [`docs/architecture.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/architecture.md) — Architectural rationale and design principles.
-* [`docs/run/run.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/run/run.md) — Operational runbook for production and local environments.
-* [`docs/deployment/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/docs/deployment/) — Render/Supabase deployment and CI/CD; archived Azure operations.
+<br />
 
 ---
 
 <div align="center">
-  <sub>Built with Python 3.13, FastAPI, PostgreSQL, and Modern Agentic Design Principles.</sub>
+
+### Start with your story.
+
+Bring what you have. Build a clearer picture of where you want to go.
+
+**[Create your portfolio with OryxenAI ↗](https://app.oryxenai.me)**
+
+<sub>Discover your story · Shape your content · Make it your own</sub>
+
 </div>

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="740" viewBox="0 0 1600 740" role="img" aria-labelledby="title desc">
+<title id="title">OryxenAI — Your experience. Your voice. Your portfolio.</title>
+<desc id="desc">An editorial illustration of personal notes becoming a structured story and a portfolio. Three stages: Discover, Shape, Refine. Illustrative composition, not an application screenshot.</desc>
+<rect width="1600" height="740" rx="24" fill="#f4f2eb"/>
+<path d="M72 108H1528M72 652H1528" stroke="#cdd1cb"/>
+<g font-family="Arial, Helvetica, sans-serif">
+<text x="72" y="78" font-size="31" font-weight="700" letter-spacing="-1" fill="#172431">OryxenAI</text>
+<text x="1528" y="74" text-anchor="end" font-size="16" letter-spacing="3" fill="#57655f">A PLACE FOR YOUR STORY</text>
+<text x="72" y="168" font-size="15" letter-spacing="4" fill="#184cdb">FROM EXPERIENCE TO EXPRESSION</text>
+<g font-size="75" font-weight="700" letter-spacing="-4" fill="#172431">
+<text x="68" y="269">Your experience.</text><text x="68" y="357">Your voice.</text><text x="68" y="445" fill="#184cdb">Your portfolio.</text>
+</g>
+<text x="72" y="513" font-size="23" fill="#57655f">Find the story. Give it shape.</text><text x="72" y="548" font-size="23" fill="#57655f">Make it yours.</text>
+<g transform="translate(777 184)">
+<rect width="258" height="314" rx="14" fill="#e3e8de" stroke="#bac7b5"/>
+<text x="27" y="39" font-size="13" letter-spacing="3" fill="#466147">THE STARTING POINT</text>
+<text x="27" y="97" font-size="26" font-weight="700" fill="#22392b">What drives me.</text>
+<text x="27" y="157" font-size="20" fill="#466147">The work I care about.</text><text x="27" y="211" font-size="20" fill="#466147">What I have learned.</text><text x="27" y="265" font-size="20" fill="#466147">Where I want to go.</text>
+<path d="M27 114H215M27 172H184M27 227H203" stroke="#bac7b5"/>
+</g>
+<g transform="translate(980 239)">
+<rect width="238" height="322" rx="14" fill="#fffdf7" stroke="#cbcfc8"/>
+<text x="25" y="39" font-size="13" letter-spacing="3" fill="#57655f">A CLEARER STORY</text><text x="25" y="97" font-size="27" font-weight="700" fill="#172431">Hello, I'm...</text>
+<rect x="25" y="124" width="179" height="6" rx="3" fill="#a0ada8"/><rect x="25" y="142" width="149" height="6" rx="3" fill="#c3ccc6"/>
+<text x="25" y="195" font-size="17" font-weight="700" fill="#172431">Selected work</text><rect x="25" y="218" width="88" height="68" rx="6" fill="#e3e8de"/><rect x="125" y="218" width="88" height="68" rx="6" fill="#e1e7f5"/>
+</g>
+<g transform="translate(1173 159)">
+<rect width="355" height="320" rx="14" fill="#184cdb"/>
+<text x="27" y="42" font-size="13" letter-spacing="3" fill="#cbd8ff">YOUR FIRST IMPRESSION</text><circle cx="295" cy="103" r="26" fill="#cbd8ff"/>
+<text x="27" y="122" font-size="34" font-weight="700" letter-spacing="-1" fill="#ffffff">Work with</text><text x="27" y="161" font-size="34" font-weight="700" letter-spacing="-1" fill="#ffffff">a point of view.</text>
+<rect x="27" y="186" width="223" height="5" rx="2.5" fill="#93b0ff"/><rect x="27" y="202" width="185" height="5" rx="2.5" fill="#93b0ff"/>
+<rect x="27" y="233" width="301" height="58" rx="7" fill="#eef2ff"/><text x="43" y="269" font-size="17" font-weight="700" fill="#184cdb">A story worth exploring.</text><path d="M289 255l9 7-9 7M277 262h21" stroke="#184cdb" stroke-width="2" fill="none"/>
+</g>
+<text x="1528" y="610" text-anchor="end" font-size="13" letter-spacing="2" fill="#57655f">AN ILLUSTRATION OF THE JOURNEY</text>
+<text x="72" y="698" font-size="17" letter-spacing="2" fill="#172431">01 / DISCOVER</text><text x="609" y="698" font-size="17" letter-spacing="2" fill="#172431">02 / SHAPE</text><text x="1181" y="698" font-size="17" letter-spacing="2" fill="#172431">03 / REFINE</text>
+<path d="M298 691H530m-12-7 12 7-12 7M821 691H1091m-12-7 12 7-12 7" stroke="#84938b" stroke-width="1.5" fill="none"/>
+</g></svg>
