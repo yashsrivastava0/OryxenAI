@@ -32,6 +32,6 @@
 <rect x="27" y="233" width="301" height="58" rx="7" fill="#eef2ff"/><text x="43" y="269" font-size="17" font-weight="700" fill="#184cdb">A story worth exploring.</text><path d="M289 255l9 7-9 7M277 262h21" stroke="#184cdb" stroke-width="2" fill="none"/>
 </g>
 <text x="1528" y="610" text-anchor="end" font-size="13" letter-spacing="2" fill="#57655f">AN ILLUSTRATION OF THE JOURNEY</text>
-<text x="72" y="698" font-size="17" letter-spacing="2" fill="#172431">01 / DISCOVER</text><text x="609" y="698" font-size="17" letter-spacing="2" fill="#172431">02 / SHAPE</text><text x="1181" y="698" font-size="17" letter-spacing="2" fill="#172431">03 / REFINE</text>
+<text x="72" y="698" font-size="17" letter-spacing="2" fill="#172431">01 / EXPLORE</text><text x="609" y="698" font-size="17" letter-spacing="2" fill="#172431">02 / SHAPE</text><text x="1181" y="698" font-size="17" letter-spacing="2" fill="#172431">03 / REFINE</text>
 <path d="M298 691H530m-12-7 12 7-12 7M821 691H1091m-12-7 12 7-12 7" stroke="#84938b" stroke-width="1.5" fill="none"/>
 </g></svg>

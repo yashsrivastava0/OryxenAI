@@ -279,3 +279,8 @@ main/staging histories without changing deployment.
 Validation also identified GHSA-68fv-2mgg-jv7q in the existing frontend
 development dependency tree. Updated only source-map-js to its compatible
 patched release; frontend tests/build passed and npm audit reports no findings.
+
+### 2026-10-06 — Complete the cover artwork wording
+
+The published visual review caught the uppercase DISCOVER label in the SVG
+journey footer. Changed it to EXPLORE to match the frontend and README.
