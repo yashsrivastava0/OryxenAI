@@ -1,13 +1,116 @@
 name: CI
 
+# Full verification runs on `staging` (the gate) and on pull requests.
+# On `deployment`, the same commit is normally a fast-forward of a staging SHA
+# that already passed; `gate` detects that and skips the heavy jobs. A SHA that
+# never went green on staging falls back to the full suite.
 on:
   push:
+    branches: [staging, deployment]
   pull_request:
+    branches: [staging, main]
   workflow_dispatch:
 
+# Cancel superseded runs, but never cancel a release run on `deployment`.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/deployment' }}
+
+permissions:
+  contents: read
+  actions: read
+
 jobs:
-  quality:
-    name: Lint, type-check, test, audit
+  gate:
+    name: Gate (reuse staging result)
+    runs-on: ubuntu-latest
+    outputs:
+      verified: ${{ steps.check.outputs.verified }}
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Look for a green staging run of this exact SHA
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          verified=false
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF}" = "refs/heads/deployment" ]; then
+            count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success&per_page=50" \
+              --jq '[.workflow_runs[] | select(.head_branch == "staging" and .conclusion == "success")] | length')
+            if [ "${count:-0}" -gt 0 ]; then
+              verified=true
+            fi
+          fi
+          echo "verified=${verified}" >> "$GITHUB_OUTPUT"
+          echo "Staging-verified SHA: ${verified}"
+
+      - name: Detect Docker-relevant changes
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docker:
+              - 'Dockerfile*'
+              - 'compose*.yaml'
+              - 'config/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - 'migrations/**'
+              - 'src/**'
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+
+  backend:
+    name: Backend lint and types
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv python install 3.13
+      - run: uv sync --frozen --all-groups --extra pdf-full
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format check
+        run: uv run ruff format --check .
+      - name: Mypy type check
+        run: uv run mypy src
+
+  frontend:
+    name: Frontend checks
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - name: Type check
+        run: npm run typecheck
+        working-directory: frontend
+      - name: Unit tests
+        run: npm test
+        working-directory: frontend
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+  tests:
+    name: Migrations and pytest
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
     runs-on: ubuntu-latest
 
     services:
@@ -27,56 +130,43 @@ jobs:
 
     env:
       POSTGRES_PASSWORD: oryxen_test
-      # Deliberately NOT set at job level: tests/conftest.py's autouse
-      # `_set_test_overlay` fixture already scopes this overlay to only
-      # integration/worker-marked tests via monkeypatch (auto-reverted per
-      # test). Setting it process-wide here leaks into every plain unit
-      # test too -- including ones that assert config/app.toml's own
-      # defaults -- and monkeypatch.setenv cannot "unset" an ambient value
-      # it didn't set. The migration step instead uses a separate CI-only
-      # application DATABASE_URL; pytest selects its test overlay itself.
+      # Deliberately NOT setting the test overlay here: tests/conftest.py's
+      # autouse `_set_test_overlay` fixture scopes it to integration/worker
+      # tests; a process-wide value would leak into unit tests that assert
+      # config/app.toml defaults.
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
+      - run: uv python install 3.13
+      - run: uv sync --frozen --all-groups --extra pdf-full
 
-      - name: Set up Python
-        run: uv python install 3.13
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
 
-      - name: Sync dependencies from lockfile
-        run: uv sync --frozen --all-groups --extra pdf-full
-
-      - name: Install verifier browser
+      - name: Install verifier browser (with system deps)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: uv run playwright install --with-deps chromium
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Install verifier browser system deps only
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: uv run playwright install-deps chromium
+
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
+      - run: npm ci
         working-directory: frontend
-
-      - name: Frontend type check
-        run: npm run typecheck
-        working-directory: frontend
-
-      - name: Frontend unit tests
-        run: npm test
-        working-directory: frontend
-
-      - name: Frontend build
+      - name: Frontend build (served by browser tests)
         run: npm run build
         working-directory: frontend
 
@@ -90,21 +180,24 @@ jobs:
           # Keep migrations off oryxenai_test: its fixtures create/drop schema.
           DATABASE_URL: postgresql+asyncpg://oryxen:oryxen_test@127.0.0.1:5432/oryxenai
 
-      - name: Ruff lint
-        run: uv run ruff check .
-
-      - name: Ruff format check
-        run: uv run ruff format --check .
-
-      - name: Mypy type check
-        run: uv run mypy src
-
       - name: Run tests (all, strict integration)
         run: uv run pytest -v --strict-markers
 
+  audit:
+    name: Dependency audit and secret scan
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv python install 3.13
+      - run: uv sync --frozen --all-groups --extra pdf-full
       - name: Dependency audit
         run: uv run pip-audit --local
-
       - name: Secret scan (Gitleaks)
         uses: gitleaks/gitleaks-action@v2
         env:
@@ -112,39 +205,23 @@ jobs:
         with:
           args: detect --source . --no-git --verbose --redact
 
+  docker-smoke:
+    name: Docker build and smoke test
+    needs: gate
+    if: needs.gate.outputs.verified != 'true' && (needs.gate.outputs.docker == 'true' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: oryxen_test
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Prepare throwaway .env for dev Compose smoke test
-        # compose.yaml's app/worker/migrate services each
-        # declare `env_file: .env`, which Compose requires to physically
-        # exist even though every value it reads (POSTGRES_PASSWORD) is
-        # only used by this stack's own disposable containers, never a real
-        # credential.
-        #
-        # Must reuse the job-level POSTGRES_PASSWORD (oryxen_test), not an
-        # independent placeholder: compose.yaml's postgres service reads
-        # `${POSTGRES_PASSWORD}` via Compose variable substitution, which
-        # resolves from the *host shell's* environment (this job already
-        # exports POSTGRES_PASSWORD: oryxen_test) -- while app/worker/migrate
-        # instead get their POSTGRES_PASSWORD from this .env file's literal
-        # content via env_file. A different value in each place silently
-        # initializes Postgres with one password while the app containers
-        # try to authenticate with another, failing with
-        # asyncpg.exceptions.InvalidPasswordError.
-        #
-        # config/app.docker.toml sets [auth] required = true, which
-        # unconditionally requires exactly settings.py's
-        # bootstrap_admin_count (2) syntactically valid emails in
-        # ORYXENAI_ADMIN_BOOTSTRAP_EMAILS -- app startup otherwise raises
-        # "The bootstrap administrator count is invalid." before the
-        # health endpoints ever come up. No real Google/Supabase
-        # verification happens at startup, so two fake addresses are
-        # sufficient for this smoke test.
-        # config/app.docker.toml also sets [auth] required = true, which
-        # unconditionally requires non-blank SUPABASE_URL/PUBLISHABLE_KEY/
-        # SECRET_KEY (AuthConfig.validate_environment() in settings.py) or
-        # `app` raises "Required Supabase auth coordinates are missing." at
-        # create_app() import time and never becomes healthy. No real
-        # Google/Supabase verification happens at startup, so syntactically
-        # valid fake coordinates are sufficient for this smoke test.
+        # compose.yaml services declare `env_file: .env`, which must exist.
+        # POSTGRES_PASSWORD must match the job-level value (Compose substitutes
+        # it from the host shell for postgres, from .env for app/worker/migrate).
+        # config/app.docker.toml sets [auth] required = true, which needs two
+        # valid bootstrap admin emails and non-blank Supabase coordinates at
+        # startup; fake values suffice because no real verification happens.
         run: |
           cp .env.example .env
           echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
@@ -158,14 +235,11 @@ jobs:
 
       - name: Docker smoke test
         run: |
-          docker compose up -d --wait --wait-timeout 1800 app worker
+          docker compose up -d --wait --wait-timeout 600 app worker
           curl -fsS http://localhost:8000/health/live
           curl -fsS http://localhost:8000/health/ready
-          # /api/v1/system/status is admin-gated (require_admin on the whole
-          # router, added by d288077); the smoke test has no real Supabase
-          # session to authenticate with, so the correct, secure response is
-          # 401, not 200. Assert that the route is reachable and actually
-          # enforcing auth rather than expecting it open.
+          # /api/v1/system/status is admin-gated; with no real session the
+          # correct response is 401. Assert the route enforces auth.
           status_code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/v1/system/status)
           if [ "$status_code" != "401" ]; then
             echo "Expected /api/v1/system/status to require authentication (401), got $status_code" >&2
@@ -180,3 +254,34 @@ jobs:
       - name: Remove throwaway .env
         if: always()
         run: rm -f .env
+
+  # Aggregate required check. Job id and display name are unchanged from the
+  # old single job so the branch ruleset's required `quality` check still
+  # resolves. Always runs, so skipped jobs never leave it pending.
+  quality:
+    name: Lint, type-check, test, audit
+    needs: [gate, backend, frontend, tests, audit, docker-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate results
+        env:
+          VERIFIED: ${{ needs.gate.outputs.verified }}
+          GATE: ${{ needs.gate.result }}
+          RESULTS: ${{ needs.backend.result }} ${{ needs.frontend.result }} ${{ needs.tests.result }} ${{ needs.audit.result }} ${{ needs.docker-smoke.result }}
+        run: |
+          if [ "$GATE" != "success" ]; then
+            echo "Gate failed: $GATE" >&2
+            exit 1
+          fi
+          if [ "$VERIFIED" = "true" ]; then
+            echo "SHA already passed full CI on staging; heavy jobs skipped."
+            exit 0
+          fi
+          echo "Results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
+              echo "A required job did not succeed ($r)." >&2
+              exit 1
+            fi
+          done

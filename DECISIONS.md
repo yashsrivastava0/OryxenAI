@@ -223,3 +223,12 @@ Compact ledger of active architectural decisions. For historical entries prior t
 - **Decision:** Keep the existing sign-in shell, bundled typography, example portfolios and Google authentication flow. Reserve enough grid space for all sample cards while exposing only the selected card. Use a short entrance, pausable rotation, manual keyboard controls, offscreen/hidden-page pausing and reduced-motion support. Label the content as examples rather than simulate agent work. Let the authentication controller own loading feedback and place sign-in errors beside the button.
 - **Rejected alternatives:** Smaller text to force overflow into fixed boxes, overlapping readable cards, pointer tilt and competing status loops, a new animation dependency, or authentication controls owned by decorative JavaScript.
 - **Consequence:** Welcome copy and examples remain readable as screens and text sizes change. Authentication and stage boundaries remain intact; browser checks use a mocked provider and do not initiate real Google login.
+
+## D-141 — Full CI on staging, same-SHA reuse on deployment
+
+- **Date & Author:** 2026-10-06 — Claude Code (Anthropic)
+- **Status:** implemented-locally; first live proof requires a staging push
+- **Context:** One serial CI job ran on every push to every branch and again on `deployment` for a commit already proven on `staging`, making each release wait for a duplicate full run.
+- **Decision:** Run CI only on pushes to `staging`/`deployment`, on pull requests to `staging`/`main`, and manually. Split the work into parallel jobs behind an always-running aggregate job that keeps the original `quality` id and display name for the branch ruleset. On `deployment`, a `gate` job passes the check immediately when the exact SHA already has a successful staging push run; otherwise the full suite runs. Docker build/smoke runs only when Docker-relevant paths change (or manually). Superseded runs are cancelled except on `deployment`.
+- **Rejected alternatives:** Staging-only CI (no protection for SHAs pushed straight to deployment), deployment-only CI (late feedback), path-level `paths-ignore` (leaves required checks pending).
+- **Consequence:** Releases of a verified SHA become near-instant; unverified hotfixes still get full verification. Nightly scheduled audits were not added.

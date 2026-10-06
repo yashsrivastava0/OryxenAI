@@ -212,7 +212,7 @@ tests/browser/       # Headless-browser UI tests (Studio fixtures and AppShell f
 
 ### Branch Workflow: `staging` vs `deployment`
 * **`staging` Branch (Integration):** Routine work reaches this branch first. GitHub Actions runs lint, type-checking, tests, and the light Docker smoke test. It has no Render service.
-* **`deployment` Branch (Render):** A fast-forward push of the exact CI-passing staging commit triggers CI again, then Render deploys after checks pass. No PR or reviewer is required. The GitHub ruleset still blocks force pushes and deletion and requires the `quality` check.
+* **`deployment` Branch (Render):** A fast-forward push of the exact CI-passing staging commit triggers CI, whose gate reuses that SHA's green staging result (full suite only if the SHA never passed staging), then Render deploys after checks pass. No PR or reviewer is required. The GitHub ruleset still blocks force pushes and deletion and requires the `quality` check.
 * **Release instruction for agents:** Do not push to `deployment` without an explicit user instruction to release in the active session. Once instructed, use the same verified SHA; never bypass a failing check.
 
 ### Secrets Protection
