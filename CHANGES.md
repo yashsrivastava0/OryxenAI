@@ -373,3 +373,12 @@ and an unsigned JWT-shaped string used with MockTransport. Reviewed their exact
 historical source lines and added only those commit/path/rule/line fingerprints
 to `.gitleaksignore`. Secret detection and the required CI release gate remain
 enabled; no path-wide or rule-wide exclusion is used.
+
+### 2026-10-06 — Claude Code (Anthropic) — Faster CI: full on staging, same-SHA reuse on deployment
+
+Restructured `.github/workflows/ci.yml` (D-141): triggers limited to staging,
+deployment, PRs and manual runs; parallel backend/frontend/tests/audit/docker
+jobs; Docker smoke only on relevant path changes; Playwright browser cache; an
+aggregate `quality` job keeps the required check name. On `deployment`, a gate
+skips the heavy jobs when the exact SHA already passed on staging. YAML parses;
+live behaviour is unverified until a staging push.
