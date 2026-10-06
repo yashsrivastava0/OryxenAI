@@ -312,3 +312,13 @@ migrations, production Docker startup, and the authorized live-model sample
 and HTTP flow checks. A new pytest cache resolved a local permission issue
 after the operator's PC restart. Unrelated untracked research notes remain
 excluded; their code-fence formatting is documented in the verification record.
+
+### 2026-10-06 — Codex (OpenAI) — Render idle shutdown research
+
+Researched official Render lifecycle/billing documentation, external scheduler
+limits, and first-hand keep-alive implementations. Confirmed the live service's
+Free instance configuration with a read-only lookup. Recorded a minimal external
+GET health-check proposal for the pilot and the supported paid-compute option,
+including quota, timeout, scheduling and acceptance limits, in
+`exa-results/render-idle-strategy-2026-10-06.md`. No external job, billing change,
+remote push or deployment was performed; release approval remains pending.
