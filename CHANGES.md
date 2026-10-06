@@ -322,3 +322,14 @@ GET health-check proposal for the pilot and the supported paid-compute option,
 including quota, timeout, scheduling and acceptance limits, in
 `exa-results/render-idle-strategy-2026-10-06.md`. No external job, billing change,
 remote push or deployment was performed; release approval remains pending.
+
+### 2026-10-06 — Codex (OpenAI) — Authorized external Render health checks
+
+Created and enabled cron-job.org's OryxenAI health check with an unauthenticated
+HTTPS GET every five minutes, saved responses, and sustained-failure, recovery
+and deactivation notifications. Reopened the persisted settings and verified
+both the test request and the first automatic scheduled run returned the
+backend's alive JSON with HTTP 200. The existing readiness endpoint also
+confirmed the database is up. Recorded management links, evidence and limits
+in the research report and D-139. No application change, paid service change,
+remote push or Render deployment was made; release approval remains pending.

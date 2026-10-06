@@ -205,3 +205,12 @@ Compact ledger of active architectural decisions. For historical entries prior t
 - **Evidence:** The dated local comparisons and quality checks are recorded in `docs/performance-follow-ups.md`; opt-in scripts use repository samples and never run as standard tests. Content-free queue/handler/model timing logs enable post-release measurement.
 - **Rejected alternatives:** Changing providers/models, trimming source facts or output limits, weakening validators, introducing another queue, increasing Free-instance concurrency, or promising to eliminate Render's idle wake-up.
 - **Consequence:** Local measured speed improves while source validation and user approvals remain intact. Live warm/cold timings still require a separately approved Render release and observation.
+
+## D-139 — External health checks mitigate Render Free idle sleep
+
+- **Date & Author:** 2026-10-06 — Codex (OpenAI)
+- **Status:** configured externally with operator authorization; application deployment remains pending
+- **Context:** The operator chose the free external scheduler after reviewing Render's inactivity shutdown and monthly runtime limits.
+- **Decision:** Use one enabled cron-job.org HTTPS GET to the existing `/health/live` endpoint every five minutes, with saved responses and sustained-failure, recovery and deactivation notifications. Keep Render's dependency readiness check, existing compute plan, durable PostgreSQL queue and combined API/worker launcher.
+- **Rejected alternatives:** An in-process or local-PC timer cannot operate independently when its host stops; GitHub schedules lack reliable timing; a paid Render Cron Job adds cost while retaining Free web-service limitations. No agent endpoint is invoked to keep the app awake.
+- **Evidence and limits:** The saved settings, external request results and management links are recorded in `exa-results/render-idle-strategy-2026-10-06.md`. The setup mitigates inactivity sleep without guaranteeing availability or removing shared runtime quotas, platform restarts, crashes or scheduler failures. Paid compute and application release still require separate operator authorization.

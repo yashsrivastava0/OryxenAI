@@ -1,6 +1,21 @@
 # Render idle shutdown: strategy for OryxenAI
 
-Research date: 2026-10-06. Research and recommendation only; no monitor, billing setting, deployment, or remote branch was changed.
+Research date: 2026-10-06. The initial investigation was read-only. The operator subsequently authorized the external health-check setup recorded below. No Render billing setting, deployment, or remote branch was changed.
+
+## Authorized implementation
+
+Created and enabled cron-job.org job **8590027**, named **OryxenAI health check**:
+
+- HTTPS GET `https://oryxenai.onrender.com/health/live` every five minutes, all day (`*/5 * * * *`).
+- UTC job timezone, no schedule expiry, no HTTP authentication or custom headers, 30-second request timeout, and response history enabled. HTTP redirects are not accepted as successful checks.
+- Notifications after three consecutive failures, on recovery, and before automatic deactivation; delivery uses the account's existing notification channels.
+- Reopened the saved job and verified the enabled five-minute schedule and notification settings. The cron-job.org test returned HTTP 200 and `{"status":"alive"}` in 543 ms. Separate public readiness verification returned HTTP 200 with `{"status":"ready","database":"up"}`.
+
+Manage or disable the schedule in the [job settings](https://console.cron-job.org/jobs/8590027); inspect responses in [execution history](https://console.cron-job.org/jobs/8590027/history). The schedule runs outside this repository and stays in place across application deployments as long as the health URL remains available. No application code changes were required.
+
+The first automatic run, scheduled for 2026-10-06 10:35 UTC, started at 10:35:33 UTC and succeeded with HTTP 200 and `{"status":"alive"}` in 1.84 seconds. The scheduler reported 33.79 seconds of jitter, within the five-minute schedule's margin. Its saved response identifies the actual Uvicorn origin and dynamic JSON, rather than a generic startup or cached page. Local verification screenshots are saved in `.workspace/performance/screens/cron-job-settings.jpg` and `.workspace/performance/screens/cron-job-success.jpg`.
+
+A full 30–40 minute idle-return experiment has not yet been performed. This setup mitigates inactivity sleep and does not remove the Free-plan limits explained below. Application deployment remains on hold pending separate operator approval.
 
 ## Recommendation
 
@@ -8,7 +23,7 @@ For the current Free-hosted pilot, use one external scheduled HTTPS GET to the e
 
 For a production application whose users should not encounter idle wake-up delays, use Render's smallest paid web-service instance. Paid compute does not spin down for inactivity. The current entry price is $7/month for Starter, with 512 MB RAM and 0.5 CPU. The Hobby workspace can remain free; a paid workspace subscription is not required just to purchase compute. Keep the existing combined API/worker launcher for now. [Render FAQ](https://render.com/docs/faq), [pricing](https://render.com/pricing), [instance specifications](https://render.com/docs/compute-plans).
 
-This choice needs the operator's direction before any external setup or paid change. The existing deployment hold remains in force. Changing an instance type in the Dashboard automatically triggers a deployment, so do not make that change while release approval is pending. [Instance changes](https://render.com/docs/compute-plans).
+The operator authorized the external Free-plan health check; any paid change still requires their direction. The existing deployment hold remains in force. Changing an instance type in the Dashboard automatically triggers a deployment, so do not make that change while release approval is pending. [Instance changes](https://render.com/docs/compute-plans).
 
 ## What is causing the delay
 
