@@ -1,0 +1,8 @@
+# Reviewed historical false positives restored by the release-history merge.
+# Prose: "scaffold/dependency/prompt identities" is not a credential.
+6a132ba9b552ccd6687a38c633d49978d27ecec6:docs/code-generator-live-campaign.md:generic-api-key:35
+# Idempotency UUID examples identify requests; they do not authorize access.
+9c3cfe70f8f6afd47ca019fdbece47a16898c411:docs/code-generator-architecture/archived-plan-2026-08-27-process-diagnosis.md:generic-api-key:127
+399777d0cbf4744e9178e3711441cd228c0557bd:PLAN.MD:generic-api-key:96
+# MockTransport fixture JWT with a literal "signature" suffix, not a signed token.
+0d1fa2181983a0081f97930cba431ba9e3a8e263:tests/unit/auth/test_phase4_admin.py:generic-api-key:53

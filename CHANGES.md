@@ -363,3 +363,13 @@ preserving the verified current application and both parent histories without
 rewriting any remote branch. Unrelated untracked work remains excluded. The
 release must pass staging CI on this exact commit before fast-forward promotion
 to deployment and live Render acceptance checks.
+
+### 2026-10-06 — Codex (OpenAI) — Review historical secret-scan false positives
+
+Release CI passed the application checks, full tests and dependency audit, then
+Gitleaks scanned the reconciled historical range and flagged four non-secrets:
+documentation prose, the same example idempotency UUID in two archived documents,
+and an unsigned JWT-shaped string used with MockTransport. Reviewed their exact
+historical source lines and added only those commit/path/rule/line fingerprints
+to `.gitleaksignore`. Secret detection and the required CI release gate remain
+enabled; no path-wide or rule-wide exclusion is used.
