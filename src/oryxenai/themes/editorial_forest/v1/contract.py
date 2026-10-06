@@ -23,6 +23,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, Template
+
 from oryxenai.themes.htmltree import Element, Text, normalize_text, select, select_one
 from oryxenai.themes.issues import Issue, Severity
 
@@ -151,6 +153,38 @@ def _css_classes(css: str) -> frozenset[str]:
             continue
         classes.update(re.findall(r"\.([A-Za-z_][\w-]*)", selector))
     return frozenset(classes)
+
+
+_HERO_FIELDS = (
+    "name",
+    "eyebrow_primary",
+    "eyebrow_secondary",
+    "headline_prefix",
+    "headline_emphasis",
+    "intro",
+    "location",
+    "primary_cta_label",
+    "secondary_cta_label",
+)
+_SECTION_KEYS = {
+    "systems": "systems_practice",
+    "capabilities": "technical_capabilities",
+    "context": "professional_context",
+    "connect": "connect",
+}
+
+
+@lru_cache(maxsize=1)
+def _body_template() -> Template:
+    env = Environment(
+        loader=FileSystemLoader(str(Path(__file__).resolve().parent)),
+        autoescape=True,
+        trim_blocks=True,
+        lstrip_blocks=True,
+        undefined=StrictUndefined,
+        keep_trailing_newline=False,
+    )
+    return env.get_template("body.html.j2")
 
 
 class EditorialForestContract:
@@ -305,6 +339,32 @@ class EditorialForestContract:
 
     def render_tail(self) -> str:
         return "\n</body>\n</html>\n"
+
+    # ── host-rendered body ─────────────────────────────────────────────────
+
+    def render_body(
+        self, page_content: Mapping[str, Any], derived: Mapping[str, Any] | None = None
+    ) -> str:
+        """The exact page body for ``page_content`` (valid by construction)."""
+        values = dict(derived) if derived is not None else self.derive(page_content)
+        hero = {key: _s(value) for key, value in _region(page_content, "hero").items()}
+        for key in _HERO_FIELDS:
+            hero.setdefault(key, "")
+        sections = {
+            name: {
+                field: _s(_region(page_content, key).get(field))
+                for field in ("eyebrow", "heading", "intro")
+            }
+            for name, key in _SECTION_KEYS.items()
+        }
+        return _body_template().render(
+            d=values,
+            hero=hero,
+            eyebrow=[part for part in (hero["eyebrow_primary"], hero["eyebrow_secondary"]) if part],
+            headline_prefix=hero["headline_prefix"],
+            headline_emphasis=hero["headline_emphasis"],
+            **sections,
+        )
 
     # ── prompt material ────────────────────────────────────────────────────
 

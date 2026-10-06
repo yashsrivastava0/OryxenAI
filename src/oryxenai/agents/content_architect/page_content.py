@@ -255,6 +255,51 @@ def page_completeness_errors(page: Any) -> list[str]:
     return errors
 
 
+ATLAS_ROW_KINDS = ("real", "sample")
+ATLAS_ROW_GROUPS = ("experience", "education", "statistics")
+
+
+def atlas_sample_groups(page: Any) -> dict[str, bool]:
+    """Which Atlas row groups contain assumed (``kind == "sample"``) rows."""
+    atlas = page.get("atlas") if isinstance(page, dict) else None
+    atlas = atlas if isinstance(atlas, dict) else {}
+    result: dict[str, bool] = {}
+    for group in ATLAS_ROW_GROUPS:
+        rows = atlas.get(group)
+        result[group] = isinstance(rows, list) and any(
+            isinstance(row, dict) and row.get("kind") == "sample" for row in rows
+        )
+    return result
+
+
+def assumption_notes(page: Any) -> list[str]:
+    """Review lines for every assumed Atlas item, derived from the content itself.
+
+    The page labels these items visibly; these notes tell the owner, at review time,
+    exactly which items were assumed so they can edit or remove them before building.
+    """
+    atlas = page.get("atlas") if isinstance(page, dict) else None
+    if not isinstance(atlas, dict):
+        return []
+    notes: list[str] = []
+    for group in ATLAS_ROW_GROUPS:
+        rows = atlas.get(group)
+        for index, row in enumerate(rows if isinstance(rows, list) else []):
+            if isinstance(row, dict) and row.get("kind") == "sample":
+                notes.append(
+                    f"Assumed: atlas.{group}[{index}] is sample content written for your role. "
+                    "The page labels it as a sample; replace it with your own details."
+                )
+    projects = atlas.get("projects")
+    for index, project in enumerate(projects if isinstance(projects, list) else []):
+        if isinstance(project, dict) and project.get("kind") == "illustrative":
+            notes.append(
+                f"Assumed: atlas.projects[{index}] is an illustrative concept, not real work. "
+                "The page labels it as such."
+            )
+    return notes
+
+
 def atlas_page_errors(page: Any, *, allow_illustrative_work: bool) -> list[str]:
     """Additional content rules for the optional Cobalt Atlas v2 pages."""
     if not isinstance(page, dict) or not isinstance(page.get("atlas"), dict):
@@ -277,6 +322,8 @@ def atlas_page_errors(page: Any, *, allow_illustrative_work: bool) -> list[str]:
                 errors.append(f"atlas.{field} has at most {maximum} entries")
             for index, row in enumerate(rows):
                 if isinstance(row, dict):
+                    if row.get("kind", "real") not in ATLAS_ROW_KINDS:
+                        errors.append(f"atlas.{field}[{index}].kind must be real or sample")
                     for key, value in row.items():
                         if isinstance(value, str) and len(value.strip()) > 900:
                             errors.append(f"atlas.{field}[{index}].{key} exceeds 900 characters")

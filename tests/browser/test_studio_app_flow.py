@@ -289,7 +289,7 @@ def _release_first_build_scene(page: Any, backend: FakeBackend) -> None:
     page.evaluate("""() => {
       const key = 'oryxenai.studio_presentation:session-e2e';
       const marker = JSON.parse(sessionStorage.getItem(key));
-      marker.startedAt = Date.now() - 31000;
+      marker.startedAt = Date.now() - 26000;
       sessionStorage.setItem(key, JSON.stringify(marker));
     }""")
     # The fixture uses ?app=1 to select the production AppShell; its normal

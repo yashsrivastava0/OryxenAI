@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from oryxenai.agents.content_architect.diagnostics import output_issue_locations
 from oryxenai.agents.content_architect.field_paths import normalize_output_field_paths
 from oryxenai.agents.content_architect.page_content import (
+    assumption_notes,
     atlas_page_errors,
     claim_binding_errors,
     coverage_errors,
@@ -272,6 +273,9 @@ class ContentArchitectAgent(Agent):
             len(normalized_page.technical_capabilities.groups),
         )
 
+        page_dump = normalized_page.model_dump(mode="json")
+        warnings.extend(note for note in assumption_notes(page_dump) if note not in warnings)
+
         return AgentResult(
             output={
                 "user_summary": user_summary,
@@ -342,6 +346,13 @@ class ContentArchitectAgent(Agent):
         # at the JSON property name rather than at the page object.
         parsed = normalize_output_field_paths(_parsed_output(result))
         validate(parsed)
+        logger.info(
+            "model_stage engine=content_architect operation=%s run=%s latency_ms=%.0f cache_hit=%s",
+            operation,
+            context.run_id,
+            result.latency_ms,
+            bool(result.cache_metadata.get("cache_hit")),
+        )
         return parsed, version, _metadata(result, manifest, operation)
 
     @staticmethod

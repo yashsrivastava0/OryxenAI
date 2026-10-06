@@ -25,7 +25,7 @@ primary_origin = "https://replace-with-render-host.onrender.com"
 allowed_origins = ["https://replace-with-render-host.onrender.com"]
 
 [worker]
-polling_interval = 5.0
+polling_interval = 2.0
 heartbeat_interval = 30.0
 claim_batch_size = 1
 concurrency = 1

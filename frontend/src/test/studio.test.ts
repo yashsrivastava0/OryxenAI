@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { h } from "preact";
 import { render } from "preact-render-to-string";
 import { adaptStudio, adaptStudioFailure } from "../data/adapters/studio";
@@ -106,6 +106,25 @@ describe("StudioStage states", () => {
       true,
     );
     expect(render(stage(view))).toContain("Waiting for a free builder");
+  });
+
+  it("holds an unloaded verified preview for at most 35 seconds", () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(100_000);
+    try {
+      const view = adaptStudio(liveEnvelope, true);
+      const options = { presentationVersionId: "v2", presentationStartMs: 66_000 };
+      expect(render(stage(view, options))).toContain("is-preloading");
+      expect(render(stage(view, { ...options, presentationStartMs: 64_000 }))).not.toContain("is-preloading");
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("keeps a slow actual build in progress after the presentation time expires", () => {
+    const view = adaptStudio(envelope({ status: "build_running", in_flight: { run_id: "r", job_id: "j", version_id: "v1", origin: "initial", stage: "validating", elapsed_seconds: 50 } }), true);
+    const html = render(stage(view, { presentationVersionId: "v1", presentationStartMs: Date.now() - 50_000 }));
+    expect(html).toContain("Your page is taking shape");
+    expect(html).toContain('aria-busy="true"');
   });
 
   it("reports a failed first build exactly: what, where, why, what to do, with a retry", () => {

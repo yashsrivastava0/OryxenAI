@@ -4,7 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from oryxenai.core.settings import AuthConfig, Settings
+from oryxenai.core.settings import AuthConfig, GenerationEstimatesConfig, Settings
+
+
+def test_generation_estimates_are_positive_ordered_ranges():
+    assert Settings().generation_estimates.content == (30, 90)
+    with pytest.raises(ValueError, match="positive, ordered"):
+        GenerationEstimatesConfig(brief=(60, 25))
+    with pytest.raises(ValueError, match="positive, ordered"):
+        GenerationEstimatesConfig(brief=(0, 60))
 
 
 def test_settings_load_toml_defaults():

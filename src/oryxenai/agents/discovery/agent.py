@@ -149,7 +149,13 @@ class DiscoveryAgent(Agent):
             ),
         )
         logger.info(
-            "understand_and_question mode=%s questions=%d", output["mode"], len(output["questions"])
+            "model_stage engine=discovery operation=understand_and_question run=%s "
+            "latency_ms=%.0f cache_hit=%s mode=%s questions=%d",
+            context.run_id,
+            result.latency_ms,
+            bool(result.cache_metadata.get("cache_hit")),
+            output["mode"],
+            len(output["questions"]),
         )
         return AgentResult(
             output={"operation": "understand_and_question", **output, "memory_update": {}},
@@ -210,7 +216,12 @@ class DiscoveryAgent(Agent):
         dossier = output["dossier"]
         profile = profile_from_dossier(dossier)
         logger.info(
-            "build_or_revise_brief produced %d chars of markdown", len(output["brief_markdown"])
+            "model_stage engine=discovery operation=build_or_revise_brief run=%s "
+            "latency_ms=%.0f cache_hit=%s output_chars=%d",
+            context.run_id,
+            result.latency_ms,
+            bool(result.cache_metadata.get("cache_hit")),
+            len(output["brief_markdown"]),
         )
         return AgentResult(
             output={

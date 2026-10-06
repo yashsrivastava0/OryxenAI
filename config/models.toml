@@ -117,7 +117,7 @@ recovery_allowance = 0
 max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
-reasoning_effort = "medium"
+reasoning_effort = "low"
 
 [routing.operation_profiles.content_architect.write_pages]
 primary_profile = "experiential_luna_6"
@@ -129,7 +129,7 @@ recovery_allowance = 0
 max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
-reasoning_effort = "medium"
+reasoning_effort = "low"
 
 [routing.operation_profiles.content_architect.integrate_content]
 primary_profile = "experiential_luna_6"
@@ -141,11 +141,11 @@ recovery_allowance = 0
 max_output_tokens = 16000
 input_limit_tokens = 96000
 timeout_seconds = 180
-reasoning_effort = "medium"
+reasoning_effort = "low"
 
-# Code Generator: one straight line, no automatic retries or repairs. A first
-# build makes one generate_page call; a chat edit makes interpret_change then
-# generate_page. normal_calls is the shared per-run allowance; recovery stays 0.
+# Code Generator: one straight line, no automatic retries or repairs. Theme
+# renderers need no generate_page call; other themes use one. A chat edit first
+# calls interpret_change. normal_calls covers the model path; recovery stays 0.
 [routing.operation_profiles.code_generator.generate_page]
 primary_profile = "experiential_luna_6"
 fallback_profiles = []

@@ -11,6 +11,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from oryxenai.web.branding import brand_version
+
 _ROOT = Path(__file__).resolve().parent
 _TEMPLATE_DIR = _ROOT / "templates"
 _STATIC_DIR = _ROOT / "static"
@@ -59,6 +61,7 @@ def create_auth_web_router() -> APIRouter:
             name="auth_shell.html",
             context={
                 "app_name": settings.app.name,
+                "brand_version": brand_version(),
                 "page": page,
                 "auth_config": settings.auth_public_config,
                 "tokens_css_version": _asset_version("tokens.css"),
@@ -106,6 +109,7 @@ def create_auth_web_router() -> APIRouter:
             name="public_information.html",
             context={
                 "app_name": settings.app.name,
+                "brand_version": brand_version(),
                 "page": page,
                 "normal_user_limit": settings.auth.normal_user_limit,
                 "tokens_css_version": _asset_version("tokens.css"),

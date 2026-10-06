@@ -1,7 +1,8 @@
 """Live smoke test through the HTTP API used by the frontend.
 
 This creates a session, drives Discovery through approval, then explicitly
-starts and approves Content Architect. It uses the live configured model and
+starts and approves Content Architect, then builds and previews the Studio page.
+It uses the live configured model and
 has a hard overall timeout so it cannot wait forever.
 
 Run:
@@ -9,7 +10,7 @@ Run:
 
 Optional environment variables:
     ORA_API_URL                  API URL (default http://127.0.0.1:8000).
-    ORA_FRONTEND_SMOKE_TIMEOUT   Overall timeout in seconds (360).
+    ORA_FRONTEND_SMOKE_TIMEOUT   Overall timeout in seconds (600).
     ORA_FRONTEND_SMOKE_ACCESS_TOKEN
                                  Ephemeral Supabase access token for this run.
 
@@ -26,6 +27,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import httpx
 
@@ -35,7 +37,7 @@ class SmokeFailure(RuntimeError):
 
 
 def _timeout() -> float:
-    raw = os.environ.get("ORA_FRONTEND_SMOKE_TIMEOUT", "360").strip()
+    raw = os.environ.get("ORA_FRONTEND_SMOKE_TIMEOUT", "600").strip()
     try:
         value = float(raw)
     except ValueError as exc:
@@ -63,8 +65,7 @@ async def _request(
     if response.status_code >= 400:
         error = body.get("error", {}) if isinstance(body, dict) else {}
         raise SmokeFailure(
-            f"{method} {path} failed HTTP {response.status_code}: "
-            f"{error.get('message', response.text)}"
+            f"{method} {path} failed HTTP {response.status_code}: {error.get('code', 'HTTP_ERROR')}"
         )
     return body
 
@@ -83,7 +84,7 @@ async def _poll_discovery(
             return body
         if status == "needs_attention":
             error = discovery.get("latest_error") or {}
-            raise SmokeFailure(f"Discovery failed: {error.get('code')} {error.get('message')}")
+            raise SmokeFailure(f"Discovery failed: {error.get('code')}")
         await asyncio.sleep(1.2)
     raise SmokeFailure(f"Timed out waiting for states: {sorted(accepted)}")
 
@@ -103,8 +104,8 @@ async def _poll_stage(
         if status in accepted:
             return body
         if status == "needs_attention":
-            error = stage.get("latest_error") or {}
-            raise SmokeFailure(f"{stage_key} failed: {error.get('code')} {error.get('message')}")
+            error = stage.get("latest_error") or stage.get("last_error") or {}
+            raise SmokeFailure(f"{stage_key} failed: {error.get('code')}")
         await asyncio.sleep(1.2)
     raise SmokeFailure(f"Timed out waiting for {stage_key} states: {sorted(accepted)}")
 
@@ -112,6 +113,13 @@ async def _poll_stage(
 def _answer_value(question: dict[str, Any]) -> Any:
     kind = question.get("kind", "text")
     options = question.get("options") or []
+    if kind == "palette_select" and options:
+        return {"choice_id": options[0]["id"], "note": ""}
+    if kind == "work_detail":
+        return {
+            "details": "QueueGuard: designed a PostgreSQL-backed durable job queue and retry behavior.",
+            "allow_illustrative": False,
+        }
     if kind in {"single_select", "multi_select"} and options:
         first = options[0]
         if isinstance(first, dict):
@@ -122,7 +130,7 @@ def _answer_value(question: dict[str, Any]) -> Any:
     return "Lead with backend/platform engineering for startup CTOs."
 
 
-async def main() -> None:
+async def main(transport: httpx.AsyncBaseTransport | None = None) -> None:
     base_url = os.environ.get("ORA_API_URL", "http://127.0.0.1:8000").rstrip("/")
     access_token = os.environ.get("ORA_FRONTEND_SMOKE_ACCESS_TOKEN", "").strip()
     if not access_token:
@@ -136,6 +144,7 @@ async def main() -> None:
         base_url=base_url,
         timeout=10.0,
         headers={"Authorization": f"Bearer {access_token}"},
+        transport=transport,
     ) as client:
         health = await _request(client, "GET", "/health/ready")
         if health.get("status") != "ready":
@@ -144,17 +153,25 @@ async def main() -> None:
             client, "POST", "/api/v1/sessions", json={"name": "live-frontend-smoke"}
         )
         session_id = session["id"]
+        # A caller running a disposable identity can use this for scoped cleanup.
+        if os.environ.get("ORA_FRONTEND_SMOKE_REPORT"):
+            Path(os.environ["ORA_FRONTEND_SMOKE_REPORT"]).write_text(
+                json.dumps({"session_id": session_id}), encoding="utf-8"
+            )
         discovery_path = f"/api/v1/sessions/{session_id}/discovery"
         start_path = f"{discovery_path}/start"
         answers_path = f"{discovery_path}/answers"
         revise_path = f"{discovery_path}/revise"
         approve_path = f"{discovery_path}/approve"
 
+        operation_started = time.monotonic()
         started = await _request(client, "POST", start_path, json=sample)
         print(f"[start] status={started['discovery']['status']}")
         state = await _poll_discovery(client, discovery_path, {"questions_ready"}, deadline)
         operation_a = state["discovery"]["operation_a"]
-        print(f"[operation-a] mode={operation_a['mode']} questions={len(operation_a['items'])}")
+        print(
+            f"[operation-a] mode={operation_a['mode']} questions={len(operation_a['items'])} seconds={time.monotonic() - operation_started:.1f}"
+        )
 
         if operation_a["mode"] == "NEEDS_DETAILS":
             follow_up = {
@@ -177,6 +194,7 @@ async def main() -> None:
             for question in operation_a["items"]
             if question.get("id")
         ]
+        operation_started = time.monotonic()
         answered = await _request(
             client, "PUT", answers_path, json={"complete": True, "answers": answers}
         )
@@ -185,7 +203,9 @@ async def main() -> None:
         brief = state["discovery"]["brief"]
         if not brief.get("markdown"):
             raise SmokeFailure("brief_review returned empty markdown")
-        print(f"[brief] title={brief['title'][:80]!r} words={len(brief['markdown'].split())}")
+        print(
+            f"[brief] words={len(brief['markdown'].split())} seconds={time.monotonic() - operation_started:.1f}"
+        )
 
         revised = await _request(
             client,
@@ -210,18 +230,16 @@ async def main() -> None:
         content_path = f"/api/v1/sessions/{session_id}/content-architect"
         content_start_path = f"{content_path}/start"
         content_approve_path = f"{content_path}/approve"
+        operation_started = time.monotonic()
         content_started = await _request(client, "POST", content_start_path, json={})
         print(f"[content-start] status={content_started['content_architect']['status']}")
         content_review = await _poll_stage(
             client, content_path, "content_architect", {"content_review"}, deadline
         )
         content = content_review["content_architect"]
-        if not content.get("route_plan") or not content.get("page_content_packs"):
+        if not content.get("page_content", {}).get("hero", {}).get("name"):
             raise SmokeFailure("content_review returned incomplete public content")
-        print(
-            f"[content-review] routes={len(content['route_plan'])} "
-            f"page_packs={len(content['page_content_packs'])}"
-        )
+        print(f"[content-review] complete=True seconds={time.monotonic() - operation_started:.1f}")
         content_approved = await _request(client, "POST", content_approve_path, json={})
         if content_approved["content_architect"]["status"] != "approved":
             raise SmokeFailure(
@@ -232,12 +250,50 @@ async def main() -> None:
             f"hash={content_approved['content_architect']['approved']['content_hash'][:16]}"
         )
 
-        runs = await _request(client, "GET", f"/api/v1/sessions/{session_id}/runs")
-        keys = {run["agent_key"] for run in runs}
-        expected_keys = {"discovery", "content_architect"}
-        if keys != expected_keys:
-            raise SmokeFailure(f"unexpected agent keys: {keys}")
-        print(f"[runs] count={len(runs)} agent_keys={sorted(keys)}")
+        studio_path = f"/api/v1/sessions/{session_id}/code-generator"
+        operation_started = time.monotonic()
+        await _request(client, "POST", f"{studio_path}/start", json={})
+        studio = await _poll_stage(client, studio_path, "code_generator", {"ready"}, deadline)
+        initial_version = studio["code_generator"]["active_version_id"]
+        print(f"[studio] ready=True seconds={time.monotonic() - operation_started:.1f}")
+        preview = await _request(client, "GET", f"{studio_path}/preview-grant")
+        response = await client.get(preview["url"])
+        if response.status_code != 200 or "QueueGuard" not in response.text:
+            raise SmokeFailure("Studio preview did not contain the approved project")
+        if "sandbox" not in response.headers.get("content-security-policy", ""):
+            raise SmokeFailure("Studio preview is missing its sandbox policy")
+        initial_html = response.text
+        await _request(
+            client,
+            "POST",
+            f"{studio_path}/messages",
+            json={
+                "message": "Change my hero intro to: Backend engineer building durable services and reliable tools.",
+                "client_message_id": str(uuid4()),
+                "base_version_id": initial_version,
+            },
+        )
+        changed = await _poll_stage(client, studio_path, "code_generator", {"ready"}, deadline)
+        if changed["code_generator"]["active_version_id"] == initial_version:
+            raise SmokeFailure("The requested Studio content edit did not create a version")
+        changed_preview = await _request(client, "GET", f"{studio_path}/preview-grant")
+        changed_response = await client.get(changed_preview["url"])
+        if (
+            changed_response.status_code != 200
+            or "Backend engineer building durable services and reliable tools."
+            not in changed_response.text
+        ):
+            raise SmokeFailure("Studio preview did not apply the requested content edit")
+        restored = await _request(
+            client, "POST", f"{studio_path}/versions/{initial_version}/restore", json={}
+        )
+        if restored["code_generator"]["status"] != "ready":
+            raise SmokeFailure("Studio restore did not return a ready page")
+        restored_preview = await _request(client, "GET", f"{studio_path}/preview-grant")
+        restored_response = await client.get(restored_preview["url"])
+        if restored_response.status_code != 200 or restored_response.text != initial_html:
+            raise SmokeFailure("Studio restore did not preserve the original page bytes")
+        print("[studio] preview=True content_edit=True restore=True")
     print(f"LIVE FRONTEND API SMOKE PASSED: {base_url}/")
 
 

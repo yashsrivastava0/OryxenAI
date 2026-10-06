@@ -1,8 +1,9 @@
-"""The page build: generate, validate, seal. One straight line.
+"""The page build: produce the body, validate, seal. One straight line.
 
 The worker handler and the CLI both call :func:`build_page`, so what you debug
-locally is exactly what runs in production. There is no retry, no repair call and
-no fallback renderer: a stage either succeeds or raises
+locally is exactly what runs in production. The body comes from the theme's
+own renderer when it has one, otherwise from one model call. There is no retry, no
+repair call and no fallback renderer: a stage either succeeds or raises
 :class:`CodeGeneratorFailure` carrying the exact what / where / why envelope.
 The caller owns ``trace`` so a failure still leaves the evidence collected so far.
 """
@@ -27,7 +28,9 @@ from oryxenai.agents.code_generator.validate import validate_page
 from oryxenai.agents.shared.contracts import AgentContext
 from oryxenai.agents.shared.providers.errors import ProviderError
 from oryxenai.themes import ThemePackage
+from oryxenai.themes.contract import HostRenderedContract
 from oryxenai.themes.issues import Issue
+from oryxenai.themes.lang import detect_language
 
 StageCallback = Callable[[str], Awaitable[None]]
 
@@ -80,29 +83,40 @@ async def build_page(
     trace.setdefault("calls", [])
     derived = theme.contract.derive(page_content)
 
-    # 1. generate: the only model call of a first build
+    # 1. produce the body: the theme's own renderer when it has one (a pure function of the
+    #    approved content, so no model call and no copying risk), otherwise the model
+    contract = theme.contract
     await _announce(on_stage, "generating")
     started = time.perf_counter()
-    try:
-        page = await agent.generate_page(page_content, derived, context)
-    except CodeGeneratorFailure:
-        timings["generate"] = _ms(started)
-        raise
-    except ProviderError as exc:
-        timings["generate"] = _ms(started)
-        raise CodeGeneratorFailure(
-            failure_from_provider_error(exc, stage="generate", reference=reference)
-        ) from exc
+    if isinstance(contract, HostRenderedContract):
+        body_html = contract.render_body(page_content, derived)
+        lang = detect_language(page_content, contract.default_language)
+        trace["calls"].append({"operation": "host_render", "theme_id": theme.theme_id})
+        engine = "host_template"
+    else:
+        try:
+            page = await agent.generate_page(page_content, derived, context)
+        except CodeGeneratorFailure:
+            timings["generate"] = _ms(started)
+            raise
+        except ProviderError as exc:
+            timings["generate"] = _ms(started)
+            raise CodeGeneratorFailure(
+                failure_from_provider_error(exc, stage="generate", reference=reference)
+            ) from exc
+        body_html, lang = page.body_html, page.lang
+        trace["calls"].append(page.call.to_dict())
+        engine = "model"
     timings["generate"] = _ms(started)
-    trace["calls"].append(page.call.to_dict())
-    trace["body_bytes"] = len(page.body_html.encode("utf-8"))
+    trace["engine"] = engine
+    trace["body_bytes"] = len(body_html.encode("utf-8"))
 
     # 2. validate: strict, never auto-fixed
     await _announce(on_stage, "validating")
     started = time.perf_counter()
     report = await asyncio.to_thread(
         validate_page,
-        page.body_html,
+        body_html,
         page_content,
         theme,
         derived=derived,
@@ -112,12 +126,14 @@ async def build_page(
     trace["validation"] = report.to_dict()
     if not report.ok:
         # Keep the rejected markup for debugging; it is never served.
-        trace["rejected_body_html"] = page.body_html
-        raise CodeGeneratorFailure(failure_from_validation(report, reference=reference))
+        trace["rejected_body_html"] = body_html
+        raise CodeGeneratorFailure(
+            failure_from_validation(report, reference=reference, engine=engine)
+        )
 
     # 3. seal: host head + model body + the theme's unchanged files
     started = time.perf_counter()
-    bundle = build_bundle(page_content, derived, page.body_html, page.lang, theme)
+    bundle = build_bundle(page_content, derived, body_html, lang, theme)
     timings["bundle"] = _ms(started)
 
     # 4. browser verification (best effort; any defect it finds still blocks)
@@ -150,6 +166,7 @@ async def build_page(
             "warnings": [issue.to_dict() for issue in report.warnings[:_ISSUES_IN_RECEIPT]],
         },
         "browser": browser,
+        "engine": engine,
         "model": trace["calls"][-1] if trace["calls"] else {},
     }
     return BuildOutcome(bundle=bundle, receipt=receipt)

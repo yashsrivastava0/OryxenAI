@@ -10,12 +10,16 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from oryxenai.agents.content_architect.page_content import resolve_field_path
+from oryxenai.agents.content_architect.page_content import (
+    atlas_sample_groups,
+    resolve_field_path,
+)
 from oryxenai.themes.editorial_forest.v1.contract import _css_classes, monogram
 from oryxenai.themes.htmltree import Element, normalize_text, select, select_one
 from oryxenai.themes.issues import Issue
 from oryxenai.themes.placeholders import placeholderize
 
+SAMPLE_LABEL = "Sample content — replace with your own details."
 _LANG = re.compile(r"^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8}){0,3}$")
 _ARTS = ("orbit", "bars", "grid", "waves", "stack", "dots")
 _TAGS = frozenset(
@@ -78,6 +82,7 @@ _CHROME = frozenset(
         "Project",
         "Illustrative concept",
         "Illustrative concept — not real client work",
+        SAMPLE_LABEL,
         "Work in progress",
         "Your story can grow here.",
         "Project details can be added whenever you're ready.",
@@ -161,6 +166,7 @@ class AtlasContract:
             "monogram": "{derived.monogram}" if name == "{hero.name}" else monogram(name),
             "home_label": f"{name}, home",
             "arts": _ARTS,
+            "sample": atlas_sample_groups(dict(page_content)),
         }
 
     def approved_text(
@@ -237,6 +243,12 @@ class AtlasContract:
 
     def render_tail(self) -> str:
         return "\n</body>\n</html>\n"
+
+    def render_body(
+        self, page_content: Mapping[str, Any], derived: Mapping[str, Any] | None = None
+    ) -> str:
+        del derived
+        return self.render_reference_body(page_content)
 
     def render_reference_body(self, page_content: Mapping[str, Any]) -> str:
         return (
@@ -321,6 +333,27 @@ class AtlasContract:
                             path=field,
                         )
                     )
+        sample_sections = {
+            "statistics": "#home .impact-head > .project-meta",
+            "experience": "#about .experience .section-heading .project-meta",
+            "education": "#about .education > div > .project-meta",
+        }
+        for group, has_samples in atlas_sample_groups(dict(page_content)).items():
+            labels = select(root, sample_sections[group])
+            expected_count = 1 if has_samples else 0
+            if len(labels) != expected_count or any(
+                label.text() != SAMPLE_LABEL for label in labels
+            ):
+                issues.append(
+                    Issue(
+                        "ATLAS_SAMPLE_LABEL",
+                        "error",
+                        "Every section with sample rows needs the visible sample label, once.",
+                        selector=sample_sections[group],
+                        expected=f"{expected_count} x {SAMPLE_LABEL}",
+                        found="; ".join(label.text() for label in labels),
+                    )
+                )
         for index, project in enumerate(_projects(page_content), 1):
             if project.get("kind") == "illustrative":
                 card = select_one(root, f".project-list .project-card:nth-child({index})")
@@ -394,7 +427,10 @@ def exemplar_content() -> dict[str, Any]:
         statistics=[{"value": "Value", "label": "Label"}] * 2,
         projects=[full, link_only, illustrative],
     )
-    return placeholderize(sample)  # type: ignore[no-any-return]
+    content: dict[str, Any] = placeholderize(sample)
+    content["atlas"]["statistics"][0]["kind"] = "sample"
+    content["atlas"]["experience"][0]["kind"] = "sample"
+    return content
 
 
 def _symbolic_content() -> dict[str, Any]:

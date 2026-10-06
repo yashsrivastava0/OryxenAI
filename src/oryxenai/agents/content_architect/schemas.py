@@ -209,6 +209,7 @@ class ConnectContent(BaseModel):
 
 
 class AtlasExperience(BaseModel):
+    kind: str = "real"
     role: str = ""
     organization: str = ""
     dates: str = ""
@@ -216,12 +217,14 @@ class AtlasExperience(BaseModel):
 
 
 class AtlasEducation(BaseModel):
+    kind: str = "real"
     credential: str = ""
     institution: str = ""
     dates: str = ""
 
 
 class AtlasStatistic(BaseModel):
+    kind: str = "real"
     value: str = ""
     label: str = ""
 

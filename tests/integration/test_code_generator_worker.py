@@ -35,7 +35,7 @@ from oryxenai.db.session import get_sessionmaker
 from oryxenai.jobs.handlers.code_generator import CodeGeneratorBuildHandler
 from oryxenai.jobs.repository import JobRepository
 from oryxenai.jobs.service import JobService
-from tests.unit.agents.code_generator.helpers import sample_content
+from tests.unit.agents.code_generator.helpers import force_model_path, sample_content
 
 pytestmark = pytest.mark.integration
 
@@ -45,6 +45,7 @@ _SIGNER = PreviewGrantSigner("0123456789abcdef0123456789abcdef")
 def _use_client(
     monkeypatch: pytest.MonkeyPatch, client: ReferenceModelClient
 ) -> ReferenceModelClient:
+    force_model_path(monkeypatch)
     monkeypatch.setattr(
         "oryxenai.jobs.handlers.code_generator._build_code_generator_agent",
         lambda **kwargs: CodeGeneratorAgent(
@@ -216,6 +217,26 @@ async def test_happy_path_builds_promotes_and_serves_the_page(db_session, monkey
     run = await db_session.get(AgentRun, UUID(started["code_generator"]["in_flight"]["run_id"]))
     assert run is not None and run.status == "succeeded"
     assert "page_content" not in (run.output_payload or {})
+
+
+@pytest.mark.asyncio
+async def test_a_host_rendered_build_promotes_without_calling_a_model(
+    db_session, monkeypatch
+) -> None:
+    client = ReferenceModelClient()
+    monkeypatch.setattr(
+        "oryxenai.jobs.handlers.code_generator._build_code_generator_agent",
+        lambda **kwargs: CodeGeneratorAgent(client, theme_id=kwargs["theme_id"]),
+    )
+    session_id = await _new_session(db_session)
+    _started, result = await _start_and_run(db_session, session_id)
+    assert result["status"] == "succeeded"
+    assert client.requests == []
+    state = await _service(db_session).get_state(session_id)
+    [version] = state["versions"]
+    assert version["status"] == "ready"
+    assert version["summary"]["engine"] == "host_template"
+    assert version["summary"]["model"] is None
 
 
 @pytest.mark.asyncio

@@ -1,12 +1,14 @@
 // ProgressSurface component (docs/Frontend/05 §8.8).
 // Presents semantic milestones with clear completed/active/quiet markers,
 // neutral elapsed context, and honest leave/return reassurance.
-// Strictly avoids percentages, ETAs, token streams, or fake spinners.
+// Uses configured typical timing ranges; never claims a completion deadline.
 
 import type { ComponentChildren } from "preact";
 import { useState } from "preact/hooks";
 import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
 import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
+import { GenerationEstimate } from "./GenerationEstimate";
+import type { GenerationKind } from "../data/generation-estimates";
 
 export interface ProgressMilestoneItem {
   id: string;
@@ -20,6 +22,8 @@ export interface ProgressSurfaceProps {
   currentMilestone: string;
   milestones: ProgressMilestoneItem[];
   elapsedSeconds?: number | null;
+  estimateKind?: GenerationKind;
+  queued?: boolean;
   leaveNote?: string;
   secondarySummary?: ComponentChildren;
   onStop?: () => Promise<void>;
@@ -70,6 +74,8 @@ export function ProgressSurface({
   currentMilestone,
   milestones,
   elapsedSeconds = null,
+  estimateKind,
+  queued = false,
   leaveNote = "You can safely navigate away or close this tab; work continues on the server.",
   secondarySummary,
   onStop,
@@ -117,7 +123,8 @@ export function ProgressSurface({
           ))}
         </ol>
 
-        {formattedElapsed && (
+        {estimateKind && <GenerationEstimate kind={estimateKind} elapsedSeconds={elapsedSeconds} queued={queued} />}
+        {!estimateKind && formattedElapsed && (
           <p className="progress-elapsed">
             <span className="elapsed-label">Elapsed:</span>{" "}
             <span className="elapsed-value">{formattedElapsed}</span>

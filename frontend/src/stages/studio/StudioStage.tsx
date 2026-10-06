@@ -73,7 +73,7 @@ export function StudioStage({
     ? Math.max(0, now - presentationStartMs)
     : Math.max(0, (view?.inFlight?.elapsedSeconds ?? 0) * 1000);
   const holdingPreview = Boolean(matchingPresentation && view?.activeVersionId && !view?.building &&
-    !previewProblem && (sceneElapsedMs < 30_000 || (!previewLoaded && sceneElapsedMs < 40_000)));
+    !previewProblem && (sceneElapsedMs < 25_000 || (!previewLoaded && sceneElapsedMs < 35_000)));
   useEffect(() => {
     if (matchingPresentation && view?.activeVersionId && !view.building && !holdingPreview) onPresentationComplete?.();
   }, [holdingPreview, matchingPresentation, onPresentationComplete, view?.activeVersionId, view?.building]);

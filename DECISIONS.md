@@ -1,189 +1,9 @@
-## D-134 — Canonical Content Architect evidence paths and failure-only diagnostics
+# OryxenAI — Architecture Decision Records
 
-- **Date & Time:** 2026-10-04 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** A fresh Content Architect run received successful Explabs responses but failed approval readiness because twelve coverage entries used `page_content.`-prefixed field paths. An explicit Retry replayed the same owner-scoped cached stage results. Workflow failures exposed a generic message and reference without a copyable, time-stamped report.
-- **Decision:** Normalize only the exact `page_content.` root on claim and coverage field paths at the Content Architect response boundary, including cache hits; keep all other path and publication checks unchanged. Explicit user retries bypass the structured result cache, while normal runs retain it. Persist bounded, content-free validation locations in safe failure envelopes. Offer one shared Copy diagnostics action only on portfolio workflow failure surfaces, assembling the page, failure time, operation, code, reference, and safe issue paths at copy time.
-- **Rejected alternatives:** Loosening the evidence path resolver for arbitrary prefixes; returning raw model output or portfolio text in diagnostics; clearing owner-wide caches on pipeline reset; adding a new diagnostics service or database table.
-- **Consequence:** The recorded failed output validates after canonicalization. Future manual retries make fresh Explabs transmissions. Diagnostic reports remain small and user-initiated, and regular form validation does not show the copy action.
+Compact ledger of active architectural decisions. For historical entries prior to D-115, consult Git history.
 
-## D-132 — Theme exemplars use `{path}` placeholders, never sample copy
+---
 
-- **Date & Time:** 2026-10-04 — Claude Code (Anthropic)
-- **Status:** implemented-locally
-- **Context:** Cobalt Atlas v2 rendered its prompt exemplar from realistic sample words ("Project", "Example Name"). The model copied them into composed values (`aria-label="Project case study"`, route `data-title`), so every Studio build with that design failed closed-world validation. A live run then showed the exemplar also never exercised a link-only project before a later case, so the model renumbered case ids.
-- **Decision:** A theme exemplar is rendered from `placeholderize(sample)` (`oryxenai.themes.placeholders`): every string is its own `{data-field path}` and every optional branch of the template appears once, including gaps in numbering. Contract rules state that braces are placeholders. A unit test validates each exemplar against its own placeholder content. Validator messages for composed values report expected and found.
-- **Rejected alternatives:** A repair/retry call or a deterministic fallback renderer (AGENTS.md forbids automatic repair; one model call stays the design); loosening the closed-world text check.
-- **Trade-off:** Contract authors maintain one slightly larger sample per scripted theme.
-- **Consequence:** Future CSS+JS themes must follow the same exemplar rule. No theme bytes or manifests changed. Prototype and Editorial Forest contracts already used placeholders.
-
-## D-131 — Fourth scripted Atlas theme and grounded sparse work
-
-- **Date & Time:** 2026-10-04 12:25 +05:30 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** The owner supplied a fourth, more advanced pre-built design as `style.css` plus `theme.js`. Its Home, About, and optional case-study routes need more content than the three existing CSS-only themes. Owners may have no project details or photo yet.
-- **Decision:** Package the supplied pair as immutable `cobalt-atlas/v2`, with local licensed fonts, fixed host-owned script inclusion, a closed markup contract, full bundle hashes, and an opaque scripted preview sandbox. Discovery offers a fourth visual choice and one optional project-detail question. Content Architect fills an Atlas-specific supplement from approved evidence. If work is absent, the generated HTML shows abstract CSS artwork and a designed work invitation; one clearly labeled illustrative concept is allowed only after explicit Discovery opt-in and cannot claim a client or result. The current profile visual uses derived initials. Studio chat may edit existing Atlas copy and rechecks the selected theme's admission rules.
-- **Rejected alternatives:** User-specific CSS/JavaScript, unreviewed model-written scripts, invented achievements or numeric results, silently using a fictional project, blocking otherwise complete content for missing optional work, and a photo upload before the workspace storage flow exists.
-- **Trade-off:** A scripted preview has a larger trust boundary and the content plan has Atlas-only optional fields. The fixed script runs under CSP `sandbox allow-scripts` without `allow-same-origin`, and browser verification covers its routes when browser policy is enabled. Photo upload and per-user asset workspaces remain separate future work.
-- **Consequence:** Supersedes D-128's research-only proposal for this package while preserving v1 versions. No publishing, cloud setting, or deployment branch changes.
-
-## D-130 — Resilient Supabase authentication provider reads
-
-- **Date & Time:** 2026-10-04 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** A long-running local API returned `AUTH_PROVIDER_UNAVAILABLE` for every authenticated request while a fresh process using the same Supabase coordinates succeeded. The verifier held one HTTP connection pool for the process lifetime, and a failed JWKS refresh discarded the opportunity to use a recently fetched signing key.
-- **Decision:** Use one bounded auth HTTP client for the JWT verifier, first-login identity lookup, and Supabase admin provider. Recreate an owned client after transport errors; retry transport errors and 5xx responses once only for idempotent GETs, and keep admin mutations single-shot. Keep the last successfully fetched JWKS available for matching keys through transient provider failure for at most 3,600 seconds, back off failed refreshes for 30 seconds, and limit unknown-key refreshes to one per backoff window. Retry the browser's `/api/v1/me` bootstrap twice for `AUTH_PROVIDER_UNAVAILABLE` within its existing timeout, then show a Retry action without clearing the session. Make both JWKS limits non-secret, range-validated auth settings with defaults in `config/app.toml`.
-- **Trade-off:** While Supabase is unreachable, a signing key revoked after the last successful JWKS fetch may remain accepted for up to one hour. Normal refreshes use current provider keys when reachable; signature, allowed algorithm, issuer, audience, role, and expiry checks remain in force.
-- **Consequence:** Existing environments need no new secrets or manual configuration. Browser users retain their session during transient provider outages. Admin mutations are never replayed after uncertain transport outcomes. The behavior is covered with mocked provider and browser tests; no Supabase project or deployment settings are changed.
-
-## D-129 — Discovery palette selects an immutable Studio theme
-
-- **Date & Time:** 2026-10-03 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** The owner supplied three distinct pre-built portfolio designs and asked for one visual choice during Discovery to determine which stylesheet the Code Generator uses. The existing flow had one pinned theme and a complete, approved single-page content tree.
-- **Decision:** Append one required, server-authored palette question after up to three contextual Discovery questions. Its three swatch choices map deterministically to Editorial Forest Motion, Cobalt Atlas, or Obsidian Signal; an optional mood note is saved for the interview UI but does not change selection or factual copy. Persist the chosen immutable theme id in Discovery and Content Architect state, include it in their approval hashes, and pin it to the Code Generator run and version. Give each design its own CSS, markup contract, manifest, and reference renderer while keeping the existing `page_content` schema. Sessions approved before this change use the configured legacy default theme.
-- **Rejected alternatives:** Model-selected themes, mapping from free-text mood notes, runtime stylesheet modes, CSS mutations per owner, and changing the content schema for this visual choice.
-- **Consequence:** The owner sees palette descriptions and swatches, never theme filenames in the choice UI. The same selected package is used for first build, content edits, restore, and signed preview. The three designs remain independent immutable packages, and no publishing or deployment behavior changes.
-
-## D-128 — Proposed interactive Studio theme using pre-built JavaScript
-
-- **Date & Time:** 2026-10-03 — Codex (OpenAI)
-- **Status:** proposed-research-only; not approved or implemented
-- **Context:** The owner wants more advanced portfolio interaction while keeping `index.html` generated per person and pairing it with pre-built CSS and JavaScript. The current v1 theme already has CSS motion, but its preview CSP and iframe sandbox block scripts; saved versions record a full asset manifest while serve/restore check only the CSS hash.
-- **Proposal:** Create a new immutable theme version with reviewed `styles.css` and `theme.js`; keep the model output to visible `body_html` and let the host insert the script in the head. Extend exact markup/hook validation, full-bundle integrity checks, theme-specific preview CSP/iframe flags without `allow-same-origin`, and browser verification of behavior. Retain v1 for existing versions. Treat visual layout variants and new portfolio content shapes as separate versioned contract work.
-- **Rejected paths for this proposal:** Model-generated or inline JavaScript, per-user stylesheet/script files, editing released v1 assets, unbounded hook/data attributes, a second queue or runtime bundler, and claiming that JavaScript alone creates distinct layouts.
-- **Trade-off:** Script execution enlarges the preview trust boundary. Strict CSP/sandbox, audited fixed code, resource hashes, keyboard/reduced-motion behavior, and a realistic Chromium policy are release gates. The D-127 Render Free pilot currently disables browser verification, so interactive per-build verification would need a measured hosting/policy choice. D-126 remains the paid always-on path.
-- **Consequence:** Research and exact implementation map are in `docs/research/studio-interactive-theme-architecture.md`. No code, schema, theme package, config, remote service, or production branch is changed by this proposal. An implementation decision and separate task are still required.
-
-## D-127 — Render Free pilot with existing Supabase Auth and PostgreSQL
-
-- **Date & Time:** 2026-10-03 — Codex (OpenAI)
-- **Status:** decided-not-provisioned
-- **Context:** The operator clarified a hard free-tier constraint, only two or three expected users, and a preference for the fewest beginner-friendly services. The app needs a PostgreSQL-backed API/worker, document intake, agent stages, and a same-origin Studio preview. D-126's Railway Hobby plan is paid and therefore does not satisfy that constraint.
-- **Decision:** Select one Render Free Docker Web Service for the combined FastAPI/Preact app and existing durable worker, plus the existing Supabase project for Google Auth and application PostgreSQL. Use the Supabase Session pooler, one Render instance, a low-concurrency Render-specific overlay, startup Alembic migrations, and bounded 30-day retention for replaceable model cache, superseded Studio versions, and retired Code Generator runs. Add a managed-host supervisor because Render Free has no background-worker service. This is a limited pilot only.
-- **Rejected alternatives:** Railway Free's $1/month usage allowance as a dependable always-running app/worker/database; Vercel Functions for the persistent worker and 600–900 second job timeouts; Render Free PostgreSQL because it expires after 30 days; a separate frontend/preview host, Redis, or object storage.
-- **Trade-off:** Render Free sleeps after 15 minutes without inbound traffic, may restart, and has 512 MB RAM / 0.1 CPU. Long jobs need the service awake; OCR may exceed memory; the overlay does not run headless Chromium verification. Supabase Free is limited to a recommended 500 MB database and can pause for low activity. This is not production-grade availability. If a complete DB-to-Studio acceptance run fails, use the paid Railway Hobby path in D-126 rather than representing the free service as reliable.
-- **Consequence:** The strict-free pilot guide is `docs/deployment/version-2/free-tier-migration-guide.md`. D-126 remains the paid always-on alternative. The Azure `deployment` branch and VM are not modified or retired by this decision. The Render pilot has not been provisioned and no cloud database, OAuth, DNS, or Azure state was changed; local verification used only `oryxenai_test`.
-
-## D-126 — Railway Hobby as the recommended Version 2 hosting target
-
-- **Date & Time:** 2026-10-03 — Codex (OpenAI)
-- **Status:** decided-not-provisioned
-- **Context:** The app now runs as a containerized FastAPI/Preact service with a PostgreSQL-backed durable worker, Supabase authentication, and same-origin signed Studio previews. The earlier Azure VM deployment requires host, Compose, TLS, storage, and power automation. The operator asked for a simpler, beginner-friendly replacement that preserves the full DB-to-preview workflow.
-- **Decision:** Recommend one Railway Hobby project with three services: app/web from the root Dockerfile, one always-on worker from the same image, and PostgreSQL. Retain the existing Supabase project for Google Auth; keep the bundled frontend and same-origin preview on FastAPI; keep the PostgreSQL queue and page bundles in PostgreSQL. Use Singapore for Railway services, configure a database backup and external logical exports, and validate the complete workflow before cutover.
-- **Rejected alternatives:** Vercel frontend/API split (adds origin/routing/preview complexity and has no persistent worker); free-only deployment (not a dependable always-on DB/worker plan); adding Redis, object storage, a preview host, or a separate frontend host.
-- **Trade-off:** Railway Hobby is paid and usage-metered; it is simpler operationally but is not guaranteed to undercut Azure, especially while student credits remain. Railway's PostgreSQL service still requires operator-owned backups, restore drills, upgrades, and monitoring.
-- **Consequence:** Documented in `docs/deployment/version-2/deployment-strategy.md`. This records a hosting recommendation only: no service was provisioned, no data or DNS was changed, and no commit was deployed or promoted. Confirm live Azure state and measure Railway use before retiring the VM.
-
-## D-122 — Studio: a one-shot, verified page build with sealed versions and a sandboxed same-origin preview
-
-- **Date & Time:** 2026-10-02 09:43 +05:30 — Claude Code (Anthropic)
-- **Status:** decided-implemented-locally
-- **Context:** Content Architect approval ended the product, while D-116, D-118 and D-121 require an AI-written `index.html` over the pinned stylesheet, a verified preview, and a chat that changes the page. The operator ruled out retry and repair loops for now, asked for exact failure reporting instead, and required a simple, debuggable pipeline that deploys on any container host (not only Azure).
-- **Decision:** One durable job per build with a single attempt: admission (no model call), one model call that returns only `lang` and the visible body markup, strict validation on a stdlib parser (closed-world visible text, approved copy bound to its placement, forbidden constructs; never auto-fixed), a host-owned `<head>`, a sealed bundle (the page in PostgreSQL, the theme's files from the image, both by hash), real-browser verification (`best_effort` by default), and one promote transaction fenced by the job lease and the session lock. Every failure is one envelope (code, stage, summary, cause, where, expected and found, owner, action, reference) stored on the version, mirrored in session state and shown in the Studio; a failed attempt never replaces the live page; a job that dies silently is reconciled on the next read. The theme is an immutable package (byte-pinned CSS, local fonts and art, manifest, executable markup contract); the model sees the contract and an exemplar, never the CSS. Versions and chat live in their own cascade tables; a chat message runs `interpret_change` (typed edits to a whitelist of content paths, or a reply) and then the same pipeline, restore copies a verified row, and privacy-sensitive removals restrict older versions that showed the text. The preview is `/preview/g/<hmac-grant>/...` served same-origin outside `/api`, with a CSP `sandbox` and an iframe sandbox that allow neither scripts nor `allow-same-origin`, and grants redacted from logs. The product's primary action on the content review is one explicit click, "Approve & generate my portfolio": approve, then start, then open the Studio.
-- **Rejected alternatives:** A model-written full document including `<head>`; giving the model the stylesheet; an HTML parsing dependency (bs4/html5lib); auto-fixing near-miss markup; a retry loop, repair call or labelled fallback renderer now; an object store for bundles; a dedicated preview origin (kept as a code seam); serverless hosting of the worker; an API that starts the build as a side effect of approval.
-- **Trade-off:** Strict validation and no repair mean a rare miss costs the owner a click on "Try again"; the live campaign measured first-pass success on every content shape rather than assuming it. Chromium is optional, so verification can be recorded as unavailable on a minimal host.
-- **Consequence:** Deviates from AGENTS.md "no automatic stage chaining" only in the UI sense (one explicit user click; no endpoint chains stages) and from docs/architecture/12 section 5 by applying chat edits to the site's content version instead of rewriting approved Discovery or Content Architect artifacts (Content Architect approval stays terminal). Narrows D-121's "Code Generator unbuilt" and the Content Architect-only product boundary. A single retry loop, a single repair call and a degraded render are seams in `pipeline.py`; scripts, extra stylesheets and more themes can join a bundle's manifest later. Publishing or hosting a public page remains unbuilt.
-
-## D-123 — Shared model layer generalised for a third engine
-
-- **Date & Time:** 2026-10-02 09:43 +05:30 — Claude Code (Anthropic)
-- **Status:** decided-implemented-locally
-- **Context:** Engine routing, the per-run call allowance and preflight were written for exactly two engines, and an engine with no configuration silently fell back to an unrelated route.
-- **Decision:** `AgentKey.CODE_GENERATOR` joins the pipeline engines; the per-run budget takes the largest `normal_calls` and `recovery_allowance` across the engine's configured operation routes (identical values for Discovery and Content Architect); preflight and the durable job timeout check cover the new engine; the Code Generator is configured explicitly in `config/models.toml` with no fallback profile and `recovery_allowance = 0`. The provider's JSON parser tolerates raw control characters inside strings (`strict=False`) before its brace-scan fallback, which markup in a JSON string needs.
-- **Rejected alternatives:** A second budget mechanism for the new engine; relying on the default route; a separate non-JSON transport for markup.
-- **Consequence:** A new engine must be configured, or its calls are refused instead of rerouted. Existing engines behave as before; the shared-layer tests pin their budgets.
-
-## D-121 — Preview belongs to the Code Generator, not Content Architect
-
-- **Date & Time:** 2026-10-01 21:55 +05:30 — Claude Code (Anthropic)
-- **Status:** decided-and-implemented-locally
-- **Context:** D-118 added a client-side, unverified "Live preview" tab to the Content Architect review, filling the pinned template with page copy in the browser. The operator directed that previewing happens only in the Code Generator.
-- **Decision:** The Content Architect review shows the structured copy and the evidence and coverage inspector only. The preview component, its template-substitution helper, and the tab were removed. The pinned `index.html` and `styles.css` fixture moved from the served frontend `public/` folder to `docs/pinned-theme/` as reference input for the Code Generator and is no longer served by the app. Previewing returns with the Code Generator, which previews the verified bundle (D-116).
-- **Rejected alternatives:** Keep the quick preview as a labelled draft; add a deterministic preview inside Content Architect.
-- **Trade-off:** Until the Code Generator exists, reviewers judge the copy as structured fields rather than as a rendered page.
-- **Consequence:** Narrows the last sentence of D-118. Content Architect's output contract is unchanged. The Code Generator, verified preview, and deployment remain unbuilt.
-
-## D-120 — Compact Discovery draft with bounded same-route recovery
-
-- **Date & Time:** 2026-10-01 16:25 +05:30 — Codex (OpenAI)
-- **Status:** decided-implemented-locally
-- **Context:** Discovery brief generation was slow and frequently failed because the model had to emit a large span-linked dossier and every missing link rejected the whole response. One global running model lane also queued unrelated users.
-- **Decision:** The model emits a compact, lenient draft; the server builds the stored `DiscoveryDossier/v1`, repairs IDs and links, and derives the compatibility profile. New dossiers retain source-document hashes but leave span coverage empty and identify provenance as `brief_derived`. Only absent usable Markdown or a non-object output is a hard contract failure. Discovery uses the configured route with one same-profile recovery attempt, streamed responses where supported, and configurable model-lane concurrency. `READY_FOR_BRIEF` queues the brief within Discovery in the worker transaction; approval remains explicit before Content Architect.
-- **Rejected alternatives:** Keep strict span-by-span model output and use more retries; add another provider; split the brief into parallel calls before measuring the compact version.
-- **Consequence:** Supersedes D-116's span-linked Discovery dossier mechanics, D-117's no-retry trade-off for Discovery, and D-119's assumption that Discovery stays on its previous model. Existing dossiers and approval hashes remain readable. New briefs have less excerpt-level provenance, while Content Architect still receives IDs and complete structured context. The gateway route and lane size remain configuration choices; deployment is separate.
-
-## D-119 — Content Architect routes through GPT-6 Luna
-
-- **Date & Time:** 2026-10-01 14:30 +05:30 — Claude Code (Anthropic)
-- **Status:** decided-and-implemented-locally
-- **Context:** The operator asked for Content Architect to use the EXP Labs GPT-6 Luna model while Discovery keeps its current model.
-- **Decision:** `config/models.toml` gains an `experiential_luna_6` profile (same gateway and credential variable), and only the Content Architect engine route and its three operation routes select it. Policy version moved to `active_agent_routes_v3`. D-117's single-provider rule is unchanged.
-- **Trade-off:** Roughly twice the latency of the previous profile on the same input. Profile pricing is a placeholder copied from the existing profile.
-- **Consequence:** Implemented locally in `f5e5d14`; no deployment or external promotion was performed.
-
-## D-118 — Typed single-page content tree for the pinned template
-
-- **Date & Time:** 2026-10-01 13:05 +05:30 — Claude Code (Anthropic)
-- **Status:** decided-and-implemented-locally
-- **Context:** Content Architect still modeled a generic multi-route site that the code already forced to one page, and its prompts asked for project, experience, and education content the one pinned template (`docs/HTML and CSS/`) has no slot for.
-- **Decision:** Content Architect returns a typed `page_content` tree matching the template region for region, including exactly four systems-practice pillars and name-only organizations. Claims and the six-way coverage ledger (`used`, `condensed`, `retained_internally`, `excluded_by_restriction`, `excluded_editorially`, `unresolved`) bind to field paths. Template rules live in the shared system prompt and one rule module; completeness is repaired by the existing single bounded integration call rather than rejected per model call. Organizations, links, and marquee keywords may be empty rather than invented. The review stage adds a client-side, unverified preview of the pinned HTML and CSS.
-- **Rejected alternatives:** A generic theme-agnostic block model, which adds a translation layer with no second theme to justify it; sending raw CSS to the model; hard-failing a run on a wrong pillar count before the repair call.
-- **Trade-off:** Sessions saved with the route-based shape load with an empty page and must be re-run, and `CONTENT_ARCHITECT_NO_PUBLISHABLE_ROUTES` became `CONTENT_ARCHITECT_PAGE_NOT_PUBLISHABLE`. Supporting a second stylesheet later needs a new content contract.
-- **Consequence:** Implemented locally in `2bdc7f8`, narrowing D-116's Content Architect handoff to this shape. The Code Generator, verified preview, and deployment remain unbuilt.
-
-## D-117 — Single-provider routing for active agent operations
-
-- **Date & Time:** 2026-10-01 10:40 +05:30 — Codex (OpenAI)
-- **Status:** decided-and-implemented-locally
-- **Context:** The active agent routes had one configured primary and cross-provider fallbacks. A transient primary failure caused a fallback attempt, leaving the UI to name the alternate provider in the final error. The operator directed that both active stages use one gateway only.
-- **Decision:** Discovery and Content Architect use only the primary profile configured in `config/models.toml` for every active operation. Alternate-provider fallbacks, their capacity observations, and optional profile selection are disabled. A new explicit retry or revision receives the current policy snapshot while already queued jobs retain their immutable snapshot.
-- **Trade-off:** A temporary gateway failure now surfaces directly and requires a user retry; saved source material and answers remain intact. The provider, model, endpoint, and credential variable stay in configuration.
-- **Consequence:** Implemented locally in `4e20499`; no deployment or external promotion was performed.
-
-## D-116 — Complete agent handoffs with two approvals and AI-written HTML
-
-- **Date & Time:** 2026-09-29 16:13 +05:30 — Codex (OpenAI)
-- **Status:** decided-not-yet-implemented
-- **Context:** The operator wants Discovery and Content Architect to preserve and develop complete user context for a later Code Generator, with text entry first, explicit report/copy review, and HTML integrated with a preset stylesheet.
-- **Decision:** The target first intake is one freeform text box; PDF/DOCX attachments are later adapters. Discovery preserves every substantive source detail in a linked dossier and asks zero or a contextual group of one to three questions when useful; its report requires explicit user approval. Content Architect receives the complete approved dossier, records a disposition for every item, writes all person-specific single-page copy, and requires explicit approval. The AI Code Generator writes `index.html` using only that approved copy as person-specific input plus the pinned theme markup contract; a coordinator attaches unchanged `styles.css`, verifies, and previews the exact bundle. Provider/model routing remains configuration-driven.
-- **Rejected alternatives:** A small fixed interview, lossy profile-only handoff, automatic progression past either review gate, first-slice file parsing, a plan-only Code Generator with host-authored HTML, or per-user stylesheet changes.
-- **Consequence:** Supersedes D-115's automatic progression and trusted-renderer choices in the target proposal; D-113 still describes the active product. The revised design is documented in `docs/architecture/10-...` through `14-...`. Application code, schema, theme assets, and deployment remain future implementation work.
-
-## D-115 — Research-only refinement of the portfolio proposal
-
-- **Date & Time:** 2026-09-29 01:22 +05:30 — Codex (OpenAI)
-- **Status:** open
-- **Context:** The operator clarified that this task is architecture research in Markdown and that implementation follows their review. Earlier D-114 prose also coupled the proposal to a particular model and hosting migration.
-- **Decision:** Submit the refined design in `docs/architecture/10-...` through `13-...` for review: complete evidence/coverage contracts, detailed Content Architect writing and audit, constrained composition with trusted HTML rendering, one shared pinned stylesheet, isolated verified preview, ordered edits, and bounded repair. Provider/model settings remain in `config/models.toml`; reuse storage/job boundaries without selecting a hosting migration. No implementation is authorized by this documentation task.
-- **Rejected alternatives:** Treating earlier "implement" messages as permission to change runtime after the clarification; treating short agent summaries as complete handoffs; silently fixing failures by dropping evidence or editing shared CSS per user.
-- **Consequence:** This is a refinement of D-114 pending user review, not a change to the active D-113 workflow. Code, schema, theme assets, model configuration, and deployment require a later implementation task. Current deployment decisions retain their meaning.
-## D-124 — Owner reset and text-first Discovery file intake
-
-- **Date & Time:** 2026-10-02 18:05 +05:30 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** Owners need to restart the full portfolio journey from any stage and submit a resume file at the first Discovery screen, including when they have no typed notes.
-- **Decision:** Expose the existing fenced pipeline cleanup through the owner-scoped session route while keeping the same entitlement-bound session ID. Place one reset action in the sticky workspace header; require explicit confirmation and reload empty Discovery after cleanup. Extract selectable text from one bounded PDF, UTF-8 Markdown, or plain text file through an authenticated intake adapter and submit it through Discovery's existing `document_text` field. Do not retain the uploaded binary. Leave DOCX, OCR, and photographs for later intake work.
-- **Consequence:** A reset removes Discovery and Content state, jobs and runs, generated page versions, chat history, and external artifacts. Active workers are fenced by the session status and revision. File-only Discovery starts use the same model and provenance flow as pasted material.
-
-## D-125 — Structure-preserving PDF intake with bundled OCR
-
-- **Date & Time:** 2026-10-02 20:35 +05:30 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** D-124 added text-first PDF intake but left OCR out. Full-page OCR of the supplied searchable resume replaced accurate embedded wording with recognition errors, while extraction without local layout support could not handle scanned resumes or retain useful section structure. Managed containers also have ephemeral filesystems and separate web/worker processes.
-- **Decision:** Convert PDFs with Docling's PDFium backend and normal OCR mode so selectable text remains authoritative while image regions and scanned pages use local RapidOCR. Export detected hierarchy, reading order, furniture, and page breaks to editable Markdown; return the whole transcript, page count, and partial-conversion warning. Keep UTF-8 Markdown/text exact, stream uploads under configured byte/page/time/character limits, and pass the reviewed transcript plus filename through Discovery's existing source snapshot and question packet. Download model artifacts at image build time and ship them at `/opt/docling-models`; runtime OCR runs offline. Accept provider `DATABASE_URL` values and runtime auth origins for managed-host PostgreSQL and hostnames.
-- **Rejected alternatives:** Full-page OCR as the only path; a runtime Hugging Face dependency; storing original uploaded files; making a scanned-document OCR service a required external dependency; adding DOCX and photos to this release.
-- **Trade-off:** Container images are larger and PDF extraction uses CPU and memory; OCR on low-quality scans can still misrecognize text, so the full transcript is editable before submission. Begin with 2 vCPU and 4 GiB RAM per API instance and tune from measured latency and memory.
-- **Consequence:** Supersedes D-124's decision to defer scanned-PDF OCR. DOCX, photos, and multiple attachments remain unsupported. Render/Railway deployments use the same image with separate API and durable worker services, one PostgreSQL database, and a migration step; this records compatibility guidance and does not authorize a remote deployment.
-
-## D-135 — Private workspace pages and honest first-build presentation
-
-- **Date & Time:** 2026-10-04 18:55 +05:30 — Codex (OpenAI)
-- **Status:** implemented-locally
-- **Context:** Primary actions were positioned differently across stages and disappeared below long review content. The four visual choices were too similar, and the first Studio build had little visible progress. The owner asked for a premium, clear frontend that can later grow into broader application and article work without claiming those capabilities now.
-- **Decision:** Use one viewport action dock for primary stage actions; add authenticated Home and Guide screens as allowlisted `/app` query views while `/app` continues the furthest actionable stage. Preserve safe private destinations across authentication. Keep the four existing theme IDs and packages, presenting each through a distinct equal-size miniature composition. The first Studio build shows an explicitly illustrative code-like scene for at least 30 seconds after accepted start, with real server status separate; a verified iframe loads behind it, errors interrupt immediately, and preview loading or error is exposed by 40 seconds. Private product pages are noindexed; future public articles belong on separate routes.
-- **Rejected alternatives:** Starting stages when a navigation page opens; fake server logs or success claims; enlarging or default-selecting the fourth theme; exposing incomplete preview content; advertising future download, sharing, deployment, or full-stack features as available.
-- **Consequence:** This is a frontend presentation and routing change. The durable jobs, approval boundaries, sealed versions, signed preview grants, and pinned themes remain the source of truth. Browser tests use an aged presentation marker to verify the handoff without waiting 30 wall-clock seconds.
 ## D-137 — Light PDF engine for the Render Free image
 
 - **Date & Time:** 2026-10-05 — Codex (OpenAI)
@@ -199,3 +19,189 @@
 - **Context:** The owner wants push-driven CI/CD without PR review, while routine pushes must not change the live domain. The existing `deployment` ruleset requires a PR and its CI deploy job targets the retired Azure VM.
 - **Decision:** `staging` runs CI only. An exact SHA that passes there can be fast-forward pushed to `deployment`; CI runs again and Render deploys only after checks pass. Remove the ruleset's PR requirement while retaining the required quality check, deletion protection, and force-push protection. Use one Render Free Docker web service with Supabase Auth and PostgreSQL, startup migrations, and a combined API/worker process. Keep Azure files for rollback until live acceptance.
 - **Trade-off:** A release still requires a deliberate branch push. Render Free may sleep or exhaust its included hours; the durable queue resumes when the service wakes.
+
+## D-135 — Private workspace pages and honest first-build presentation
+
+- **Date & Author:** 2026-10-04 18:55 +05:30 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Primary actions drifted across screens and vanished below long review content; visual choices lacked distinction; the first Studio build lacked progress feedback.
+- **Decision:** Unified viewport action dock for primary stage CTAs. Added authenticated Home and Guide views (`/app?view=...`) with safe post-auth redirect. Rendered distinct equal-sized card previews for all 4 themes. Displayed an illustrative code build animation for >=30s (yielding to verified preview or failure by 40s). Product pages are noindexed.
+- **Rejected alternatives:** Auto-advancing stages on navigation; simulated backend logs or fake success claims; advertising unbuilt publishing/download/hosting features.
+- **Consequence:** Clean frontend navigation and honest presentation without modifying backend durable jobs, approval boundaries, or sealed versions.
+
+## D-134 — Canonical Content Architect evidence paths and failure-only diagnostics
+
+- **Date & Author:** 2026-10-04 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Content Architect runs failed readiness validation because model outputs prefixed coverage paths with `page_content.`. Retries replayed cached stage results. Failure screens lacked copyable diagnostic reports.
+- **Decision:** Canonicalize/strip `page_content.` prefix from claim and coverage field paths at the CA boundary (for both fresh and cached responses). User retries explicitly bypass structured result caching. Persist bounded, content-free issue locations in failure envelopes. Added a single "Copy diagnostics" action on failure screens.
+- **Rejected alternatives:** Loosening path validation for arbitrary prefixes; exposing raw model output or portfolio copy in diagnostics; clearing owner-wide cache on reset.
+- **Consequence:** Pre-existing failed responses validate cleanly. Manual retries fetch fresh model outputs. Diagnostics are safe, time-stamped, and user-initiated.
+
+## D-133 — Host-rendered page body for themes with an exact renderer; labelled assumptions for sparse input
+
+- **Date & Author:** 2026-10-04 — Claude Code (Anthropic)
+- **Status:** implemented-locally
+- **Context:** LLMs repeatedly failed closed-world validation trying to reproduce body markup that is a pure function of approved content (Cobalt Atlas v2). Thin Discovery input left Atlas sections empty.
+- **Decision:** Theme contracts implementing `render_body` (`HostRenderedContract`) build deterministically on the host (no LLM call), followed by normal validation, sealing, and browser verification. All 4 registered themes now render on host. For sparse Atlas input, Content Architect adds `kind="sample"` rows visibly tagged in templates and flagged as `Assumed:` in review warnings.
+- **Rejected alternatives:** LLM generation with host fallback/retry (violates no-auto-repair invariant in AGENTS.md); unlabelled invented details; separate assumption envelope fields.
+- **Consequence:** Page builds take milliseconds with zero copy mismatch; chat edits rebuild deterministically. Assumed data is explicitly labelled.
+
+## D-132 — Theme exemplars use `{path}` placeholders, never sample copy
+
+- **Date & Author:** 2026-10-04 — Claude Code (Anthropic)
+- **Status:** implemented-locally
+- **Context:** Cobalt Atlas v2 exemplar contained sample copy that the LLM reproduced into `aria-label` or `data-title`, violating closed-world validation. Exemplars also lacked coverage for case-id gaps.
+- **Decision:** Render exemplars via `placeholderize(sample)` (`oryxenai.themes.placeholders`): every string becomes `{field.path}`, covering all optional branches and gaps. Unit tests validate exemplars against placeholders. Composed-value validator reports expected vs found.
+- **Rejected alternatives:** Model repair/retry loops or relaxing closed-world validation.
+- **Consequence:** All scripted theme exemplars must use placeholder tokens. Pinned theme assets remain untouched.
+
+## D-131 — Fourth scripted Atlas theme and grounded sparse work
+
+- **Date & Author:** 2026-10-04 12:25 +05:30 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Added a 4th pre-built design (`style.css` + `theme.js`) with Home, About, and optional case studies. Users often lack project details or photographs.
+- **Decision:** Packaged as immutable `cobalt-atlas/v2` with local fonts, host script inclusion, strict markup contract, bundle hashes, and sandboxed preview (`sandbox allow-scripts`, no `allow-same-origin`). Discovery offers 4th visual choice + work question. Content Architect fills Atlas supplement; sparse work renders abstract CSS art, designed invitation, and initials placeholder. Studio chat supports Atlas edits.
+- **Rejected alternatives:** User-specific JS/CSS; model-written scripts; invented achievements; ungrounded photos before asset workspace exists.
+- **Consequence:** Supersedes D-128 research proposal. Preserves immutable v1 themes.
+
+## D-130 — Resilient Supabase authentication provider reads
+
+- **Date & Author:** 2026-10-04 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Long-running API threw `AUTH_PROVIDER_UNAVAILABLE` on transient Supabase transport errors; failed JWKS refresh discarded cached keys.
+- **Decision:** Recreate bounded auth HTTP client on transport errors; retry idempotent GETs once; keep admin mutations single-shot. Cache last known JWKS up to 3,600s across outages; 30s failed-refresh backoff; rate-limit unknown-key lookups. Browser retries `/api/v1/me` twice before offering manual retry.
+- **Trade-off:** Revoked keys may be accepted for up to 1 hr during total Supabase downtime; token signature, issuer, and expiry checks remain enforced.
+- **Consequence:** Browser sessions survive transient provider downtime without configuration or infrastructure changes.
+
+## D-129 — Discovery palette selects an immutable Studio theme
+
+- **Date & Author:** 2026-10-03 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Needed user visual preference during Discovery to select between pre-built portfolio designs.
+- **Decision:** Added required palette question at end of Discovery interview. Swatches map deterministically to Editorial Forest Motion, Cobalt Atlas, or Obsidian Signal. Theme ID is pinned to session state, approval hash, and generator runs. Each theme retains independent CSS, markup contract, and manifest.
+- **Rejected alternatives:** Model-selected themes; freeform mood parsing; runtime CSS mutation.
+- **Consequence:** Theme selection is deterministic and immutable across build, edits, and restore.
+
+## D-128 — Proposed interactive Studio theme using pre-built JavaScript
+
+- **Date & Author:** 2026-10-03 — Codex (OpenAI)
+- **Status:** proposed-research-only (superseded by D-131)
+- **Context:** Explored pairing model-generated `body_html` with pre-built CSS/JS scripts while preserving strict preview sandboxing.
+- **Decision:** Outlined host-injected `theme.js`, CSP sandbox flags, integrity checks, and Chromium behavioral tests in `docs/research/studio-interactive-theme-architecture.md`.
+- **Consequence:** Superseded by D-131 implementation; preserved as architectural reference.
+
+## D-127 — Render Free pilot with existing Supabase Auth and PostgreSQL
+
+- **Date & Author:** 2026-10-03 — Codex (OpenAI)
+- **Status:** decided-not-provisioned
+- **Context:** Hard free-tier constraint, 2-3 users, simple hosting without external Redis or object storage.
+- **Decision:** Selected Render Free Docker Web Service (host-supervised API + worker) + existing Supabase (Auth + PG pooler). 30-day bounded retention for cache and runs. Startup Alembic migrations.
+- **Trade-off:** Render Free sleeps after 15m inactivity, 512MB RAM, no headless Chromium verification. Pilot only; Azure VM unaffected. Documented in `docs/deployment/version-2/free-tier-migration-guide.md`.
+
+## D-126 — Railway Hobby as the recommended Version 2 hosting target
+
+- **Date & Author:** 2026-10-03 — Codex (OpenAI)
+- **Status:** decided-not-provisioned
+- **Context:** Simpler managed alternative to self-hosted Azure VM Compose architecture.
+- **Decision:** Recommended Railway Hobby (web service, dedicated worker, and managed PG) + Supabase Google Auth. Same-origin previews and PG job queue retained.
+- **Trade-off:** Paid/metered; operator-owned database backups. Documented in `docs/deployment/version-2/deployment-strategy.md`.
+
+## D-125 — Structure-preserving PDF intake with bundled OCR
+
+- **Date & Author:** 2026-10-02 20:35 +05:30 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Full-page OCR degraded digital PDFs, while layout-free text extraction failed on scanned resumes.
+- **Decision:** Docling PDFium backend for digital text + RapidOCR for scanned regions. Exports structured Markdown hierarchy. Bundled offline models at `/opt/docling-models`. Full transcript is user-editable before Discovery submission.
+- **Rejected alternatives:** Cloud OCR dependency; raw binary file storage; DOCX/photos deferred. Supersedes D-124 OCR deferral.
+
+## D-124 — Owner reset and text-first Discovery file intake
+
+- **Date & Author:** 2026-10-02 18:05 +05:30 — Codex (OpenAI)
+- **Status:** implemented-locally
+- **Context:** Users required ability to restart portfolio from scratch and submit resume files directly.
+- **Decision:** Added owner-scoped reset action in sticky header; purges session state, jobs, runs, versions, and chat while retaining session ID. Upload adapter extracts text from PDF/MD/TXT into `document_text`.
+- **Consequence:** Running workers fenced by revision check; uploaded binaries discarded after text extraction.
+
+## D-123 — Shared model layer generalised for a third engine
+
+- **Date & Author:** 2026-10-02 09:43 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-implemented-locally
+- **Context:** Model routing and per-run allowances were hardcoded for two engines (Discovery and Content Architect).
+- **Decision:** Added `AgentKey.CODE_GENERATOR` with engine preflight, timeout validation, and `recovery_allowance = 0`. JSON parser supports raw control chars (`strict=False`) for markup strings.
+- **Consequence:** Third engine integrated cleanly into model client and budgeting. Unconfigured engines fail closed.
+
+## D-122 — Studio: a one-shot, verified page build with sealed versions and a sandboxed same-origin preview
+
+- **Date & Author:** 2026-10-02 09:43 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-implemented-locally
+- **Context:** Content Architect approval was terminal; required page generation, verified preview, and chat edits without unconstrained retry/repair loops.
+- **Decision:** Single durable job per build (single attempt). Host-owned `<head>`, strict closed-world body validation, DB-sealed bundle, optional browser verification. Structured failure envelope (no live overwrite on failure). Sandboxed preview (`/preview/g/<hmac>...`) with CSP sandbox (no scripts, no same-origin). Chat edits apply typed content mutations and rebuild. One-click "Approve & generate my portfolio" CTA.
+- **Rejected alternatives:** Model-written `<head>`; auto-fixing near-misses; BS4/html5lib dependency; external object stores or public hosting.
+- **Consequence:** Safe, deterministic, verifiable page generation with immutable version audit trail.
+
+## D-121 — Preview belongs to the Code Generator, not Content Architect
+
+- **Date & Author:** 2026-10-01 21:55 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-and-implemented-locally
+- **Context:** Content Architect had an unverified client-side preview tab; operator mandated previews happen only in Code Generator.
+- **Decision:** Removed client-side preview from Content Architect. Reference theme moved to `docs/pinned-theme/`. Content Architect review strictly inspects copy, evidence, and coverage.
+- **Consequence:** Previews restricted exclusively to verified Studio bundles.
+
+## D-120 — Compact Discovery draft with bounded same-route recovery
+
+- **Date & Author:** 2026-10-01 16:25 +05:30 — Codex (OpenAI)
+- **Status:** decided-implemented-locally
+- **Context:** Strict span-linked dossier emission was slow and fragile; single model lane created queue contention.
+- **Decision:** Model emits compact draft; host builds `DiscoveryDossier/v1` and repairs IDs/links. Single same-route recovery attempt, streaming support, and configurable model-lane concurrency (migration 0026).
+- **Consequence:** Supersedes D-116 strict span emission. Fast, reliable brief generation.
+
+## D-119 — Content Architect routes through GPT-6 Luna
+
+- **Date & Author:** 2026-10-01 14:30 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-and-implemented-locally
+- **Context:** Operator requested Content Architect use GPT-6 Luna while Discovery keeps its existing model.
+- **Decision:** Added `experiential_luna_6` profile in `config/models.toml` for Content Architect routes (`active_agent_routes_v3`). Single-provider rule preserved.
+
+## D-118 — Typed single-page content tree for the pinned template
+
+- **Date & Author:** 2026-10-01 13:05 +05:30 — Claude Code (Anthropic)
+- **Status:** decided-and-implemented-locally
+- **Context:** Content Architect emitted generic multi-route sites mismatching the pinned single-page template.
+- **Decision:** Emits typed `page_content` matching template regions (4 pillars, organization names, structured slots). Claims and 6-way coverage ledger bind to field paths. Repaired via single integration call.
+- **Consequence:** Exact structural alignment between content plan and theme markup.
+
+## D-117 — Single-provider routing for active agent operations
+
+- **Date & Author:** 2026-10-01 10:40 +05:30 — Codex (OpenAI)
+- **Status:** decided-and-implemented-locally
+- **Context:** Transient primary failures triggered cross-provider fallbacks with confusing error messages.
+- **Decision:** Active stages (Discovery and Content Architect) use only the configured primary profile; alternate-provider fallbacks disabled.
+- **Consequence:** Deterministic provider routing and transparent failure reporting.
+
+## D-116 — Complete agent handoffs with two approvals and AI-written HTML
+
+- **Date & Author:** 2026-09-29 16:13 +05:30 — Codex (OpenAI)
+- **Status:** decided-not-yet-implemented (foundational; refined by D-118, D-120, D-122)
+- **Context:** Architectural vision for 3-stage portfolio pipeline with text-first intake, explicit reviews, and verified build.
+- **Decision:** Freeform text intake -> Discovery dossier (approval 1) -> Content Architect page plan (approval 2) -> Code Generator verified HTML bundle.
+- **Consequence:** Foundation of the 3-stage portfolio pipeline.
+
+## D-115 — Research-only refinement of the portfolio proposal
+
+- **Date & Author:** 2026-09-29 01:22 +05:30 — Codex (OpenAI)
+- **Status:** open / historical-research
+- **Context:** Architecture research proposal in `docs/architecture/10-...` through `13-...`.
+- **Decision:** Groundwork for evidence contracts, fixed-CSS rendering, verified preview, and bounded repair without altering active runtime.
+- **Consequence:** Predecessor to D-116.
+
+## D-138 — Measured generation speed with configured timing context
+
+- **Date & Author:** 2026-10-06 — Codex (OpenAI)
+- **Status:** implemented-locally; Render release requires operator approval
+- **Context:** The operator reported slow Explorer and Content Architect results on Render Free and requested faster generation, a shorter Studio animation, and visible estimates without changing working behavior.
+- **Decision:** Keep configured models, token budgets, explicit stage actions and the existing hosting plan. Adopt low Content Architect reasoning after uncached sparse/rich sample comparisons and strict output/render validation. Retain conditional writing/integration and all grounding/coverage gates. Reduce idle worker polling to two seconds while preserving the small-host concurrency/pool limits. Include the pending host renderer and sparse-content fixes from D-133; validate sample disclaimers in the required section headings. Reduce the Studio hold and preview-loading bound by five seconds, while unfinished actual builds remain in progress.
+- **Presentation:** Expose only non-secret timing ranges from application configuration. Show a typical range alongside actual elapsed time, with queue and overrun explanations. Ranges are estimates, not a completion deadline; this refines the timing presentation in D-135 at the operator's request.
+- **Evidence:** The dated local comparisons and quality checks are recorded in `docs/performance-follow-ups.md`; opt-in scripts use repository samples and never run as standard tests. Content-free queue/handler/model timing logs enable post-release measurement.
+- **Rejected alternatives:** Changing providers/models, trimming source facts or output limits, weakening validators, introducing another queue, increasing Free-instance concurrency, or promising to eliminate Render's idle wake-up.
+- **Consequence:** Local measured speed improves while source validation and user approvals remain intact. Live warm/cold timings still require a separately approved Render release and observation.

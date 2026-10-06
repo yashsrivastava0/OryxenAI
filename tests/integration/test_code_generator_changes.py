@@ -25,7 +25,7 @@ from tests.integration.test_code_generator_worker import (
     _service,
     _start_and_run,
 )
-from tests.unit.agents.code_generator.helpers import sample_content
+from tests.unit.agents.code_generator.helpers import force_model_path, sample_content
 
 pytestmark = pytest.mark.integration
 
@@ -37,6 +37,7 @@ def _plan(*ops: dict[str, Any], intent: str = "content_edit", **extra: Any) -> d
 
 
 def _use(monkeypatch: pytest.MonkeyPatch, client: ReferenceModelClient) -> ReferenceModelClient:
+    force_model_path(monkeypatch)
     monkeypatch.setattr(
         "oryxenai.jobs.handlers.code_generator._build_code_generator_agent",
         lambda **kwargs: CodeGeneratorAgent(client, theme_id=kwargs["theme_id"]),

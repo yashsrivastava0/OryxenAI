@@ -261,8 +261,10 @@ def failure_from_issues(
     )
 
 
-def failure_from_validation(report: ValidationReport, *, reference: str = "") -> FailureEnvelope:
-    """The page the model wrote failed the host's checks."""
+def failure_from_validation(
+    report: ValidationReport, *, reference: str = "", engine: str = "model"
+) -> FailureEnvelope:
+    """The page body failed the host's checks (written by the model or rendered by the theme)."""
     errors = sorted(report.errors, key=lambda issue: (issue.path is None, issue.selector is None))
     codes = {issue.code for issue in errors}
     count = len(errors)
@@ -299,7 +301,13 @@ def failure_from_validation(report: ValidationReport, *, reference: str = "") ->
         code=code,
         summary=f"The generated page failed {count} {noun}; first: {first.message}",
         cause=cause,
-        owner="validation" if code == "PAGE_MARKUP_NOT_ALLOWED" else "model_output",
+        owner=(
+            "theme"
+            if engine != "model"
+            else "validation"
+            if code == "PAGE_MARKUP_NOT_ALLOWED"
+            else "model_output"
+        ),
         action="Nothing was published and your last verified page is unchanged. Try again; if it repeats, copy the diagnostics for support.",
         reference=reference,
     )

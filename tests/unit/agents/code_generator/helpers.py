@@ -149,3 +149,33 @@ def shapes() -> dict[str, dict[str, Any]]:
         }
     )
     return {name: copy.deepcopy(value) for name, value in named.items()}
+
+
+class _ModelOnlyContract:
+    """Hides ``render_body`` so a theme takes the model-written path (tests only)."""
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> Any:
+        if name == "render_body":
+            raise AttributeError(name)
+        return getattr(self._inner, name)
+
+
+def model_path_theme(theme: Any) -> Any:
+    """The same theme package, but built by the model instead of the host renderer."""
+    import dataclasses
+
+    return dataclasses.replace(theme, contract=_ModelOnlyContract(theme.contract))
+
+
+def force_model_path(monkeypatch: Any) -> None:
+    """Make builds use the (mock) model client instead of a theme's host renderer."""
+
+    class _NoHostRendering:  # nothing is an instance, so the pipeline takes the model path
+        pass
+
+    monkeypatch.setattr(
+        "oryxenai.agents.code_generator.pipeline.HostRenderedContract", _NoHostRendering
+    )

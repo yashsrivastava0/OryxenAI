@@ -9,7 +9,7 @@ asks the theme's contract to derive host values, compose the technical
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from oryxenai.themes.htmltree import Element
 from oryxenai.themes.issues import Issue
@@ -59,3 +59,19 @@ class ThemeContract(Protocol):
 
     def prompt_contract(self) -> str:
         """Markup contract text for the model: structure example plus rules."""
+
+
+@runtime_checkable
+class HostRenderedContract(Protocol):
+    """A contract that can write its own page body from approved content.
+
+    Implementing ``render_body`` is all a new theme needs to be built by the host:
+    the body is a pure function of ``page_content``, so no model call is made for the
+    build and the result is validated, sealed and browser-verified like any other page.
+    A theme without it falls back to the model-written path.
+    """
+
+    def render_body(
+        self, page_content: Mapping[str, Any], derived: Mapping[str, Any] | None = None
+    ) -> str:
+        """The complete page body markup for ``page_content``."""

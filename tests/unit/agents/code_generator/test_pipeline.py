@@ -19,9 +19,10 @@ from oryxenai.agents.shared.contracts import AgentKey
 from oryxenai.agents.shared.providers.errors import ProviderRateLimitError, ProviderTimeoutError
 from oryxenai.themes import get_theme
 from oryxenai.themes.issues import Issue
-from tests.unit.agents.code_generator.helpers import sample_content, shapes
+from tests.unit.agents.code_generator.helpers import model_path_theme, sample_content, shapes
 
-THEME = get_theme()
+THEME = model_path_theme(get_theme())
+HOST_THEME = get_theme()
 CONTENT = sample_content("01_strong_profile")
 
 
@@ -36,7 +37,10 @@ def _context() -> Any:
 
 
 async def _build(
-    client: ReferenceModelClient, content: dict[str, Any] | None = None, **kwargs: Any
+    client: ReferenceModelClient,
+    content: dict[str, Any] | None = None,
+    theme: Any = None,
+    **kwargs: Any,
 ):
     trace: dict[str, Any] = {}
     stages: list[str] = []
@@ -49,7 +53,7 @@ async def _build(
             page_content=content or CONTENT,
             agent=CodeGeneratorAgent(client),
             context=_context(),
-            theme=THEME,
+            theme=theme or THEME,
             max_body_bytes=262144,
             trace=trace,
             reference="cg-test",
@@ -204,3 +208,30 @@ async def test_an_unavailable_browser_does_not_block_a_valid_page() -> None:
     outcome, _trace, _stages = await _build(ReferenceModelClient(), verifier=verifier)
     assert not isinstance(outcome, CodeGeneratorFailure)
     assert outcome.receipt["browser"]["status"] == "unavailable"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "theme_id",
+    ["editorial-forest/v1", "editorial-forest-motion/v1", "obsidian-signal/v1", "cobalt-atlas/v1"],
+)
+async def test_themes_with_a_renderer_are_built_by_the_host_without_a_model_call(
+    theme_id: str,
+) -> None:
+    client = ReferenceModelClient()
+    outcome, trace, stages = await _build(client, theme=get_theme(theme_id))
+    assert not isinstance(outcome, CodeGeneratorFailure), outcome
+    assert client.requests == []
+    assert stages == ["generating", "validating"]
+    assert trace["engine"] == "host_template"
+    assert trace["calls"] == [{"operation": "host_render", "theme_id": theme_id}]
+    assert outcome.receipt["engine"] == "host_template"
+    assert outcome.bundle.lang == "en"
+
+
+@pytest.mark.asyncio
+async def test_a_host_render_that_fails_validation_blames_the_theme_not_a_model() -> None:
+    content = dict(CONTENT)
+    content["hero"] = {**CONTENT["hero"], "name": "<b>Sam</b>"}  # still escaped by the template
+    outcome, _, _ = await _build(ReferenceModelClient(), content, theme=HOST_THEME)
+    assert not isinstance(outcome, CodeGeneratorFailure)

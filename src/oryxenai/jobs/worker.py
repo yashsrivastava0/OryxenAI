@@ -22,6 +22,7 @@ import asyncio
 import contextlib
 import os
 import signal
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -374,6 +375,14 @@ class Worker:
         if job.lease_token:
             payload["lease_token"] = job.lease_token
         heartbeat_task = asyncio.create_task(self._renew_lease_loop(job))
+        handler_started = time.perf_counter()
+        created_at = getattr(job, "created_at", None)
+        queue_ms = (
+            max(0.0, (datetime.now(UTC) - created_at).total_seconds() * 1000)
+            if isinstance(created_at, datetime) and created_at.tzinfo is not None
+            else 0.0
+        )
+        logger.info("job_timing job=%s kind=%s queue_ms=%.0f", job.id, kind, queue_ms)
         try:
             result = await asyncio.wait_for(
                 handler.execute(payload, self._instance_id),
@@ -424,6 +433,12 @@ class Worker:
             )
             return
         finally:
+            logger.info(
+                "job_timing job=%s kind=%s handler_ms=%.0f",
+                job.id,
+                kind,
+                (time.perf_counter() - handler_started) * 1000,
+            )
             heartbeat_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task

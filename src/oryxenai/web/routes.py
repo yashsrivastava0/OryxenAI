@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from oryxenai.auth.web import auth_csp
+from oryxenai.web.branding import BRAND_ASSETS, BRAND_DIR, brand_version
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -57,7 +58,9 @@ def _resolve_shell_asset(requested: str) -> Path | None:
     parts = Path(requested).parts
     if not parts or any(part in {"", ".", ".."} for part in parts):
         return None
-    if parts[0] == "product":
+    if parts[0] == "product" or (
+        len(parts) == 2 and parts[0] == "brand" and parts[1] in BRAND_ASSETS
+    ):
         relative = Path(*parts)
     elif len(parts) == 1 and parts[0] in _SHELL_ASSETS:
         relative = Path(parts[0])
@@ -74,6 +77,8 @@ def _shell_context(settings: Any) -> dict[str, object]:
     # provider credentials. Safe account-scoped metadata is fetched after auth.
     return {
         "app_name": settings.app.name,
+        "brand_version": brand_version(),
+        "generation_estimates": settings.generation_estimates.model_dump(mode="json"),
         "model_profiles": [],
         "auth_config": settings.auth_public_config,
         "pipeline_mode": settings.auth.pipeline_mode,
@@ -102,6 +107,14 @@ def _set_shell_headers(response: Response, settings: Any) -> Response:
 def create_web_router(settings_override: Any | None = None) -> APIRouter:
     """Return the authenticated product shell and static assets."""
     router = APIRouter()
+
+    @router.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> FileResponse:
+        return FileResponse(
+            BRAND_DIR / "favicon.ico",
+            media_type="image/x-icon",
+            headers={"Cache-Control": "public, max-age=300"},
+        )
 
     @router.get("/app", response_class=HTMLResponse)
     async def product_app(request: Request) -> Any:
@@ -135,7 +148,11 @@ def create_web_router(settings_override: Any | None = None) -> APIRouter:
             return Response("Not found", status_code=404, media_type="text/plain")
         return FileResponse(
             path,
-            media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            media_type=(
+                "application/manifest+json"
+                if path.suffix == ".webmanifest"
+                else mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            ),
             headers={"Cache-Control": "public, max-age=300"},
         )
 

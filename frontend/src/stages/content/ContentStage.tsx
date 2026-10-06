@@ -6,6 +6,7 @@ import { ArtifactSurface } from "../../components/ArtifactSurface";
 import { AttentionPanel } from "../../components/AttentionPanel";
 import { ContentCoverageInspector } from "../../components/ContentCoverageInspector";
 import { ProgressSurface } from "../../components/ProgressSurface";
+import { elapsedSince } from "../../data/generation-estimates";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
 import { ActionDock } from "../../components/ActionDock";
 
@@ -76,7 +77,9 @@ export function ContentStage({
           { id: "brief", label: "Approved Explorer brief received", state: "complete" },
           { id: "current", label: view.statusText || "Content Architect is working", state: "current" },
         ]}
-        elapsedSeconds={view.elapsedSeconds}
+        elapsedSeconds={view.elapsedSeconds ?? elapsedSince(view.job?.createdAt)}
+        estimateKind="content"
+        queued={view.job?.status === "queued"}
         onStop={onStop}
         stopLabel="Stop Content Architect"
       />

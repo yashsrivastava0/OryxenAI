@@ -17,7 +17,7 @@ from oryxenai.core.settings import get_settings
 from oryxenai.db.models.background_job import BackgroundJob
 from oryxenai.jobs.worker import Worker
 from tests.integration.test_code_generator_worker import _new_session, _service
-from tests.unit.agents.code_generator.helpers import sample_content
+from tests.unit.agents.code_generator.helpers import force_model_path, sample_content
 
 pytestmark = [pytest.mark.integration, pytest.mark.worker]
 
@@ -44,6 +44,7 @@ async def test_four_users_build_concurrently_without_crossing_wires(
     db_session, monkeypatch
 ) -> None:
     _CountingClient.active = _CountingClient.peak = 0
+    force_model_path(monkeypatch)
     monkeypatch.setattr(
         "oryxenai.jobs.handlers.code_generator._build_code_generator_agent",
         lambda **kwargs: CodeGeneratorAgent(

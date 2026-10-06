@@ -15,7 +15,9 @@ Use CSS artwork in project cards and case pages, with data-art from
 orbit|grid|waves|stack|bars|dots and data-tone from 1|2|3|4. Do not add image
 URLs. Illustrative projects must visibly say "Illustrative concept — not real
 client work" on both card and case page; leave outcomes and metrics empty.
-Every person-specific visible string must match an approved field exactly.
+Every person-specific visible string must match an approved field exactly. When any
+row of experience, education or statistics has kind "sample", print "Sample content —
+replace with your own details." once in that section's heading block, as the exemplar shows.
 
 Every {path} in the exemplar is a placeholder, never text: replace it with the exact
 value at that path in CONTENT (or DERIVED). Output no braces and none of the

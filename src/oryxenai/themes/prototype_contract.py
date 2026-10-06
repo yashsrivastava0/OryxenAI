@@ -198,6 +198,12 @@ class PrototypeContract:
     def render_tail(self) -> str:
         return "\n</body>\n</html>\n"
 
+    def render_body(
+        self, page_content: Mapping[str, Any], derived: Mapping[str, Any] | None = None
+    ) -> str:
+        del derived
+        return self.render_reference_body(page_content)
+
     def render_reference_body(self, page_content: Mapping[str, Any]) -> str:
         return (
             self._env.get_template("body.html.j2")

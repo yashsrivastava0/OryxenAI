@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="/static/brand/favicon.ico?v={{ brand_version }}" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/brand/favicon-32.png?v={{ brand_version }}">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/brand/apple-touch-icon.png?v={{ brand_version }}">
+  <link rel="manifest" href="/static/brand/site.webmanifest?v={{ brand_version }}">
   <title>{{ 'Privacy' if page == 'privacy' else 'Terms' }} · {{ app_name }}</title>
   <link rel="stylesheet" href="/auth-static/tokens.css?v={{ tokens_css_version }}">
   <link rel="stylesheet" href="/auth-static/public-information.css?v={{ information_css_version }}">

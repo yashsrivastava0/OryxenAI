@@ -468,6 +468,22 @@ def _normalize_configured_emails(raw: str) -> tuple[str, ...]:
         raise ValueError(str(exc)) from exc
 
 
+class GenerationEstimatesConfig(BaseModel):
+    """Non-secret warm-service timing ranges presented as estimates, not deadlines."""
+
+    questions: tuple[int, int] = (10, 30)
+    brief: tuple[int, int] = (25, 60)
+    content: tuple[int, int] = (30, 90)
+    studio: tuple[int, int] = (25, 35)
+    studio_edit: tuple[int, int] = (10, 45)
+
+    @model_validator(mode="after")
+    def valid_ranges(self) -> GenerationEstimatesConfig:
+        if any(low <= 0 or high < low for low, high in self.model_dump().values()):
+            raise ValueError("Generation estimates must be positive, ordered ranges.")
+        return self
+
+
 class DiscoveryConfig(BaseModel):
     """Explorer agent output limits from [discovery] in config/app.toml."""
 
@@ -813,6 +829,9 @@ class Settings(BaseSettings):
     model_cache: ModelCacheConfig = Field(default_factory=ModelCacheConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
+    generation_estimates: GenerationEstimatesConfig = Field(
+        default_factory=GenerationEstimatesConfig
+    )
     code_generator: CodeGeneratorConfig = Field(default_factory=CodeGeneratorConfig)
     archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
     preview_gateway: PreviewGatewayConfig = Field(default_factory=PreviewGatewayConfig)
@@ -869,6 +888,10 @@ class Settings(BaseSettings):
             self.retention = RetentionConfig(**app_data["retention"])
         if "discovery" in app_data:
             self.discovery = DiscoveryConfig(**app_data["discovery"])
+        if "generation_estimates" in app_data:
+            self.generation_estimates = GenerationEstimatesConfig(
+                **app_data["generation_estimates"]
+            )
         if "code_generator" in app_data:
             self.code_generator = CodeGeneratorConfig(**app_data["code_generator"])
         if "archive_storage" in app_data:

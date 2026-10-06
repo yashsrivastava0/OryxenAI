@@ -62,7 +62,7 @@ The active workflow **ends in the Studio**. The repository generates and preview
 
 ### Studio (Code Generator) Stage
 * **Status:** Implemented end-to-end.
-* **Capabilities:** Builds the page from the approved `page_content` with one durable job and one model call, validates it strictly against the pinned theme contract, seals it, verifies it in a real browser (policy-controlled), keeps immutable versions with restore, and applies chat edits to the content through typed, whitelisted operations.
+* **Capabilities:** Builds the page from the approved `page_content` with one durable job. A theme whose contract implements `render_body` is rendered by the host (no model call, deterministic); a theme without one falls back to one model call. Either way the body is validated strictly against the pinned theme contract, seals it, verifies it in a real browser (policy-controlled), keeps immutable versions with restore, and applies chat edits to the content through typed, whitelisted operations.
 * **Boundary:** Started only through the explicit `code-generator/start` call; never replaces the live page with a failed attempt.
 * **Documentation:** See [`src/oryxenai/agents/code_generator/README.md`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/agents/code_generator/README.md).
 

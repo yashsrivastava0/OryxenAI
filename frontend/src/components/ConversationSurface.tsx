@@ -5,6 +5,7 @@ import type { DiscoveryAnswerSubmission } from "../data/discovery-answer";
 import { DiscoveryQuestionCard } from "./DiscoveryQuestionCard";
 import { captureFailure, type FailureDiagnosticInput } from "../data/failure-diagnostics";
 import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
+import { GenerationEstimate } from "./GenerationEstimate";
 
 export interface AnsweredTurn {
   questionId: string;
@@ -177,7 +178,7 @@ export function ConversationSurface({
                 ? "Explorer is waiting for the background worker"
                 : waitingInLine ? "Explorer is waiting in line" : (workingLabel || "Preparing your brief.")}
             </h2>
-            <p className="working-elapsed">{formatDuration(queuedAgeSeconds)} elapsed</p>
+            <GenerationEstimate kind={workingPhase === "questions" ? "questions" : "brief"} elapsedSeconds={queuedAgeSeconds} queued={waitingInLine} paused={workerStalled} />
 
             <div className="living-draft-activity-rail" aria-hidden="true">
               <div className="activity-step step-done">

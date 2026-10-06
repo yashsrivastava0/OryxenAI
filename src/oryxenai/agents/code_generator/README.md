@@ -17,9 +17,10 @@ portfolio".
 ```text
 approved page_content + selected theme id
   -> admission (counts and lengths, no model call)
-  -> generate_page   one model call -> {"lang", "body_html"}
+  -> produce body    theme.render_body(page_content) when the contract has it (no
+                     model call), else one model call -> {"lang", "body_html"}
   -> validate        strict, never auto-fixed (see "Validation")
-  -> seal            host-owned <head> + the model's body; sha256-pinned
+  -> seal            host-owned <head> + the body; sha256-pinned
   -> verify          real browser, best effort (see "Browser verification")
   -> promote         one transaction swaps the live page
 ```
@@ -27,9 +28,13 @@ approved page_content + selected theme id
 * One durable job per build, `max_attempts = 1`. There is **no** automatic
   retry, repair call or fallback renderer. A failure stops and is reported
   exactly; the owner decides whether to start again.
-* A first build makes one model call. A chat change makes two
-  (`interpret_change`, then `generate_page`); a reply-only message makes one;
-  a restore makes none.
+* A first build of a theme with a host renderer (`render_body`, see
+  `themes/contract.py::HostRenderedContract`) makes no model call and cannot
+  miscopy approved wording; adding a new HTML+CSS+JS theme only needs that one
+  method. A theme without it makes one model call. A chat change makes one
+  (`interpret_change`) plus one more only on the model path; a reply-only
+  message makes one; a restore makes none. Receipts record `engine`
+  (`host_template` or `model`).
 * The model writes the visible markup only. The host owns the technical
   `<head>` (charset, viewport, title, description, stylesheet link and any
   theme-owned script).

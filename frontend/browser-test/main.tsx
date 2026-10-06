@@ -141,6 +141,10 @@ function StageFixture() {
       />
     );
   }
+  if (fixture === "discovery-questions-working" || fixture === "discovery-brief-working") {
+    const jobs = [{ id: "timing-job", kind: "discovery.build", status: "running", created_at: new Date(Date.now() - 18000).toISOString(), started_at: new Date(Date.now() - 17000).toISOString(), heartbeat_at: new Date().toISOString() }];
+    return <DiscoveryStage view={adaptDiscovery({ ...questionsMcqReady, status: fixture === "discovery-questions-working" ? "questions_running" : "brief_running" }, jobs)} history={[]} canMutate onStartDiscovery={noop} onSubmitAnswer={noop as never} onRetryDiscovery={noop} onApproveAndContinue={noop} onReviseBrief={noop} />;
+  }
   if (fixture === "discovery-question-save-fails") {
     return (
       <DiscoveryStage
@@ -266,6 +270,9 @@ function StageFixture() {
   }
   if (fixture === "content-review") {
     return <ContentStage view={adaptContentArchitect(contentFixtureReview, true)} canMutate onStart={noop} onApproveAndContinue={noop} onRevise={noop} />;
+  }
+  if (fixture === "content-working") {
+    return <ContentStage view={adaptContentArchitect({ ...contentFixtureReview, status: "build_running", elapsed_seconds: 22 }, true)} canMutate onStart={noop} onApproveAndContinue={noop} onRevise={noop} />;
   }
   if (fixture === "content-approved") {
     return <ContentStage view={adaptContentArchitect(contentFixtureApproved, true)} canMutate onStart={noop} onApproveAndContinue={noop} onRevise={noop} />;

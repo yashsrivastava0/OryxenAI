@@ -232,19 +232,28 @@ async def test_atlas_scripted_theme_builds_and_serves_the_pinned_pair(client) ->
     assert script.content == theme.file("theme.js").data
 
 
+def _corrupt_host_render(monkeypatch, name: str) -> None:
+    """Make the theme renderer emit altered copy, as a template regression would."""
+    from oryxenai.themes.editorial_forest.v1.contract import EditorialForestContract
+
+    original = EditorialForestContract.render_body
+    monkeypatch.setattr(
+        EditorialForestContract,
+        "render_body",
+        lambda self, content, derived=None: original(self, content, derived).replace(
+            name, name + "!", 1
+        ),
+    )
+
+
 @pytest.mark.asyncio
-async def test_a_failed_build_is_visible_with_the_exact_failure(client) -> None:
-    name = sample_content("01_strong_profile")["hero"]["name"]
-    previous = _MODEL.mutate
-    _MODEL.mutate = lambda body: body.replace(name, name + "!", 1)
-    try:
-        session_id = await _create_session(client)
-        await _approve_content(client, session_id)
-        base = f"/api/v1/sessions/{session_id}/code-generator"
-        started = await client.post(f"{base}/start")
-        result = await _run_build(client, started.json())
-    finally:
-        _MODEL.mutate = previous
+async def test_a_failed_build_is_visible_with_the_exact_failure(client, monkeypatch) -> None:
+    _corrupt_host_render(monkeypatch, sample_content("01_strong_profile")["hero"]["name"])
+    session_id = await _create_session(client)
+    await _approve_content(client, session_id)
+    base = f"/api/v1/sessions/{session_id}/code-generator"
+    started = await client.post(f"{base}/start")
+    result = await _run_build(client, started.json())
     assert result["status"] == "failed"
     state = (await client.get(base)).json()
     assert state["code_generator"]["status"] == "needs_attention"
@@ -460,19 +469,14 @@ async def test_the_envelope_carries_everything_the_studio_frontend_reads(client)
 
 
 @pytest.mark.asyncio
-async def test_a_failure_carries_every_field_the_failure_panel_shows(client) -> None:
+async def test_a_failure_carries_every_field_the_failure_panel_shows(client, monkeypatch) -> None:
     from tests.browser.studio_contract import FRONTEND_FAILURE_KEYS
 
-    name = sample_content("01_strong_profile")["hero"]["name"]
-    previous = _MODEL.mutate
-    _MODEL.mutate = lambda body: body.replace(name, name + "!", 1)
-    try:
-        session_id = await _create_session(client)
-        await _approve_content(client, session_id)
-        base = f"/api/v1/sessions/{session_id}/code-generator"
-        await _run_build(client, (await client.post(f"{base}/start")).json())
-    finally:
-        _MODEL.mutate = previous
+    _corrupt_host_render(monkeypatch, sample_content("01_strong_profile")["hero"]["name"])
+    session_id = await _create_session(client)
+    await _approve_content(client, session_id)
+    base = f"/api/v1/sessions/{session_id}/code-generator"
+    await _run_build(client, (await client.post(f"{base}/start")).json())
     failed = (await client.get(base)).json()
     assert set(failed["code_generator"]["last_error"]) >= FRONTEND_FAILURE_KEYS
     assert set(failed["versions"][0]["error"]) >= FRONTEND_FAILURE_KEYS

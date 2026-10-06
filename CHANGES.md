@@ -284,3 +284,31 @@ patched release; frontend tests/build passed and npm audit reports no findings.
 
 The published visual review caught the uppercase DISCOVER label in the SVG
 journey footer. Changed it to EXPLORE to match the frontend and README.
+
+### 2026-10-06 — Codex (OpenAI) — Faster generation and clear timing context
+
+Reviewed and included pending deterministic theme rendering and labelled sparse
+content fixes, with strict validation and sealed preview/version behavior
+preserved. Fixed sample disclaimer validation to check its section heading,
+allowing the same approved text within copy without concealing a missing label.
+Retained models and token budgets while lowering Content Architect reasoning
+after uncached sample comparisons. Reduced Render worker polling to two seconds
+without increasing concurrency, and added content-free timing logs. Explorer
+fact handling and explicit approval boundaries remain intact.
+
+Shortened the initial Studio presentation by five seconds. Added configurable
+typical timing ranges, elapsed time and honest queue/overrun feedback in the
+existing frontend design. Installed the operator-provided app artwork as
+versioned favicon, touch icon and manifest assets across product/auth shells.
+Restored the prior change history from Git before adding this entry. Extended
+the opt-in HTTP smoke script through preview, content editing and restore;
+normal tests continue to use deterministic model fixtures. See D-138 and
+`docs/performance-follow-ups.md` for measurements and verification. No Render
+release was triggered; the operator's approval is required.
+
+Verification passed: Python lint, tracked/task-file formatting, source typing,
+the full deterministic test suite, frontend tests/type check/build, native
+migrations, production Docker startup, and the authorized live-model sample
+and HTTP flow checks. A new pytest cache resolved a local permission issue
+after the operator's PC restart. Unrelated untracked research notes remain
+excluded; their code-fence formatting is documented in the verification record.

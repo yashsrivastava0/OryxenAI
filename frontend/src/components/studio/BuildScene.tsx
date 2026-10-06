@@ -1,4 +1,5 @@
 import { studioStageLabel, type StudioInFlightVM } from "../../data/adapters/studio";
+import { GenerationEstimate } from "../GenerationEstimate";
 
 const EVENTS = [
   { at: 0, name: "Story canvas", detail: "Setting the first frame" },
@@ -36,6 +37,7 @@ export function BuildScene({ elapsedMs, inFlight, onStop }: { elapsedMs: number;
         <div><p className="eyebrow">STUDIO / PAGE IN PROGRESS</p><h1>Your page is taking shape.</h1><p>Follow the visual story while your portfolio is built and checked.</p></div>
         <span className="build-scene__truth" role="status"><span className="pulse-indicator" aria-hidden="true" />{realStatus}</span>
       </header>
+      <GenerationEstimate kind={inFlight?.origin === "change" ? "studio_edit" : "studio"} elapsedSeconds={elapsedMs / 1000} queued={inFlight?.stage === "queued"} />
       <div className="build-scene__body">
         <aside className="build-scene__activity" aria-label="Illustrative build activity">
           <div className="build-scene__aside-head"><strong>On the canvas</strong><span>Illustrative view</span></div>

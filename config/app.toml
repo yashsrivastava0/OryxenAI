@@ -42,6 +42,15 @@ concurrency = 4                # max concurrent handlers (1 = serial)
 model_lane_concurrency = 4    # concurrent model jobs across workers
 shutdown_grace = 10.0          # seconds to finish active jobs at shutdown
 
+[generation_estimates]
+# Typical warm-service ranges in seconds, not deadlines or completion promises.
+# Queue contention, richer sources and Render Free wake-up can add time.
+questions = [10, 30]
+brief = [25, 60]
+content = [30, 90]
+studio = [25, 35]
+studio_edit = [10, 45]
+
 [worker.job]
 # Job execution behaviour.
 handler_timeout = 300.0        # max seconds a handler may run

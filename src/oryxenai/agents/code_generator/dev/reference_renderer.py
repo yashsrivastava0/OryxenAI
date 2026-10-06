@@ -1,41 +1,17 @@
-"""Deterministic reference renderer for the Editorial Forest v1 theme.
+"""Test and CLI helpers around the themes' host renderers.
 
-Dev/test utility only. It renders valid body markup for any approved
-``page_content`` so validators, worker tests and the CLI ``--mock`` mode have a
-trustworthy golden output, and it generates the symbolic exemplar embedded in
-the model prompt so the example can never drift from the validators.
+Rendering itself is owned by each theme contract (``render_body``) and used by the
+production pipeline. This module adds the whole-document helper, the CLI ``--mock``
+model client's golden output, and the symbolic exemplar embedded in the model prompt
+for themes that still use the model path.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
-
 from oryxenai.themes import DEFAULT_THEME_ID, get_theme
-from oryxenai.themes.cobalt_atlas.v2.contract import AtlasContract
-from oryxenai.themes.prototype_contract import PrototypeContract
-
-_ENV = Environment(
-    loader=FileSystemLoader(str(Path(__file__).resolve().parent / "templates")),
-    autoescape=True,
-    trim_blocks=True,
-    lstrip_blocks=True,
-    undefined=StrictUndefined,
-    keep_trailing_newline=False,
-)
-_TEMPLATE = "editorial_forest_v1.body.html.j2"
-
-
-def _text(value: Any) -> str:
-    return value.strip() if isinstance(value, str) else ""
-
-
-def _region(content: Mapping[str, Any], key: str) -> dict[str, Any]:
-    value = content.get(key)
-    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def render_body(
@@ -44,47 +20,8 @@ def render_body(
     *,
     theme_id: str = DEFAULT_THEME_ID,
 ) -> str:
-    """Render the page body for ``page_content`` (valid by construction)."""
-    theme = get_theme(theme_id)
-    if isinstance(theme.contract, PrototypeContract):
-        return theme.contract.render_reference_body(page_content)
-    if isinstance(theme.contract, AtlasContract):
-        return theme.contract.render_reference_body(page_content)
-    values = dict(derived) if derived is not None else theme.contract.derive(page_content)
-    hero = {key: _text(value) for key, value in _region(page_content, "hero").items()}
-    for key in (
-        "name",
-        "eyebrow_primary",
-        "eyebrow_secondary",
-        "headline_prefix",
-        "headline_emphasis",
-        "intro",
-        "location",
-        "primary_cta_label",
-        "secondary_cta_label",
-    ):
-        hero.setdefault(key, "")
-    section_keys = {
-        "systems": "systems_practice",
-        "capabilities": "technical_capabilities",
-        "context": "professional_context",
-        "connect": "connect",
-    }
-    sections = {
-        name: {
-            field: _text(_region(page_content, key).get(field))
-            for field in ("eyebrow", "heading", "intro")
-        }
-        for name, key in section_keys.items()
-    }
-    return _ENV.get_template(_TEMPLATE).render(
-        d=values,
-        hero=hero,
-        eyebrow=[part for part in (hero["eyebrow_primary"], hero["eyebrow_secondary"]) if part],
-        headline_prefix=hero["headline_prefix"],
-        headline_emphasis=hero["headline_emphasis"],
-        **sections,
-    )
+    """The host-rendered body for ``page_content`` (valid by construction)."""
+    return get_theme(theme_id).contract.render_body(page_content, derived)  # type: ignore[attr-defined,no-any-return]
 
 
 def render_document(

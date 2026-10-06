@@ -3270,3 +3270,16 @@ button:disabled, textarea:disabled, input:disabled {
   .palette-choice[data-look="cobalt_atlas_interactive"] .palette-demo__accent,
   .build-scene__event, .build-scene__caret { animation: none; }
 }
+
+/* Timing context shares the workspace's warm paper and restrained signal. */
+.generation-estimate { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .85rem 2rem; width: min(100%, 28rem); margin: 1.4rem 0; padding: 1rem 1.2rem; border: 1px solid var(--rule); border-left: 2px solid var(--signal); background: var(--paper-card); font-variant-numeric: tabular-nums; }
+.generation-estimate__metric { display: flex; flex-direction: column; gap: .35rem; }
+.generation-estimate__label { color: var(--ink-secondary); font: var(--type-label); letter-spacing: .06em; }
+.generation-estimate__metric strong { color: var(--ink); font-size: 1.35rem; font-weight: 500; line-height: 1.2; letter-spacing: -.03em; }
+.generation-estimate__metric small { color: var(--ink-secondary); font-size: .75rem; font-weight: 400; letter-spacing: 0; }
+.generation-estimate__elapsed { text-align: right; }
+.generation-estimate__elapsed strong { color: var(--ink-secondary); font-size: 1.05rem; }
+.generation-estimate__note { grid-column: 1 / -1; margin: 0; color: var(--ink-secondary); font-size: .76rem; line-height: 1.5; }
+.generation-estimate.is-overdue { border-left-color: var(--ink-secondary); }
+.build-scene > .generation-estimate { margin: 0 1.5rem 1.25rem; width: min(calc(100% - 3rem), 28rem); }
+@media (max-width: 600px) { .generation-estimate { gap: .75rem 1rem; padding: .85rem 1rem; } .build-scene > .generation-estimate { margin-left: 1rem; width: min(calc(100% - 2rem), 28rem); } }

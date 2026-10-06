@@ -105,6 +105,7 @@ def public_version(version: PortfolioSiteVersion) -> dict[str, Any]:
         "summary": {
             "warning_count": int(validation.get("warning_count", 0) or 0),
             "browser": str(browser.get("status", "")) or None,
+            "engine": str(receipt.get("engine", "")) or None,
             "model": str(model.get("model", "")) or None,
             "latency_ms": model.get("latency_ms"),
         },
