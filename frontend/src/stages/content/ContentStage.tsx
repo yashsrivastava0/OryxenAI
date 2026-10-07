@@ -350,7 +350,7 @@ function ContentReviewSurface({
                 </FieldCard>
 
                 {page.atlas.aboutHeading && (
-                  <FieldCard id="content-card-atlas" className={cardClass("content-card-atlas")} eyebrow="COBALT ATLAS · ADDITIONAL PAGES" title="About and selected work">
+                  <FieldCard id="content-card-atlas" className={cardClass("content-card-atlas")} eyebrow="ADDITIONAL PAGES" title="About and selected work">
                     <h4>{page.atlas.aboutHeading}</h4>
                     <p>{page.atlas.aboutIntro}</p>
                     {page.atlas.aboutQuote && <blockquote>{page.atlas.aboutQuote}</blockquote>}

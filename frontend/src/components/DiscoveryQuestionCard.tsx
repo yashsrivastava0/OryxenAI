@@ -11,6 +11,12 @@ import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 import { ActionDock } from "./ActionDock";
 import { HelpDisclosure } from "./HelpDisclosure";
 
+// Looks whose design includes scripted, interactive pages carry a short tag on their card.
+const PALETTE_TAGS: Record<string, string> = {
+  cobalt_atlas_interactive: "Interactive details",
+  claret_amber: "Cinematic motion",
+};
+
 interface DiscoveryQuestionCardProps {
   question: DiscoveryQuestionVM;
   ordinal: number;
@@ -201,7 +207,7 @@ export function DiscoveryQuestionCard({
                       {option.swatches.map((color) => <span key={color} style={{ backgroundColor: color }} />)}
                     </span>
                     <span className="palette-choice__footer">
-                      <span><strong>{option.label}</strong><small>{option.description}</small>{option.id === "cobalt_atlas_interactive" && <em>Interactive details</em>}</span>
+                      <span><strong>{option.label}</strong><small>{option.description}</small>{PALETTE_TAGS[option.id] && <em>{PALETTE_TAGS[option.id]}</em>}</span>
                       <span className="palette-choice__check" aria-hidden="true">{selected ? "✓" : "○"}</span>
                     </span>
                   </label>

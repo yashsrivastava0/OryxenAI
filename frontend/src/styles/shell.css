@@ -2159,9 +2159,10 @@ button:disabled, textarea:disabled, input:disabled {
 
 .palette-choice-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 0.8rem;
 }
+@media (max-width: 1179px) { .palette-choice-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .palette-choice {
   display: flex;
   flex-direction: column;
@@ -3113,8 +3114,10 @@ button:disabled, textarea:disabled, input:disabled {
   .question-content:has(.palette-fieldset) .composer-textarea { min-height: 8rem; }
   .question-content:has(.palette-fieldset) .choice-group-hint { margin-bottom: .5rem; }
   .question-content:has(.palette-fieldset) .palette-intro { margin-bottom: .55rem; }
-  .question-content:has(.palette-fieldset) .palette-choice__demo { height: 7.5rem; }
-  .question-content:has(.palette-fieldset) .palette-choice__footer { min-height: 6.7rem; padding: .65rem; }
+  .question-content:has(.palette-fieldset) .palette-choice { position: relative; }
+  .question-content:has(.palette-fieldset) .palette-choice__demo { height: 5.8rem; }
+  .question-content:has(.palette-fieldset) .palette-choice__footer { min-height: 0; padding: .6rem .6rem .7rem; }
+  .question-content:has(.palette-fieldset) .palette-choice__check { position: absolute; top: .4rem; right: .4rem; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .14); font-size: .8rem; line-height: 1; }
 }
 .palette-choice { border-radius: .55rem; min-width: 0; }
 .palette-choice__demo { height: 10rem; }
@@ -3144,6 +3147,13 @@ button:disabled, textarea:disabled, input:disabled {
 .palette-choice[data-look="cobalt_atlas_interactive"] .palette-demo__headline span { height: .46rem; }
 .palette-choice[data-look="cobalt_atlas_interactive"] .palette-demo__accent { right: 7%; bottom: -.4rem; width: 35%; aspect-ratio: 1.2; border: .24rem solid #d7fa76; border-radius: .2rem; background: #1c2a58; box-shadow: -.7rem -.55rem 0 #d7fa76; transform: rotate(8deg); animation: look-float 4s ease-in-out infinite; }
 .palette-choice[data-look="cobalt_atlas_interactive"] .palette-demo__detail { width: 46%; }
+.palette-choice[data-look="claret_amber"] { --demo-bg: #3b0f1e; --demo-ink: #f6eee3; --demo-accent: #ffb04a; }
+.palette-choice[data-look="claret_amber"] .palette-demo__body { background: radial-gradient(circle at 78% 46%, rgba(255,176,74,.16), transparent 46%), #3b0f1e; }
+.palette-choice[data-look="claret_amber"] .palette-demo__headline { width: 68%; margin-top: .85rem; gap: .34rem; }
+.palette-choice[data-look="claret_amber"] .palette-demo__headline span { height: .42rem; border-radius: 0; }
+.palette-choice[data-look="claret_amber"] .palette-demo__accent { right: 9%; bottom: 0; width: 32%; aspect-ratio: .82; border: .16rem solid #ffb04a; border-bottom: 0; border-radius: 999px 999px 0 0; background: transparent; box-shadow: 0 0 0 .5rem rgba(255,176,74,.14), 0 0 0 1rem rgba(255,176,74,.07); opacity: 1; }
+.palette-choice[data-look="claret_amber"] .palette-demo__detail { width: 44%; }
+.palette-choice[data-look="claret_amber"] .palette-choice__footer em { color: #8a3d12; }
 @keyframes look-float { 50% { transform: translateY(-.35rem) rotate(4deg); } }
 
 /* Private Home and Guide. */
