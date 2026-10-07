@@ -33,13 +33,14 @@ describe("adaptDiscovery", () => {
         { id: "cobalt_white", label: "Cobalt & white", description: "Bright, structured", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
         { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold, energetic", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
         { id: "cobalt_atlas_interactive", label: "Cobalt & volt", description: "Interactive editorial", swatches: ["#f8f8f5", "#3656d6", "#d7fa76"] },
+        { id: "claret_amber", label: "Claret & amber", description: "Cinematic depth", swatches: ["#3b0f1e", "#f6eee3", "#ffb04a"] },
       ],
       allow_skip: false,
     };
     const raw = { status: "questions_ready", operation_a: { items: [palette] }, answers: { items: {} } };
     const question = adaptDiscovery(raw).currentQuestions[0];
     expect(question?.kind).toBe("palette_select");
-    expect(question?.options).toHaveLength(4);
+    expect(question?.options).toHaveLength(5);
     expect(question?.allowSkip).toBe(false);
     expect(question?.options.map((option) => option.swatches)).toEqual(palette.options.map((option) => option.swatches));
   });

@@ -50,12 +50,13 @@ def test_visual_palette_cards_fit_and_remain_keyboard_selectable(
     page.set_viewport_size({"width": width, "height": height})
     page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
     cards = page.locator(".palette-choice")
-    assert cards.count() == 4
+    assert cards.count() == 5
     assert [card.locator("small").inner_text() for card in cards.all()] == [
         "Editorial warmth · layered and considered",
         "Minimal clarity · bright and structured",
         "Bold modernity · high contrast and energetic",
         "Interactive editorial · layered and vivid",
+        "Cinematic depth · warm and dramatic",
     ]
     assert page.get_by_role("textbox", name="Optional note for your reference").is_visible()
     if width >= 1180:
