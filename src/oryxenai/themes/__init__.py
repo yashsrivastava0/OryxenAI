@@ -29,7 +29,12 @@ _THEME_MODULES: dict[str, str] = {
     "cobalt-atlas/v1": "oryxenai.themes.cobalt_atlas.v1",
     "cobalt-atlas/v2": "oryxenai.themes.cobalt_atlas.v2",
     "obsidian-signal/v1": "oryxenai.themes.obsidian_signal.v1",
+    "claret-marquee/v1": "oryxenai.themes.claret_marquee.v1",
 }
+
+# Themes whose pages are written from the shared tree plus the ``atlas`` supplement
+# (About, selected work, case pages). A plain constant: the agents import this module.
+ATLAS_CONTENT_THEME_IDS: frozenset[str] = frozenset({"cobalt-atlas/v2", "claret-marquee/v1"})
 
 _MEDIA_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -150,3 +155,8 @@ def get_theme(theme_id: str = DEFAULT_THEME_ID) -> ThemePackage:
 
 def list_theme_ids() -> tuple[str, ...]:
     return tuple(sorted(_THEME_MODULES))
+
+
+def uses_atlas_content(theme_id: str) -> bool:
+    """Whether the theme renders the ``atlas`` content supplement."""
+    return theme_id in ATLAS_CONTENT_THEME_IDS

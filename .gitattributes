@@ -3,6 +3,8 @@
 # Theme data files are hash-pinned (themes/*/v*/manifest.json): store and check them out byte-exact.
 src/oryxenai/themes/**/*.css -text
 src/oryxenai/themes/**/*.html -text
+src/oryxenai/themes/**/*.j2 -text
+src/oryxenai/themes/**/*.py -text
 src/oryxenai/themes/**/*.js -text
 src/oryxenai/themes/**/*.json -text
 src/oryxenai/themes/**/*.svg -text

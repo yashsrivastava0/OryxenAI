@@ -1,0 +1,136 @@
+{% set hero = c.hero %}
+{% set atlas = c.atlas %}
+{% set practice = c.systems_practice %}
+{% set caps = c.technical_capabilities %}
+{% set context = c.professional_context | default({}) %}
+{% set organizations = context.organizations | default([]) %}
+{% set connect = c.connect %}
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="topbar">
+  <a class="brand" href="#home" aria-label="{{ d.home_label }}"><span class="brand-mark">{{ d.monogram }}</span><span class="brand-name" data-field="hero.name">{{ hero.name }}</span></a>
+  <nav class="topnav" aria-label="Main navigation"><a href="#work">Work</a><a href="#about">About</a><a class="topnav-cta" href="#contact">Let's talk</a></nav>
+</header>
+<main id="main">
+<article class="route-view" id="home" data-view data-title="{{ c.metadata.title }}">
+  <section class="hero" data-scene="hero" data-chapter aria-labelledby="hero-title">
+    <div class="hero-stage">
+      <div class="hero-art" aria-hidden="true"><span class="hero-ring"></span><span class="hero-ring"></span><span class="hero-ring"></span><span class="hero-ring"></span><span class="hero-beam"></span><span class="hero-bar"></span><span class="hero-bar"></span></div>
+      <div class="hero-copy">
+        {% if hero.eyebrow_primary %}<p class="eyebrow" data-field="hero.eyebrow_primary">{{ hero.eyebrow_primary }}</p>{% endif %}
+        <h1 id="hero-title" data-len="{{ d.len.headline }}">{% if hero.headline_prefix %}<span data-field="hero.headline_prefix">{{ hero.headline_prefix }}</span>{% endif %} {% if hero.headline_emphasis %}<em data-field="hero.headline_emphasis">{{ hero.headline_emphasis }}</em>{% endif %}</h1>
+        <p class="hero-intro" data-field="hero.intro">{{ hero.intro }}</p>
+        <div class="hero-actions"><a class="btn btn-primary" href="#work">Explore selected work</a><a class="btn btn-link" href="#about">Get to know me</a></div>
+      </div>
+      <p class="hero-name" data-len="{{ d.len.name }}" data-field="hero.name">{{ hero.name }}</p>
+      {% if hero.location or hero.eyebrow_secondary %}<p class="hero-foot">{% if hero.location %}<span data-field="hero.location">{{ hero.location }}</span>{% endif %}{% if hero.eyebrow_secondary %}<span data-field="hero.eyebrow_secondary">{{ hero.eyebrow_secondary }}</span>{% endif %}</p>{% endif %}
+    </div>
+  </section>
+  {% if atlas.statistics %}
+  <section class="proof" data-chapter aria-labelledby="proof-title">
+    <div class="proof-head"><h2 class="kicker" id="proof-title">Selected results</h2>{% if d.sample.statistics %}<p class="meta">Sample content — replace with your own details.</p>{% endif %}</div>
+    <ul class="figures" data-count="{{ atlas.statistics | length }}">{% for stat in atlas.statistics %}<li class="figure"><strong class="figure-value" data-field="atlas.statistics[{{ loop.index0 }}].value">{{ stat.value }}</strong><span class="figure-label" data-field="atlas.statistics[{{ loop.index0 }}].label">{{ stat.label }}</span></li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+  {% if organizations %}
+  <section class="worked-with" data-chapter aria-labelledby="worked-title">
+    <h2 class="kicker" id="worked-title" data-field="professional_context.eyebrow">{{ context.eyebrow }}</h2>
+    <ul class="orgs" data-count="{{ organizations | length }}">{% for organization in organizations %}<li data-field="professional_context.organizations[{{ loop.index0 }}]">{{ organization }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+  {% if c.marquee_keywords %}<div class="ticker" role="region" aria-label="Areas of practice"><ul class="ticker-track">{% for keyword in c.marquee_keywords %}<li data-field="marquee_keywords[{{ loop.index0 }}]">{{ keyword }}</li>{% endfor %}</ul></div>{% endif %}
+  <section class="thesis" data-chapter aria-labelledby="thesis-title">
+    {% if practice.eyebrow %}<p class="kicker" data-field="systems_practice.eyebrow">{{ practice.eyebrow }}</p>{% endif %}
+    <h2 class="thesis-statement" id="thesis-title" data-len="{{ d.len.thesis }}" data-field="systems_practice.heading">{{ practice.heading }}</h2>
+    {% if practice.intro %}<p class="thesis-intro" data-field="systems_practice.intro">{{ practice.intro }}</p>{% endif %}
+    <ol class="pillars" data-count="{{ practice.pillars | length }}">{% for pillar in practice.pillars %}<li class="pillar"><h3 data-field="systems_practice.pillars[{{ loop.index0 }}].title">{{ pillar.title }}</h3><p data-field="systems_practice.pillars[{{ loop.index0 }}].description">{{ pillar.description }}</p></li>{% endfor %}</ol>
+  </section>
+  <section class="work" id="work" data-chapter aria-labelledby="work-title">
+    <div class="section-head"><h2 class="section-title" id="work-title">Selected work</h2></div>
+    {% if atlas.projects %}
+    <div class="work-list" data-count="{{ atlas.projects | length }}">
+      {% for project in atlas.projects %}
+      {% set case = project.problem and project.approach %}
+      {% if case %}<a class="project" href="#case-{{ loop.index }}" aria-label="{{ project.title }} case study">{% elif project.external_url %}<a class="project" href="{{ project.external_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ project.title }}">{% else %}<div class="project">{% endif %}
+        <div class="poster" data-art="{{ d.arts[loop.index0] }}" data-tone="{{ (loop.index0 % 4) + 1 }}" aria-hidden="true"></div>
+        <div class="project-info">
+          <p class="project-kind">{% if project.kind == 'illustrative' %}Illustrative concept — not real client work{% else %}Selected project{% endif %}</p>
+          <h3 data-field="atlas.projects[{{ loop.index0 }}].title">{{ project.title }}</h3>
+          <p class="project-summary" data-field="atlas.projects[{{ loop.index0 }}].summary">{{ project.summary }}</p>
+          {% if project.role or project.period %}<p class="project-meta">{% if project.role %}<span data-field="atlas.projects[{{ loop.index0 }}].role">{{ project.role }}</span>{% endif %}{% if project.period %}<span data-field="atlas.projects[{{ loop.index0 }}].period">{{ project.period }}</span>{% endif %}</p>{% endif %}
+          {% if case %}<span class="project-cta">View case study</span>{% elif project.external_url %}<span class="project-cta">Visit project</span>{% endif %}
+        </div>
+      {% if case or project.external_url %}</a>{% else %}</div>{% endif %}
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="work-empty"><div class="poster" data-art="aperture" data-tone="1" aria-hidden="true"></div><div class="project-info"><p class="kicker">Work in progress</p><h3>Your story can grow here.</h3><p>Project details can be added whenever you're ready.</p></div></div>
+    {% endif %}
+  </section>
+  <section class="about-teaser" data-chapter aria-labelledby="teaser-title">
+    <figure class="portrait" data-initials="{{ d.monogram }}"></figure>
+    <div class="about-teaser-copy">
+      <p class="kicker">About</p>
+      <h2 id="teaser-title" data-len="{{ d.len.about }}" data-field="atlas.about_heading">{{ atlas.about_heading }}</h2>
+      <p class="about-teaser-text" data-field="atlas.about_intro">{{ atlas.about_intro }}</p>
+      <a class="btn btn-link" href="#about">Get to know me</a>
+    </div>
+  </section>
+  <section class="credits" id="contact" data-chapter aria-labelledby="contact-title">
+    {% if connect.eyebrow %}<p class="kicker" data-field="connect.eyebrow">{{ connect.eyebrow }}</p>{% endif %}
+    <h2 id="contact-title" data-len="{{ d.len.connect }}" data-field="connect.heading">{{ connect.heading }}</h2>
+    {% if connect.intro %}<p class="credits-intro" data-field="connect.intro">{{ connect.intro }}</p>{% endif %}
+    {% if connect.destinations %}<ul class="destinations" data-count="{{ connect.destinations | length }}">{% for destination in connect.destinations %}<li><a class="destination" href="{{ destination.url }}" {% if destination.url.startswith('http') %}target="_blank" rel="noopener noreferrer"{% endif %}><span data-field="connect.destinations[{{ loop.index0 }}].label">{{ destination.label }}</span></a></li>{% endfor %}</ul>{% endif %}
+  </section>
+</article>
+<article class="route-view inner-page" id="about" data-view data-title="About — {{ hero.name }}">
+  <section class="page-head" data-chapter>
+    <div class="page-head-copy">
+      <p class="kicker">About</p>
+      <h1 data-len="{{ d.len.about }}" data-field="atlas.about_heading">{{ atlas.about_heading }}</h1>
+      <p class="lede" data-field="atlas.about_intro">{{ atlas.about_intro }}</p>
+      <a class="btn btn-link" href="#contact">Get in touch</a>
+    </div>
+    <figure class="portrait" data-initials="{{ d.monogram }}"></figure>
+  </section>
+  {% if atlas.about_quote %}<section class="pull" data-chapter><blockquote data-field="atlas.about_quote">{{ atlas.about_quote }}</blockquote></section>{% endif %}
+  {% if atlas.experience %}
+  <section class="experience" data-chapter aria-labelledby="experience-title">
+    <div class="section-head"><h2 class="section-title" id="experience-title">Experience</h2>{% if d.sample.experience %}<p class="meta">Sample content — replace with your own details.</p>{% endif %}</div>
+    <ol class="ledger" data-count="{{ atlas.experience | length }}">{% for row in atlas.experience %}<li class="ledger-row"><p class="ledger-dates" data-field="atlas.experience[{{ loop.index0 }}].dates">{{ row.dates }}</p><div class="ledger-main"><h3 data-field="atlas.experience[{{ loop.index0 }}].role">{{ row.role }}</h3><p class="ledger-org" data-field="atlas.experience[{{ loop.index0 }}].organization">{{ row.organization }}</p><p class="ledger-text" data-field="atlas.experience[{{ loop.index0 }}].description">{{ row.description }}</p></div></li>{% endfor %}</ol>
+  </section>
+  {% endif %}
+  <section class="practice" data-chapter aria-labelledby="practice-title">
+    <div class="section-head">{% if caps.eyebrow %}<p class="kicker" data-field="technical_capabilities.eyebrow">{{ caps.eyebrow }}</p>{% endif %}<h2 class="section-title" id="practice-title" data-field="technical_capabilities.heading">{{ caps.heading }}</h2></div>
+    <div class="groups" data-count="{{ caps.groups | length }}">{% for group in caps.groups %}{% set group_index = loop.index0 %}<div class="group"><h3 data-field="technical_capabilities.groups[{{ group_index }}].heading">{{ group.heading }}</h3><ul>{% for item in group['items'] %}<li data-field="technical_capabilities.groups[{{ group_index }}].items[{{ loop.index0 }}]">{{ item }}</li>{% endfor %}</ul></div>{% endfor %}</div>
+  </section>
+  {% if atlas.education %}
+  <section class="education" data-chapter aria-labelledby="education-title">
+    <div class="section-head"><h2 class="section-title" id="education-title">Education</h2>{% if d.sample.education %}<p class="meta">Sample content — replace with your own details.</p>{% endif %}</div>
+    <ol class="ledger" data-count="{{ atlas.education | length }}">{% for row in atlas.education %}<li class="ledger-row"><p class="ledger-dates" data-field="atlas.education[{{ loop.index0 }}].dates">{{ row.dates }}</p><div class="ledger-main"><h3 data-field="atlas.education[{{ loop.index0 }}].credential">{{ row.credential }}</h3><p class="ledger-org" data-field="atlas.education[{{ loop.index0 }}].institution">{{ row.institution }}</p></div></li>{% endfor %}</ol>
+  </section>
+  {% endif %}
+  <section class="page-next"><p class="kicker">Next</p><a class="btn btn-link" href="#work">See the work</a></section>
+</article>
+{% for project in atlas.projects %}
+{% if project.problem and project.approach %}
+<article class="route-view inner-page case-page" id="case-{{ loop.index }}" data-view data-title="{{ project.title }} — {{ hero.name }}">
+  <section class="case-head" data-chapter>
+    <a class="back-link" href="#work">All work</a>
+    <p class="kicker">{% if project.kind == 'illustrative' %}Illustrative concept — not real client work{% else %}Case study{% endif %}</p>
+    <h1 data-len="{{ d.len.titles[loop.index0] }}" data-field="atlas.projects[{{ loop.index0 }}].title">{{ project.title }}</h1>
+    <p class="lede" data-field="atlas.projects[{{ loop.index0 }}].summary">{{ project.summary }}</p>
+    {% if project.role or project.period %}<dl class="facts">{% if project.role %}<div><dt>Role</dt><dd data-field="atlas.projects[{{ loop.index0 }}].role">{{ project.role }}</dd></div>{% endif %}{% if project.period %}<div><dt>Period</dt><dd data-field="atlas.projects[{{ loop.index0 }}].period">{{ project.period }}</dd></div>{% endif %}</dl>{% endif %}
+  </section>
+  <section class="case-art" data-chapter><div class="poster poster-wide" data-art="{{ d.arts[loop.index0] }}" data-tone="{{ (loop.index0 % 4) + 1 }}" role="img" aria-label="Abstract artwork"></div><p class="note">Conceptual artwork — illustrative, not a product screenshot.</p></section>
+  <section class="case-body" data-chapter>
+    <div class="case-step"><h2>Problem</h2><p data-field="atlas.projects[{{ loop.index0 }}].problem">{{ project.problem }}</p></div>
+    <div class="case-step"><h2>Approach</h2><p data-field="atlas.projects[{{ loop.index0 }}].approach">{{ project.approach }}</p></div>
+    {% if project.outcome %}<div class="case-step case-result"><h2>Outcome</h2><p data-field="atlas.projects[{{ loop.index0 }}].outcome">{{ project.outcome }}</p></div>{% endif %}
+  </section>
+  <section class="page-next"><p class="kicker">Next</p><a class="btn btn-link" href="#work">Explore all work</a>{% if project.external_url %}<a class="btn btn-link" href="{{ project.external_url }}" target="_blank" rel="noopener noreferrer">Visit project</a>{% endif %}</section>
+</article>
+{% endif %}
+{% endfor %}
+</main>
+<footer class="site-footer"><a class="brand" href="#home" aria-label="{{ d.home_label }}"><span class="brand-mark">{{ d.monogram }}</span><span class="brand-name" data-field="hero.name">{{ hero.name }}</span></a><nav class="footer-nav" aria-label="Footer navigation"><a href="#work">Work</a><a href="#about">About</a><a href="#contact">Contact</a></nav><a class="to-top" href="#home">Back to top</a></footer>
+<span class="sr-only" id="route-announcer" role="status" aria-live="polite"></span>
