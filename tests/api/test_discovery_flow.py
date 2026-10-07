@@ -218,7 +218,7 @@ async def _full_flow(client, sid: str, *, choice: str = "forest_copper", note: s
 
 
 class TestFullHttpFlow:
-    async def test_open_legacy_palette_gains_fourth_choice_without_restart(self, client):
+    async def test_open_legacy_palette_gains_new_choices_without_restart(self, client):
         from oryxenai.db.repositories.discovery import DiscoveryRepository
 
         sid = await _create_session(client)
@@ -235,8 +235,11 @@ class TestFullHttpFlow:
 
         current = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         palette = current["discovery"]["operation_a"]["items"][-1]
-        assert len(palette["options"]) == 4
-        assert palette["options"][-1]["label"] == "Cobalt & volt"
+        assert len(palette["options"]) == 5
+        assert [option["label"] for option in palette["options"][3:]] == [
+            "Cobalt & volt",
+            "Claret & amber",
+        ]
         chosen = await client.put(
             f"/api/v1/sessions/{sid}/discovery/answers",
             json={
@@ -253,7 +256,16 @@ class TestFullHttpFlow:
         assert chosen.status_code == 200, chosen.text
         assert chosen.json()["discovery"]["selected_theme_id"] == "cobalt-atlas/v2"
 
-    async def test_atlas_choice_asks_once_and_pins_illustrative_opt_in(self, client):
+    @pytest.mark.parametrize(
+        ("choice", "theme_id"),
+        [
+            ("cobalt_atlas_interactive", "cobalt-atlas/v2"),
+            ("claret_amber", "claret-marquee/v1"),
+        ],
+    )
+    async def test_atlas_choice_asks_once_and_pins_illustrative_opt_in(
+        self, client, choice, theme_id
+    ):
         sid = await _create_session(client)
         started = await _start(client, sid)
         await _run_worker_job(client, started["discovery"]["operation_a"]["job_id"])
@@ -267,7 +279,7 @@ class TestFullHttpFlow:
                     {
                         "question_id": palette["id"],
                         "mode": "answered",
-                        "value": {"choice_id": "cobalt_atlas_interactive", "note": ""},
+                        "value": {"choice_id": choice, "note": ""},
                     }
                 ],
             },
@@ -275,7 +287,7 @@ class TestFullHttpFlow:
         assert answer.status_code == 200, answer.text
         state = answer.json()["discovery"]
         assert state["status"] == "answers_in_progress"
-        assert state["selected_theme_id"] == "cobalt-atlas/v2"
+        assert state["selected_theme_id"] == theme_id
         work = state["operation_a"]["items"][-1]
         assert work["kind"] == "work_detail"
         answer = await client.put(
@@ -319,7 +331,7 @@ class TestFullHttpFlow:
         ready = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         palette = ready["discovery"]["operation_a"]["items"][-1]
         assert palette["kind"] == "palette_select"
-        assert len(palette["options"]) == 4
+        assert len(palette["options"]) == 5
         assert all(len(option["swatches"]) == 3 for option in palette["options"])
 
         for answers, status in (

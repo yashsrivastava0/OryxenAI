@@ -1,0 +1,52 @@
+{
+  "theme_id": "claret-marquee/v1",
+  "display_name": "Claret Marquee",
+  "contract_version": "ThemeContract/v2",
+  "stylesheet": "style.css",
+  "script": "theme.js",
+  "capabilities": {
+    "javascript": true,
+    "generated_css": false
+  },
+  "runtime": {
+    "global": "PortfolioTheme"
+  },
+  "files": [
+    {
+      "path": "assets/fonts/bodoni-moda-italic.woff2",
+      "sha256": "f908f38760f26518b1f99cebdbda46780c9a1728bf7b7871edd3d0e9c8a1f971",
+      "bytes": 62596,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/fonts/bodoni-moda-roman.woff2",
+      "sha256": "13e34a2c23e1c912785a02131c084e2581a9b349aabe542770a7272166d2fb70",
+      "bytes": 52928,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/fonts/dm-mono-500.woff2",
+      "sha256": "96cba06372e064e11a445dc3507ada69057456ad4194e969255cd484f8e1c654",
+      "bytes": 9516,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "assets/fonts/hanken-grotesk.woff2",
+      "sha256": "d18c0d99b5b842dc63939e5c28818245893b76ae19ac79c40e6b04879803b272",
+      "bytes": 25012,
+      "media_type": "font/woff2"
+    },
+    {
+      "path": "style.css",
+      "sha256": "17dabb15fba56f6083ccda0cfd5138ba56c85c7c165ac4522e290dd461b46d9a",
+      "bytes": 43959,
+      "media_type": "text/css; charset=utf-8"
+    },
+    {
+      "path": "theme.js",
+      "sha256": "3a33d94301646e4a8a7e25f9e245ae69e8ea7ec34b5cb3dd128bd2d8dfee7c43",
+      "bytes": 30198,
+      "media_type": "text/javascript; charset=utf-8"
+    }
+  ]
+}

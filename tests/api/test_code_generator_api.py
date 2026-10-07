@@ -27,7 +27,7 @@ from oryxenai.db.repositories.portfolio_sessions import PortfolioSessionReposito
 from oryxenai.jobs.handlers.code_generator import CodeGeneratorBuildHandler
 from oryxenai.jobs.repository import JobRepository
 from oryxenai.main import create_app
-from oryxenai.themes import get_theme
+from oryxenai.themes import get_theme, uses_atlas_content
 from oryxenai.themes.cobalt_atlas.v2.contract import _symbolic_content
 from tests.conftest import install_test_identity
 from tests.unit.agents.code_generator.helpers import sample_content
@@ -71,7 +71,7 @@ async def _approve_content(
         session = await repo.get_session(UUID(session_id))
         assert session is not None
         page = sample_content("01_strong_profile")
-        if theme_id == "cobalt-atlas/v2":
+        if uses_atlas_content(theme_id):
             page["atlas"] = _symbolic_content()["atlas"]
         state = ContentArchitectState(
             status=ContentArchitectStatus.APPROVED,
@@ -211,9 +211,12 @@ async def test_selected_theme_builds_and_serves_its_own_css(client, theme_id: st
 
 
 @pytest.mark.asyncio
-async def test_atlas_scripted_theme_builds_and_serves_the_pinned_pair(client) -> None:
+@pytest.mark.parametrize("theme_id", ["cobalt-atlas/v2", "claret-marquee/v1"])
+async def test_atlas_scripted_theme_builds_and_serves_the_pinned_pair(
+    client, theme_id: str
+) -> None:
     session_id = await _create_session(client)
-    await _approve_content(client, session_id, theme_id="cobalt-atlas/v2")
+    await _approve_content(client, session_id, theme_id=theme_id)
     base = f"/api/v1/sessions/{session_id}/code-generator"
     started = await client.post(f"{base}/start")
     assert started.status_code == 202, started.text
@@ -227,9 +230,14 @@ async def test_atlas_scripted_theme_builds_and_serves_the_pinned_pair(client) ->
     assert html.status_code == css.status_code == script.status_code == 200
     assert 'id="case-1"' in html.text
     assert "sandbox allow-scripts" in html.headers["content-security-policy"]
-    theme = get_theme("cobalt-atlas/v2")
+    theme = get_theme(theme_id)
     assert css.content == theme.stylesheet.data
     assert script.content == theme.file("theme.js").data
+    for entry in theme.files.values():
+        if entry.path.endswith((".woff2", ".ttf")):
+            font = await client.get(grant["url"].replace("index.html", entry.path))
+            assert font.status_code == 200 and font.content == entry.data
+            assert font.headers["access-control-allow-origin"] == "*"
 
 
 def _corrupt_host_render(monkeypatch, name: str) -> None:

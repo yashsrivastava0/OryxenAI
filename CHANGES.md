@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-07 — Claude Code (Anthropic) — Claret Marquee, a fifth portfolio look
+
+New theme `claret-marquee/v1` and its Explorer card "Claret & amber": cinematic scroll-driven Home, About and per-project case pages, host-rendered from the Atlas content and verified in a real browser. Generalised the Atlas content gate (`themes.uses_atlas_content`), added manifest `runtime.global` and `evaluate`-based waits to the verifier, widened the picker to five cards, and added unit and Chromium matrix tests (colour schemes, widths, both scene drivers, no-script, reduced motion, keyboard, contrast, phone top bar). Axe-core reported no violations on the five fixtures. Firefox/WebKit, live model runs and Render were not exercised; the manifest seal is a development seal. Rationale in D-142.
+
 ### 2026-10-05 — Codex (OpenAI) — Keep encoded database URLs out of Alembic config
 
 The first retry with a percent-encoded Supabase password exposed Alembic's
