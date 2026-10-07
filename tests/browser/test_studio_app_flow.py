@@ -408,6 +408,25 @@ def test_a_second_tab_started_build_is_shown_as_building_not_restarted(browser_p
     assert "POST /code-generator/start" not in backend.log
 
 
+def test_home_navigation_survives_a_late_initial_session_load(browser_page: Any) -> None:
+    page = browser_page
+    backend = _open_app(page, {"content": "approved", "studio": "ready"})
+    expect(page.get_by_text("Version 1", exact=True)).to_be_visible(timeout=8000)
+    pending: list[Any] = []
+    page.route(re.compile(r".*/code-generator(?:\?.*)?$"), lambda route: pending.append(route))
+    page.goto(f"{BASE_URL}/?app=1", wait_until="domcontentloaded")
+    for _ in range(80):
+        if pending:
+            break
+        page.wait_for_timeout(50)
+    assert len(pending) == 1, "the initial Studio response should still be pending"
+    page.get_by_role("button", name="Home", exact=True).click()
+    expect(page).to_have_url(re.compile(r"screen=home"))
+    backend.handle(pending.pop())
+    expect(page.get_by_role("heading", name="Your portfolio is ready to review.")).to_be_visible()
+    expect(page).to_have_url(re.compile(r"screen=home"))
+
+
 def test_private_home_guide_and_resume_routes(browser_page: Any) -> None:
     page = browser_page
     _open_app(page, {"content": "approved", "studio": "ready"})

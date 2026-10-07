@@ -209,6 +209,7 @@ export function AppShell({
   }, [cacheNotice]);
 
   const selectStage = useCallback((stage: JourneyStageId, replace = false) => {
+    if (!replace) initialNormalizationDone.current = true;
     setActiveScreen(null);
     setActiveStage(stage);
     dispatch({ type: "stage/select", stage });
@@ -218,6 +219,7 @@ export function AppShell({
   }, []);
 
   const selectScreen = useCallback((screen: WorkspaceScreenId, replace = false) => {
+    if (!replace) initialNormalizationDone.current = true;
     setActiveScreen(screen);
     const method = replace ? "replaceState" : "pushState";
     window.history[method]({}, "", `${window.location.pathname}${serializeAppUrlState({ screen })}`);
@@ -335,6 +337,7 @@ export function AppShell({
 
   useEffect(() => {
     const onPopState = () => {
+      initialNormalizationDone.current = true;
       const parsed = parseAppUrlState(window.location.search);
       setActiveScreen(parsed.screen);
       if (parsed.screen) return;
