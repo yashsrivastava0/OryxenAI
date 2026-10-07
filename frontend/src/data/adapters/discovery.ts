@@ -480,7 +480,7 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
             : [],
         }))
         .filter((option) => option.id && option.label)
-        .slice(0, kind === "palette_select" ? 4 : 3)
+        .slice(0, kind === "palette_select" ? 8 : 3)
     : [];
   return {
     id: raw.id,

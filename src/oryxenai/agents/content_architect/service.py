@@ -40,6 +40,7 @@ from oryxenai.auth.authorization import durable_snapshot_for_session
 from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.content_architect import ContentArchitectRepository
 from oryxenai.jobs.service import JobService
+from oryxenai.themes import uses_atlas_content
 
 _BUILD_KIND = "content_architect.build"
 
@@ -282,7 +283,7 @@ class ContentArchitectService:
             return await self.get_content_architect_state(session_id)
 
         page_payload = state.page_content.model_dump(mode="json")
-        if state.intake.selected_theme_id == "cobalt-atlas/v2":
+        if uses_atlas_content(state.intake.selected_theme_id):
             atlas_errors = atlas_page_errors(
                 page_payload, allow_illustrative_work=state.intake.allow_illustrative_work
             )

@@ -1,6 +1,6 @@
 <atlas_pages>
-The selected theme is Cobalt Atlas v2. Write the normal complete page_content tree
-AND page_content.atlas for the same person. The Atlas fields are visitor-facing
+The selected theme renders the Atlas page set (About, selected work and case pages).
+Write the normal complete page_content tree AND page_content.atlas for the same person. The Atlas fields are visitor-facing
 approved copy, subject to the same source restrictions and claim grounding, except
 for the marked assumptions allowed by the sparse input policy below.
 

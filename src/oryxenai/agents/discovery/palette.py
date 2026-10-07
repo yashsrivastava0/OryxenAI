@@ -18,6 +18,7 @@ PALETTE_TO_THEME = {
     "cobalt_white": "cobalt-atlas/v1",
     "obsidian_lime": "obsidian-signal/v1",
     "cobalt_atlas_interactive": "cobalt-atlas/v2",
+    "claret_amber": "claret-marquee/v1",
 }
 
 
@@ -52,6 +53,12 @@ def palette_question() -> DiscoveryQuestion:
                 label="Cobalt & volt",
                 description="Interactive editorial · layered and vivid",
                 swatches=["#f8f8f5", "#3656d6", "#d7fa76"],
+            ),
+            QuestionOption(
+                id="claret_amber",
+                label="Claret & amber",
+                description="Cinematic depth · warm and dramatic",
+                swatches=["#3b0f1e", "#f6eee3", "#ffb04a"],
             ),
         ],
         allow_skip=False,

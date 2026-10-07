@@ -25,6 +25,7 @@ describe("ConversationSurface discovery question rendering", () => {
             { id: "cobalt_white", label: "Cobalt & white", description: "Minimal clarity", swatches: ["#2849c9", "#f7f9fc", "#17253c"] },
             { id: "obsidian_lime", label: "Obsidian & lime", description: "Bold modernity", swatches: ["#0c0e0d", "#d9fc73", "#f0f2eb"] },
             { id: "cobalt_atlas_interactive", label: "Cobalt & volt", description: "Interactive editorial", swatches: ["#f8f8f5", "#3656d6", "#d7fa76"] },
+            { id: "claret_amber", label: "Claret & amber", description: "Cinematic depth", swatches: ["#3b0f1e", "#f6eee3", "#ffb04a"] },
           ],
         }],
         history: [],
@@ -33,7 +34,9 @@ describe("ConversationSurface discovery question rendering", () => {
       }),
     );
 
-    expect(html.match(/class="palette-choice /g)).toHaveLength(4);
+    expect(html.match(/class="palette-choice /g)).toHaveLength(5);
+    expect(html).toContain('data-look="claret_amber"');
+    expect(html).toContain("Cinematic motion");
     expect(html).toContain("palette-choice__demo");
     expect(html).toContain("Editorial warmth");
     expect(html).toContain("Minimal clarity");

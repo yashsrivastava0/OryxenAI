@@ -48,6 +48,7 @@ from oryxenai.agents.shared.model_cache import (
 )
 from oryxenai.agents.shared.providers.errors import ProviderError
 from oryxenai.core.logging import get_logger
+from oryxenai.themes import uses_atlas_content
 
 logger = get_logger("oryxenai.agents.content_architect")
 
@@ -386,7 +387,7 @@ def _approval_readiness_errors(
         *page_completeness_errors(page_content),
         *(
             atlas_page_errors(page_content, allow_illustrative_work=allow_illustrative_work)
-            if selected_theme_id == "cobalt-atlas/v2"
+            if uses_atlas_content(selected_theme_id)
             else []
         ),
         *claim_binding_errors(page_content, claim_grounding),

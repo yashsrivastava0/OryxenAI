@@ -4,8 +4,10 @@ Stage 3 of the portfolio flow. It turns the approved Content Architect
 `page_content` into one verified, previewable page using the immutable theme
 selected in Explorer, and lets the owner change the page's **content** in a
 chat. Each theme has a separate stylesheet and markup contract. Cobalt Atlas v2
-also pins one reviewed `theme.js`; generated scripts and per-user style edits
-are outside this build.
+and Claret Marquee also pin one reviewed `theme.js` (the manifest's
+`runtime.global` names the object the browser verifier drives; default
+`AtlasTheme`); generated scripts and per-user style edits are outside this
+build.
 
 The workflow never chains by itself: the API starts a build only on
 `POST /api/v1/sessions/{id}/code-generator/start`. The product UI sends that
@@ -38,8 +40,9 @@ approved page_content + selected theme id
 * The model writes the visible markup only. The host owns the technical
   `<head>` (charset, viewport, title, description, stylesheet link and any
   theme-owned script).
-* New sessions use one of four Explorer choices: Editorial Forest Motion,
-  Cobalt Atlas, Obsidian Signal, or scripted Cobalt Atlas v2. Existing approved sessions without a
+* New sessions use one of the Explorer choices: Editorial Forest Motion,
+  Cobalt Atlas, Obsidian Signal, scripted Cobalt Atlas v2, or scripted Claret
+  Marquee. Existing approved sessions without a
   selection use the configured default theme. The pinned theme id travels with
   the build, version, chat edits, restore, and preview.
 

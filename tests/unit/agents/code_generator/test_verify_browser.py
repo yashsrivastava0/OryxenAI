@@ -11,6 +11,8 @@ from oryxenai.agents.code_generator.dev.reference_renderer import render_body
 from oryxenai.agents.code_generator.verify_browser import (
     BrowserVerifier,
     _font_load_failed,
+    _runtime_global,
+    _wait_until,
     build_verifier,
 )
 from oryxenai.core.settings import CodeGeneratorVerificationConfig
@@ -174,6 +176,60 @@ async def test_atlas_sparse_page_routes_and_artwork_pass_browser_verification() 
     if result.status == "unavailable":
         pytest.skip("no headless browser can be started on this machine")
     assert result.status == "passed", [issue.to_dict() for issue in result.issues]
+
+
+def test_the_runtime_global_comes_from_the_theme_manifest() -> None:
+    from types import SimpleNamespace
+
+    assert _runtime_global(get_theme("claret-marquee/v1")) == "PortfolioTheme"
+    assert _runtime_global(get_theme("cobalt-atlas/v2")) == "AtlasTheme"
+    for manifest in ({}, {"runtime": {"global": "not valid!"}}, {"runtime": {"global": 7}}):
+        assert _runtime_global(SimpleNamespace(manifest=manifest)) == "AtlasTheme"  # type: ignore[arg-type]
+
+
+class _SlowPage:
+    """A page whose condition turns true on the Nth poll (evaluate never uses eval)."""
+
+    def __init__(self, ready_on: int) -> None:
+        self.ready_on = ready_on
+        self.polls = 0
+
+    async def evaluate(self, script: str) -> bool:
+        self.polls += 1
+        return self.polls >= self.ready_on
+
+
+@pytest.mark.asyncio
+async def test_a_theme_that_becomes_ready_late_is_still_verified() -> None:
+    page = _SlowPage(ready_on=5)
+    await _wait_until(page, "() => true", 2000)
+    assert page.polls == 5
+    with pytest.raises(TimeoutError):
+        await _wait_until(_SlowPage(ready_on=10**9), "() => false", 120)
+
+
+CLARET_NAMES = ["designer", "engineer", "chef", "sparse_samples", "stress"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", CLARET_NAMES)
+async def test_claret_marquee_pages_pass_browser_verification(name: str) -> None:
+    from tests.unit.themes.atlas_fixtures import FIXTURES
+
+    theme = get_theme("claret-marquee/v1")
+    content = FIXTURES[name]()
+    bundle = build_bundle(
+        content, theme.contract.derive(content), theme.contract.render_body(content), "en", theme
+    )
+    for options in ({}, {"browser_channel": "chrome"}):
+        result = await BrowserVerifier(_config(viewports=[390, 1280], **options)).verify(
+            bundle, theme
+        )
+        if result.status != "unavailable":
+            assert result.status == "passed", [issue.to_dict() for issue in result.issues]
+            assert not [issue for issue in result.issues if issue.is_error]
+            return
+    pytest.skip("no headless browser can be started on this machine")
 
 
 @pytest.mark.asyncio

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from oryxenai.core.logging import get_logger
+from oryxenai.themes import uses_atlas_content
 
 logger = get_logger("oryxenai.agents.content_architect.prompt_builder")
 
@@ -77,7 +78,7 @@ def build_instructions(
 
     system_prompt = _load_text("system.md")
     atlas_prompt = ""
-    if source_packet.get("selected_theme_id") == "cobalt-atlas/v2":
+    if uses_atlas_content(str(source_packet.get("selected_theme_id") or "")):
         atlas_prompt = _load_text("atlas_pages.md")
         system_prompt = f"{system_prompt}\n\n{atlas_prompt}"
     operation_prompt = _load_text(_OPERATION_PROMPT_FILE[operation])

@@ -17,6 +17,7 @@ from oryxenai.agents.content_architect.page_content import (
     page_completeness_errors,
     page_shape_errors,
 )
+from oryxenai.themes import uses_atlas_content
 from oryxenai.themes.issues import Issue
 
 # field -> max characters
@@ -81,7 +82,7 @@ def content_admission_issues(
     issues: list[Issue] = []
     atlas_errors = (
         atlas_page_errors(content, allow_illustrative_work=allow_illustrative_work)
-        if theme_id == "cobalt-atlas/v2"
+        if uses_atlas_content(theme_id)
         else []
     )
     for message in [*page_shape_errors(content), *page_completeness_errors(content), *atlas_errors]:
