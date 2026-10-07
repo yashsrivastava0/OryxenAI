@@ -4,6 +4,10 @@ Compact record of major work. Git history holds full diffs; see `DECISIONS.md` f
 
 ## Recent changes
 
+### 2026-10-07 — Claude Code (Anthropic) — Claret Marquee, a fifth portfolio look
+
+New theme `claret-marquee/v1` and its Explorer card "Claret & amber": cinematic scroll-driven Home, About and per-project case pages, host-rendered from the Atlas content and verified in a real browser. Generalised the Atlas content gate (`themes.uses_atlas_content`), added manifest `runtime.global` and `evaluate`-based waits to the verifier, widened the picker to five cards, and added unit and Chromium matrix tests (colour schemes, widths, both scene drivers, no-script, reduced motion, keyboard, contrast, phone top bar). Axe-core reported no violations on the five fixtures. Firefox/WebKit, live model runs and Render were not exercised; the manifest seal is a development seal. Rationale in D-142.
+
 ### 2026-10-05 — Codex (OpenAI) — Keep encoded database URLs out of Alembic config
 
 The first retry with a percent-encoded Supabase password exposed Alembic's
@@ -390,3 +394,22 @@ repository only allows `actions/checkout`, `setup-uv`, `setup-node` and
 `gitleaks`; `dorny/paths-filter` and `actions/cache` are not permitted. Replaced
 path detection with a plain `git diff` step and dropped the Playwright cache.
 Repository Actions settings were not changed.
+
+### 2026-10-07 — Codex (OpenAI) — Finish Claret verification and preserve startup navigation
+
+Checked the Claret handoff against branch `NEW`, the approved plan and D-142.
+Reviewed final Home, About and case-page screenshots on desktop and phone in
+light and dark schemes, including the frosted top bar and single-line phone
+CTA. Preserved theme Python and Jinja files byte-exact on Windows checkout;
+the served CSS, JavaScript and font hashes remain unchanged. Created separate
+local theme, pipeline and Explorer commits, excluding unrelated contributor
+files. The full test run exposed a startup navigation race: a late session
+response could replace an explicit Home selection with the resumed stage.
+Explicit route choices now end automatic startup normalization; a browser
+regression holds the initial Studio response and proves Home survives its
+arrival. No push, deployment, live model call or additional browser install
+was performed. The full pytest rerun passed; only the opt-in live provider
+checks were skipped. Repository-wide Ruff lint and formatting, source typing,
+frontend typecheck/tests/production build and local Alembic upgrade all passed.
+Pytest's sandbox-inaccessible default cache was redirected to ignored output
+for the rerun. Final screenshots are in `output/claret-preview/final-review/`.

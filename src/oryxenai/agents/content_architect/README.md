@@ -55,7 +55,7 @@ One typed object whose regions mirror the pinned template one-to-one
 | `technical_capabilities` | `eyebrow`, `heading`, `intro`, `groups[]` (`heading`, `items[]`) |
 | `professional_context` | `eyebrow`, `heading`, `intro`, `organizations[]` — **names only** (the template has no slot for roles or dates) |
 | `connect` | `eyebrow`, `heading`, `intro`, `destinations[]` (`label`, `url`, `featured`) |
-| `atlas` | Cobalt Atlas v2 only: About heading/intro/optional quote, grounded experience, education, statistics, and up to three projects. |
+| `atlas` | Atlas-content themes only (`themes.uses_atlas_content`: Cobalt Atlas v2 and Claret Marquee): About heading/intro/optional quote, grounded experience, education, statistics, and up to three projects. |
 
 Deliberately not modeled: hrefs other than `connect.destinations[].url`
 (nav and hero CTAs use template-fixed anchors), numeric indexes, the
@@ -63,8 +63,9 @@ Deliberately not modeled: hrefs other than `connect.destinations[].url`
 derives those from the fields above so they can never drift. The template has
 no projects, experience, education, or metrics section in the three CSS-only
 themes; that material is folded into pillars, the hero intro, and capability
-groups. Cobalt Atlas v2 adds the `atlas` supplement while retaining the common
-tree. Optional rows are omitted when source facts are missing. An illustrative
+groups. The Atlas-content themes add the `atlas` supplement while retaining the
+common tree; the writing prompts never read a theme package. Optional rows are
+omitted when source facts are missing. An illustrative
 concept requires the owner's explicit Explorer opt-in and a visible label.
 
 Model output extras are dropped (`extra="ignore"`) instead of failing a

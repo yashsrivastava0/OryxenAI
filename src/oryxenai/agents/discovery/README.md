@@ -54,8 +54,9 @@ plain text without normalizing their content.
    question after at most three model-authored contextual questions.
    Palette choices map deterministically to a pinned theme id; the optional
    mood note does not alter that mapping or enter the factual dossier. Choosing
-   Cobalt Atlas v2 adds one optional question for project details and explicit
-   permission for a labeled illustrative concept when no real project is usable. User
+   an Atlas-content palette (Cobalt & volt, Claret & amber) adds one optional
+   question for project details and explicit permission for a labeled
+   illustrative concept when no real project is usable. User
    answers and skips are persisted with their history and answer-source spans.
    An open palette saved by an earlier release displays current server-owned
    choices when the session is read; the updated question is persisted on answer.
