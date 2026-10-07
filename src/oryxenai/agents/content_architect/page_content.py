@@ -301,9 +301,9 @@ def assumption_notes(page: Any) -> list[str]:
 
 
 def atlas_page_errors(page: Any, *, allow_illustrative_work: bool) -> list[str]:
-    """Additional content rules for the optional Cobalt Atlas v2 pages."""
+    """Additional content rules for the optional Atlas pages (About, work, case studies)."""
     if not isinstance(page, dict) or not isinstance(page.get("atlas"), dict):
-        return ["page_content.atlas is required for Cobalt Atlas v2"]
+        return ["page_content.atlas is required for the selected theme"]
     atlas = page["atlas"]
     errors: list[str] = []
     for field in ("about_heading", "about_intro"):
