@@ -126,6 +126,33 @@ def _reason(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {text[:160]}"
 
 
+_DEFAULT_RUNTIME_GLOBAL = "AtlasTheme"
+_RUNTIME_GLOBAL = re.compile(r"^[A-Za-z_$][\w$]*$")
+
+
+def _runtime_global(theme: ThemePackage) -> str:
+    """The global a scripted theme exposes (``window.<name>.go(id)``), from its manifest."""
+    runtime = theme.manifest.get("runtime")
+    name = runtime.get("global") if isinstance(runtime, dict) else None
+    if isinstance(name, str) and _RUNTIME_GLOBAL.fullmatch(name):
+        return name
+    return _DEFAULT_RUNTIME_GLOBAL
+
+
+async def _wait_until(page: Any, predicate: str, timeout_ms: float) -> None:
+    """Poll a page predicate with ``evaluate``.
+
+    ``Page.wait_for_function`` evaluates a *string* inside the page, which the preview CSP
+    (no ``unsafe-eval``) rejects on every poll after the first, so a theme that becomes ready
+    a moment after load would fail verification for no real reason.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000
+    while not await page.evaluate(predicate):
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"The page never satisfied {predicate}")
+        await asyncio.sleep(0.05)
+
+
 class BrowserVerifier:
     """Verifies a bundle in Chromium; see the module docstring for the policy."""
 
@@ -312,18 +339,23 @@ class BrowserVerifier:
             return {"viewport": width, "loaded": False}
         load_ms = round((time.perf_counter() - loaded) * 1000, 1)
         if theme.allows_scripts:
+            runtime = _runtime_global(theme)
+            wait_ms = self._config.page_timeout_seconds * 1000
             try:
-                await page.wait_for_function(
-                    "window.AtlasTheme && document.body.dataset.router === 'ready'",
-                    timeout=self._config.page_timeout_seconds * 1000,
+                await _wait_until(
+                    page,
+                    f"() => !!(window.{runtime} && document.body.dataset.router === 'ready')",
+                    wait_ms,
                 )
-                await page.evaluate("() => window.AtlasTheme.go('about')")
-                await page.wait_for_function("!document.getElementById('about').hidden")
+                await page.evaluate(f"() => window.{runtime}.go('about')")
+                await _wait_until(page, "() => !document.getElementById('about').hidden", wait_ms)
                 await page.go_back()
-                await page.wait_for_function("!document.getElementById('home').hidden")
+                await _wait_until(page, "() => !document.getElementById('home').hidden", wait_ms)
                 if await page.locator("#case-1").count():
-                    await page.evaluate("() => window.AtlasTheme.go('case-1')")
-                    await page.wait_for_function("!document.getElementById('case-1').hidden")
+                    await page.evaluate(f"() => window.{runtime}.go('case-1')")
+                    await _wait_until(
+                        page, "() => !document.getElementById('case-1').hidden", wait_ms
+                    )
             except Exception as exc:
                 findings.add(
                     Issue(

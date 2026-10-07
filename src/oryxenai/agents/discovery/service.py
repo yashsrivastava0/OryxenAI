@@ -54,6 +54,7 @@ from oryxenai.db.models.agent_run import AgentRun
 from oryxenai.db.repositories.discovery import DiscoveryRepository
 from oryxenai.jobs.contracts import JobStatus
 from oryxenai.jobs.service import JobService
+from oryxenai.themes import uses_atlas_content
 
 logger = get_logger("oryxenai.agents.discovery.service")
 
@@ -343,7 +344,7 @@ class DiscoveryService:
                     palette_choice = palette_answer(answer.value)
                     assert palette_choice is not None
                     next_theme_id = PALETTE_TO_THEME[palette_choice[0]]
-                    if next_theme_id != "cobalt-atlas/v2":
+                    if not uses_atlas_content(next_theme_id):
                         allow_illustrative_work = False
                 elif question.kind is QuestionKind.WORK_DETAIL:
                     work_choice = atlas_work_answer(answer.value)
@@ -412,7 +413,7 @@ class DiscoveryService:
 
         # The visual choice is last in the original round. Add one optional,
         # server-authored work question before scheduling the brief.
-        if next_theme_id == "cobalt-atlas/v2" and not any(
+        if uses_atlas_content(next_theme_id) and not any(
             item.gap_id == WORK_GAP_ID for item in next_state.operation_a.items
         ):
             work_question = atlas_work_question(f"{next_state.operation_a.run_id}:atlas-work")
