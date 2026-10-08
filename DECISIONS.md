@@ -269,3 +269,12 @@ Compact ledger of active architectural decisions. For historical entries prior t
 - **Decision:** Configure a 2.5-second rotation with a persistent Pause/Play control. Suspend it during pointer or keyboard interaction, dialog display, hidden/offscreen pages and reduced motion. Keep manual tabs and history semantics. Reveal an opened sample only after validated iframe readiness and a minimum 1.8-second visual transition; reduced motion skips the artificial minimum. Use lightweight CSS rings and the truthful “Opening sample…” label, with the existing bounded timeout, retry and cleanup.
 - **Rejected alternatives:** Implying that a prebuilt sample is being generated, a mandatory five-second wait on every opening, unpausable switching, animating layout properties, or downloading full demos for rotation.
 - **Consequence:** This supersedes D-144's no-autoplay choice at the operator's request. Browsing still has no model calls or account writes, and the animation never substitutes for actual readiness. A release must still use the exact passing staging SHA.
+
+## D-146 — Discover sealed local fonts before stylesheet parsing
+
+- **Date & Author:** 2026-10-08 — Codex (OpenAI)
+- **Status:** implementation verified locally; Linux staging verification required
+- **Context:** Release CI caught a cold-load layout shift in the earlier Claret theme at tablet width on Linux, where fallback font metrics differ from the Windows review machine.
+- **Decision:** The generic bundle composer emits font preload hints from the pinned local asset manifest before stylesheet discovery. Font requests retain anonymous CORS semantics. Newly composed HTML and prepared fictional copies include these hints in their sealed hashes; source theme bytes and existing saved versions remain unchanged.
+- **Rejected alternatives:** Relaxing the layout-shift threshold, excluding the failing content/viewport, rewriting released theme files, or requiring external fonts.
+- **Consequence:** Theme font discovery no longer waits for CSS parsing. Cold-browser layout stability remains a required real-browser check, including Linux CI.

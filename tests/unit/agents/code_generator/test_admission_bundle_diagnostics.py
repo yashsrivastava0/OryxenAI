@@ -114,6 +114,12 @@ def test_bundle_is_host_head_plus_model_body_and_lists_theme_files_by_hash() -> 
     assert paths[0] == "index.html" and "styles.css" in paths and "assets/hero-visual.svg" in paths
     css = next(entry for entry in bundle.manifest["files"] if entry["path"] == "styles.css")
     assert css["sha256"] == bundle.css_sha256 == THEME.css_sha256
+    for file in THEME.files.values():
+        if file.media_type.startswith("font/"):
+            assert f'href="./{file.path}" as="font"' in bundle.index_html
+            assert bundle.index_html.index(
+                f'href="./{file.path}" as="font"'
+            ) < bundle.index_html.index('rel="stylesheet"')
 
 
 def test_bundle_resolution_serves_index_and_theme_files_only() -> None:

@@ -8,6 +8,7 @@ bytes; nothing is rewritten after sealing.
 from __future__ import annotations
 
 import hashlib
+import html
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -33,11 +34,18 @@ def compose_document(
     theme: ThemePackage,
 ) -> str:
     contract = theme.contract
-    return (
-        contract.render_head(page_content, derived, lang)
-        + body_html.strip("\n")
-        + contract.render_tail()
+    head = contract.render_head(page_content, derived, lang)
+    # Discover local fonts before stylesheet parsing, so a cold browser need
+    # not lay out the page with platform-dependent fallback metrics first.
+    fonts = "\n".join(
+        f'<link rel="preload" href="./{html.escape(file.path, quote=True)}" '
+        f'as="font" type="{html.escape(file.media_type, quote=True)}" crossorigin>'
+        for file in theme.files.values()
+        if file.media_type.startswith("font/")
     )
+    if fonts:
+        head = head.replace('<meta charset="utf-8">', f'<meta charset="utf-8">\n{fonts}', 1)
+    return head + body_html.strip("\n") + contract.render_tail()
 
 
 def build_bundle(
