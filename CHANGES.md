@@ -451,3 +451,7 @@ Authentication initialization keeps the public page useful; storage and OAuth re
 ### 2026-10-08 — Codex (OpenAI) — Normalize prepared showcase metadata
 
 Emit committed fictional content and asset manifests with LF on every platform, matching the prepared HTML and demo-only scripts. Copied source theme and font-license bytes remain unchanged. Preparation and focused lint/format checks passed; no deployment or push.
+
+### 2026-10-08 — Codex (OpenAI) — Fill the sign-in sample frame
+
+Fixed a height-constrained aspect-ratio box that narrowed the sample poster and left an empty strip on the right. Give the preview stage an explicit full width, match the captured overview proportions, and scale each poster proportionally to cover its reserved frame. Short desktop windows may trim the lower edge; the opened interactive sample retains all content. Adjusted the short-screen height allowance while retaining the desktop viewport fit. Browser verification covers all three samples, frame coverage, standard desktop and phone sizes, the reported short-window shape, dialog navigation, retry and missing-poster behavior. Focused browser checks and repository lint/format checks passed. Local-only change; no push or deployment.
