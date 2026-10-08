@@ -1,5 +1,8 @@
-import { bootstrapAuthPage } from "./auth-controller.mjs";
 import { livingDraftMarkMarkup } from "./living-draft-mark.mjs";
+
+// Entry-point versions alone do not invalidate cached module dependencies.
+const controllerVersion = document.querySelector('meta[name="oryxenai-auth-controller-version"]')?.content || "";
+const { bootstrapAuthPage } = await import(`./auth-controller.mjs?v=${encodeURIComponent(controllerVersion)}`);
 
 // Purely decorative mount — no auth logic. The progress panel is only ever
 // visible while something is genuinely waiting (auth-controller.mjs toggles

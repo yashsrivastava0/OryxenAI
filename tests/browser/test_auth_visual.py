@@ -298,6 +298,26 @@ def test_callback_notice_survives_redirect_once(browser_page: object) -> None:
     expect(page.locator("#sign-in-error")).to_be_hidden()
 
 
+def test_returning_browser_does_not_reuse_an_old_authentication_dependency(
+    browser_page: object,
+) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    # Simulate a still-fresh cached unversioned module from an earlier release.
+    page.route(
+        f"{BASE_URL}/auth-static/auth-controller.mjs",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="export async function bootstrapAuthPage() {}",
+        ),
+    )
+    page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")
+    expect(page.locator("#google-sign-in")).to_be_enabled()
+    expect(page.locator("#sign-in-status")).to_be_hidden()
+    assert page.locator("body").get_attribute("data-auth-outcome") == "signed_out"
+
+
 def test_automatic_samples_pause_for_interaction_and_reduced_motion(browser_page: object) -> None:
     page = browser_page
     _install_sign_in(page, live_auth=True)
