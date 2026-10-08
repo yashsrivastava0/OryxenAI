@@ -413,3 +413,29 @@ checks were skipped. Repository-wide Ruff lint and formatting, source typing,
 frontend typecheck/tests/production build and local Alembic upgrade all passed.
 Pytest's sandbox-inaccessible default cache was redirected to ignored output
 for the rerun. Final screenshots are in `output/claret-preview/final-review/`.
+
+### 2026-10-08 — Codex (OpenAI) — Scale Explorer theme selection
+
+Moved Explorer choice metadata into validated `config/themes.toml` (D-143).
+The picker presents interactive themes first, retains classic themes, searches
+and filters the full catalog, and keeps the selected look visible in a summary
+when filters hide its card. Removed the frontend choice cutoff and per-theme
+card CSS; reusable preview compositions receive colors and badges from the
+server. Stable choice ids and pinned theme versions remain intact. Retiring a
+choice can disable new selection while retaining historical resolution, and
+stale saved drafts cannot enable Continue. Browser fixtures use the real catalog
+and cover a larger synthetic collection, search, filtering and keyboard use.
+Theme package bytes and the content/build contracts are unchanged. Catalog
+authoring and retirement are documented in `docs/theme-selection.md`.
+
+The full pytest suite passed with only opt-in live provider checks skipped.
+Frontend typecheck, tests and production build, repository Ruff lint and
+formatting, source typing and local Alembic upgrade also passed. The native API
+is running locally with healthy database readiness; the picker fixture is also
+available for review without sign-in. Sandboxed Supabase access failed, so the
+API was restarted with approved network access; the browser recovered its
+authenticated Explorer workspace. Automatic approval review
+rejected a network-enabled worker because it could send queued private content
+to model providers; the worker remains stopped pending explicit approval.
+The final picker screenshot is in `output/theme-selection/picker-final.jpg`.
+No live model call, remote push or deployment was performed.
