@@ -95,6 +95,8 @@ def test_samples_are_visible_and_responsive(browser_page: object) -> None:
         (1366, 768),
         (1440, 900),
         (1920, 1080),
+        (1910, 870),
+        (1530, 694),
         (320, 740),
         (390, 844),
         (768, 1024),
@@ -109,6 +111,19 @@ def test_samples_are_visible_and_responsive(browser_page: object) -> None:
             tab.click()
             expect(tab).to_have_attribute("aria-selected", "true")
             expect(page.locator("#sample-browser-title")).to_contain_text(name)
+            # Height-constrained previews must still fill the browser frame,
+            # rather than shrinking their aspect-ratio box towards the left.
+            page.locator("#sample-poster").evaluate("image => image.decode()")
+            bounds = page.evaluate("""() => {
+              const frame = document.querySelector('.sample-browser').getBoundingClientRect();
+              const stage = document.querySelector('.sample-poster-stage').getBoundingClientRect();
+              const image = document.querySelector('#sample-poster').getBoundingClientRect();
+              return {frameWidth:frame.width, stageWidth:stage.width,
+                imageWidth:image.width, stageHeight:stage.height, imageHeight:image.height};
+            }""")
+            assert abs(bounds["frameWidth"] - bounds["stageWidth"] - 2) < 1
+            assert abs(bounds["stageWidth"] - bounds["imageWidth"]) < 1
+            assert abs(bounds["stageHeight"] - bounds["imageHeight"]) < 1
         shot(page, f"sign-in-{width}")
     page.get_by_role("tab", name="Daybreak", exact=True).focus()
     page.keyboard.press("ArrowRight")
