@@ -10,16 +10,11 @@ from oryxenai.agents.discovery.schemas import (
     QuestionKind,
     QuestionOption,
 )
+from oryxenai.themes.catalog import theme_catalog
 
 PALETTE_GAP_ID = "visual_palette_v1"
 WORK_GAP_ID = "atlas_work_v1"
-PALETTE_TO_THEME = {
-    "forest_copper": "editorial-forest-motion/v1",
-    "cobalt_white": "cobalt-atlas/v1",
-    "obsidian_lime": "obsidian-signal/v1",
-    "cobalt_atlas_interactive": "cobalt-atlas/v2",
-    "claret_amber": "claret-marquee/v1",
-}
+PALETTE_TO_THEME = {choice.id: choice.theme_id for choice in theme_catalog()}
 
 
 def palette_question() -> DiscoveryQuestion:
@@ -31,35 +26,14 @@ def palette_question() -> DiscoveryQuestion:
         kind=QuestionKind.PALETTE_SELECT,
         options=[
             QuestionOption(
-                id="forest_copper",
-                label="Forest & copper",
-                description="Editorial warmth · layered and considered",
-                swatches=["#14231c", "#f3f1e9", "#9a3f29"],
-            ),
-            QuestionOption(
-                id="cobalt_white",
-                label="Cobalt & white",
-                description="Minimal clarity · bright and structured",
-                swatches=["#2849c9", "#f7f9fc", "#17253c"],
-            ),
-            QuestionOption(
-                id="obsidian_lime",
-                label="Obsidian & lime",
-                description="Bold modernity · high contrast and energetic",
-                swatches=["#0c0e0d", "#d9fc73", "#f0f2eb"],
-            ),
-            QuestionOption(
-                id="cobalt_atlas_interactive",
-                label="Cobalt & volt",
-                description="Interactive editorial · layered and vivid",
-                swatches=["#f8f8f5", "#3656d6", "#d7fa76"],
-            ),
-            QuestionOption(
-                id="claret_amber",
-                label="Claret & amber",
-                description="Cinematic depth · warm and dramatic",
-                swatches=["#3b0f1e", "#f6eee3", "#ffb04a"],
-            ),
+                id=choice.id,
+                label=choice.label,
+                description=choice.description,
+                swatches=list(choice.swatches),
+                theme=choice.presentation,
+            )
+            for choice in theme_catalog()
+            if choice.selectable
         ],
         allow_skip=False,
     )
@@ -82,7 +56,9 @@ def palette_answer(value: Any) -> tuple[str, str] | None:
     if not isinstance(value, dict) or set(value) != {"choice_id", "note"}:
         return None
     choice, note = value["choice_id"], value["note"]
-    if not isinstance(choice, str) or choice not in PALETTE_TO_THEME:
+    if not isinstance(choice, str) or not any(
+        entry.id == choice and entry.selectable for entry in theme_catalog()
+    ):
         return None
     if not isinstance(note, str) or len(note.strip()) > 1000:
         return None

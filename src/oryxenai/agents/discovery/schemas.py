@@ -12,6 +12,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from oryxenai.themes.catalog import ThemePresentation
+
 
 class QuestionKind(StrEnum):
     TEXT = "text"
@@ -289,6 +291,7 @@ class QuestionOption(BaseModel):
     label: str = ""
     description: str = ""
     swatches: list[str] = Field(default_factory=list)
+    theme: ThemePresentation | None = None
 
 
 class DiscoveryQuestion(BaseModel):
