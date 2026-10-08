@@ -296,3 +296,62 @@ def test_callback_notice_survives_redirect_once(browser_page: object) -> None:
     page.reload()
     expect(page.locator("#google-sign-in")).to_be_enabled()
     expect(page.locator("#sign-in-error")).to_be_hidden()
+
+
+def test_automatic_samples_pause_for_interaction_and_reduced_motion(browser_page: object) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.emulate_media(reduced_motion="no-preference")
+    page.set_viewport_size({"width": 1280, "height": 720})
+    page.mouse.move(0, 0)
+    page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")
+    expect(page.locator("#sample-browser-title")).to_contain_text("Daybreak")
+    expect(page.locator("#sample-browser-title")).to_contain_text("Nightshift", timeout=4000)
+    expect(page.locator("#sample-browser-title")).to_contain_text("Velvet", timeout=4000)
+    expect(page.locator("#sample-browser-title")).to_contain_text("Daybreak", timeout=4000)
+    page.locator("#sample-poster").hover()
+    paused_title = page.locator("#sample-browser-title").inner_text()
+    page.wait_for_timeout(2800)
+    assert page.locator("#sample-browser-title").inner_text() == paused_title
+    page.locator("#sample-rotation").click()
+    page.mouse.move(0, 0)
+    page.locator("#google-sign-in").focus()
+    page.wait_for_timeout(2800)
+    assert page.locator("#sample-browser-title").inner_text() == paused_title
+    expect(page.locator("#sample-rotation")).to_have_attribute("aria-pressed", "true")
+    page.locator("#sample-rotation").click()
+    page.get_by_role("tab", name="Velvet", exact=True).focus()
+    page.mouse.move(0, 0)
+    page.wait_for_timeout(2800)
+    assert page.locator("#sample-browser-title").inner_text() == paused_title
+    page.emulate_media(reduced_motion="reduce")
+    page.locator("#google-sign-in").focus()
+    expect(page.locator("#sample-rotation")).to_be_disabled()
+    page.wait_for_timeout(2800)
+    assert page.locator("#sample-browser-title").inner_text() == paused_title
+
+
+def test_sample_opening_animation_and_close_during_delay(browser_page: object) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.emulate_media(reduced_motion="no-preference")
+    page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")
+    page.get_by_role("tab", name="Nightshift", exact=True).click()
+    page.evaluate("window.sampleOpenedAt = performance.now()")
+    page.locator("#sample-open").click()
+    expect(page.locator("#sample-load-status")).to_have_text("Opening sample…")
+    expect(page.locator(".sample-loading-orbit")).to_be_visible()
+    page.locator("#sample-close").click()
+    expect(page.locator("#sample-dialog")).to_be_hidden()
+    page.wait_for_function("!location.search.includes('sample=')")
+    assert page.locator("iframe").count() == 0
+    page.evaluate("window.sampleOpenedAt = performance.now()")
+    page.locator("#sample-open").click()
+    expect(page.locator("iframe.is-ready")).to_be_visible(timeout=10000)
+    elapsed = page.evaluate("performance.now() - window.sampleOpenedAt")
+    assert elapsed >= 1700
+    expect(page.locator(".sample-loading-orbit")).to_be_hidden()
+    expect(page.locator("#sample-dialog-title")).to_contain_text("Nightshift")
+    page.locator("#sample-close").click()
+    page.wait_for_function("!location.search.includes('sample=')")
+    page.emulate_media(reduced_motion="reduce")

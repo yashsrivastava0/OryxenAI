@@ -1,7 +1,9 @@
 # Public fictional demos only; independent of Explorer's pinned theme catalog.
 [presentation]
-loading_message_after_ms = 1000
+loading_message_after_ms = 0
 load_timeout_ms = 10000
+rotation_interval_ms = 2500
+minimum_preview_ms = 1800
 
 [[samples]]
 id = "daybreak"
