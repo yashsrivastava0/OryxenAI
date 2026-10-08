@@ -52,20 +52,20 @@ def test_visual_palette_cards_fit_and_remain_keyboard_selectable(
     cards = page.locator(".palette-choice")
     assert cards.count() == 5
     assert [card.locator("small").inner_text() for card in cards.all()] == [
+        "Interactive editorial · layered and vivid",
+        "Cinematic depth · warm and dramatic",
         "Editorial warmth · layered and considered",
         "Minimal clarity · bright and structured",
         "Bold modernity · high contrast and energetic",
-        "Interactive editorial · layered and vivid",
-        "Cinematic depth · warm and dramatic",
     ]
     assert page.get_by_role("textbox", name="Optional note for your reference").is_visible()
     if width >= 1180:
         note = page.get_by_role("textbox", name="Optional note for your reference").bounding_box()
-        card = cards.last.bounding_box()
+        gallery = page.locator(".theme-picker__gallery").bounding_box()
         dock = page.locator(".action-dock").bounding_box()
-        assert note and card and dock
+        assert note and gallery and dock
         assert note["y"] + note["height"] <= dock["y"] + 1
-        assert card["y"] + card["height"] <= dock["y"] + 1
+        assert gallery["y"] + gallery["height"] <= dock["y"] + 1
     assert_no_horizontal_overflow(page)
 
     first = cards.nth(0).locator('input[type="radio"]')
@@ -77,6 +77,51 @@ def test_visual_palette_cards_fit_and_remain_keyboard_selectable(
     assert second.is_checked()
     assert page.get_by_role("button", name="Continue to brief").is_enabled()
     _shot(page, f"discovery-palette-{width}")
+
+
+def test_theme_catalog_search_filters_and_keeps_selection(browser_page: object) -> None:
+    page = browser_page
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
+    page.evaluate("sessionStorage.clear()")
+    page.reload(wait_until="networkidle")
+    page.get_by_text("Claret & amber", exact=True).click()
+    page.get_by_role("button", name="Classic", exact=True).click()
+    assert page.locator(".palette-choice").count() == 3
+    assert "Claret & amber" in page.locator(".theme-picker__selection").inner_text()
+    assert page.get_by_role("button", name="Continue to brief").is_enabled()
+    page.get_by_role("button", name="Show selection").click()
+    assert page.get_by_role("radio", name="Claret & amber", exact=True).is_checked()
+    search = page.get_by_role("searchbox", name="Search portfolio looks")
+    search.fill("Cinematic")
+    assert page.locator(".palette-choice").count() == 1
+    search.fill("no such look")
+    assert page.get_by_text("No matching looks", exact=True).is_visible()
+    page.get_by_role("button", name="Clear filters").click()
+    assert page.locator(".palette-choice").count() == 5
+
+
+def test_large_theme_catalog_is_not_truncated_or_allowed_to_cover_actions(
+    browser_page: object,
+) -> None:
+    page = browser_page
+    page.set_viewport_size({"width": 1366, "height": 768})
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-palette-many", wait_until="networkidle")
+    assert page.locator(".palette-choice").count() == 24
+    gallery = page.locator(".theme-picker__gallery")
+    assert gallery.evaluate("node => node.scrollHeight > node.clientHeight")
+    page.get_by_role("searchbox", name="Search portfolio looks").fill("Portfolio look 24")
+    page.get_by_text("Portfolio look 24", exact=True).click()
+    assert page.get_by_role("button", name="Continue to brief").is_enabled()
+    assert_no_horizontal_overflow(page)
+
+
+def test_stale_palette_drafts_do_not_enable_submission(browser_page: object) -> None:
+    page = browser_page
+    page.goto(f"{BASE_URL}/?fixture=discovery-question-palette", wait_until="networkidle")
+    page.evaluate("sessionStorage.setItem('oryxenai.draft.visual_palette.single', 'retired_theme')")
+    page.reload(wait_until="networkidle")
+    assert page.get_by_role("button", name="Continue to brief").is_disabled()
+    page.evaluate("sessionStorage.clear()")
 
 
 def test_context_question_accepts_custom_only_and_mixed_answers(browser_page: object) -> None:
