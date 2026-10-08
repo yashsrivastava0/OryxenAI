@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from oryxenai.auth.showcase import create_showcase_router, showcase_manifest
 from oryxenai.web.branding import brand_version
 
 _ROOT = Path(__file__).resolve().parent
@@ -73,6 +74,8 @@ def create_auth_web_router() -> APIRouter:
                 "auth_page_version": _asset_version("auth-page.mjs"),
                 "auth_admin_version": _asset_version("auth-admin.mjs"),
                 "sign_in_showcase_version": _asset_version("sign-in-showcase.mjs"),
+                "sign_in_css_version": _asset_version("sign-in.css"),
+                "showcase": showcase_manifest(),
             },
         )
         response.headers["Content-Security-Policy"] = auth_csp(settings.supabase_url)
@@ -146,6 +149,7 @@ def create_auth_web_router() -> APIRouter:
     async def admin(request: Request) -> Any:
         return await render_shell(request, "admin")
 
+    router.include_router(create_showcase_router())
     router.mount("/auth-static", app=StaticFiles(directory=str(_STATIC_DIR)), name="auth-static")
     # Browser shells import the same local runtime through a relative module
     # specifier.  Keep this reviewed, self-hosted alias aligned with the

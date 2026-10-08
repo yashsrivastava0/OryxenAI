@@ -48,7 +48,7 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function withTimeout(value, timeoutMs) {
+export async function withTimeout(value, timeoutMs) {
   const delay = Number.isFinite(timeoutMs) && timeoutMs > 0
     ? timeoutMs
     : AUTH_BOOTSTRAP_TIMEOUT_MS;
@@ -108,7 +108,12 @@ export function canonicalDestination(config, location) {
     const current = new URL(location.href);
     if (current.origin === primaryOrigin) return null;
     const path = safeRelativePath(current.pathname, "/");
-    return `${primaryOrigin}${path}`;
+    const destination = new URL(path, primaryOrigin);
+    if (["/", "/sign-in"].includes(path) && ["daybreak", "nightshift", "velvet"].includes(current.searchParams.get("sample"))) {
+      destination.searchParams.set("sample", current.searchParams.get("sample"));
+      if (current.hash === "#sign-in-panel") destination.hash = current.hash;
+    }
+    return destination.href;
   } catch {
     return null;
   }

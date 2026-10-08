@@ -11,3 +11,6 @@ src/oryxenai/themes/**/*.svg -text
 src/oryxenai/themes/**/*.md -text
 src/oryxenai/themes/**/*.txt -text
 src/oryxenai/themes/**/*.woff2 binary
+
+# Fictional demo bundles are also hash-pinned; never normalize their bytes.
+src/oryxenai/auth/showcase/** -text

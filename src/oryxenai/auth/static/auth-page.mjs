@@ -13,6 +13,10 @@ bootstrapAuthPage().catch(() => {
   document.getElementById("global-error")?.replaceChildren(
     document.createTextNode("Authentication could not be initialized."),
   );
+  document.getElementById("global-error")?.removeAttribute("hidden");
+  document.getElementById("sign-in-status")?.setAttribute("hidden", "");
+  document.body.dataset.authOutcome = "provider_unavailable";
+  window.dispatchEvent(new CustomEvent("oryxenai-auth-resolved"));
   const panel = document.getElementById("sign-in-panel");
   if (panel) panel.hidden = false;
   document.getElementById("progress-panel")?.setAttribute("hidden", "");

@@ -1,0 +1,25 @@
+# Public fictional demos only; independent of Explorer's pinned theme catalog.
+[presentation]
+loading_message_after_ms = 1000
+load_timeout_ms = 10000
+
+[[samples]]
+id = "daybreak"
+name = "Daybreak"
+profile = "Maya Kapoor"
+theme_id = "cobalt-atlas/v2"
+palette = ["#FAF8F0", "#3F63CC", "#DFEAA0"]
+
+[[samples]]
+id = "nightshift"
+name = "Nightshift"
+profile = "Arjun Rao"
+theme_id = "obsidian-signal/v1"
+palette = ["#111A19", "#C8EC8A", "#EDF0E7"]
+
+[[samples]]
+id = "velvet"
+name = "Velvet"
+profile = "Elena Vale"
+theme_id = "claret-marquee/v1"
+palette = ["#452032", "#E8BA79", "#F7EEE5"]

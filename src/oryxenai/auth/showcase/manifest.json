@@ -1,0 +1,86 @@
+{
+  "presentation": {
+    "loading_message_after_ms": 1000,
+    "load_timeout_ms": 10000
+  },
+  "samples": [
+    {
+      "id": "daybreak",
+      "name": "Daybreak",
+      "profile": "Maya Kapoor",
+      "theme_id": "cobalt-atlas/v2",
+      "palette": [
+        "#FAF8F0",
+        "#3F63CC",
+        "#DFEAA0"
+      ],
+      "files": {
+        "assets/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "assets/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "assets/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "assets/fonts/geist-700.ttf": "1a9874b3be0fc168692a3d2327bccb4d28835653d3b91537a755296a467a83e3",
+        "assets/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "assets/fonts/instrument-serif-italic.ttf": "fecf4861d5202405b8bd45c683858b6870642a026784fe0dbf88ff55dedee8a0",
+        "demo.css": "241cd456202acda0cda1b1b034e06e5bb9343a2f32b2e7e778d402ae77a55c47",
+        "index.html": "32a935968113423d559eec9d495e1be0de337cec0e1ce8e043fb45906a0cfd67",
+        "LICENSE-geist-mono-OFL.txt": "fb64c1011862d97fe49c633ad9180ffd80a61aab6ff220a2935704e8a0c3a7c4",
+        "LICENSE-geist-OFL.txt": "fb64c1011862d97fe49c633ad9180ffd80a61aab6ff220a2935704e8a0c3a7c4",
+        "LICENSE-instrument-serif-OFL.txt": "b6b2292aa580937fb63796878d65a027a27f8c3db2d97601d0c34d9031f4ca17",
+        "portrait.webp": "8a27d5218908d075981677f2024d5d1a5df55c8d03ee2aa277c54e469986953d",
+        "poster.webp": "ce7843d4362c72a90b321b3490bac1179f0adefeecff57a3bed69e045ba0281e",
+        "ready.mjs": "336f0d6ef7b1ace387d1cb7017e1915807011f89214c76c6d91ac476d5897580",
+        "style.css": "665aaec68ade8ddab62404d4ee4d4efcc4dcfc477b72857bfb98a8c57fc1c9ba",
+        "theme.js": "46c752093f6c939ce2e49cf64c80574a411a17fc6c3ac4e96bd1d36c08c9f5db",
+        "thumb.webp": "d7e19253b42c9e9756c6004758f84cad8e05f4c81b8c9626f45ca021b3280419"
+      }
+    },
+    {
+      "id": "nightshift",
+      "name": "Nightshift",
+      "profile": "Arjun Rao",
+      "theme_id": "obsidian-signal/v1",
+      "palette": [
+        "#111A19",
+        "#C8EC8A",
+        "#EDF0E7"
+      ],
+      "files": {
+        "demo.css": "241cd456202acda0cda1b1b034e06e5bb9343a2f32b2e7e778d402ae77a55c47",
+        "index.html": "219bb5ce8e64000b66958cbaf5eb36c3303d113682aad90539b26c68442335cb",
+        "portrait.webp": "a29496e357d5897d53199b7f24f64ebfa53d8e2983375495a2108d9396a16942",
+        "poster.webp": "b341a4174aaafc804683914d064774d188290f4bfe362c920460c0496141688c",
+        "ready.mjs": "336f0d6ef7b1ace387d1cb7017e1915807011f89214c76c6d91ac476d5897580",
+        "styles.css": "c5ca6140c3f8813a67c6901072fa249a130be160550b44a0f98bf167571e687b",
+        "thumb.webp": "1c7b4c63ca087e256072ee23d1892232400abf24ba19b3a5c32400dc915e5a7e"
+      }
+    },
+    {
+      "id": "velvet",
+      "name": "Velvet",
+      "profile": "Elena Vale",
+      "theme_id": "claret-marquee/v1",
+      "palette": [
+        "#452032",
+        "#E8BA79",
+        "#F7EEE5"
+      ],
+      "files": {
+        "assets/fonts/bodoni-moda-italic.woff2": "f908f38760f26518b1f99cebdbda46780c9a1728bf7b7871edd3d0e9c8a1f971",
+        "assets/fonts/bodoni-moda-roman.woff2": "13e34a2c23e1c912785a02131c084e2581a9b349aabe542770a7272166d2fb70",
+        "assets/fonts/dm-mono-500.woff2": "96cba06372e064e11a445dc3507ada69057456ad4194e969255cd484f8e1c654",
+        "assets/fonts/hanken-grotesk.woff2": "d18c0d99b5b842dc63939e5c28818245893b76ae19ac79c40e6b04879803b272",
+        "demo.css": "241cd456202acda0cda1b1b034e06e5bb9343a2f32b2e7e778d402ae77a55c47",
+        "index.html": "a5a25265a84ba0e81a32e355b3f2f55298c41d9e57529f6d8c7b755efd75d76d",
+        "LICENSE-bodoni-moda-OFL.txt": "931dfe2e0cd3c9443295f5c1d754b8a8403bf060df50c1d5900267ade83d0046",
+        "LICENSE-dm-mono-OFL.txt": "febfd2b42308d5327ade2884aed777da3d2decd2c53d574c43e603443d70c5b2",
+        "LICENSE-hanken-grotesk-OFL.txt": "e02ccb89a86839b22feff7872ff5cc355cc0f58318d29eee20e2cf83a612f16d",
+        "portrait.webp": "c1038b2b8e23923b041742157d28e9debe29d1f6a84fe85342cc2a16cfee52f7",
+        "poster.webp": "4b31d98f963d6f51682c814516b252a3e29a96e5ad832310ca0c77e622b9bf95",
+        "ready.mjs": "336f0d6ef7b1ace387d1cb7017e1915807011f89214c76c6d91ac476d5897580",
+        "style.css": "17dabb15fba56f6083ccda0cfd5138ba56c85c7c165ac4522e290dd461b46d9a",
+        "theme.js": "3a33d94301646e4a8a7e25f9e245ae69e8ea7ec34b5cb3dd128bd2d8dfee7c43",
+        "thumb.webp": "159d4ba0bc59975dbefe8fa5e88e00a3ada7caabfda10512110dce7c8ac6f79f"
+      }
+    }
+  ]
+}

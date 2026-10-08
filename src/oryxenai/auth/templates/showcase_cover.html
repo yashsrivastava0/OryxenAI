@@ -1,0 +1,29 @@
+<section class="demo-overview" aria-label="{{ sample.name }} fictional portfolio">
+  <nav class="demo-nav" aria-label="Sample portfolio navigation">
+    <a class="demo-brand" href="#demo-top"><b>{{ monogram }}.</b> {{ sample.profile }}</a>
+    <div><a href="#{{ work_id }}">Work</a><a href="#about">About</a><a href="#contact">Contact</a></div>
+  </nav>
+  <div class="demo-hero" id="demo-top">
+    <div class="demo-copy">
+      <p class="demo-kicker">Product designer</p>
+      <h1>{{ content.hero.headline_prefix }} <em>{{ content.hero.headline_emphasis }}.</em></h1>
+      <p>I design practical software for healthcare, finance and logistics teams.</p>
+      <ul class="demo-skills"><li>Product strategy</li><li>Design systems</li><li>User research</li></ul>
+      <div class="demo-figures"><span><b>{{ content.atlas.statistics[0].value }} years</b>Product design</span><span><b>{{ content.atlas.statistics[1].value }} products</b>Shipped to market</span></div>
+    </div>
+    <figure class="demo-profile">
+      <img src="./portrait.webp" width="640" height="800" alt="Fictional portrait of {{ sample.profile }}" decoding="async">
+      <figcaption><strong>{{ sample.profile }}</strong><span>Product designer</span><span>Bengaluru, India</span></figcaption>
+    </figure>
+  </div>
+  <div class="demo-work-title"><h2>Selected work</h2><a href="#{{ work_id }}">View all work ↗</a></div>
+  <div class="demo-projects">
+    {% for project in content.atlas.projects[:2] %}
+    <a class="demo-project" href="#{{ work_id }}">
+      <div class="demo-project-art art-{{ loop.index }}" aria-hidden="true"><div class="art-sidebar"></div><div class="art-sheet"><i></i><i></i><i></i><svg viewBox="0 0 140 60"><path d="M0 52 L20 38 L40 44 L62 18 L84 25 L108 8 L140 13"/></svg></div><span class="art-circle"></span></div>
+      <div><h3>{{ project.title }}</h3><p>{{ project.summary }}</p><span class="demo-project-tag">{{ 'Healthcare · SaaS' if loop.first else 'Fintech · Onboarding' }}</span></div>
+    </a>
+    {% endfor %}
+  </div>
+  <p class="demo-fiction">Fictional profile and illustrative work. This is a demonstration.</p>
+</section>

@@ -1,265 +1,150 @@
-/**
- * Interactive showcase and motion controller for OryxenAI Screen 1 (/sign-in).
- * Pure vanilla ESM — zero external dependencies.
- */
-
-export function initSignInShowcase() {
-  const showcase = document.querySelector(".sign-in-showcase");
-  if (!showcase) return;
-
-  const cards = [...showcase.querySelectorAll(".showcase-card")];
-  const dots = [...showcase.querySelectorAll(".showcase-dot")];
-  const prevBtn = showcase.querySelector(".showcase-nav-prev");
-  const nextBtn = showcase.querySelector(".showcase-nav-next");
-  const pauseBtn = showcase.querySelector(".showcase-pause-btn");
-  const stageNodes = [...document.querySelectorAll(".stage-rail-node")];
-  const railActiveLine = document.getElementById("rail-active-segment");
-  if (!cards.length) return;
-
-  let currentIndex = 1;
-  let isPaused = false;
-  let isHovered = false;
-  let isFocused = false;
-  let isInView = true;
-  let autoplayTimer = null;
-  const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
-  const cardToStageIndex = [0, 0, 1, 2];
-
-  function updateCards(index) {
-    currentIndex = (index + cards.length) % cards.length;
-    cards.forEach((card, i) => {
-      const active = i === currentIndex;
-      card.classList.toggle("card-active", active);
-      card.setAttribute("aria-hidden", String(!active));
-      card.toggleAttribute("inert", !active);
-      card.setAttribute("tabindex", active ? "0" : "-1");
-      if (active) card.setAttribute("aria-current", "true");
-      else card.removeAttribute("aria-current");
-    });
-    dots.forEach((dot, i) => {
-      const active = i === currentIndex;
-      dot.classList.toggle("active", active);
-      dot.setAttribute("aria-selected", String(active));
-      dot.setAttribute("tabindex", active ? "0" : "-1");
-      dot.setAttribute("aria-controls", cards[i].id);
-    });
-    const activeStageIdx = cardToStageIndex[currentIndex] ?? 0;
-    stageNodes.forEach((node, i) => {
-      node.classList.toggle("active", i === activeStageIdx);
-      node.classList.toggle("completed", i < activeStageIdx);
-    });
-    if (railActiveLine && stageNodes.length > 1) {
-      const percent = (activeStageIdx / (stageNodes.length - 1)) * 100;
-      railActiveLine.style.width = `${percent}%`;
-    }
-  }
-
-  function stopAutoplay() {
-    if (autoplayTimer !== null) window.clearInterval(autoplayTimer);
-    autoplayTimer = null;
-  }
-
-  function startAutoplay() {
-    stopAutoplay();
-    if (motionPreference.matches || isPaused || isHovered || isFocused || !isInView || document.hidden) return;
-    autoplayTimer = window.setInterval(() => updateCards(currentIndex + 1), 6000);
-  }
-
-  prevBtn?.addEventListener("click", () => {
-    updateCards(currentIndex - 1);
-    startAutoplay();
-  });
-  nextBtn?.addEventListener("click", () => {
-    updateCards(currentIndex + 1);
-    startAutoplay();
-  });
-  dots.forEach((dot, i) => dot.addEventListener("click", () => {
-    updateCards(i);
-    startAutoplay();
-  }));
-
-  pauseBtn?.addEventListener("click", () => {
-    isPaused = !isPaused;
-    pauseBtn.setAttribute("aria-pressed", String(isPaused));
-    const label = isPaused ? "Play slideshow" : "Pause slideshow";
-    pauseBtn.setAttribute("aria-label", label);
-    pauseBtn.setAttribute("title", label);
-    pauseBtn.querySelector(".icon-pause")?.toggleAttribute("hidden", isPaused);
-    pauseBtn.querySelector(".icon-play")?.toggleAttribute("hidden", !isPaused);
-    startAutoplay();
-  });
-
-  showcase.addEventListener("mouseenter", () => { isHovered = true; stopAutoplay(); });
-  showcase.addEventListener("mouseleave", () => { isHovered = false; startAutoplay(); });
-  showcase.addEventListener("focusin", () => { isFocused = true; stopAutoplay(); });
-  showcase.addEventListener("focusout", (event) => {
-    if (!showcase.contains(event.relatedTarget)) { isFocused = false; startAutoplay(); }
-  });
-  showcase.addEventListener("keydown", (event) => {
-    if (!dots.includes(event.target)) return;
-    let index = currentIndex;
-    if (event.key === "ArrowLeft") index -= 1;
-    else if (event.key === "ArrowRight") index += 1;
-    else if (event.key === "Home") index = 0;
-    else if (event.key === "End") index = cards.length - 1;
-    else return;
-    event.preventDefault();
-    updateCards(index);
-    dots[currentIndex].focus();
-  });
-
-  function updateMotionPreference() {
-    if (pauseBtn) pauseBtn.hidden = motionPreference.matches;
-    startAutoplay();
-  }
-  motionPreference.addEventListener("change", updateMotionPreference);
-  document.addEventListener("visibilitychange", startAutoplay);
-  window.addEventListener("pagehide", stopAutoplay);
-  window.addEventListener("pageshow", startAutoplay);
-  if (typeof IntersectionObserver === "function") {
-    const observer = new IntersectionObserver(([entry]) => {
-      isInView = entry.isIntersecting;
-      startAutoplay();
-    });
-    observer.observe(showcase);
-  }
-
-  updateCards(1);
-  pauseBtn?.setAttribute("aria-pressed", "false");
-  updateMotionPreference();
-}
-
-/**
- * Opens the three fictional outcome examples in one native modal dialog.
- * The preview content is already in the trusted template; this controller
- * only toggles visibility and restores focus to the card that opened it.
- */
+/** Public fictional demos; never owns authentication or starts generation. */
 export function initOutcomeShowcase() {
-  const section = document.querySelector(".outcome-showcase");
-  const dialog = document.querySelector("#outcome-preview-dialog");
-  const closeButton = dialog?.querySelector("[data-outcome-close]");
-  if (!section || !(dialog instanceof HTMLDialogElement) || !(closeButton instanceof HTMLElement)) return;
+  const showcase = document.querySelector(".sample-showcase");
+  const dialog = document.getElementById("sample-dialog");
+  if (!showcase || !(dialog instanceof HTMLDialogElement) || showcase.dataset.initialized) return;
+  showcase.dataset.initialized = "true";
+  const tabs = [...showcase.querySelectorAll("[data-sample]")];
+  const poster = document.getElementById("sample-poster");
+  const fallback = document.getElementById("sample-poster-fallback");
+  const panel = document.getElementById("sample-panel");
+  const title = document.getElementById("sample-browser-title");
+  const openLink = document.getElementById("sample-open");
+  const closeButton = document.getElementById("sample-close");
+  const retry = document.getElementById("sample-retry");
+  const slot = document.getElementById("sample-frame-slot");
+  const placeholder = document.getElementById("sample-dialog-poster");
+  const feedback = document.getElementById("sample-load-feedback");
+  const status = document.getElementById("sample-load-status");
+  const stage = dialog.querySelector(".sample-dialog-stage");
+  let selected = tabs[0], frame = null, attempt = null, timers = [], returnFocus = null;
+  let initialLinkPending = true;
+  let closingHistory = false;
+  let frameToken = null;
+  const entry = id => tabs.find(tab => tab.dataset.sample === id);
+  const label = tab => `${tab.dataset.name} / ${tab.dataset.profile}`;
+  const asset = (tab, file) => `/showcase-samples/${tab.dataset.sample}/${file}`;
+  const readSample = () => new URL(location.href).searchParams.get("sample");
 
-  const cards = [...section.querySelectorAll("[data-outcome-id]")];
-  const previews = [...dialog.querySelectorAll("[data-outcome-preview]")];
-  const routeLinks = [...dialog.querySelectorAll("[data-preview-route]")];
-  const screens = [...dialog.querySelectorAll("[data-preview-screen]")];
-  const sheet = dialog.querySelector(".outcome-dialog-sheet");
-  const authLink = section.querySelector("[data-focus-auth]");
-  let returnTrigger = null;
-
-  function setRouteState(preview, route) {
-    routeLinks.forEach((link) => {
-      if (link.closest("[data-outcome-preview]") !== preview) return;
-      if (link.getAttribute("data-preview-route") === route) {
-        link.setAttribute("aria-current", "page");
-      } else {
-        link.removeAttribute("aria-current");
-      }
+  function select(tab, focus = false) {
+    if (!tab) return;
+    selected = tab;
+    tabs.forEach(candidate => {
+      candidate.setAttribute("aria-selected", String(candidate === tab));
+      candidate.tabIndex = candidate === tab ? 0 : -1;
     });
-
-    const routeStatus = preview.querySelector("[data-preview-route-status]");
-    if (routeStatus instanceof HTMLElement) {
-      routeStatus.textContent = `/${route.slice(route.lastIndexOf("-") + 1)}`;
+    panel.setAttribute("aria-labelledby", tab.id);
+    title.textContent = label(tab);
+    poster.alt = `${tab.dataset.name}: ${tab.dataset.profile}'s fictional portfolio, with profile and selected projects`;
+    poster.hidden = false;
+    fallback.hidden = true;
+    poster.classList.remove("is-switching");
+    poster.src = asset(tab, "poster.webp");
+    openLink.href = asset(tab, "index.html");
+    if (focus) tab.focus();
+  }
+  poster.addEventListener("load", () => poster.classList.add("is-switching"));
+  poster.addEventListener("error", () => { poster.hidden = true; fallback.hidden = false; });
+  tabs.forEach((tab, index) => {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", event => {
+      let next;
+      if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+      if (event.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
+      if (event.key === "Home") next = 0;
+      if (event.key === "End") next = tabs.length - 1;
+      if (next !== undefined) { event.preventDefault(); select(tabs[next], true); }
+    });
+    tab.querySelector("img")?.addEventListener("error", event => { event.target.hidden = true; });
+  });
+  function cancelLoad() {
+    timers.forEach(clearTimeout); timers = []; attempt = null; frameToken = null;
+    frame?.remove(); frame = null;
+  }
+  function load() {
+    cancelLoad();
+    attempt = crypto.randomUUID();
+    frameToken = attempt;
+    const thisAttempt = attempt;
+    placeholder.src = asset(selected, "poster.webp"); placeholder.hidden = false;
+    feedback.hidden = true; retry.hidden = true; status.textContent = "Opening sample…";
+    stage.setAttribute("aria-busy", "true");
+    frame = document.createElement("iframe");
+    frame.title = `${label(selected)} — interactive fictional portfolio`;
+    frame.setAttribute("sandbox", "allow-scripts allow-popups allow-popups-to-escape-sandbox");
+    frame.referrerPolicy = "no-referrer";
+    frame.src = `${asset(selected, "index.html")}?attempt=${encodeURIComponent(attempt)}`;
+    slot.replaceChildren(frame);
+    timers.push(setTimeout(() => { if (attempt === thisAttempt) feedback.hidden = false; }, Number(showcase.dataset.loadingDelay)));
+    timers.push(setTimeout(() => {
+      if (attempt !== thisAttempt) return;
+      cancelLoad(); stage.setAttribute("aria-busy", "false");
+      feedback.hidden = false; retry.hidden = false; status.textContent = "This sample couldn’t load.";
+    }, Number(showcase.dataset.loadTimeout)));
+  }
+  window.addEventListener("message", event => {
+    if (dialog.open && frame && event.source === frame.contentWindow && event.data?.attempt === frameToken && event.data?.type === "oryxenai-demo-close") {
+      close(); return;
+    }
+    if (!dialog.open || !frame || event.source !== frame.contentWindow || !attempt) return;
+    if (event.data?.type !== "oryxenai-demo-ready" || event.data.attempt !== attempt) return;
+    timers.forEach(clearTimeout); timers = []; attempt = null;
+    frame.classList.add("is-ready"); placeholder.hidden = true; feedback.hidden = true;
+    stage.setAttribute("aria-busy", "false");
+  });
+  function show(tab) {
+    if (!tab) return;
+    select(tab);
+    if (!dialog.open) returnFocus = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : openLink;
+    if (!dialog.open) dialog.showModal();
+    document.body.classList.add("sample-modal-open");
+    document.getElementById("sample-dialog-title").textContent = label(tab);
+    load(); closeButton.focus();
+  }
+  function dismiss() {
+    cancelLoad(); if (dialog.open) dialog.close();
+    document.body.classList.remove("sample-modal-open");
+    returnFocus?.focus({ preventScroll: true }); returnFocus = null;
+  }
+  function close() {
+    dismiss();
+    const url = new URL(location.href);
+    if (!url.searchParams.has("sample")) return;
+    if (history.state?.oryxenaiSample) {
+      closingHistory = true; openLink.setAttribute("aria-disabled", "true"); history.back();
+    }
+    else { url.searchParams.delete("sample"); history.replaceState(history.state, "", url); }
+  }
+  openLink.addEventListener("click", event => {
+    event.preventDefault(); initialLinkPending = false;
+    if (closingHistory || dialog.open) return;
+    const url = new URL(location.href); url.searchParams.set("sample", selected.dataset.sample);
+    history.pushState({ ...history.state, oryxenaiSample: true }, "", url); show(selected);
+  });
+  closeButton.addEventListener("click", close); retry.addEventListener("click", load);
+  dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
+  dialog.addEventListener("click", event => { if (event.target === dialog) close(); });
+  dialog.addEventListener("close", () => {
+    if (dialog.open) return; // A delayed close event may arrive after reopening.
+    cancelLoad(); document.body.classList.remove("sample-modal-open");
+  });
+  window.addEventListener("popstate", () => {
+    closingHistory = false; openLink.removeAttribute("aria-disabled");
+    const tab = entry(readSample()); if (tab) show(tab); else dismiss();
+  });
+  function resolveInitialLink() {
+    if (!initialLinkPending || !document.body.dataset.authOutcome) return;
+    initialLinkPending = false;
+    if (["signed_out", "storage_error", "provider_unavailable"].includes(document.body.dataset.authOutcome)) {
+      const tab = entry(readSample()); if (tab) show(tab);
     }
   }
-
-  previews.forEach((preview) => {
-    preview.addEventListener("pointermove", (event) => {
-      const bounds = preview.getBoundingClientRect();
-      if (!bounds.width || !bounds.height) return;
-      preview.style.setProperty("--pointer-x", `${((event.clientX - bounds.left) / bounds.width) * 100}%`);
-      preview.style.setProperty("--pointer-y", `${((event.clientY - bounds.top) / bounds.height) * 100}%`);
-    });
-    preview.addEventListener("pointerleave", () => {
-      preview.style.setProperty("--pointer-x", "50%");
-      preview.style.setProperty("--pointer-y", "22%");
-    });
-  });
-
-  if (sheet instanceof HTMLElement && typeof IntersectionObserver === "function") {
-    const screenObserver = new IntersectionObserver((entries) => {
-      const visibleEntry = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((first, second) => first.boundingClientRect.top - second.boundingClientRect.top)[0];
-      if (!visibleEntry) return;
-      const preview = visibleEntry.target.closest("[data-outcome-preview]");
-      const route = visibleEntry.target.getAttribute("data-preview-screen");
-      if (preview instanceof HTMLElement && !preview.hidden && route) setRouteState(preview, route);
-      visibleEntry.target.classList.add("is-in-view");
-    }, { root: sheet, threshold: 0.55 });
-    screens.forEach((screen) => screenObserver.observe(screen));
-  }
-
-  function resetCardState() {
-    cards.forEach((card) => card.setAttribute("aria-expanded", "false"));
-  }
-
-  function restoreFocus() {
-    resetCardState();
-    if (returnTrigger instanceof HTMLElement) returnTrigger.focus();
-    returnTrigger = null;
-  }
-
-  function closePreview() {
-    if (dialog.open) {
-      resetCardState();
-      dialog.close();
-    } else {
-      restoreFocus();
-    }
-  }
-
-  cards.forEach((card) => {
-    card.addEventListener("click", () => {
-      const id = card.getAttribute("data-outcome-id");
-      if (!id) return;
-      const selected = previews.find((preview) => preview.getAttribute("data-outcome-preview") === id);
-      if (!selected) return;
-      previews.forEach((preview) => { preview.hidden = preview !== selected; });
-      setRouteState(selected, `${id}-home`);
-      returnTrigger = card;
-      cards.forEach((candidate) => candidate.setAttribute("aria-expanded", String(candidate === card)));
-      if (sheet instanceof HTMLElement) sheet.scrollTop = 0;
-      dialog.showModal();
-      window.requestAnimationFrame(() => closeButton.focus());
-    });
-  });
-
-  routeLinks.forEach((link) => {
-    link.addEventListener("click", (event) => {
-      const preview = link.closest("[data-outcome-preview]");
-      const route = link.getAttribute("data-preview-route");
-      if (!(preview instanceof HTMLElement) || preview.hidden || !route) return;
-      const target = preview.querySelector(`[data-preview-screen="${route}"]`);
-      if (!target) return;
-      event.preventDefault();
-      setRouteState(preview, route);
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  });
-
-  closeButton.addEventListener("click", closePreview);
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) closePreview();
-  });
-  dialog.addEventListener("cancel", restoreFocus);
-  dialog.addEventListener("close", restoreFocus);
-
-  authLink?.addEventListener("click", () => {
-    window.requestAnimationFrame(() => document.getElementById("google-sign-in")?.focus());
-  });
+  select(entry(readSample()) || selected); resolveInitialLink();
+  window.addEventListener("oryxenai-auth-resolved", resolveInitialLink);
+  window.addEventListener("pagehide", cancelLoad);
+  window.addEventListener("pageshow", event => { if (event.persisted && dialog.open) load(); });
 }
-
-// Auto-run if loaded in browser
 if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      initSignInShowcase();
-      initOutcomeShowcase();
-    });
-  } else {
-    initSignInShowcase();
-    initOutcomeShowcase();
-  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initOutcomeShowcase, { once: true });
+  else initOutcomeShowcase();
 }

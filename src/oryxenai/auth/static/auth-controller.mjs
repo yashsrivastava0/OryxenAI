@@ -21,6 +21,7 @@ import {
   responseError,
   safeRelativePath,
   safeSession,
+  withTimeout,
 } from "./auth-runtime.mjs";
 
 export {
@@ -65,10 +66,20 @@ export async function routeController({
     admin: isReviewedDestination(paths.admin || "/admin") ? paths.admin || "/admin" : "/admin",
   };
   const replace = (destination) => {
+    if (path === "/" && destination === reviewed.signIn && location?.href) {
+      const url = new URL(location.href);
+      const sample = url.searchParams.get("sample");
+      if (["daybreak", "nightshift", "velvet"].includes(sample)) {
+        destination += `?sample=${sample}${url.hash === "#sign-in-panel" ? url.hash : ""}`;
+      }
+    }
     if (location?.pathname !== destination) location?.replace?.(destination);
   };
   const progress = (step, detail) => ui.progress?.(step, detail);
   const failure = (message, options) => ui.error?.(message, options);
+  const rememberCallbackFailure = (kind) => {
+    try { storage?.setItem?.("oryxenai.auth_notice", kind); } catch { /* Site storage may be unavailable. */ }
+  };
   const onAuthFailure = async () => {
     await invalidateBrowserSession({ auth, storage, ui, stopActivity });
     replace(reviewed.signIn);
@@ -80,6 +91,7 @@ export async function routeController({
     const params = currentUrl.searchParams;
     stripOAuthArtifacts(history, location);
     if (params.get("error") || params.get("error_code")) {
+      rememberCallbackFailure("callback_error");
       clearPrivateState(storage);
       ui.panel?.("sign-in");
       failure("Google sign-in was canceled or could not be completed.");
@@ -92,9 +104,10 @@ export async function routeController({
       try {
         const flowId = params.get("sb_flow_id");
         const options = flowId ? { flowId } : undefined;
-        const exchanged = await auth.exchangeCodeForSession(code, options);
+        const exchanged = await withTimeout(auth.exchangeCodeForSession(code, options), timeoutMs);
         if (exchanged?.error) throw exchanged.error;
       } catch {
+        rememberCallbackFailure("callback_exchange");
         clearPrivateState(storage);
         ui.panel?.("sign-in");
         failure("Google sign-in could not be completed. Please try again.");
@@ -106,10 +119,12 @@ export async function routeController({
 
   let sessionResult;
   try {
-    sessionResult = await auth.getSession();
-  } catch {
+    sessionResult = await withTimeout(auth.getSession(), timeoutMs);
+  } catch (error) {
     ui.panel?.("sign-in");
-    failure("This browser could not restore its secure auth storage. Please allow site storage and retry.");
+    failure(error instanceof AuthBootstrapTimeoutError
+      ? "Session restoration is taking longer than expected. Please retry."
+      : "This browser could not restore its secure auth storage. Please allow site storage and retry.", { retry: true });
     replace(reviewed.signIn);
     return { kind: "storage_error" };
   }
@@ -204,6 +219,17 @@ function readMeta(name) {
   return document.querySelector(`meta[name="${name}"]`)?.content || "";
 }
 
+function publishAuthOutcome(kind) {
+  document.body.dataset.authOutcome = kind;
+  window.dispatchEvent(new CustomEvent("oryxenai-auth-resolved", { detail: { kind } }));
+}
+
+export function validateUsername(value) {
+  const handle = value.trim().toLowerCase();
+  return /^[a-z0-9](?:[a-z0-9_-]{1,28})[a-z0-9]$/.test(handle)
+    ? "" : "Use 3–30 letters, numbers, underscores or hyphens. Start and end with a letter or number.";
+}
+
 function makeDomUi() {
   const root = document.getElementById("auth-root");
   const panels = {
@@ -218,14 +244,15 @@ function makeDomUi() {
   const progressSteps = [...document.querySelectorAll("[data-progress-step]")];
   const stepOrder = ["restore", "google", "verify", "workspace"];
   const show = (name) => {
+    const alreadyVisible = panels[name] && !panels[name].hidden;
     Object.entries(panels).forEach(([key, element]) => {
       if (element) element.hidden = key !== name;
     });
-    root?.focus({ preventScroll: true });
+    if (!alreadyVisible) root?.focus({ preventScroll: true });
   };
   return {
     progress(step, detail) {
-      show("controller");
+      if (!["/", "/sign-in"].includes(window.location.pathname)) show("controller");
       const title = document.getElementById("progress-title");
       const description = document.getElementById("progress-detail");
       const index = stepOrder.indexOf(step);
@@ -277,6 +304,8 @@ function makeDomUi() {
 }
 
 export async function bootstrapAuthPage() {
+  if (document.body.dataset.authInitialized) return;
+  document.body.dataset.authInitialized = "true";
   const config = {
     supabaseUrl: readMeta("oryxenai-supabase-url"),
     publishableKey: readMeta("oryxenai-publishable-key"),
@@ -297,7 +326,7 @@ export async function bootstrapAuthPage() {
   const openAdmission = config.admissionMode === "open";
   const signInGuidance = document.getElementById("sign-in-guidance");
   if (signInGuidance) {
-    signInGuidance.textContent = "Use your Google account to enter your private workspace.";
+    signInGuidance.textContent = "Use your Google account to get started.";
   }
   const accessDetail = document.getElementById("access-detail");
   if (accessDetail && openAdmission) {
@@ -311,7 +340,11 @@ export async function bootstrapAuthPage() {
   }
   if (!config.supabaseUrl || !config.publishableKey || !window.OryxenAISupabaseClient) {
     ui.panel("sign-in");
-    ui.error("Authentication is not configured for this application.");
+    ui.error("Authentication is not configured for this application.", { retry: true });
+    document.getElementById("google-sign-in")?.setAttribute("aria-busy", "false");
+    const status = document.getElementById("sign-in-status");
+    if (status) status.hidden = true;
+    publishAuthOutcome("provider_unavailable");
     return;
   }
   const client = window.OryxenAISupabaseClient.createClient(config.supabaseUrl, config.publishableKey, {
@@ -330,6 +363,13 @@ export async function bootstrapAuthPage() {
     signInWithOAuth: (options) => client.auth.signInWithOAuth(options),
   };
   const storage = (() => { try { return window.sessionStorage; } catch { return null; } })();
+  let callbackNotice = null;
+  if (window.location.pathname === config.paths.signIn) {
+    try {
+      callbackNotice = storage?.getItem("oryxenai.auth_notice");
+      storage?.removeItem("oryxenai.auth_notice");
+    } catch { /* Authentication reports unavailable browser storage separately. */ }
+  }
   const result = await routeController({
     auth,
     location: window.location,
@@ -338,13 +378,22 @@ export async function bootstrapAuthPage() {
     ui,
     paths: config.paths,
   });
+  publishAuthOutcome(result.kind);
+  if (result.kind === "signed_out" && ["callback_error", "callback_exchange"].includes(callbackNotice)) {
+    ui.error(callbackNotice === "callback_error"
+      ? "Google sign-in was canceled or could not be completed."
+      : "Google sign-in could not be completed. Please try again.");
+  }
+  const status = document.getElementById("sign-in-status");
+  if (status) status.hidden = true;
   if (result?.kind === "admin") {
     const { bootstrapAdminConsole } = await import("./auth-admin.mjs");
     await bootstrapAdminConsole({ auth, me: result.me });
   }
   const signIn = document.getElementById("google-sign-in");
+  let oauthPending = false;
   const resetSignInCta = () => {
-    if (!signIn) return;
+    if (!signIn || oauthPending) return;
     signIn.disabled = false;
     signIn.setAttribute("aria-busy", "false");
     signIn.classList.remove("cta-submitting");
@@ -353,6 +402,7 @@ export async function bootstrapAuthPage() {
       label.textContent = "Continue with Google";
     }
   };
+  resetSignInCta();
 
   window.addEventListener("pageshow", resetSignInCta);
   window.addEventListener("focus", resetSignInCta);
@@ -363,6 +413,8 @@ export async function bootstrapAuthPage() {
   });
 
   signIn?.addEventListener("click", async () => {
+    if (oauthPending || signIn.disabled) return;
+    oauthPending = true;
     signIn.disabled = true;
     signIn.setAttribute("aria-busy", "true");
     signIn.classList.add("cta-submitting");
@@ -370,20 +422,27 @@ export async function bootstrapAuthPage() {
     if (label) label.textContent = "Opening Google…";
     ui.error("");
     try {
-      const response = await auth.signInWithOAuth({
+      const response = await withTimeout(auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: config.callbackUrl,
+          skipBrowserRedirect: true,
           // Always let the user choose which Google identity to use. Without
           // this, Google may silently reuse the account from the previous
           // OryxenAI session after local sign-out.
           queryParams: { prompt: "select_account" },
         },
-      });
+      }), AUTH_BOOTSTRAP_TIMEOUT_MS);
       if (response?.error) throw response.error;
+      const destination = new URL(response?.data?.url);
+      if (destination.origin !== new URL(config.supabaseUrl).origin) throw new Error("Unexpected sign-in destination");
+      window.location.assign(destination.href);
     } catch {
+      oauthPending = false;
       resetSignInCta();
       ui.error("Google sign-in could not start. Please try again shortly.");
+    } finally {
+      oauthPending = false;
     }
   });
   document.querySelectorAll('[data-action="logout"]').forEach((button) => {
@@ -399,13 +458,27 @@ export async function bootstrapAuthPage() {
     });
   });
   const form = document.getElementById("username-form");
+  document.getElementById("username")?.addEventListener("input", (event) => {
+    const error = document.getElementById("username-error");
+    const message = validateUsername(event.target.value);
+    if (error) { error.textContent = message; error.hidden = !message; }
+    event.target.setAttribute("aria-invalid", String(Boolean(message)));
+  });
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const input = document.getElementById("username");
     const submit = form.querySelector('button[type="submit"]');
     const error = document.getElementById("username-error");
-    if (!input?.value || !submit) return;
+    if (!input?.value || !submit || submit.disabled) return;
+    const invalid = validateUsername(input.value);
+    if (invalid) {
+      if (error) { error.textContent = invalid; error.hidden = false; }
+      input.focus();
+      return;
+    }
+    const originalLabel = submit.textContent;
     submit.disabled = true;
+    submit.textContent = "Saving your handle…";
     if (error) { error.hidden = true; error.textContent = ""; }
     try {
       const authorizedFetch = createAuthorizedFetch({
@@ -415,11 +488,11 @@ export async function bootstrapAuthPage() {
           window.location.replace(config.paths.signIn);
         },
       });
-      const response = await authorizedFetch("/api/v1/me/username", {
+      const response = await withTimeout(authorizedFetch("/api/v1/me/username", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: input.value }),
-      });
+      }), AUTH_BOOTSTRAP_TIMEOUT_MS);
       if (!response.ok) throw await responseError(response);
       window.location.replace(consumePrivateDestination(window));
     } catch (caught) {
@@ -428,6 +501,7 @@ export async function bootstrapAuthPage() {
         error.hidden = false;
       }
       submit.disabled = false;
+      submit.textContent = originalLabel;
     }
   });
   if (result?.kind === "onboarding") document.getElementById("username")?.focus();
