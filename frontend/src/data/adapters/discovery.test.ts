@@ -22,7 +22,15 @@ describe("adaptDiscovery", () => {
     expect(vm.currentQuestions[0]?.options).toHaveLength(3);
   });
 
-  it("preserves the fixed palette question's visual options", () => {
+  it("keeps growing palette catalogs and their server-owned presentation", () => {
+    const options = Array.from({ length: 24 }, (_, index) => ({ id: `look_${index}`, label: `Look ${index}`, description: "New look", swatches: ["#123456", "#f0f0f0", "#abcdef"], theme: { collection: "interactive", badge: "Motion", style: "cinematic", colors: ["#123456", "#f0f0f0", "#abcdef"] } }));
+    const view = adaptDiscovery({ status: "questions_ready", operation_a: { items: [{ id: "palette", text: "Choose a look", kind: "palette_select", options }] }, answers: { items: {} } });
+    expect(view.currentQuestions[0]?.options).toHaveLength(24);
+    expect(view.currentQuestions[0]?.options[23]?.theme?.badge).toBe("Motion");
+    expect(view.currentQuestions[0]?.options[23]?.theme?.style).toBe("cinematic");
+  });
+
+  it("preserves the catalog palette question's visual options", () => {
     const palette = {
       id: "palette",
       text: "Which colors feel right?",

@@ -10,12 +10,7 @@ import { captureFailure, type FailureDiagnosticInput } from "../data/failure-dia
 import { CopyDiagnosticsButton } from "./CopyDiagnosticsButton";
 import { ActionDock } from "./ActionDock";
 import { HelpDisclosure } from "./HelpDisclosure";
-
-// Looks whose design includes scripted, interactive pages carry a short tag on their card.
-const PALETTE_TAGS: Record<string, string> = {
-  cobalt_atlas_interactive: "Interactive details",
-  claret_amber: "Cinematic motion",
-};
+import { ThemePicker } from "./ThemePicker";
 
 interface DiscoveryQuestionCardProps {
   question: DiscoveryQuestionVM;
@@ -48,7 +43,7 @@ export function DiscoveryQuestionCard({
   const locked = disabled || inFlight;
   const questionOrdinalText = `Question ${String(ordinal).padStart(2, "0")} of ${String(total).padStart(2, "0")}`;
   const canSubmit = question.kind === "palette_select"
-    ? Boolean(selectedSingleOption)
+    ? question.options.some((option) => option.id === selectedSingleOption)
     : question.kind === "work_detail"
       ? Boolean(textAnswer.trim() || allowIllustrative)
     : Boolean(textAnswer.trim() || selectedSingleOption || selectedOptions.length > 0);
@@ -178,42 +173,7 @@ export function DiscoveryQuestionCard({
           <fieldset className="choice-fieldset palette-fieldset">
             <legend className="choice-group-hint">CHOOSE YOUR COMPLETE LOOK</legend>
             <div className="palette-intro">Choose the color, type, and layout direction that feels most like you. <HelpDisclosure label="visual direction">Each choice sets the overall look of your page. You will review the content before your page is built.</HelpDisclosure></div>
-            <div className="palette-choice-list" role="radiogroup" aria-label={question.text}>
-              {question.options.map((option) => {
-                const selected = selectedSingleOption === option.id;
-                return (
-                  <label key={option.id} data-look={option.id} className={`palette-choice ${selected ? "is-selected" : ""}`}>
-                    <input
-                      type="radio"
-                      name={`discovery-q-${question.id}`}
-                      className="visually-hidden choice-input"
-                      checked={selected}
-                      disabled={locked}
-                      onChange={() => {
-                        setSelectedSingleOption(option.id);
-                        safeSessionStorage.setItem(singleKey, option.id);
-                      }}
-                    />
-                    <span className="palette-choice__demo" aria-hidden="true">
-                      <span className="palette-demo__top"><i /><i /><i /></span>
-                      <span className="palette-demo__body">
-                        <span className="palette-demo__eyebrow" />
-                        <span className="palette-demo__headline"><span /><span /><span /></span>
-                        <span className="palette-demo__accent" />
-                        <span className="palette-demo__detail"><i /><i /><i /></span>
-                      </span>
-                    </span>
-                    <span className="palette-choice__swatches" aria-hidden="true">
-                      {option.swatches.map((color) => <span key={color} style={{ backgroundColor: color }} />)}
-                    </span>
-                    <span className="palette-choice__footer">
-                      <span><strong>{option.label}</strong><small>{option.description}</small>{PALETTE_TAGS[option.id] && <em>{PALETTE_TAGS[option.id]}</em>}</span>
-                      <span className="palette-choice__check" aria-hidden="true">{selected ? "✓" : "○"}</span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
+            <ThemePicker options={question.options} questionId={question.id} label={question.text} selectedId={selectedSingleOption} disabled={locked} onSelect={(id) => { setSelectedSingleOption(id); safeSessionStorage.setItem(singleKey, id); }} />
           </fieldset>
         )}
 

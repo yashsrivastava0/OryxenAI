@@ -22,6 +22,12 @@ export interface DiscoveryQuestionOption {
   label: string;
   description: string;
   swatches: string[];
+  theme?: {
+    collection: "interactive" | "classic";
+    badge: string;
+    style: "editorial" | "minimal" | "bold" | "layered" | "cinematic";
+    colors: string[];
+  };
 }
 
 export interface DiscoveryQuestionVM {
@@ -478,9 +484,10 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
           swatches: Array.isArray(option.swatches)
             ? option.swatches.filter((color): color is string => typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)).slice(0, 3)
             : [],
+          theme: adaptThemePresentation(option.theme),
         }))
         .filter((option) => option.id && option.label)
-        .slice(0, kind === "palette_select" ? 8 : 3)
+        .slice(0, kind === "palette_select" ? undefined : 3)
     : [];
   return {
     id: raw.id,
@@ -492,6 +499,21 @@ function adaptQuestion(raw: unknown): DiscoveryQuestionVM | null {
     kind,
     options,
     allowSkip: raw.allow_skip !== false,
+  };
+}
+
+function adaptThemePresentation(raw: unknown): DiscoveryQuestionOption["theme"] {
+  if (!isRecord(raw)) return undefined;
+  const colors = Array.isArray(raw.colors)
+    ? raw.colors.filter((color): color is string => typeof color === "string" && /^#[0-9a-fA-F]{6}$/.test(color)).slice(0, 3)
+    : [];
+  if (colors.length !== 3) return undefined;
+  const style = raw.style === "minimal" || raw.style === "bold" || raw.style === "layered" || raw.style === "cinematic" ? raw.style : "editorial";
+  return {
+    collection: raw.collection === "interactive" ? "interactive" : "classic",
+    badge: typeof raw.badge === "string" ? raw.badge : "",
+    style,
+    colors,
   };
 }
 
