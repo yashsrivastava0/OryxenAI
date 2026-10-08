@@ -1,6 +1,6 @@
 # Selected sign-in design: local review
 
-The public access page now puts sign-in and three fictional portfolio previews in the first desktop screen. The deployed application has not changed. No remote branches were pushed.
+The public access page puts sign-in and three fictional portfolio previews in the first desktop screen. The operator authorized a Render release on 2026-10-08; release status must be checked against the exact staging SHA and Render deployment rather than inferred from local screenshots.
 
 ## Try it locally
 
@@ -19,8 +19,8 @@ Google OAuth must have the matching localhost callback allowed in the existing p
 ## Review journey
 
 1. Open sign-in: Daybreak is visible immediately, independently of authentication restoration. Google is disabled only while initialization is pending.
-2. Choose Nightshift or Velvet: the image and exploration destination update, without downloading portfolio HTML, scripts, or fonts.
-3. Explore: one sandboxed iframe opens in a native dialog. A matching image remains during loading. A validated readiness message reveals the portfolio. Loading feedback appears after one second; failure after ten seconds offers Retry and Close.
+2. Samples cycle Daybreak → Nightshift → Velvet every 2.5 seconds. Pause/Play controls rotation; hovering, keyboard focus, hidden/offscreen pages, an open dialog and reduced motion suspend it. Manual selection updates the image and exploration destination without downloading portfolio HTML, scripts or fonts.
+3. Explore: one sandboxed iframe opens in a native dialog. A matching poster remains beneath an immediate, lightweight orbit animation labeled “Opening sample…”. Reveal waits for validated readiness and a minimum 1.8-second visual transition, with no artificial minimum under reduced motion. Failure after ten seconds offers Retry and Close; closing cancels the frame and all load timers.
 4. Test Work, About, Contact and project details within each fictional portfolio. Original renderer sections and theme scripts remain in the demo copies.
 5. Escape or Close unloads the frame and restores focus and background scrolling. Back closes the dialog and Forward reopens it. Direct links, such as `/sign-in?sample=velvet`, open after anonymous authentication resolution; closing removes only the sample parameter.
 6. Google retains existing callback, admission, account, admin, onboarding, and saved workspace destination resolution. Username input has local format feedback; availability and reserved names remain server decisions. Failure retains the entered handle.
