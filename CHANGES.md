@@ -463,3 +463,7 @@ Added configurable sample rotation, pausing for interaction, hidden/offscreen pa
 ### 2026-10-08 — Codex (OpenAI) — Earlier font discovery for release verification
 
 The initial staging gate blocked deployment on Claret's tablet layout-shift check under Linux; all other jobs and sign-in tests passed. Add generic local-font preload hints to newly composed sealed HTML, preserving every pinned theme file and all existing saved versions. Regenerated demo HTML and its allowlisted hashes; portraits and posters remain unchanged. Added coverage that font hints precede stylesheet discovery. Focused bundle/tablet checks passed locally; staging must validate the cold Linux browser before release. No failing gate was bypassed.
+
+### 2026-10-08 — Codex (OpenAI) — Invalidate cached authentication dependencies
+
+The verified release reached Render at a3b128d. Live browser review loaded Nightshift and Velvet and exercised Back/Forward; Daybreak's first opening timed out and its Retry recovered. A returning browser retained the older unversioned authentication dependency, leaving the new initialization label visible. The access-page entry point now imports its controller with the server-provided asset version, so existing caches cannot keep the prior controller under its old URL. Added a browser regression simulating the old unversioned module and requiring completed anonymous initialization. This correction must pass staging CI before its follow-up release; account logic, storage and provider configuration are unchanged.
