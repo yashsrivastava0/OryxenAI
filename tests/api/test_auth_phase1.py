@@ -188,17 +188,14 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     assert all(response.status_code == 404 for response in dev_pages)
     sign_in = responses[1]
     assert sign_in.text.index("auth-client.js") < sign_in.text.index("auth-page.mjs")
-    assert 'class="sign-in-showcase"' in sign_in.text
-    assert sign_in.text.count('class="outcome-card"') == 3
-    assert 'id="outcome-preview-dialog"' in sign_in.text
-    assert sign_in.text.count("data-outcome-preview=") == 3
-    assert sign_in.text.count('class="sample-site-nav') == 3
-    assert sign_in.text.count("data-preview-screen=") == 12
-    assert sign_in.text.count("data-preview-route=") == 15
-    assert "Software developer" in sign_in.text
-    assert "Business developer" in sign_in.text
-    assert "Creative director" in sign_in.text
-    assert "Example generated from a test brief." in sign_in.text
+    assert 'class="sample-showcase"' in sign_in.text
+    assert 'id="sample-dialog"' in sign_in.text
+    for sample in ("daybreak", "nightshift", "velvet"):
+        assert f'data-sample="{sample}"' in sign_in.text
+    assert "Illustrative demos. Profiles and details are fictional." in sign_in.text
+    assert "See what OryxenAI creates." in sign_in.text
+    assert "showcase-samples/daybreak/poster.webp" in sign_in.text
+    assert "<iframe" not in sign_in.text
     assert "sign-in-showcase.mjs" in sign_in.text
     product = responses[6]
     assert "auth-client.js" in product.text
@@ -217,3 +214,27 @@ async def test_product_shell_is_directly_refreshable_and_dev_routes_are_absent_i
     # and the shell itself can never be framed.
     assert "frame-src 'self'" in csp and "frame-ancestors 'none'" in csp
     assert "unsafe-inline" not in csp  # Preact sets styles through the CSSOM, which CSP allows
+
+
+@pytest.mark.asyncio
+async def test_fictional_showcase_assets_are_allowlisted_and_isolated() -> None:
+    app = create_app(_settings())
+    async with httpx.AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://localhost:8000"
+    ) as client:
+        for sample in ("daybreak", "nightshift", "velvet"):
+            html = await client.get(f"/showcase-samples/{sample}/index.html")
+            assert html.status_code == 200
+            assert "sandbox allow-scripts" in html.headers["content-security-policy"]
+            assert html.headers["cache-control"] == "no-store"
+            assert "./ready.mjs" in html.text
+            poster = await client.get(f"/showcase-samples/{sample}/poster.webp")
+            assert poster.status_code == 200 and "image/webp" in poster.headers["content-type"]
+            assert poster.headers["access-control-allow-origin"] == "*"
+        for path in (
+            "unknown/index.html",
+            "daybreak/manifest.json",
+            "daybreak/..%2F..%2Fcontent.json",
+            "daybreak/nope.webp",
+        ):
+            assert (await client.get(f"/showcase-samples/{path}")).status_code == 404

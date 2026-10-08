@@ -1,0 +1,18 @@
+<section class="sample-showcase" aria-labelledby="sample-heading" data-loading-delay="{{ showcase.presentation.loading_message_after_ms }}" data-load-timeout="{{ showcase.presentation.load_timeout_ms }}">
+  <header class="sample-heading"><h2 id="sample-heading">See what {{ app_name }} creates.</h2><p>Browse sample portfolios before you sign in.</p></header>
+  <div id="sample-panel" role="tabpanel" aria-labelledby="sample-tab-daybreak">
+    <div class="sample-browser"><div class="sample-browser-bar"><span class="browser-dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="sample-browser-title">Daybreak / Maya Kapoor</span><span class="sample-label">Fictional sample</span></div>
+      <div class="sample-poster-stage"><img id="sample-poster" src="/showcase-samples/daybreak/poster.webp" alt="Daybreak: Maya Kapoor's fictional portfolio, with profile and selected projects" width="1100" height="659" fetchpriority="high" decoding="async">
+      <p id="sample-poster-fallback" hidden>Preview image unavailable. You can still explore this sample.</p>
+      </div>
+    </div>
+  </div>
+  <div class="sample-tabs" role="tablist" aria-label="Portfolio sample styles">
+    {% for sample in showcase.samples %}
+    <button id="sample-tab-{{ sample.id }}" class="sample-tab" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" aria-controls="sample-panel" tabindex="{{ '0' if loop.first else '-1' }}" data-sample="{{ sample.id }}" data-name="{{ sample.name }}" data-profile="{{ sample.profile }}">
+      <span class="sample-thumb"><img src="/showcase-samples/{{ sample.id }}/thumb.webp" width="400" height="204" alt="" loading="lazy" decoding="async"><span class="sample-check" aria-hidden="true">✓</span></span><span>{{ sample.name }}</span>
+    </button>
+    {% endfor %}
+  </div>
+  <div class="sample-actions"><a id="sample-open" href="/showcase-samples/daybreak/index.html" aria-haspopup="dialog" aria-controls="sample-dialog">Explore this sample <span aria-hidden="true">↗</span></a><p>Illustrative demos. Profiles and details are fictional.</p></div>
+</section>

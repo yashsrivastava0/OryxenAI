@@ -1,0 +1,218 @@
+{
+  "hero": {
+    "name": "Maya Kapoor",
+    "eyebrow_primary": "Product Designer",
+    "eyebrow_secondary": "Healthcare \u00b7 Fintech",
+    "headline_prefix": "Designing calm software for",
+    "headline_emphasis": "complicated work",
+    "intro": "Maya is a product designer who turns tangled, high-stakes workflows into calm, usable software. For eight years she has worked with clinical, financial and logistics teams to find the real problem first, then design the smallest thing that solves it.",
+    "location": "Z\u00fcrich, Switzerland",
+    "primary_cta_label": "",
+    "secondary_cta_label": ""
+  },
+  "metadata": {
+    "title": "Maya Kapoor \u2014 Product Designer",
+    "description": "Maya Kapoor designs calm, usable software for clinical, financial and logistics teams. Selected work, experience and contact."
+  },
+  "marquee_keywords": [
+    "Product strategy",
+    "Design systems",
+    "Interaction design",
+    "User research",
+    "Prototyping",
+    "Accessibility",
+    "Service design",
+    "Workshop facilitation"
+  ],
+  "systems_practice": {
+    "eyebrow": "How I work",
+    "heading": "Clarity first, then craft \u2014 in that order.",
+    "intro": "A short loop of listening, testing and simplifying, repeated until the work is obvious.",
+    "pillars": [
+      {
+        "title": "Find the real problem",
+        "description": "Interviews, shadowing and data before any pixels, so the team agrees what is broken."
+      },
+      {
+        "title": "Design the smallest thing",
+        "description": "Prototype early, test with real users and ship the simplest version that works."
+      },
+      {
+        "title": "Make it a system",
+        "description": "Reusable patterns and clear documentation so the next ten screens take a day."
+      },
+      {
+        "title": "Stay for the outcome",
+        "description": "Work with engineers through launch and measure whether the change helped people."
+      }
+    ]
+  },
+  "technical_capabilities": {
+    "eyebrow": "Toolkit",
+    "heading": "Methods and tools",
+    "intro": "",
+    "groups": [
+      {
+        "heading": "Research",
+        "items": [
+          "User interviews",
+          "Contextual inquiry",
+          "Usability testing",
+          "Survey design",
+          "Analytics review"
+        ]
+      },
+      {
+        "heading": "Design",
+        "items": [
+          "Interaction design",
+          "Design systems",
+          "Prototyping",
+          "Information architecture",
+          "Accessibility (WCAG 2.2)",
+          "Visual design"
+        ]
+      },
+      {
+        "heading": "Delivery",
+        "items": [
+          "Figma",
+          "Design tokens",
+          "Component specs",
+          "Developer handoff"
+        ]
+      },
+      {
+        "heading": "Leadership",
+        "items": [
+          "Workshop facilitation",
+          "Design critique",
+          "Mentoring",
+          "Roadmapping"
+        ]
+      }
+    ]
+  },
+  "professional_context": {
+    "eyebrow": "Background",
+    "heading": "Teams I have worked with",
+    "intro": "",
+    "organizations": [
+      "Helvetia Health",
+      "Northwind Pay",
+      "Atlas Labs",
+      "Studio Mono",
+      "Kestrel Mobility"
+    ]
+  },
+  "connect": {
+    "eyebrow": "Say hello",
+    "heading": "Let's make something clear.",
+    "intro": "Open to a small number of product and design-systems engagements each year.",
+    "destinations": [
+      {
+        "label": "Email",
+        "url": "mailto:maya@example.com",
+        "featured": true
+      },
+      {
+        "label": "LinkedIn",
+        "url": "https://linkedin.com/in/example-maya",
+        "featured": true
+      },
+      {
+        "label": "Case studies",
+        "url": "https://example.com/maya",
+        "featured": false
+      }
+    ]
+  },
+  "atlas": {
+    "about_heading": "A designer who listens before drawing.",
+    "about_intro": "Maya grew up between Mumbai and Z\u00fcrich and still notices how differently people read the same screen. She leads design for clinical software, mentors a small team, and keeps one day a week for research with the people who use her work.",
+    "about_quote": "Good design feels obvious only after someone has done the hard thinking.",
+    "experience": [
+      {
+        "dates": "2022 \u2014 Present",
+        "role": "Senior Product Designer",
+        "organization": "Helvetia Health",
+        "description": "Leads design for the clinician dashboard used across sixty hospitals.",
+        "kind": "real"
+      },
+      {
+        "dates": "2019 \u2014 2022",
+        "role": "Product Designer",
+        "organization": "Northwind Pay",
+        "description": "Designed merchant onboarding and the first shared design system.",
+        "kind": "real"
+      },
+      {
+        "dates": "2016 \u2014 2019",
+        "role": "UX Designer",
+        "organization": "Atlas Labs",
+        "description": "Shipped research-led improvements to a logistics planning tool.",
+        "kind": "real"
+      }
+    ],
+    "education": [
+      {
+        "credential": "MA Interaction Design",
+        "institution": "ZHdK, Z\u00fcrich",
+        "dates": "2014 \u2014 2016",
+        "kind": "real"
+      }
+    ],
+    "statistics": [
+      {
+        "value": "8+",
+        "label": "Years designing products",
+        "kind": "real"
+      },
+      {
+        "value": "14",
+        "label": "Products shipped",
+        "kind": "real"
+      },
+      {
+        "value": "-34%",
+        "label": "Charting time at Helvetia Health",
+        "kind": "real"
+      }
+    ],
+    "projects": [
+      {
+        "kind": "real",
+        "title": "Clinician dashboard",
+        "summary": "A calmer home screen for nurses working across dozens of patients.",
+        "role": "Lead designer",
+        "period": "2023",
+        "problem": "Nurses lost minutes per patient switching between four screens to find the next task, and critical alerts were buried among routine notices.",
+        "approach": "We shadowed eighteen nurses across three hospitals, mapped the real handoff moments and rebuilt the dashboard around one prioritised queue with clear alert tiers, prototyping and testing every change on the ward.",
+        "outcome": "Charting time fell by a third and alert response improved in all three pilot hospitals.",
+        "external_url": ""
+      },
+      {
+        "kind": "real",
+        "title": "Merchant onboarding",
+        "summary": "A guided setup that took small merchants from signup to first payment.",
+        "role": "Product designer",
+        "period": "2021",
+        "problem": "Small merchants abandoned onboarding when asked for documents they did not have to hand.",
+        "approach": "We split the flow into saveable steps, explained why each document mattered and let merchants take payments before verification finished.",
+        "outcome": "Completed signups rose sharply within the first quarter.",
+        "external_url": ""
+      },
+      {
+        "kind": "real",
+        "title": "Shared design system",
+        "summary": "One component library for four product teams.",
+        "role": "Design systems lead",
+        "period": "2020",
+        "problem": "Four teams shipped four slightly different buttons, forms and tables.",
+        "approach": "We audited every pattern, agreed the smallest useful set and documented usage with live examples and accessibility notes.",
+        "outcome": "",
+        "external_url": ""
+      }
+    ]
+  }
+}

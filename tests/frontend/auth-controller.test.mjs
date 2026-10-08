@@ -8,6 +8,7 @@ import {
   isReviewedDestination,
   logoutCurrentBrowser,
   routeController,
+  validateUsername,
 } from "../../src/oryxenai/auth/static/auth-controller.mjs";
 import {
   clearPrivateState,
@@ -528,4 +529,33 @@ test("private browser cleanup removes product drafts and idempotency keys but pr
     "oryxen:idempotency:session:discovery-start",
   ]);
   assert.deepEqual(values, ["sb-project-auth-token", "user-preference"]);
+});
+
+
+test("restoration timeout ignores late results and offers retry", async () => {
+  let finish;
+  const ui = uiProbe();
+  const result = await routeController({auth: {getSession: () => new Promise(resolve => { finish = resolve; })}, location: fakeLocation("/sign-in"), ui, timeoutMs: 5});
+  assert.equal(result.kind, "storage_error");
+  assert.equal(ui.errorOptions[0].retry, true);
+  finish({data:{session:{access_token:"late"}}});
+  await Promise.resolve();
+  assert.deepEqual(ui.users, []);
+});
+
+test("canonical redirect keeps only recognized public sample links", () => {
+  assert.equal(canonicalDestination({primaryOrigin:"https://app.test"}, {href:"http://localhost/sign-in?sample=velvet&code=secret#sign-in-panel"}), "https://app.test/sign-in?sample=velvet#sign-in-panel");
+});
+
+test("handle format follows server normalization", () => {
+  for (const handle of ["maya", " Maya-123 ", "a_b", "a".repeat(30)]) assert.equal(validateUsername(handle), "");
+  for (const handle of ["ab", "a".repeat(31), "_maya", "maya-", "my name", "\u093e"]) assert.notEqual(validateUsername(handle), "");
+});
+
+
+test("canceled callback carries a safe one-time notice to sign-in", async () => {
+  const notices = new Map();
+  const result = await routeController({auth:authWithSession(null),location:fakeLocation("/auth/callback", "?error=access_denied"),history:{replaceState(){}},storage:{setItem:(key,value)=>notices.set(key,value),removeItem(){}},ui:uiProbe()});
+  assert.equal(result.reason, "callback_error");
+  assert.equal(notices.get("oryxenai.auth_notice"), "callback_error");
 });

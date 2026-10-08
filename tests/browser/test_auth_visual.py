@@ -9,15 +9,19 @@ from urllib.parse import urlparse
 from jinja2 import Environment, FileSystemLoader
 from tests.browser.helpers import BASE_URL, REPO_ROOT, assert_no_horizontal_overflow, expect, shot
 
+from oryxenai.agents.code_generator.serving import preview_headers
+from oryxenai.auth.showcase import SHOWCASE_ROOT, showcase_manifest
+
 AUTH_STATIC = REPO_ROOT / "src" / "oryxenai" / "auth" / "static"
 
 
-def _sign_in_html(live_auth: bool = False) -> str:
+def _sign_in_html(live_auth: bool = False, page_name: str = "sign-in") -> str:
     templates = REPO_ROOT / "src" / "oryxenai" / "auth" / "templates"
     env = Environment(loader=FileSystemLoader(templates), autoescape=True)
     return env.get_template("auth_shell.html").render(
         app_name="OryxenAI",
-        page="sign-in",
+        page=page_name,
+        showcase=showcase_manifest(),
         auth_config={"supabaseUrl": "https://auth.test", "publishableKey": "test-key"}
         if live_auth
         else {},
@@ -25,6 +29,7 @@ def _sign_in_html(live_auth: bool = False) -> str:
 
 
 def _install_sign_in(page: object, live_auth: bool = False) -> None:
+    page.unroute_all()
     html = _sign_in_html(live_auth)
 
     def asset(route: object) -> None:
@@ -60,123 +65,65 @@ def _install_sign_in(page: object, live_auth: bool = False) -> None:
         )
 
     page.route(f"{BASE_URL}/auth-static/**", asset)  # type: ignore[attr-defined]
+
+    def demo_asset(route: object) -> None:
+        relative = urlparse(route.request.url).path.split("/showcase-samples/")[1]
+        path = SHOWCASE_ROOT / relative
+        route.fulfill(
+            status=200,
+            body=path.read_bytes(),
+            content_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            headers=preview_headers(html=path.suffix == ".html", etag="test", scripts=True),
+        )
+
+    page.route(f"{BASE_URL}/showcase-samples/**", demo_asset)
     page.route(  # type: ignore[attr-defined]
         f"{BASE_URL}/sign-in",
         lambda route: route.fulfill(status=200, body=html, content_type="text/html"),
     )
 
 
-def _assert_card_fits(page: object) -> None:
-    details = page.locator(".showcase-card.card-active").evaluate(  # type: ignore[attr-defined]
-        """(card) => {
-          const bounds = card.getBoundingClientRect();
-          const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
-          const outside = [];
-          while (walker.nextNode()) {
-            const text = walker.currentNode;
-            if (!text.textContent.trim()) continue;
-            const range = document.createRange();
-            range.selectNodeContents(text);
-            for (const rect of range.getClientRects()) {
-              if (rect.width && (rect.left < bounds.left - 1 || rect.right > bounds.right + 1 || rect.bottom > bounds.bottom + 1)) {
-                outside.push(text.textContent.trim());
-              }
-            }
-          }
-          const children = [...card.children].filter(child => child.getBoundingClientRect().height > 0);
-          const overlap = children.slice(1).some((child, i) => children[i].getBoundingClientRect().bottom > child.getBoundingClientRect().top + 1);
-          return { outside, overlap, height: card.clientHeight, content: card.scrollHeight };
-        }"""
-    )
-    assert not details["outside"], details
-    assert not details["overlap"], details
-    assert details["content"] <= details["height"] + 1, details
-
-
-def test_sign_in_three_stage_showcase_is_legible_and_responsive(browser_page: object) -> None:
+def test_samples_are_visible_and_responsive(browser_page: object) -> None:
     page = browser_page
-    _install_sign_in(page)
-    page.emulate_media(reduced_motion="reduce")  # type: ignore[attr-defined]
-    page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")  # type: ignore[attr-defined]
-    expect(page.get_by_text("THREE STEPS, EACH IN YOUR HANDS")).to_be_visible()
-    assert page.locator(".stage-rail-node").count() == 3  # type: ignore[attr-defined]
-    assert page.locator(".showcase-card").count() == 4  # type: ignore[attr-defined]
-    page.get_by_role("tab", name="Studio preview card").click()
-    expect(page.get_by_text("See the page. Make it yours.")).to_be_visible()
-    assert "active" in (
-        page.locator('.stage-rail-node[data-stage="studio"]').get_attribute("class") or ""
-    )
+    _install_sign_in(page, live_auth=True)
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")
+    expect(page.get_by_text("See what OryxenAI creates.")).to_be_visible()
+    assert page.locator("iframe").count() == 0
     for width, height in [
+        (1280, 720),
+        (1366, 768),
+        (1440, 900),
+        (1920, 1080),
         (320, 740),
         (390, 844),
         (768, 1024),
         (1024, 768),
-        (1366, 768),
-        (1920, 1080),
     ]:
-        page.set_viewport_size({"width": width, "height": height})  # type: ignore[attr-defined]
-        for index in range(4):
-            page.locator(".showcase-dot").nth(index).click()  # type: ignore[attr-defined]
-            assert page.locator('.showcase-card[aria-hidden="false"]').count() == 1  # type: ignore[attr-defined]
-            assert page.locator(".showcase-card[inert]").count() == 3  # type: ignore[attr-defined]
-            _assert_card_fits(page)
-            assert_no_horizontal_overflow(page)
-        # Save a representative brief with focus and scroll restored to the top.
-        page.get_by_role("tab", name="Portfolio brief card").click()
-        page.evaluate("document.activeElement.blur(); window.scrollTo(0, 0)")
-        shot(page, f"sign-in-{width}")
-
-    page.set_viewport_size({"width": 1366, "height": 768})  # type: ignore[attr-defined]
-    page.evaluate("document.documentElement.style.zoom = '2'")
-    for index in range(4):
-        page.locator(".showcase-dot").nth(index).click()  # type: ignore[attr-defined]
-        _assert_card_fits(page)
+        page.set_viewport_size({"width": width, "height": height})
         assert_no_horizontal_overflow(page)
-    page.evaluate("document.documentElement.style.zoom = ''")
-
-
-def test_showcase_pause_keyboard_and_reduced_motion(browser_page: object) -> None:
-    page = browser_page
-    _install_sign_in(page)
-    page.emulate_media(reduced_motion="no-preference")  # type: ignore[attr-defined]
-    page.set_viewport_size({"width": 1366, "height": 768})  # type: ignore[attr-defined]
-    page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")  # type: ignore[attr-defined]
-    page.get_by_role("button", name="Pause slideshow").click()
-    expect(page.get_by_role("button", name="Play slideshow")).to_have_attribute(
-        "aria-pressed", "true"
-    )
-    assert page.locator(".icon-pause").get_attribute("hidden") is not None  # type: ignore[attr-defined]
-    assert page.locator(".icon-play").get_attribute("hidden") is None  # type: ignore[attr-defined]
-    page.get_by_role("tab", name="Portfolio brief card").focus()
-    page.keyboard.press("ArrowRight")  # type: ignore[attr-defined]
-    expect(page.get_by_role("tab", name="Content structure card")).to_be_focused()
-    expect(page.get_by_role("tab", name="Content structure card")).to_have_attribute(
-        "aria-selected", "true"
-    )
-    page.keyboard.press("End")  # type: ignore[attr-defined]
-    expect(page.get_by_role("tab", name="Studio preview card")).to_be_focused()
-    page.keyboard.press("Home")  # type: ignore[attr-defined]
-    expect(page.get_by_role("tab", name="Explorer card")).to_be_focused()
-    page.get_by_role("button", name="Continue with Google").focus()
-    page.mouse.move(0, 0)  # type: ignore[attr-defined]
-    page.wait_for_timeout(6300)  # A paused showcase must stay on the selected card.
-    expect(page.get_by_role("tab", name="Explorer card")).to_have_attribute("aria-selected", "true")
-    page.get_by_role("button", name="Play slideshow").click()
-    page.get_by_role("button", name="Continue with Google").focus()
-    page.mouse.move(0, 0)  # type: ignore[attr-defined]
-    expect(page.get_by_role("tab", name="Portfolio brief card")).to_have_attribute(
-        "aria-selected", "true", timeout=7500
-    )
-    page.emulate_media(reduced_motion="reduce")  # type: ignore[attr-defined]
-    expect(page.get_by_role("button", name="Pause slideshow")).to_be_hidden()
-    page.wait_for_timeout(6300)
-    expect(page.get_by_role("tab", name="Portfolio brief card")).to_have_attribute(
-        "aria-selected", "true"
-    )
-    assert (
-        page.locator(".card-active").evaluate("card => getComputedStyle(card).animationName")
-        == "none"
-    )  # type: ignore[attr-defined]
+        if width >= 1100:
+            assert page.evaluate("document.documentElement.scrollHeight <= innerHeight + 1")
+        for name in ("Nightshift", "Velvet", "Daybreak"):
+            tab = page.get_by_role("tab", name=name, exact=True)
+            tab.click()
+            expect(tab).to_have_attribute("aria-selected", "true")
+            expect(page.locator("#sample-browser-title")).to_contain_text(name)
+        shot(page, f"sign-in-{width}")
+    page.get_by_role("tab", name="Daybreak", exact=True).focus()
+    page.keyboard.press("ArrowRight")
+    expect(page.get_by_role("tab", name="Nightshift", exact=True)).to_be_focused()
+    page.get_by_role("link", name="Explore this sample").click()
+    expect(page.locator("#sample-dialog")).to_be_visible()
+    expect(page.locator("iframe.is-ready")).to_be_visible()
+    assert "sample=nightshift" in page.url
+    page.keyboard.press("Escape")
+    expect(page.locator("#sample-dialog")).to_be_hidden()
+    assert page.locator("iframe").count() == 0
+    expect(page.locator("#sample-open")).to_be_focused()
+    page.go_forward()
+    expect(page.locator("#sample-dialog")).to_be_visible()
+    page.locator("#sample-close").click()
 
 
 def test_google_sign_in_loading_and_inline_failure(browser_page: object) -> None:
@@ -186,7 +133,8 @@ def test_google_sign_in_loading_and_inline_failure(browser_page: object) -> None
     page.set_viewport_size({"width": 390, "height": 844})  # type: ignore[attr-defined]
     page.goto(f"{BASE_URL}/sign-in", wait_until="networkidle")  # type: ignore[attr-defined]
     button = page.locator("#google-sign-in")  # type: ignore[attr-defined]
-    button.click()
+    button.focus()
+    page.keyboard.press("Enter")
     expect(button).to_be_disabled()
     expect(button).to_have_attribute("aria-busy", "true")
     expect(page.locator("#google-sign-in .cta-label")).to_have_text("Opening Google…")  # type: ignore[attr-defined]
@@ -207,3 +155,129 @@ def test_google_sign_in_loading_and_inline_failure(browser_page: object) -> None
     assert_no_horizontal_overflow(page)
     page.evaluate("document.activeElement.blur(); window.scrollTo(0, 0)")
     shot(page, "sign-in-error-mobile")
+
+
+def test_sample_timeout_retry_direct_link_and_stale_message(browser_page: object) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.route(
+        f"{BASE_URL}/sign-in?*",
+        lambda route: route.fulfill(status=200, body=_sign_in_html(True), content_type="text/html"),
+    )
+    page.goto(f"{BASE_URL}/sign-in?sample=velvet&review=1#sign-in-panel")
+    expect(page.locator("#sample-dialog")).to_be_visible()
+    expect(page.locator("iframe.is-ready")).to_be_visible()
+    page.locator("#sample-close").click()
+    assert "sample=" not in page.url and "review=1" in page.url
+    page.route(
+        f"{BASE_URL}/showcase-samples/**/ready.mjs*",
+        lambda route: route.fulfill(status=200, body="", content_type="text/javascript"),
+    )
+    page.evaluate(
+        "document.querySelector('.sample-showcase').dataset.loadTimeout = '100'; document.querySelector('.sample-showcase').dataset.loadingDelay = '10'"
+    )
+    page.locator("#sample-open").click()
+    page.evaluate("window.postMessage({type:'oryxenai-demo-ready',attempt:'stale'}, '*')")
+    expect(page.locator("#sample-retry")).to_be_visible()
+    assert page.locator("iframe").count() == 0
+    page.unroute(f"{BASE_URL}/showcase-samples/**/ready.mjs*")
+    page.evaluate("document.querySelector('.sample-showcase').dataset.loadTimeout = '10000'")
+    page.locator("#sample-retry").click()
+    expect(page.locator("iframe.is-ready")).to_be_visible()
+    page.locator("#sample-close").click()
+
+
+def test_escape_from_inside_each_demo_and_repeated_opening(browser_page: object) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.goto(f"{BASE_URL}/sign-in")
+    for name in ("Daybreak", "Nightshift", "Velvet"):
+        page.get_by_role("tab", name=name, exact=True).click()
+        page.locator("#sample-open").click()
+        expect(page.locator("iframe.is-ready")).to_be_visible()
+        page.frame_locator("iframe").locator(".demo-nav").get_by_role(
+            "link", name="About", exact=True
+        ).click()
+        page.keyboard.press("Escape")
+        expect(page.locator("#sample-dialog")).to_be_hidden()
+        page.wait_for_function("!location.search.includes('sample=')")
+        assert page.locator("iframe").count() == 0
+
+
+def test_onboarding_preserves_handle_and_prevents_duplicate_submission(
+    browser_page: object,
+) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.route(
+        f"{BASE_URL}/onboarding",
+        lambda route: route.fulfill(
+            status=200, body=_sign_in_html(True, "onboarding"), content_type="text/html"
+        ),
+    )
+    page.route(
+        f"{BASE_URL}/auth-static/auth-client.js*",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="text/javascript",
+            body="window.OryxenAISupabaseClient={createClient:()=>({auth:{getSession:async()=>({data:{session:{access_token:'fixture'}}})}})}",
+        ),
+    )
+    page.route(
+        f"{BASE_URL}/api/v1/me",
+        lambda route: route.fulfill(status=200, json={"onboarding_required": True, "role": "user"}),
+    )
+    pending = []
+    page.route(f"{BASE_URL}/api/v1/me/username", lambda route: pending.append(route))
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.goto(f"{BASE_URL}/onboarding")
+    field = page.locator("#username")
+    field.fill("bad-")
+    expect(page.locator("#username-error")).to_be_visible()
+    field.fill("maya-123")
+    expect(page.locator("#username-error")).to_be_hidden()
+    submit = page.locator("#username-form button")
+    submit.click()
+    expect(submit).to_be_disabled()
+    expect(submit).to_have_text("Saving your handle…")
+    page.evaluate("document.getElementById('username-form').requestSubmit()")
+    page.wait_for_timeout(100)
+    assert len(pending) == 1
+    pending[0].fulfill(
+        status=409,
+        json={"error": {"code": "USERNAME_TAKEN", "message": "This handle is unavailable."}},
+    )
+    expect(submit).to_be_enabled()
+    expect(field).to_have_value("maya-123")
+    expect(page.locator("#username-error")).to_have_text("That username is already taken.")
+    assert_no_horizontal_overflow(page)
+
+
+def test_missing_poster_keeps_sign_in_and_other_samples_available(browser_page: object) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.route(
+        f"{BASE_URL}/showcase-samples/daybreak/poster.webp",
+        lambda route: route.fulfill(status=404, body="missing"),
+    )
+    page.set_viewport_size({"width": 1280, "height": 720})
+    page.goto(f"{BASE_URL}/sign-in")
+    expect(page.locator("#sample-poster-fallback")).to_be_visible()
+    expect(page.locator("#google-sign-in")).to_be_enabled()
+    assert page.evaluate("document.documentElement.scrollHeight <= innerHeight + 1")
+    page.get_by_role("tab", name="Nightshift", exact=True).click()
+    expect(page.locator("#sample-poster")).to_be_visible()
+    expect(page.locator("#sample-poster-fallback")).to_be_hidden()
+
+
+def test_callback_notice_survives_redirect_once(browser_page: object) -> None:
+    page = browser_page
+    _install_sign_in(page, live_auth=True)
+    page.evaluate("sessionStorage.setItem('oryxenai.auth_notice', 'callback_error')")
+    page.goto(f"{BASE_URL}/sign-in")
+    expect(page.locator("#sign-in-error")).to_have_text(
+        "Google sign-in was canceled or could not be completed."
+    )
+    page.reload()
+    expect(page.locator("#google-sign-in")).to_be_enabled()
+    expect(page.locator("#sign-in-error")).to_be_hidden()

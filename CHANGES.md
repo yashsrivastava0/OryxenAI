@@ -439,3 +439,10 @@ rejected a network-enabled worker because it could send queued private content
 to model providers; the worker remains stopped pending explicit approval.
 The final picker screenshot is in `output/theme-selection/picker-final.jpg`.
 No live model call, remote push or deployment was performed.
+
+
+### 2026-10-08 — Codex (OpenAI) — Contemporary sign-in with immediate portfolio samples
+
+Implemented the approved cream-and-blue sign-in reference in the existing server-rendered access shell. Replaced the workflow slideshow and lower gallery with one desktop workspace, local detailed Daybreak/Nightshift/Velvet posters, accessible manual selectors and a lazily loaded native dialog. Added deterministic fictional demo preparation, optimized generated portraits, matching browser-captured posters, copied theme assets/font notices, a pinned public asset manifest, and an isolated serving route using existing preview headers. Production themes, palette selection, saved versions and private Studio routes remain unchanged.
+
+Authentication initialization keeps the public page useful; storage and OAuth requests are bounded, Google feedback remains controller-owned, and onboarding retains handles with format feedback and guarded submission. Sample readiness/close messages validate the active frame and attempt, cleanup cancels stale work, and demo navigation replaces child history entries so Back/Forward belongs to sample exploration. Required lint/format/type, complete pytest, Node authentication and local migration checks passed; additional browser/API checks cover desktop/mobile layout, direct links, timeout/retry, stale messages, missing posters and iframe keyboard dismissal. Before/after evidence and review instructions are documented in `docs/sign-in-review.md`; architectural rationale is D-144. Local delivery only: no push or release.

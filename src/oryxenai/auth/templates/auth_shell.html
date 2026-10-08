@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="/auth-static/motion.css?v={{ motion_css_version }}">
   <link rel="stylesheet" href="/auth-static/living-draft-mark.css?v={{ living_draft_mark_css_version }}">
   <link rel="stylesheet" href="/auth-static/auth.css?v={{ auth_css_version }}">
+  <link rel="stylesheet" href="/auth-static/sign-in.css?v={{ sign_in_css_version }}">
 </head>
 <body data-page="{{ page }}">
   <a class="skip-link" href="#auth-root">Skip to access controls</a>
@@ -38,7 +39,7 @@
       <img class="brand-logo-img" src="/auth-static/brand-mark.png" width="24" height="24" alt="OryxenAI logo" />
       <span class="brand-wordmark">{{ app_name }}</span>
       <span class="header-pipe" aria-hidden="true">|</span>
-      <span class="header-descriptor">private portfolio studio</span>
+      <span class="header-descriptor">private portfolio maker</span>
     </div>
     <div class="header-status-pill">
       <span class="cobalt-dot" aria-hidden="true"></span>
@@ -46,8 +47,8 @@
         {%- if page == "access-not-approved" -%}Access review
         {%- elif page == "account-unavailable" -%}Workspace paused
         {%- elif page == "onboarding" -%}Workspace setup
-        {%- elif page in ["controller", "callback"] -%}Secure verification
-        {%- else -%}Private portfolio studio{%- endif -%}
+        {%- elif page == "callback" -%}Secure verification
+        {%- else -%}Private workspace{%- endif -%}
       </span>
     </div>
   </header>
@@ -58,21 +59,14 @@
       <div class="sign-in-left-col">
         <div class="left-col-inner">
 
-          <!-- PANEL 1: SIGN IN -->
-          <section id="sign-in-panel" class="studio-panel" {% if page != "sign-in" %}hidden{% endif %} aria-labelledby="sign-in-title">
-            <div class="verified-eyebrow-row">
-              <span class="eyebrow">VERIFIED IDENTITY</span>
-              <span class="eyebrow-rule" aria-hidden="true"></span>
-            </div>
-
-            <h1 id="sign-in-title" class="sign-in-headline">Turn your experience into a portfolio.</h1>
-
-            <p class="sign-in-lede">
-              Start with your résumé or notes. Review your story, shape the content, then see your page in a private preview. You approve each step.
-            </p>
-
-            <div class="cta-block">
-              <button id="google-sign-in" class="google-auth-cta" type="button" aria-label="Continue with Google">
+          <!-- PUBLIC SIGN-IN INTRODUCTION -->
+          <section id="sign-in-panel" class="studio-panel" {% if page not in ["sign-in", "controller"] %}hidden{% endif %} aria-labelledby="sign-in-title">
+            <div class="sign-in-introduction">
+              <div class="verified-eyebrow-row"><span class="eyebrow">A portfolio that feels like you</span></div>
+              <h1 id="sign-in-title" class="sign-in-headline">Your story.<br>Your portfolio.</h1>
+              <p class="sign-in-lede">Start with your CV or notes. Review the content, then preview your portfolio.</p>
+              <div class="cta-block">
+              <button id="google-sign-in" class="google-auth-cta" type="button" disabled aria-busy="true" aria-label="Continue with Google">
                 <span class="google-icon-badge" aria-hidden="true">
                   <svg class="google-mark-svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                     <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.616z"/>
@@ -87,49 +81,22 @@
                   <polyline points="11 5 16 10 11 15"/>
                 </svg>
               </button>
-
-              <p id="sign-in-error" class="error-text" role="alert" hidden></p>
-              <p id="sign-in-guidance" class="sign-in-guidance">Use your Google account to enter your private workspace.</p>
+                <p id="sign-in-error" class="error-text" role="alert" hidden></p>
+                <p id="sign-in-guidance" class="sign-in-guidance">Use your Google account to get started.</p>
+                <p id="sign-in-status" role="status" aria-live="polite">Preparing sign-in…</p>
+                <noscript><p>Enable JavaScript to sign in. You can still view the sample images.</p></noscript>
+              </div>
             </div>
-
-            <div class="trust-divider" aria-hidden="true"></div>
-
-            <div class="trust-features-row">
-              <div class="trust-item">
-                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                <span>Private workspace</span>
-              </div>
-              <div class="trust-item">
-                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                  <polyline points="9 12 11 14 15 10"/>
-                </svg>
-                <span>You approve each step</span>
-              </div>
-              <div class="trust-item">
-                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polyline points="16 18 22 12 16 6"/>
-                  <polyline points="8 6 2 12 8 18"/>
-                </svg>
-                <span>Review and refine your page</span>
-              </div>
-              <div class="trust-item">
-                <svg class="trust-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                <span>Your progress stays saved</span>
-              </div>
+            <div class="welcome-details">
+              <div class="welcome-flow" aria-label="Portfolio workflow"><span>Explore<small>Understand your story</small></span><i aria-hidden="true">→</i><span>Content<small>Shape your narrative</small></span><i aria-hidden="true">→</i><span>Preview<small>See your portfolio</small></span></div>
+              <p class="welcome-approval">You approve each step.</p>
+              <div class="welcome-trust"><span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="12" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4"/></svg>Private workspace</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="6" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/></svg>Progress stays saved</span></div>
+              <p class="welcome-cost">Built for speed and minimal cost.</p>
             </div>
           </section>
 
           <!-- PANEL 2: SESSION RESTORE PROGRESS -->
-          <section id="progress-panel" class="studio-panel progress-panel" {% if page != "controller" and page != "callback" %}hidden{% endif %} aria-labelledby="progress-title">
+          <section id="progress-panel" class="studio-panel progress-panel" {% if page != "callback" %}hidden{% endif %} aria-labelledby="progress-title">
             <div class="verified-eyebrow-row">
               <span class="eyebrow">SECURE ACCESS</span>
               <span class="eyebrow-rule" aria-hidden="true"></span>
@@ -177,7 +144,7 @@
             </div>
 
             <h1 id="onboarding-title" class="sign-in-headline">Choose your handle</h1>
-            <p class="sign-in-lede">Use 3–30 lowercase letters, numbers, underscores, or hyphens. This is how your workspace is identified.</p>
+            <p class="sign-in-lede">Use 3–30 lowercase letters, numbers, underscores, or hyphens. Start and end with a letter or number.</p>
 
             <form id="username-form" class="gate-form studio-onboarding-form" novalidate>
               <label for="username" class="studio-label">Username</label>
@@ -311,459 +278,22 @@
           </section>
 
           <footer class="sign-in-left-footer">
-            <span class="brand-signature"><strong>{{ app_name }}</strong> The Living Draft.</span>
-            <span class="footer-pipe" aria-hidden="true">|</span>
-            <span class="footer-motto">From experience to opportunity.</span>
+            <span class="brand-signature"><strong>{{ app_name }}</strong> · The Living Draft.</span>
             <a href="/privacy">Privacy</a>
             <a href="/terms">Terms</a>
           </footer>
         </div>
       </div>
 
-      <!-- RIGHT COLUMN: ACTIVE WORKFLOW SHOWCASE -->
-      <div class="sign-in-right-col" aria-label="Portfolio workflow">
-        <div class="drafting-mark mark-tl" aria-hidden="true">+</div>
-        <div class="drafting-mark mark-tr" aria-hidden="true">+</div>
-        <div class="drafting-mark mark-bl" aria-hidden="true">+</div>
-        <div class="drafting-mark mark-br" aria-hidden="true">+</div>
-
-        <div class="rail-header">
-          <span class="rail-title">THREE STEPS, EACH IN YOUR HANDS</span>
-          <span class="rail-motto">EXAMPLE WORKFLOW</span>
-        </div>
-
-        <!-- ACTIVE WORKFLOW RAIL -->
-        <div class="stage-rail-wrap" aria-label="Portfolio workflow">
-          <div class="rail-track" aria-hidden="true">
-            <div id="rail-active-segment" class="rail-active-segment"></div>
-          </div>
-          <ol class="stage-rail-nodes">
-            <li class="stage-rail-node active" data-stage="discover">
-              <span class="node-badge">1</span>
-              <div class="node-meta">
-                <span class="node-name">Explore</span>
-                <span class="node-sub">UNDERSTAND YOUR STORY</span>
-              </div>
-            </li>
-            <li class="stage-rail-node" data-stage="content">
-              <span class="node-badge">2</span>
-              <div class="node-meta">
-                <span class="node-name">Content</span>
-                <span class="node-sub">SHAPE NARRATIVE</span>
-              </div>
-            </li>
-            <li class="stage-rail-node" data-stage="studio">
-              <span class="node-badge">3</span>
-              <div class="node-meta">
-                <span class="node-name">Studio</span>
-                <span class="node-sub">SEE YOUR PAGE</span>
-              </div>
-            </li>
-          </ol>
-        </div>
-
-        <!-- LAYERED DOCUMENT STACK CAROUSEL -->
-        <div class="sign-in-showcase" aria-label="Interactive portfolio transformation showcase">
-          <div class="showcase-deck">
-            <!-- CARD 0: EXPLORER -->
-            <article id="showcase-explorer" class="showcase-card card-discovery" data-card-index="0" aria-hidden="true" inert aria-label="Stage 1: Explorer sample">
-              <div class="card-header-line">
-                <span class="card-step-tag">01 Explorer</span>
-              </div>
-              <h2 class="card-headline">Let’s map your foundation.</h2>
-              <p class="card-subhead">We’ll look at your experience, projects, and goals — and ask what’s missing.</p>
-
-              <ul class="discovery-checklist" aria-label="Intake checklist">
-                <li class="checked">
-                  <span class="check-icon" aria-hidden="true">✓</span>
-                  <span>Work history</span>
-                </li>
-                <li>
-                  <span class="check-icon" aria-hidden="true">○</span>
-                  <span>Key projects</span>
-                </li>
-                <li>
-                  <span class="check-icon" aria-hidden="true">○</span>
-                  <span>Skills & impact</span>
-                </li>
-                <li>
-                  <span class="check-icon" aria-hidden="true">○</span>
-                  <span>What’s missing?</span>
-                </li>
-              </ul>
-
-              <div class="card-footer-note">
-                <span class="script-annotation">Your story, more opportunities.</span>
-              </div>
-            </article>
-
-            <!-- CARD 1: PORTFOLIO BRIEF (HERO CENTERPIECE) -->
-            <article id="showcase-brief" class="showcase-card card-brief card-active" data-card-index="1" aria-current="true" aria-label="Stage 1: Portfolio brief sample">
-              <div class="brief-topbar">
-                <div class="brief-brand-badge">
-                  <img class="brief-brand-icon" src="/auth-static/brand-mark.png" width="16" height="16" alt="" aria-hidden="true" />
-                  <span class="brief-brand">{{ app_name }}</span>
-                </div>
-                <div class="brief-status-chip">
-                  <span>Example brief</span>
-                </div>
-              </div>
-
-              <h2 class="brief-title">Portfolio Brief</h2>
-              <p class="brief-subtitle">A structured summary of your experience, ready for your review.</p>
-
-              <div class="brief-split-grid">
-                <div class="brief-visual-frame" aria-hidden="true">
-                  <svg class="brief-arch-svg" viewBox="0 0 160 120" width="100%" height="100%" fill="none">
-                    <defs>
-                      <linearGradient id="archGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#f8f6ef"/>
-                        <stop offset="60%" stop-color="#d8d3c5"/>
-                        <stop offset="100%" stop-color="#8f918c"/>
-                      </linearGradient>
-                      <linearGradient id="archGrad2" x1="0%" y1="100%" x2="100%" y2="0%">
-                        <stop offset="0%" stop-color="#171a19"/>
-                        <stop offset="70%" stop-color="#353936"/>
-                        <stop offset="100%" stop-color="#626660"/>
-                      </linearGradient>
-                      <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stop-color="#eae6dc"/>
-                        <stop offset="100%" stop-color="#f3f0e8"/>
-                      </linearGradient>
-                    </defs>
-                    <rect width="160" height="120" fill="url(#skyGrad)"/>
-                    <path d="M -10 130 Q 30 20 85 45 Q 125 65 170 130 Z" fill="url(#archGrad2)" opacity="0.95"/>
-                    <path d="M 10 130 Q 55 10 115 50 Q 145 75 170 130 Z" fill="url(#archGrad1)" opacity="0.98"/>
-                    <path d="M 40 130 Q 80 25 140 70 Q 155 85 170 130 Z" fill="#ffffff" opacity="0.92"/>
-                    <path d="M 65 130 Q 105 45 160 90 L 170 130 Z" fill="url(#archGrad1)"/>
-                    <path d="M 10 130 Q 55 10 115 50" stroke="#353936" stroke-width="0.75" opacity="0.4"/>
-                    <path d="M 40 130 Q 80 25 140 70" stroke="#353936" stroke-width="0.75" opacity="0.4"/>
-                  </svg>
-                </div>
-                <div class="brief-copy-block">
-                  <h3 class="brief-lede-heading">From complex problems to useful products.</h3>
-                  <p class="brief-body-text">
-                    I design and build software that connects people, systems, and opportunities. This portfolio showcases the work, impact, and lessons along the way.
-                  </p>
-                </div>
-              </div>
-
-              <div class="brief-metrics-row">
-                <div class="brief-metric">
-                  <span class="metric-label">EXPERIENCE</span>
-                  <span class="metric-value">8+ years</span>
-                </div>
-                <div class="brief-metric">
-                  <span class="metric-label">PROJECTS</span>
-                  <span class="metric-value">12 highlighted</span>
-                </div>
-                <div class="brief-metric">
-                  <span class="metric-label">FOCUS</span>
-                  <span class="metric-value">Applied AI, product, systems</span>
-                </div>
-              </div>
-
-              <div class="brief-action-bar">
-                <span class="script-annotation">Review. Refine. Move forward.</span>
-                <span class="brief-pill-btn">
-                  <span>Review this draft</span>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="3" y1="8" x2="13" y2="8"/>
-                    <polyline points="9 4 13 8 9 12"/>
-                  </svg>
-                </span>
-              </div>
-            </article>
-
-            <!-- CARD 2: CONTENT STRUCTURE -->
-            <article id="showcase-content" class="showcase-card card-content" data-card-index="2" aria-hidden="true" inert aria-label="Stage 2: Content structure sample">
-              <div class="card-header-line">
-                <span class="card-step-tag">02 Content</span>
-              </div>
-              <h2 class="card-headline">The right words, in the right order.</h2>
-              <p class="card-subhead">Review the sections, claims, and details that will appear on your page.</p>
-              <div class="content-preview-routes">
-                <div class="route-item">
-                  <span class="route-slug">INTRO</span>
-                  <span class="route-role">Your position and point of view</span>
-                </div>
-                <div class="route-item">
-                  <span class="route-slug">WORK</span>
-                  <span class="route-role">Selected projects and outcomes</span>
-                </div>
-                <div class="route-item">
-                  <span class="route-slug">ABOUT</span>
-                  <span class="route-role">Experience and what drives you</span>
-                </div>
-              </div>
-              <div class="card-footer-note">
-                <span class="script-annotation">Proof over generic marketing statements.</span>
-              </div>
-            </article>
-
-            <!-- CARD 3: OWNER-ONLY STUDIO PREVIEW -->
-            <article id="showcase-studio" class="showcase-card card-studio" data-card-index="3" aria-hidden="true" inert aria-label="Stage 3: Studio preview sample">
-              <div class="card-header-line"><span class="card-step-tag">03 Studio</span><span class="studio-sample-private">PRIVATE PREVIEW</span></div>
-              <h2 class="card-headline">See the page. Make it yours.</h2>
-              <p class="card-subhead">Open a checked page beside a conversation for refining its words.</p>
-              <div class="studio-sample-preview" aria-hidden="true"><div class="studio-sample-head"></div><div class="studio-sample-title"><i></i><i></i></div><div class="studio-sample-columns"><span></span><span></span><span></span></div></div>
-              <div class="card-footer-note"><span class="script-annotation">A private view, ready for your review.</span></div>
-            </article>
-
-          </div>
-
-          <!-- SHOWCASE CONTROLS -->
-          <div class="showcase-nav-row">
-            <button class="showcase-nav-btn showcase-nav-prev" type="button" aria-label="Previous showcase card" title="Previous">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="10 3 5 8 10 13"/>
-              </svg>
-            </button>
-
-            <div class="showcase-dots" role="tablist" aria-label="Showcase card selection">
-              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Explorer card" data-index="0" type="button"></button>
-              <button class="showcase-dot active" role="tab" aria-selected="true" aria-label="Portfolio Brief card" data-index="1" type="button"></button>
-              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Content structure card" data-index="2" type="button"></button>
-              <button class="showcase-dot" role="tab" aria-selected="false" aria-label="Studio preview card" data-index="3" type="button"></button>
-            </div>
-
-            <button class="showcase-nav-btn showcase-nav-next" type="button" aria-label="Next showcase card" title="Next">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 3 11 8 6 13"/>
-              </svg>
-            </button>
-
-            <button class="showcase-pause-btn" type="button" aria-label="Pause slideshow" title="Pause slideshow">
-              <svg class="icon-pause" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <rect x="3" y="2" width="3.5" height="12" rx="1"/>
-                <rect x="9.5" y="2" width="3.5" height="12" rx="1"/>
-              </svg>
-              <svg class="icon-play" width="14" height="14" viewBox="0 0 16 16" fill="currentColor" hidden aria-hidden="true">
-                <polygon points="4 2 13 8 4 14"/>
-              </svg>
-            </button>
-          </div>
-
-        </div>
-
-        <footer class="sign-in-right-footer">
-          <span>PRIVATE BY DESIGN. MORE WITH INTENTION.</span>
-        </footer>
+      <div class="sign-in-right-col">
+        {% if page in ["sign-in", "controller"] %}
+        {% include "sign_in_samples.html" %}
+        {% else %}
+        <aside class="welcome-companion"><h2>Your experience, made visible.</h2><p>Review your story, approve the content, and refine your portfolio in a private preview.</p><p>You stay in control of each step.</p></aside>
+        {% endif %}
       </div>
     </div>
-
-    <!-- Public, fictional examples: previewable before authentication. -->
-    <section class="outcome-showcase" aria-labelledby="outcome-showcase-title">
-      <div class="outcome-showcase-header">
-        <div>
-          <p class="eyebrow">OUTCOME SHOWCASE</p>
-          <h2 id="outcome-showcase-title">See what the studio makes.</h2>
-        </div>
-        <p>Finished examples, before you sign in.</p>
-      </div>
-
-      <div class="outcome-showcase-grid">
-        <button class="outcome-card" type="button" data-outcome-id="code" aria-haspopup="dialog" aria-controls="outcome-preview-dialog" aria-expanded="false">
-          <span class="outcome-thumbnail outcome-thumbnail-systems" aria-hidden="true">
-            <span class="thumb-browser-bar"><i></i><i></i><i></i><b>devon.lee / build log</b></span>
-            <span class="thumb-systems-canvas">
-              <span class="thumb-systems-label">CODE / CLARITY / SHIPPED</span>
-              <span class="thumb-systems-line line-one"></span>
-              <span class="thumb-systems-line line-two"></span>
-              <span class="thumb-systems-node node-one">47.2</span>
-              <span class="thumb-systems-node node-two">99.4</span>
-              <span class="thumb-systems-node node-three">4 regions</span>
-            </span>
-          </span>
-          <span class="outcome-card-copy">
-            <span class="outcome-card-kicker">SOFTWARE DEVELOPMENT · SAMPLE</span>
-            <span class="outcome-card-name">Devon Lee</span>
-            <span class="outcome-card-role">Software developer</span>
-            <span class="outcome-card-description">A technical portfolio that makes complex systems legible, useful, and human.</span>
-            <span class="outcome-card-action">View sample <span aria-hidden="true">→</span></span>
-          </span>
-        </button>
-
-        <button class="outcome-card" type="button" data-outcome-id="business" aria-haspopup="dialog" aria-controls="outcome-preview-dialog" aria-expanded="false">
-          <span class="outcome-thumbnail outcome-thumbnail-product" aria-hidden="true">
-            <span class="thumb-browser-bar"><i></i><i></i><i></i><b>leila.ortiz / field notes</b></span>
-            <span class="thumb-product-canvas">
-              <span class="thumb-product-copy"><b>Find the<br>next good move.</b><i>Business development / 2026</i></span>
-              <span class="thumb-product-shape"></span>
-            </span>
-          </span>
-          <span class="outcome-card-copy">
-            <span class="outcome-card-kicker">BUSINESS DEVELOPMENT · SAMPLE</span>
-            <span class="outcome-card-name">Leila Ortiz</span>
-            <span class="outcome-card-role">Business developer</span>
-            <span class="outcome-card-description">A clear record of markets tested, partnerships built, and work that moved forward.</span>
-            <span class="outcome-card-action">View sample <span aria-hidden="true">→</span></span>
-          </span>
-        </button>
-
-        <button class="outcome-card" type="button" data-outcome-id="creative" aria-haspopup="dialog" aria-controls="outcome-preview-dialog" aria-expanded="false">
-          <span class="outcome-thumbnail outcome-thumbnail-creative" aria-hidden="true">
-            <span class="thumb-browser-bar"><i></i><i></i><i></i><b>noa.park / practice</b></span>
-            <span class="thumb-creative-canvas">
-              <span class="thumb-creative-word">MAKE<br>ROOM<br>FOR<br>THE<br>IDEA.</span>
-              <span class="thumb-creative-orbit orbit-one"></span>
-              <span class="thumb-creative-orbit orbit-two"></span>
-              <span class="thumb-creative-caption">Creative direction / 2024—25</span>
-            </span>
-          </span>
-          <span class="outcome-card-copy">
-            <span class="outcome-card-kicker">CREATIVE DIRECTION · SAMPLE</span>
-            <span class="outcome-card-name">Noa Park</span>
-            <span class="outcome-card-role">Creative director</span>
-            <span class="outcome-card-description">A visual practice that gives ambitious ideas a sharper public shape.</span>
-            <span class="outcome-card-action">View sample <span aria-hidden="true">→</span></span>
-          </span>
-        </button>
-      </div>
-
-      <div class="outcome-showcase-footer">
-        <p>Fictional examples built from test briefs. The studio keeps your work private until you decide otherwise.</p>
-        <a class="outcome-create-cta" href="#sign-in-panel" data-focus-auth>Make yours <span aria-hidden="true">→</span></a>
-      </div>
-    </section>
-
-    <dialog id="outcome-preview-dialog" class="outcome-preview-dialog" aria-labelledby="outcome-dialog-title" aria-describedby="outcome-dialog-note">
-      <div class="outcome-dialog-sheet">
-        <header class="outcome-dialog-header">
-          <div>
-            <p class="eyebrow">LOCAL SAMPLE PREVIEW</p>
-            <h2 id="outcome-dialog-title">Sample portfolio preview</h2>
-          </div>
-          <button class="outcome-dialog-close" type="button" data-outcome-close aria-label="Close sample preview" autofocus>×</button>
-        </header>
-        <p id="outcome-dialog-note" class="outcome-dialog-note">Example generated from a test brief. Fictional content only. Scroll the portfolio or use its navigation to explore Home, Work, About, and Contact.</p>
-
-        <div id="outcome-dialog-content">
-          <article class="outcome-preview outcome-preview-code" data-outcome-preview="code" hidden>
-            <div class="outcome-preview-topline"><span>SOFTWARE DEVELOPMENT / DEVON LEE</span><span>01—04</span></div>
-            <nav class="sample-site-nav" aria-label="Devon's sample portfolio sections">
-              <span class="sample-site-brand">DL / BUILD LOG</span>
-              <div class="sample-site-links">
-                <a href="#code-home" data-preview-route="code-home" aria-current="page">Home</a>
-                <a href="#code-work" data-preview-route="code-work">Work</a>
-                <a href="#code-about" data-preview-route="code-about">About</a>
-                <a href="#code-contact" data-preview-route="code-contact">Contact</a>
-              </div>
-              <span class="sample-route-status" data-preview-route-status>/home</span>
-            </nav>
-
-            <section class="sample-screen sample-screen--hero sample-screen--code" data-preview-screen="code-home">
-              <div class="sample-screen-copy">
-                <span class="sample-screen-kicker">SOFTWARE DEVELOPER · TORONTO / REMOTE</span>
-                <h3>Systems that stay understandable under load.</h3>
-                <p>I build dependable products, developer tools, and the quiet infrastructure that lets teams move with confidence.</p>
-                <a class="sample-screen-link" href="#code-work" data-preview-route="code-work">Scroll to selected work <span aria-hidden="true">↓</span></a>
-              </div>
-              <div class="sample-hero-visual sample-visual-code" aria-hidden="true">
-                <div class="sample-code-window">
-                  <div class="sample-code-bar"><span></span><span></span><span></span><b>release-health.ts</b><i>main</i></div>
-                  <div class="sample-code-body"><span><em>01</em> <strong>const</strong> signal = monitor({</span><span><em>02</em> &nbsp; service: <mark>"atlas"</mark>,</span><span><em>03</em> &nbsp; latency: <mark>47.2</mark>,</span><span><em>04</em> &nbsp; owner: <mark>"platform"</mark></span><span><em>05</em> });</span><span class="sample-code-comment"><em>06</em> // make the next decision easier</span></div>
-                  <div class="sample-code-status"><span class="sample-status-dot"></span> stable <b>99.4%</b></div>
-                </div>
-                <div class="sample-code-orbit"></div>
-              </div>
-            </section>
-
-            <section class="sample-screen sample-screen--work" data-preview-screen="code-work">
-              <div class="sample-screen-heading"><span class="sample-screen-kicker">SELECTED WORK / 03</span><h4>Readable systems, shipped with care.</h4><p>Technical decisions are easier to trust when the story is clear.</p></div>
-              <div class="sample-project-grid">
-                <article class="sample-project-card sample-project-card--code sample-project-card--large"><span>01 / PLATFORM</span><h5>Atlas release health</h5><p>An observability layer that turned scattered deployment signals into one calm operating picture.</p><div><b>47.2%</b><span>faster incident triage</span></div></article>
-                <article class="sample-project-card sample-project-card--code"><span>02 / DEVELOPER TOOL</span><h5>Threadline</h5><p>Typed workflows for teams coordinating long-running jobs.</p><div><b>12.8k</b><span>weekly runs</span></div></article>
-                <article class="sample-project-card sample-project-card--code"><span>03 / PRODUCT</span><h5>Field notes</h5><p>A tiny interface for turning support conversations into useful product evidence.</p><div><b>4.6 days</b><span>saved each cycle</span></div></article>
-              </div>
-            </section>
-
-            <section class="sample-screen sample-screen--about" data-preview-screen="code-about">
-              <div class="sample-screen-grid">
-                <div class="sample-screen-heading"><span class="sample-screen-kicker">HOW I WORK</span><h4>Good infrastructure gives people room to think.</h4></div>
-                <div class="sample-principle-list"><div><span>01</span><p>Start with the failure mode, not the feature list.</p></div><div><span>02</span><p>Make ownership visible before making systems clever.</p></div><div><span>03</span><p>Leave a smaller, calmer surface than you found.</p></div></div>
-              </div>
-            </section>
-
-            <section class="sample-screen sample-screen--contact sample-screen--code-contact" data-preview-screen="code-contact">
-              <span class="sample-screen-kicker">NEXT BUILD</span><h4>Have a hard problem worth making clear?</h4><p>Devon is open to product infrastructure, internal tools, and thoughtful teams building for the long run.</p><span class="sample-screen-link">devon.lee@example.test <span aria-hidden="true">↗</span></span>
-            </section>
-          </article>
-
-          <article class="outcome-preview outcome-preview-business" data-outcome-preview="business" hidden>
-            <div class="outcome-preview-topline"><span>BUSINESS DEVELOPMENT / LEILA ORTIZ</span><span>01—04</span></div>
-            <nav class="sample-site-nav sample-site-nav--business" aria-label="Leila's sample portfolio sections">
-              <span class="sample-site-brand">LO / FIELD NOTES</span>
-              <div class="sample-site-links">
-                <a href="#business-home" data-preview-route="business-home" aria-current="page">Home</a>
-                <a href="#business-work" data-preview-route="business-work">Work</a>
-                <a href="#business-about" data-preview-route="business-about">Approach</a>
-                <a href="#business-contact" data-preview-route="business-contact">Contact</a>
-              </div>
-              <span class="sample-route-status" data-preview-route-status>/home</span>
-            </nav>
-
-            <section class="sample-screen sample-screen--hero sample-screen--business" data-preview-screen="business-home">
-              <div class="sample-screen-copy"><span class="sample-screen-kicker">BUSINESS DEVELOPER · LISBON / EVERYWHERE</span><h3>Find the next good move.</h3><p>I help teams turn uncertain markets into focused choices, useful partnerships, and work people can actually adopt.</p><a class="sample-screen-link" href="#business-work" data-preview-route="business-work">See the work <span aria-hidden="true">↓</span></a></div>
-              <div class="sample-hero-visual sample-visual-business" aria-hidden="true"><div class="sample-market-map"><span class="market-axis market-axis-x"></span><span class="market-axis market-axis-y"></span><span class="market-dot market-dot-a">need</span><span class="market-dot market-dot-b">fit</span><span class="market-dot market-dot-c">now</span><span class="market-path"></span><b>signal / 06</b></div><div class="sample-business-card"><span>PARTNER SIGNAL</span><strong>+ 3.8×</strong><small>qualified conversations</small></div></div>
-            </section>
-
-            <section class="sample-screen sample-screen--work" data-preview-screen="business-work">
-              <div class="sample-screen-heading"><span class="sample-screen-kicker">SELECTED WORK / 03</span><h4>From market question to useful momentum.</h4><p>Each engagement leaves behind a clearer decision and a path someone can own.</p></div>
-              <div class="sample-project-grid sample-project-grid--business">
-                <article class="sample-project-card sample-project-card--business sample-project-card--large"><span>01 / NEW MARKET</span><h5>Northline health</h5><p>Positioning and partner strategy for a care platform entering a second region.</p><div><b>+ 18</b><span>qualified partner leads</span></div></article>
-                <article class="sample-project-card sample-project-card--business"><span>02 / OFFER DESIGN</span><h5>Common table</h5><p>A sharper offer for an independent studio selling into complex teams.</p><div><b>3 weeks</b><span>to first paid pilot</span></div></article>
-                <article class="sample-project-card sample-project-card--business"><span>03 / PARTNERSHIPS</span><h5>Signal / supply</h5><p>A partner narrative that made a technical product easy to introduce.</p><div><b>62%</b><span>reply rate</span></div></article>
-              </div>
-            </section>
-
-            <section class="sample-screen sample-screen--about" data-preview-screen="business-about">
-              <div class="sample-screen-grid"><div class="sample-screen-heading"><span class="sample-screen-kicker">APPROACH</span><h4>Make the choice smaller before making it bigger.</h4></div><div class="sample-approach-steps"><div><span>LISTEN</span><p>Find the tension people already feel.</p></div><div><span>FRAME</span><p>Turn noise into a decision the team can test.</p></div><div><span>MOVE</span><p>Build the first proof with the right partners.</p></div></div></div>
-            </section>
-
-            <section class="sample-screen sample-screen--contact sample-screen--business-contact" data-preview-screen="business-contact">
-              <span class="sample-screen-kicker">A GOOD NEXT STEP</span><h4>What is the decision you keep circling?</h4><p>Leila works with founders and operating teams when the next move needs a little more shape.</p><span class="sample-screen-link">leila.ortiz@example.test <span aria-hidden="true">↗</span></span>
-            </section>
-          </article>
-
-          <article class="outcome-preview outcome-preview-creative" data-outcome-preview="creative" hidden>
-            <div class="outcome-preview-topline"><span>CREATIVE DIRECTION / NOA PARK</span><span>01—04</span></div>
-            <nav class="sample-site-nav sample-site-nav--creative" aria-label="Noa's sample portfolio sections">
-              <span class="sample-site-brand">NOA PARK / STUDIO</span>
-              <div class="sample-site-links">
-                <a href="#creative-home" data-preview-route="creative-home" aria-current="page">Home</a>
-                <a href="#creative-work" data-preview-route="creative-work">Selected</a>
-                <a href="#creative-about" data-preview-route="creative-about">Practice</a>
-                <a href="#creative-contact" data-preview-route="creative-contact">Contact</a>
-              </div>
-              <span class="sample-route-status" data-preview-route-status>/home</span>
-            </nav>
-
-            <section class="sample-screen sample-screen--hero sample-screen--creative" data-preview-screen="creative-home">
-              <div class="sample-screen-copy"><span class="sample-screen-kicker">CREATIVE DIRECTOR · SEOUL / EVERYWHERE</span><h3>Make room for the idea.</h3><p>I build identities, campaigns, and cultural moments for people making something worth noticing.</p><a class="sample-screen-link" href="#creative-work" data-preview-route="creative-work">View selected work <span aria-hidden="true">↓</span></a></div>
-              <div class="sample-hero-visual sample-visual-creative" aria-hidden="true"><div class="sample-poster"><span>NOA<br>PARK</span><i></i><b>MAKE<br>ROOM<br>FOR<br>THE<br>IDEA.</b><small>identity / campaigns / culture</small></div><div class="sample-poster-orbit"></div></div>
-            </section>
-
-            <section class="sample-screen sample-screen--work" data-preview-screen="creative-work">
-              <div class="sample-screen-heading"><span class="sample-screen-kicker">SELECTED / 03</span><h4>A point of view you can feel before you name it.</h4><p>Identity systems with enough structure to travel and enough air to stay alive.</p></div>
-              <div class="sample-project-grid sample-project-grid--creative">
-                <article class="sample-project-card sample-project-card--creative sample-project-card--large"><span>01 / CAMPAIGN</span><h5>After the signal</h5><p>A visual language for a public-space project asking better questions about attention.</p><div><b>14 cities</b><span>one adaptable system</span></div></article>
-                <article class="sample-project-card sample-project-card--creative"><span>02 / IDENTITY</span><h5>Good form</h5><p>A sharper voice for objects made slowly and meant to last.</p><div><b>06</b><span>new brand touchpoints</span></div></article>
-                <article class="sample-project-card sample-project-card--creative"><span>03 / EDITORIAL</span><h5>Field notes</h5><p>An editorial rhythm for a studio that wanted its thinking to be visible.</p><div><b>27</b><span>stories in the first issue</span></div></article>
-              </div>
-            </section>
-
-            <section class="sample-screen sample-screen--about" data-preview-screen="creative-about">
-              <div class="sample-screen-grid"><div class="sample-screen-heading"><span class="sample-screen-kicker">STUDIO NOTE</span><h4>The best work leaves a little space around itself.</h4></div><div class="sample-creative-notes"><p>Identity is behavior, not a coat of paint.</p><p>Make the first read generous.</p><p>Let the unexpected stay.</p></div></div>
-            </section>
-
-            <section class="sample-screen sample-screen--contact sample-screen--creative-contact" data-preview-screen="creative-contact">
-              <span class="sample-screen-kicker">LET'S MAKE A LITTLE ROOM</span><h4>Have something worth giving a shape to?</h4><p>Noa is open to cultural work, product worlds, and teams with a strong question.</p><span class="sample-screen-link">noa.park@example.test <span aria-hidden="true">↗</span></span>
-            </section>
-          </article>
-        </div>
-      </div>
-    </dialog>
+    {% if page in ["sign-in", "controller"] %}{% include "sample_dialog.html" %}{% endif %}
 
     <p id="global-error" class="error-text" role="alert" hidden></p>
   </main>
