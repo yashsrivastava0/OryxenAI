@@ -40,6 +40,7 @@ def prepare(*, seed: bool, capture: bool) -> None:
         designer = runpy.run_path(str(ROOT / "tests/unit/themes/atlas_fixtures.py"))["designer"]
         content_path.write_text(json.dumps(designer(), indent=2), encoding="utf-8", newline="\n")
     base = json.loads(content_path.read_text(encoding="utf-8"))
+    content_path.write_text(json.dumps(base, indent=2), encoding="utf-8", newline="\n")
     env = Environment(loader=FileSystemLoader(AUTH / "templates"), autoescape=True)
     manifest = {"presentation": config["presentation"], "samples": []}
     for sample in config["samples"]:
@@ -92,7 +93,9 @@ def prepare(*, seed: bool, capture: bool) -> None:
             for file in sorted(folder.rglob("*"))
             if file.is_file()
         }
-    (OUTPUT / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (OUTPUT / "manifest.json").write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8", newline="\n"
+    )
     print("Prepared fictional showcase bundles.")
 
 
