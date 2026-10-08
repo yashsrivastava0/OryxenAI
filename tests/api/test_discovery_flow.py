@@ -236,7 +236,7 @@ class TestFullHttpFlow:
         current = (await client.get(f"/api/v1/sessions/{sid}/discovery")).json()
         palette = current["discovery"]["operation_a"]["items"][-1]
         assert len(palette["options"]) == 5
-        assert [option["label"] for option in palette["options"][3:]] == [
+        assert [option["label"] for option in palette["options"][:2]] == [
             "Cobalt & volt",
             "Claret & amber",
         ]

@@ -1,0 +1,60 @@
+# Explorer catalog. Keep ids stable: saved sessions pin these choices and theme versions.
+# Add a registered theme here; the picker needs no per-theme frontend code.
+# Set selectable=false to retire a choice without losing its historical mapping.
+
+[[themes]]
+id = "cobalt_atlas_interactive"
+theme_id = "cobalt-atlas/v2"
+label = "Cobalt & volt"
+description = "Interactive editorial · layered and vivid"
+swatches = ["#f8f8f5", "#3656d6", "#d7fa76"]
+[themes.presentation]
+collection = "interactive"
+badge = "Interactive details"
+style = "layered"
+colors = ["#3656d6", "#f9f8ef", "#d7fa76"]
+
+[[themes]]
+id = "claret_amber"
+theme_id = "claret-marquee/v1"
+label = "Claret & amber"
+description = "Cinematic depth · warm and dramatic"
+swatches = ["#3b0f1e", "#f6eee3", "#ffb04a"]
+[themes.presentation]
+collection = "interactive"
+badge = "Cinematic motion"
+style = "cinematic"
+colors = ["#3b0f1e", "#f6eee3", "#ffb04a"]
+
+[[themes]]
+id = "forest_copper"
+theme_id = "editorial-forest-motion/v1"
+label = "Forest & copper"
+description = "Editorial warmth · layered and considered"
+swatches = ["#14231c", "#f3f1e9", "#9a3f29"]
+[themes.presentation]
+collection = "classic"
+style = "editorial"
+colors = ["#14231c", "#f3f1e9", "#9a3f29"]
+
+[[themes]]
+id = "cobalt_white"
+theme_id = "cobalt-atlas/v1"
+label = "Cobalt & white"
+description = "Minimal clarity · bright and structured"
+swatches = ["#2849c9", "#f7f9fc", "#17253c"]
+[themes.presentation]
+collection = "classic"
+style = "minimal"
+colors = ["#f7f9fc", "#17253c", "#2849c9"]
+
+[[themes]]
+id = "obsidian_lime"
+theme_id = "obsidian-signal/v1"
+label = "Obsidian & lime"
+description = "Bold modernity · high contrast and energetic"
+swatches = ["#0c0e0d", "#d9fc73", "#f0f2eb"]
+[themes.presentation]
+collection = "classic"
+style = "bold"
+colors = ["#0c0e0d", "#f0f2eb", "#d9fc73"]
