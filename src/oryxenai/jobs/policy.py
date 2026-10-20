@@ -24,6 +24,7 @@ _POLICIES: dict[str, JobKindPolicy] = {
     "discovery.build_brief": JobKindPolicy(True, True, True),
     "content_architect.build": JobKindPolicy(True, True, True),
     "code_generator.build": JobKindPolicy(True, True, True),
+    "react_delivery.prepare": JobKindPolicy(False, True),
 }
 
 

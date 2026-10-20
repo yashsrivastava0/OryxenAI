@@ -4,6 +4,8 @@
 
 # Workspace / caches
 .workspace/
+src/oryxenai/delivery/templates/
+src/oryxenai/web/static/product/
 **/node_modules/
 **/dist/
 .mypy_cache/
@@ -31,6 +33,9 @@ Input-Output-Of-Engine/
 # Tests and docs are excluded from the production image to keep it lean;
 # the project source under src/ is the only application code copied.
 tests/
+!react-delivery/tests/
+!react-delivery/tests/**
+react-delivery/public/
 docs/
 # scripts/docker-entrypoint.sh is copied explicitly by the Dockerfile;
 # other scripts are not needed in the image.

@@ -18,6 +18,7 @@ import { StatusAnnouncer } from "../components/StatusAnnouncer";
 import { ContentStage } from "../stages/content/ContentStage";
 import { DiscoveryStage } from "../stages/discovery/DiscoveryStage";
 import { StudioStage } from "../stages/studio/StudioStage";
+import { HandoffPanel } from "../components/studio/HandoffPanel";
 import { parseAppUrlState, serializeAppUrlState, type JourneyStageId, type WorkspaceScreenId } from "./url-state";
 import { safeSessionStorage } from "../data/safe-storage";
 import { getClientTraceId, recordClientEvent } from "../data/client-diagnostics";
@@ -1112,6 +1113,8 @@ export function AppShell({
 
               {state.sessionId && activeStage === "studio" ? (
                 <StudioStage
+                  handoff={document.querySelector('meta[name="oryxenai-react-sharing"]')?.getAttribute("content") === "true" && state.studio?.activeVersionId ?
+                    <HandoffPanel key={state.sessionId} api={api} sessionId={state.sessionId} versionId={state.studio.activeVersionId} disabled={studioBusy || mutatingStage !== null} /> : null}
                   view={state.studio}
                   contentApproved={contentApprovedForStudio}
                   canMutate={mutatingStage === null}

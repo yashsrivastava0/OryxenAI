@@ -540,6 +540,9 @@ class ArtifactStorageConfig(BaseModel):
     region: str = "auto"
     prefix: str = "temporary"
     require_lifecycle: bool = True
+    connect_timeout_seconds: float = Field(default=60, ge=1, le=60)
+    read_timeout_seconds: float = Field(default=60, ge=1, le=60)
+    transport_max_attempts: int = Field(default=3, ge=1, le=3)
     access_key_env: str = "R2_ACCESS_KEY_ID"
     secret_key_env: str = "R2_SECRET_ACCESS_KEY"  # noqa: S105 - this is an environment-variable name, never a secret value
 
@@ -756,6 +759,38 @@ class ModelConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class ReactDeliveryConfig(BaseModel):
+    """Opt-in, bounded MCP handoffs; independent of Studio and legacy storage."""
+
+    enabled: bool = False
+    ttl_seconds: int = Field(default=86400, ge=60, le=86400)
+    max_project_bytes: int = Field(default=10485760, ge=1024, le=10485760)
+    chunk_bytes: int = Field(default=32768, ge=1024, le=32768)
+    preparation_timeout_seconds: float = Field(default=60, ge=1, le=60)
+    max_attempts: int = Field(default=3, ge=1, le=3)
+    cleanup_interval_seconds: int = Field(default=3600, ge=60)
+    metadata_retention_days: int = Field(default=7, ge=1)
+    storage: ArtifactStorageConfig = Field(
+        default_factory=lambda: ArtifactStorageConfig(
+            prefix="react-handoffs",
+            connect_timeout_seconds=5,
+            read_timeout_seconds=10,
+            transport_max_attempts=1,
+        )
+    )
+
+    @field_validator("storage")
+    @classmethod
+    def dedicated_prefix(cls, value: ArtifactStorageConfig) -> ArtifactStorageConfig:
+        if (
+            not value.prefix
+            or any(part in {"", ".", ".."} for part in value.prefix.split("/"))
+            or "\\" in value.prefix
+        ):
+            raise ValueError("React handoff storage requires a nonempty dedicated relative prefix")
+        return value
+
+
 class Settings(BaseSettings):
     """Central settings object.
 
@@ -808,6 +843,9 @@ class Settings(BaseSettings):
     preview_grant_secret: SecretStr = Field(
         default=SecretStr(""), validation_alias="PREVIEW_GRANT_SECRET", repr=False
     )
+    handoff_signing_secret: SecretStr = Field(
+        default=SecretStr(""), validation_alias="HANDOFF_SIGNING_SECRET", repr=False
+    )
 
     # Non-secret infrastructure overrides (env vars, not in .env):
     # Docker Compose sets these to redirect to the postgres service.
@@ -836,6 +874,7 @@ class Settings(BaseSettings):
     archive_storage: ArchiveStorageConfig = Field(default_factory=ArchiveStorageConfig)
     preview_gateway: PreviewGatewayConfig = Field(default_factory=PreviewGatewayConfig)
     artifact_storage: ArtifactStorageConfig = Field(default_factory=ArtifactStorageConfig)
+    react_delivery: ReactDeliveryConfig = Field(default_factory=ReactDeliveryConfig)
 
     @model_validator(mode="after")
     def _load_toml_files(self) -> Settings:
@@ -900,6 +939,8 @@ class Settings(BaseSettings):
             self.preview_gateway = PreviewGatewayConfig(**app_data["preview_gateway"])
         if "artifact_storage" in app_data:
             self.artifact_storage = ArtifactStorageConfig(**app_data["artifact_storage"])
+        if "react_delivery" in app_data:
+            self.react_delivery = ReactDeliveryConfig(**app_data["react_delivery"])
 
         # Model profiles.
         models_data = _load_toml("models.toml")

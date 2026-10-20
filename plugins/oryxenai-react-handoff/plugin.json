@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "oryxenai-react-handoff",
+  "version": "1.0.0",
+  "description": "Import and verify a complete React portfolio from a temporary OryxenAI MCP share link.",
+  "author": { "name": "OryxenAI" },
+  "extensions": { "com.openai": { "interface": { "displayName": "OryxenAI React handoff", "shortDescription": "Continue your React portfolio" } } }
+}

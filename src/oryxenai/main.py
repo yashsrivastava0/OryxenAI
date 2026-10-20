@@ -87,7 +87,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
         response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        if request.url.path.startswith("/api/") or request.url.path in {"/app", "/"}:
+        if request.url.path.startswith(("/api/", "/share/")) or request.url.path in {
+            "/app",
+            "/",
+            "/mcp",
+        }:
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
             response.headers["Expires"] = "0"
@@ -103,7 +107,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     _WINDOW_SECONDS = 60.0
-    _LIMITS: tuple[tuple[str, int], ...] = (("/auth/", 30), ("/api/", 120))
+    _LIMITS: tuple[tuple[str, int], ...] = (
+        ("/auth/", 30),
+        ("/api/", 120),
+        ("/mcp", 600),
+        ("/share/", 30),
+    )
     _MAX_TRACKED_KEYS = 10_000
 
     def __init__(self, app: ASGIApp, trusted_client_ip_header: str = "") -> None:
@@ -161,7 +170,7 @@ class AuthOriginMiddleware(BaseHTTPMiddleware):
     """Reject unexpected unsafe-method browser origins when an Origin exists."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path != "/mcp":
             origin = request.headers.get("origin")
             if origin:
                 allowed = request.app.state.settings.auth.allowed_origins
@@ -194,9 +203,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         settings.is_dev_ui_enabled,
     )
     logger.info("database engine initialised")
+    import asyncio
+    from contextlib import AsyncExitStack, suppress
+
+    cleanup_task = None
     try:
-        yield
+        async with AsyncExitStack() as stack:
+            if getattr(app.state, "delivery", None) is not None:
+                from oryxenai.delivery.cleanup import cleanup_loop
+
+                await app.state.delivery.validate_storage()
+                await stack.enter_async_context(app.state.delivery_mcp.session_manager.run())
+                cleanup_task = asyncio.create_task(cleanup_loop(app.state.delivery))
+            yield
     finally:
+        if cleanup_task is not None:
+            cleanup_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await cleanup_task
         logger.info("shutting down %s", settings.app.name)
         await app.state.auth_verifier.aclose()
         await app.state.auth_provider.aclose()
@@ -254,6 +278,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Account cleanup can remove older stored outputs without exposing an
     # output-serving or output-writing runtime.
     app.state.archive_storage = create_archive_storage(s)
+    app.state.delivery = None
+    if s.react_delivery.enabled:
+        from oryxenai.delivery.mcp import create_mcp
+        from oryxenai.delivery.service import DeliveryRuntime
+
+        app.state.delivery = DeliveryRuntime(s, app.state.sessionmaker)
+        mcp_app, app.state.delivery_mcp = create_mcp(app.state.delivery)
+        app.router.routes.extend(mcp_app.routes)
 
     # Middleware (order: outer to inner; last added runs first).
     app.add_middleware(SecurityHeadersMiddleware)

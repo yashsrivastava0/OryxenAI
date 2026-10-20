@@ -79,6 +79,8 @@ _MUTATION_CLASSES: dict[tuple[str, str], str] = {
     ): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/restart"): "portfolio_mutation",
     ("POST", "/api/v1/sessions/{session_id}/reset"): "portfolio_mutation",
+    ("POST", "/api/v1/sessions/{session_id}/handoffs"): "portfolio_mutation",
+    ("DELETE", "/api/v1/sessions/{session_id}/handoffs/{handoff_id}"): "portfolio_mutation",
     ("POST", "/api/v1/discovery-documents/extract"): "intake_preparation",
     ("POST", "/api/v1/system/worker-probes"): "admin_system_mutation",
     ("POST", "/api/v1/client-diagnostics/events"): "client_diagnostics",
@@ -155,6 +157,7 @@ def test_every_business_api_route_has_an_explicit_phase2_policy() -> None:
                         "/discovery",
                         "/content-architect",
                         "/code-generator",
+                        "/handoffs",
                     )
                 )
                 or path == "/api/v1/sessions/{session_id}"

@@ -32,6 +32,7 @@ dependencies = [
     "pypdfium2>=5.0",
     "rapidocr>=3.9",
     "onnxruntime>=1.30",
+    "mcp>=2.3,<3",
 ]
 
 [project.optional-dependencies]

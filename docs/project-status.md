@@ -1,6 +1,6 @@
 # OryxenAI — current project status
 
-**Updated:** 2026-09-24
+**Updated:** 2026-10-09
 **Scope:** Current local repository behavior. Deployment state is tracked
 separately under docs/deployment/.
 
@@ -18,8 +18,8 @@ OryxenAI currently supports an explicit three-stage portfolio flow:
    it, shows it in a live sandboxed preview, and applies chat changes to the
    page's content as new restorable versions.
 
-The active workflow ends in the Studio. The product previews the generated page
-for its owner; it does not publish, export or host a portfolio site. Approval
+The generation workflow ends in the Studio. The product previews the generated page
+for its owner. Optional React delivery can follow an explicit owner action, behind a disabled-by-default feature flag; it shares a complete React project temporarily through MCP. Public portfolio hosting is not implemented. Approval
 never automatically starts another stage: the product's single "Approve &
 generate my portfolio" click is an explicit user action, and no API endpoint
 chains stages.
@@ -51,8 +51,7 @@ The router exposes health, authentication, session, run, diagnostics, and
 supported stage APIs; use the registered route source and each active stage
 README as the route contract.
 
-The product does not expose a generated-site preview surface. Do not infer
-product capability from historical preview records or old documentation.
+The Studio exposes the owner's signed sandboxed preview. Optional React handoffs have their own owner API, private artifact storage, expiry and MCP reader; they do not expose the original Studio preview. See [React delivery](react-delivery.md) for activation and outstanding live acceptance.
 
 ## Authentication and ownership
 

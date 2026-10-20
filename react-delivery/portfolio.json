@@ -1,0 +1,91 @@
+{
+  "schema": "ReactPortfolio/v1",
+  "theme_id": "cobalt-atlas/v2",
+  "adapter_revision": "1",
+  "lang": "en",
+  "body_class": "",
+  "stylesheet": "./theme/style.css",
+  "c": {
+    "hero": {
+      "name": "Sam Lee",
+      "eyebrow_primary": "",
+      "eyebrow_secondary": "",
+      "headline_prefix": "Building careful software.",
+      "headline_emphasis": "",
+      "intro": "Sam builds careful software.",
+      "location": "",
+      "primary_cta_label": "",
+      "secondary_cta_label": ""
+    },
+    "metadata": {
+      "title": "Sam Lee",
+      "description": "Sam Lee builds careful software."
+    },
+    "marquee_keywords": [],
+    "systems_practice": {
+      "eyebrow": "Work label",
+      "heading": "Work heading.",
+      "intro": "",
+      "pillars": [
+        {
+          "title": "Area 1",
+          "description": "Description 1."
+        },
+        {
+          "title": "Area 2",
+          "description": "Description 2."
+        },
+        {
+          "title": "Area 3",
+          "description": "Description 3."
+        },
+        {
+          "title": "Area 4",
+          "description": "Description 4."
+        }
+      ]
+    },
+    "technical_capabilities": {
+      "eyebrow": "Toolkit label",
+      "heading": "Toolkit heading.",
+      "intro": "",
+      "groups": [
+        {
+          "heading": "Languages",
+          "items": ["Python"]
+        }
+      ]
+    },
+    "professional_context": {
+      "eyebrow": "Background label",
+      "heading": "Background heading.",
+      "intro": "",
+      "organizations": []
+    },
+    "connect": {
+      "eyebrow": "Connect label",
+      "heading": "Connect heading.",
+      "intro": "",
+      "destinations": []
+    },
+    "atlas": {
+      "about_heading": "",
+      "about_intro": "",
+      "about_quote": "",
+      "experience": [],
+      "education": [],
+      "statistics": [],
+      "projects": []
+    }
+  },
+  "d": {
+    "monogram": "SL",
+    "home_label": "Sam Lee, home",
+    "arts": ["orbit", "bars", "grid", "waves", "stack", "dots"],
+    "sample": {
+      "experience": false,
+      "education": false,
+      "statistics": false
+    }
+  }
+}

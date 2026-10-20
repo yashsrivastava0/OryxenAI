@@ -204,7 +204,7 @@ class JobRepository:
                                     OR (earlier.priority = job.priority
                                         AND (earlier.created_at, earlier.id)
                                             < (job.created_at, job.id)))))
-                      ) < :lane_limit
+                      ) < CASE WHEN job.execution_lane = 'react-delivery' THEN 1 ELSE :lane_limit END
                     )
                   )
                 ORDER BY {foreground_order}job.priority DESC, job.created_at ASC
@@ -310,7 +310,7 @@ class JobRepository:
                          AND earlier_stale.execution_lane = job.execution_lane
                          AND (earlier_stale.created_at, earlier_stale.id)
                              < (job.created_at, job.id))
-                      ) < :lane_limit
+                      ) < CASE WHEN job.execution_lane = 'react-delivery' THEN 1 ELSE :lane_limit END
                   )
                 ORDER BY {foreground_order}job.created_at ASC
                 LIMIT :limit

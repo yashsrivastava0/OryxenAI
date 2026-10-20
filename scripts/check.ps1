@@ -11,6 +11,8 @@ uv run ruff check
 uv run ruff format --check
 uv run mypy src
 
+& "$PSScriptRoot\prepare-react-delivery.ps1"
+
 $FRONTEND_ROOT = Join-Path $REPO_ROOT "frontend"
 Push-Location $FRONTEND_ROOT
 try {

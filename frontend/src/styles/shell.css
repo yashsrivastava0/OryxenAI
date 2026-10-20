@@ -3166,3 +3166,10 @@ button:disabled, textarea:disabled, input:disabled {
 .generation-estimate.is-overdue { border-left-color: var(--ink-secondary); }
 .build-scene > .generation-estimate { margin: 0 1.5rem 1.25rem; width: min(calc(100% - 3rem), 28rem); }
 @media (max-width: 600px) { .generation-estimate { gap: .75rem 1rem; padding: .85rem 1rem; } .build-scene > .generation-estimate { margin-left: 1rem; width: min(calc(100% - 2rem), 28rem); } }
+
+.studio-handoff { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--border, #ddd); border-radius: .75rem; }
+.studio-handoff p { margin: .5rem 0; font-size: .875rem; }
+.studio-handoff-link { margin-top: 1rem; }
+.studio-handoff-link label { display: block; }
+.studio-handoff-link input { display: block; width: 100%; margin: .5rem 0; padding: .6rem; background: transparent; color: inherit; border: 1px solid var(--border, #ddd); }
+.studio-handoff code { overflow-wrap: anywhere; }

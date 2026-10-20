@@ -11,6 +11,7 @@ from oryxenai.api.routes import (
     health,
     model_profiles,
     model_usage,
+    react_handoffs,
     runs,
     sessions,
     system,
@@ -39,6 +40,7 @@ def create_api_router(settings: object | None = None) -> APIRouter:
     router.include_router(discovery.document_router)
     router.include_router(content_architect.router)
     router.include_router(code_generator.router)
+    router.include_router(react_handoffs.router)
     # Client diagnostics are a separate local-only switch. Keep the route
     # available when the developer UI is not mounted so API-backed local
     # product shells can still export a trace; deployment overlays disable it

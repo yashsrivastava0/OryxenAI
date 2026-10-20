@@ -86,3 +86,6 @@ output/*
 # Generated Preact/Vite product bundle (frontend/, docs/Frontend/05 §16) —
 # built by CI/container packaging, never hand-edited or committed.
 src/oryxenai/web/static/product/
+src/oryxenai/delivery/templates/
+react-delivery/dist/
+react-delivery/public/

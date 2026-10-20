@@ -28,4 +28,6 @@ switch ($Suite) {
 
 if ($env:PYTEST_PROFILE) { $pytestArgs += "--profile" }
 
+if ($Suite -ne "worker") { & "$PSScriptRoot\prepare-react-delivery.ps1" }
+
 uv run pytest @pytestArgs @args

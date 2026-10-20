@@ -54,6 +54,10 @@ def _register_builtins() -> None:
     _register_discovery_handlers()
     _register_content_architect_handlers()
     _register_code_generator_handlers()
+    from oryxenai.jobs.handlers.react_delivery import ReactDeliveryHandler
+
+    if not is_registered(ReactDeliveryHandler.kind):
+        register(ReactDeliveryHandler())
 
 
 def _register_discovery_handlers() -> None:

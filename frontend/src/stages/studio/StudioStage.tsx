@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import type { StudioPreviewGrant } from "../../data/api-client";
 import type { StudioViewModel } from "../../data/adapters/studio";
 import { UnsupportedPanel } from "../../components/UnsupportedPanel";
@@ -11,6 +12,7 @@ import { ActionDock } from "../../components/ActionDock";
 import { BuildScene } from "../../components/studio/BuildScene";
 
 export interface StudioStageProps {
+  handoff?: ComponentChildren;
   view: StudioViewModel | null;
   contentApproved: boolean;
   /** Another stage mutation is in progress; hold new studio requests. */
@@ -32,6 +34,7 @@ export interface StudioStageProps {
 }
 
 export function StudioStage({
+  handoff,
   view,
   contentApproved,
   canMutate,
@@ -153,6 +156,7 @@ export function StudioStage({
   // Workspace: chat on the left, the live preview on the right.
   return (
     <div className="studio-presentation-wrap">
+    {!holdingPreview && handoff}
     {holdingPreview && <BuildScene elapsedMs={sceneElapsedMs} inFlight={null} />}
     <div className={`studio-workspace${holdingPreview ? " is-preloading" : ""}`} data-tab={tab} aria-hidden={holdingPreview ? "true" : undefined}>
       <div className="studio-tabs" role="tablist" aria-label="Studio panels">

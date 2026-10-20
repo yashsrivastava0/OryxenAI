@@ -117,7 +117,7 @@ class BackgroundJob(Base):
             name="ck_background_jobs_entitlement_revision",
         ),
         CheckConstraint(
-            "execution_lane IS NULL OR execution_lane IN ('model-generation')",
+            "execution_lane IS NULL OR execution_lane IN ('model-generation', 'react-delivery')",
             name="ck_background_jobs_execution_lane",
         ),
         Index(

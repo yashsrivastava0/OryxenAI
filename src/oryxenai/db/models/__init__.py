@@ -25,6 +25,7 @@ from oryxenai.db.models.model_usage import (
     ModelProviderObservation,
 )
 from oryxenai.db.models.portfolio_session import PortfolioSession
+from oryxenai.db.models.react_handoff import ReactHandoff
 from oryxenai.db.models.service_heartbeat import ServiceHeartbeat
 from oryxenai.db.models.site_version import PortfolioChatMessage, PortfolioSiteVersion
 
@@ -50,5 +51,6 @@ __all__ = [
     "PortfolioEntitlement",
     "PortfolioSession",
     "PortfolioSiteVersion",
+    "ReactHandoff",
     "ServiceHeartbeat",
 ]

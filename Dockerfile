@@ -18,6 +18,12 @@ COPY src/ /app/src/
 COPY frontend/ ./
 RUN npm run build
 
+WORKDIR /app/react-delivery
+COPY react-delivery/package.json react-delivery/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY react-delivery/ ./
+RUN npm run build:viewer
+
 # ---- Stage 1: builder ----
 FROM python:3.13-slim-bookworm@sha256:2325bb286ec344af3e5898cc224b5844e2707ac6e26b1632516fd3edc84a5e26 AS builder
 
@@ -106,6 +112,7 @@ COPY --chown=oryxen:oryxen src/ ./src/
 # The Vite output is generated in the image rather than relying on an ignored
 # local build directory being present in the Docker build context.
 COPY --from=frontend-builder --chown=oryxen:oryxen /app/src/oryxenai/web/static/product/ ./src/oryxenai/web/static/product/
+COPY --from=frontend-builder --chown=oryxen:oryxen /app/src/oryxenai/delivery/templates/ ./src/oryxenai/delivery/templates/
 COPY --chown=oryxen:oryxen config/ ./config/
 COPY --chown=oryxen:oryxen migrations/ ./migrations/
 COPY --chown=oryxen:oryxen alembic.ini ./

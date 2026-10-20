@@ -23,6 +23,9 @@ def test_every_registered_job_kind_has_a_closed_phase3_policy() -> None:
         if kind == "system.worker_probe":
             assert policy.consumes_model_credit is False
             assert policy.portfolio_bound is False
+        elif kind == "react_delivery.prepare":
+            assert policy.consumes_model_credit is False
+            assert policy.portfolio_bound is True
         else:
             assert policy.consumes_model_credit is True
             assert policy.portfolio_bound is True

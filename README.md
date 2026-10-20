@@ -146,7 +146,7 @@ The repository includes Docker packaging and a Render configuration for the appl
 
 **Available today:** an authenticated portfolio workflow, approved briefs and content, generated pages, private Studio previews, content edits, and saved version restoration.
 
-**Current boundary:** generated portfolios are private previews. Public portfolio publishing and product export are not implemented. Resource-sensitive capabilities, including runtime browser verification, depend on the selected configuration.
+**Current boundary:** Studio portfolios remain private previews. An optional React Delivery Engine prepares a complete React project for temporary MCP sharing after an explicit owner action. It is disabled by default pending live storage and client acceptance. Public portfolio hosting and source download endpoints are not implemented. See the [React delivery runbook](docs/react-delivery.md). Resource-sensitive capabilities, including runtime browser verification, depend on the selected configuration.
 
 For implementation and operational detail, see the [architecture guide](docs/architecture.md), [project status](docs/project-status.md), and [deployment documentation](docs/deployment/). Those guides carry the deeper contracts and runbooks.
 

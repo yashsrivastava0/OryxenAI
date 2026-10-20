@@ -224,8 +224,26 @@ export interface ExtractedDocument {
   warnings: string[];
 }
 
+export interface ReactHandoff {
+  id: string;
+  source_version_id: string;
+  status: "queued" | "preparing" | "validating" | "ready" | "failed" | "expired" | "revoked";
+  expires_at: string | null;
+  share_link: string | null;
+  mcp_url: string;
+  error: { code: string; message: string } | null;
+}
+
 export function createApiClient(authorizedFetch: AuthorizedFetch) {
   return {
+    prepareHandoff: (sessionId: string, versionId: string) => requestJson<ReactHandoff>(authorizedFetch,
+      `/api/v1/sessions/${encodeURIComponent(sessionId)}/handoffs`, jsonInit("POST", { version_id: versionId })),
+    listHandoffs: (sessionId: string) => requestJson<{ handoffs: ReactHandoff[] }>(authorizedFetch,
+      `/api/v1/sessions/${encodeURIComponent(sessionId)}/handoffs`),
+    getHandoff: (sessionId: string, id: string) => requestJson<ReactHandoff>(authorizedFetch,
+      `/api/v1/sessions/${encodeURIComponent(sessionId)}/handoffs/${encodeURIComponent(id)}`),
+    revokeHandoff: (sessionId: string, id: string) => requestJson<ReactHandoff>(authorizedFetch,
+      `/api/v1/sessions/${encodeURIComponent(sessionId)}/handoffs/${encodeURIComponent(id)}`, jsonInit("DELETE")),
     getMe: () => requestJson<MeProjection>(authorizedFetch, "/api/v1/me"),
 
     getSession: (sessionId: string) =>

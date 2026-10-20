@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import mimetypes
 from pathlib import Path
@@ -79,6 +80,7 @@ def _shell_context(settings: Any) -> dict[str, object]:
         "app_name": settings.app.name,
         "brand_version": brand_version(),
         "generation_estimates": settings.generation_estimates.model_dump(mode="json"),
+        "react_sharing_enabled": settings.react_delivery.enabled,
         "model_profiles": [],
         "auth_config": settings.auth_public_config,
         "pipeline_mode": settings.auth.pipeline_mode,
@@ -107,6 +109,41 @@ def _set_shell_headers(response: Response, settings: Any) -> Response:
 def create_web_router(settings_override: Any | None = None) -> APIRouter:
     """Return the authenticated product shell and static assets."""
     router = APIRouter()
+
+    @router.get("/share/{token}", response_class=HTMLResponse, include_in_schema=False)
+    async def handoff_landing(request: Request, token: str) -> Response:
+        from oryxenai.delivery.contracts import DeliveryError
+
+        runtime = getattr(request.app.state, "delivery", None)
+        if runtime is None:
+            return Response(
+                "React sharing is unavailable.",
+                status_code=404,
+                headers={"Cache-Control": "no-store"},
+            )
+        try:
+            row = await runtime.resolve(token)
+            endpoint = html.escape(runtime.settings.auth.primary_origin.rstrip("/") + "/mcp")
+            expiry = html.escape(row.expires_at.isoformat())
+            body = f"<h1>Your React portfolio handoff</h1><p>Connect your coding agent to <code>{endpoint}</code>, then ask it to import this page's share link through MCP.</p><p>In a host that supports MCP Apps, ask it to show the React portfolio.</p><p>This link expires {expiry}. Imported copies remain with their recipient.</p>"
+            status = 200
+        except DeliveryError as exc:
+            body, status = (
+                "<h1>Handoff unavailable</h1><p>" + html.escape(exc.message) + "</p>",
+                exc.status_code,
+            )
+        return HTMLResponse(
+            "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>React portfolio handoff</title></head><body><main>"
+            + body
+            + "</main></body></html>",
+            status_code=status,
+            headers={
+                "Cache-Control": "no-store",
+                "Referrer-Policy": "no-referrer",
+                "X-Robots-Tag": "noindex, nofollow, noarchive",
+                "Content-Security-Policy": "default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+            },
+        )
 
     @router.get("/favicon.ico", include_in_schema=False)
     async def favicon() -> FileResponse:

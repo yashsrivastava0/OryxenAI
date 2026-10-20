@@ -49,6 +49,7 @@ _SAFE_BLOCKED_KEYS = frozenset(
 )
 
 _PREVIEW_GRANT = re.compile(r"(/preview/g/)[^/\s?#\"']+")
+_HANDOFF_GRANT = re.compile(r"(/share/)[^/\s?#\"']+")
 
 _SENSITIVE_ASSIGNMENT = re.compile(
     r"(?i)\b[A-Z][A-Z0-9_]*(?:PASSWORD|API[_-]?KEY|SECRET|TOKEN|CREDENTIALS?)"
@@ -58,7 +59,8 @@ _SENSITIVE_ASSIGNMENT = re.compile(
 
 def _redact_preview_grants(text: str) -> str:
     """Preview grants live in the URL path; they must never reach a log line."""
-    return _PREVIEW_GRANT.sub(lambda match: match.group(1) + "[REDACTED]", text)
+    redacted = _PREVIEW_GRANT.sub(lambda match: match.group(1) + "[REDACTED]", text)
+    return _HANDOFF_GRANT.sub(lambda match: match.group(1) + "[REDACTED]", redacted)
 
 
 def _is_sensitive_env_name(name: str) -> bool:

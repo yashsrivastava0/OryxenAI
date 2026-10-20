@@ -11,6 +11,7 @@ from oryxenai.db.models.archived_output import ArchivedOutputRun
 from oryxenai.db.models.model_call_cache import ModelCallCache
 from oryxenai.db.models.portfolio_session import PortfolioSession
 from oryxenai.db.models.site_version import PortfolioSiteVersion
+from oryxenai.delivery.pins import live_source_pin
 
 
 async def delete_expired_rows(
@@ -91,6 +92,7 @@ async def delete_expired_rows(
                     )
                     <= cutoff,
                     PortfolioSiteVersion.status.in_(("ready", "failed", "cancelled", "no_change")),
+                    ~live_source_pin(current_time),
                     or_(
                         active_version_id.is_(None),
                         active_version_id == "",

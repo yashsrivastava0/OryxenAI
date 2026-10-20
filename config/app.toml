@@ -193,3 +193,25 @@ workspace_root = ".workspace/code-generator-workspaces"
 export_root = "output/code-gen-output"
 handoff_root = ".workspace/build-preparation-staging"
 handoff_mirror_root = "output/build-preparation"
+[react_delivery]
+enabled = false
+ttl_seconds = 86400
+max_project_bytes = 10485760
+chunk_bytes = 32768
+preparation_timeout_seconds = 60
+max_attempts = 3
+cleanup_interval_seconds = 3600
+metadata_retention_days = 7
+
+[react_delivery.storage]
+connect_timeout_seconds = 5
+read_timeout_seconds = 10
+transport_max_attempts = 1
+provider = "r2_s3"
+endpoint_url = ""
+bucket = ""
+region = "auto"
+prefix = "react-handoffs"
+require_lifecycle = true
+access_key_env = "R2_ACCESS_KEY_ID"
+secret_key_env = "R2_SECRET_ACCESS_KEY"

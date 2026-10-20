@@ -246,6 +246,8 @@ def test_onboarding_preserves_handle_and_prevents_duplicate_submission(
     page.route(f"{BASE_URL}/api/v1/me/username", lambda route: pending.append(route))
     page.set_viewport_size({"width": 390, "height": 844})
     page.goto(f"{BASE_URL}/onboarding")
+    # The visible form can precede the asynchronous controller's input bindings.
+    expect(page.locator("body")).to_have_attribute("data-auth-outcome", "onboarding")
     field = page.locator("#username")
     field.fill("bad-")
     expect(page.locator("#username-error")).to_be_visible()

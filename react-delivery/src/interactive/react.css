@@ -1,0 +1,63 @@
+#root,
+.react-portfolio {
+  display: contents;
+}
+.react-portfolio [hidden] {
+  display: none !important;
+}
+.palette-list button {
+  width: 100%;
+  padding: 1rem;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.palette-list button.is-selected,
+.palette-list button:focus-visible {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.react-intro-leaving.atlas-loader {
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+.react-intro-leaving.veil {
+  animation: react-veil 0.95s cubic-bezier(0.65, 0, 0.35, 1) both;
+  pointer-events: none;
+}
+.react-intro-opening .loader-bar i {
+  animation: react-loader 2.6s ease-out both;
+}
+@keyframes react-loader {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+@keyframes react-veil {
+  from {
+    clip-path: circle(150% at 50% 50%);
+  }
+  to {
+    clip-path: circle(0% at 50% 50%);
+  }
+}
+@media (min-width: 761px) {
+  .menu-toggle {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-portfolio *,
+  .react-portfolio *::before,
+  .react-portfolio *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -17,6 +17,7 @@ from pathlib import PurePosixPath
 from typing import Any, Protocol, cast
 
 import boto3  # type: ignore[import-untyped]
+from botocore.config import Config  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from pydantic import BaseModel, ConfigDict
 
@@ -68,6 +69,10 @@ class ArtifactStore(Protocol):
     ) -> ArtifactReference: ...
 
     async def get_verified(self, reference: ArtifactReference) -> bytes: ...
+
+    async def get_range(self, reference: ArtifactReference, offset: int, length: int) -> bytes: ...
+
+    async def delete_prefix(self, prefix: str) -> None: ...
 
     async def head(self, reference: ArtifactReference) -> ArtifactReference | None: ...
 
@@ -183,6 +188,19 @@ class MemoryArtifactStore:
         stored = self._objects.get(reference.key)
         return stored[0] if stored is not None else None
 
+    async def get_range(self, reference: ArtifactReference, offset: int, length: int) -> bytes:
+        if offset < 0 or length < 1 or length > 32768:
+            raise ArtifactStorageError(
+                "ARTIFACT_RANGE_INVALID", "The requested range is invalid.", retryable=False
+            )
+        return (await self.get_verified(reference))[offset : offset + length]
+
+    async def delete_prefix(self, prefix: str) -> None:
+        prefix = _safe_artifact_key(prefix) + "/"
+        for key in list(self._objects):
+            if key.startswith(prefix):
+                self._objects.pop(key)
+
     async def delete(self, reference: ArtifactReference) -> None:
         self._objects.pop(_safe_artifact_key(reference.key), None)
 
@@ -214,6 +232,14 @@ class S3ArtifactStore:
             region_name=str(config.region),
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
+            config=Config(
+                connect_timeout=getattr(config, "connect_timeout_seconds", 60),
+                read_timeout=getattr(config, "read_timeout_seconds", 60),
+                retries={
+                    "total_max_attempts": getattr(config, "transport_max_attempts", 3),
+                    "mode": "standard",
+                },
+            ),
         )
 
     async def put_verified(
@@ -341,6 +367,101 @@ class S3ArtifactStore:
             expires_at=stored_expiry,
             etag=str(response.get("ETag", "")).strip('"'),
         )
+
+    async def get_range(self, reference: ArtifactReference, offset: int, length: int) -> bytes:
+        if offset < 0 or length < 1 or length > 32768 or offset > reference.size_bytes:
+            raise ArtifactStorageError(
+                "ARTIFACT_RANGE_INVALID", "The requested range is invalid.", retryable=False
+            )
+        if offset == reference.size_bytes:
+            return b""
+        end = min(reference.size_bytes, offset + length) - 1
+
+        def get() -> bytes:
+            args: dict[str, Any] = {
+                "Bucket": self._bucket,
+                "Key": _safe_artifact_key(reference.key),
+                "Range": f"bytes={offset}-{end}",
+            }
+            if reference.etag:
+                args["IfMatch"] = '"' + reference.etag.strip('"') + '"'
+            response = self._client.get_object(**args)
+            body = response["Body"]
+            try:
+                data = cast(bytes, body.read(length + 1))
+            finally:
+                body.close()
+            if (
+                len(data) != end - offset + 1
+                or response.get("Metadata", {}).get("sha256") != reference.sha256
+            ):
+                raise ArtifactStorageError(
+                    "ARTIFACT_HASH_MISMATCH", "The stored project file changed."
+                )
+            return data
+
+        try:
+            return await asyncio.to_thread(get)
+        except ArtifactStorageError:
+            raise
+        except Exception as exc:
+            raise ArtifactStorageError(
+                "ARTIFACT_READ_FAILED", "The project file is temporarily unavailable."
+            ) from exc
+
+    async def delete_prefix(self, prefix: str) -> None:
+        prefix = _safe_artifact_key(prefix) + "/"
+
+        def remove() -> None:
+            # Delete each page before continuing; repeat from the beginning so
+            # interrupted deletion is idempotent and never skips shifted keys.
+            while True:
+                response = self._client.list_objects_v2(
+                    Bucket=self._bucket, Prefix=prefix, MaxKeys=100
+                )
+                objects = response.get("Contents", [])
+                if not objects:
+                    return
+                for item in objects:
+                    self._client.delete_object(Bucket=self._bucket, Key=item["Key"])
+
+        try:
+            await asyncio.to_thread(remove)
+        except Exception as exc:
+            raise ArtifactStorageError(
+                "ARTIFACT_DELETE_FAILED", "Temporary project cleanup could not finish."
+            ) from exc
+
+    async def require_lifecycle(self, prefix: str) -> None:
+        def check() -> None:
+            response = self._client.get_bucket_lifecycle_configuration(Bucket=self._bucket)
+            for rule in response.get("Rules", []):
+                filters = rule.get("Filter", {})
+                if set(filters) - {"Prefix"}:
+                    continue  # A tag/size-constrained rule does not cover every handoff file.
+                rule_prefix = filters.get("Prefix", rule.get("Prefix", ""))
+                if (
+                    rule.get("Status") == "Enabled"
+                    and prefix.startswith(rule_prefix)
+                    and rule.get("Expiration", {}).get("Days") == 2
+                ):
+                    return
+            raise ArtifactStorageError(
+                "ARTIFACT_LIFECYCLE_MISSING",
+                "Configure an enabled two-day lifecycle rule for the React handoff prefix.",
+                retryable=False,
+            )
+
+        try:
+            await asyncio.to_thread(check)
+        except ArtifactStorageError:
+            raise
+        except Exception as exc:
+            raise ArtifactStorageError(
+                "ARTIFACT_LIFECYCLE_UNAVAILABLE",
+                "The handoff lifecycle rule could not be verified.",
+                retryable=False,
+            ) from exc
 
     async def delete(self, reference: ArtifactReference) -> None:
         key = _safe_artifact_key(reference.key)

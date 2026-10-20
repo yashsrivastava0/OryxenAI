@@ -1,7 +1,7 @@
 <!--
   Canonical AI Coding Agent Context
   Format: AGENTS.md (Open Agentic Standard - https://agentsmd.io)
-  Last Updated: 2026-10-01
+  Last Updated: 2026-10-09
   Repository: OryxenAI
   Supported Agents: Claude Code, OpenAI Codex CLI, Google Antigravity, Cursor, GitHub Copilot, Gemini CLI
 -->
@@ -35,11 +35,11 @@ OryxenAI is an authenticated, intelligent portfolio product. It converts raw use
 2. An approved **Content Architect Plan**.
 3. A generated, verified **one-page portfolio** shown in the **Studio**: a live, sandboxed preview next to a chat that changes the page's content.
 
-The active workflow **ends in the Studio**. The repository generates and previews the page for its owner; it does **not** publish, export or host a public portfolio website.
+The generation workflow **ends in the Studio**. A separate, disabled-by-default **React Delivery Engine** can prepare an explicitly selected ready version for temporary MCP sharing. It makes no model calls. The repository does not publish or host a public portfolio website or provide a code download endpoint.
 
 ### Deliberately Excluded Behaviors
 * **No automatic stage chaining or autonomous supervisor:** Callers and users explicitly trigger each stage via API/UI. The product's single *Approve & generate my portfolio* click is one explicit user action (approve, then start); no API endpoint starts the next stage by itself.
-* **No public hosting of generated pages:** The generated page is previewed only for its owner through short-lived, signed, sandboxed preview links; it is not published, exported or served publicly.
+* **No public hosting of generated pages:** Studio previews remain owner-scoped. Optional React handoffs grant temporary, signed, read-only MCP access to public portfolio content and a complete React project. This exception requires an explicit owner action; it does not make Studio previews public.
 * **No automatic retry or repair of generated pages:** A failed build is reported exactly (what, where, why) and the owner starts it again. Any future retry or repair loop must be a deliberate, documented change.
 * **No external queue brokers:** No Redis, RabbitMQ, Celery, or Kafka. Background jobs are managed purely via PostgreSQL.
 * **No live model calls during standard tests:** Default test runs use deterministic fixtures and mock clients. Live provider calls are strictly opt-in.
@@ -70,6 +70,12 @@ The active workflow **ends in the Studio**. The repository generates and preview
 * Local foundation supporting identity verification, just-in-time account admission, onboarding, owner-scoped session security, admin access, account lifecycle, and worker fencing.
 * Normal users are strictly isolated to their own portfolio sessions. Administrative endpoints support archival cleanup.
 * Reference: [`src/oryxenai/auth/`](file:///c:/Users/Yash%20Srivastava/Desktop/01_Projects/OryxenAI/src/oryxenai/auth/).
+
+### Optional React Delivery
+* **Status:** Implemented locally behind `[react_delivery].enabled = false`; live R2 and client acceptance are separate release gates.
+* **Boundary:** Explicit owner preparation of an immutable ready Studio version; deterministic pinned React adapters; PostgreSQL queue without model credits; private R2 files; signed MCP access until expiry or revocation. Existing stage and session retention are unchanged.
+* **Verification:** Build `react-delivery` templates and the product frontend before the backend suite. React browser fixtures and the actual MCP importer are part of acceptance. Never claim an individual handoff ran in a browser from template checks alone.
+* **Documentation:** [React delivery architecture and runbook](docs/react-delivery.md). Keep live viewer compatibility when deploying, and never enable or release the feature without the required operator instruction.
 
 ### Product Workspace
 * Authenticated Preact/TypeScript/Vite application served via FastAPI.
@@ -105,7 +111,10 @@ src/oryxenai/
   api/routes/                # Session, stage, and operational endpoints
   web/                       # Product shell and static assets
   storage/                   # Archival cleanup interfaces
+  delivery/                  # Deterministic React preparation, MCP and temporary cleanup
 frontend/                    # Authenticated Preact/TypeScript/Vite product
+react-delivery/               # React theme adapters, project template and MCP App build
+plugins/oryxenai-react-handoff/ # MCP connection, import skill and programmatic importer
 config/                      # Committed non-secret TOML configuration
 migrations/                  # Alembic schema version history
 tests/                       # Unit, API, integration, and worker test suites

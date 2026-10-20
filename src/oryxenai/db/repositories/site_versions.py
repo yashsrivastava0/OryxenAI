@@ -371,9 +371,11 @@ class SiteVersionRepository:
 
     async def prune_versions(self, session_id: UUID, *, keep: int, active_id: UUID | None) -> int:
         """Delete the oldest versions beyond ``keep``; the live page is never pruned."""
+        from oryxenai.delivery.pins import live_source_pin
+
         stmt = (
             select(PortfolioSiteVersion.id)
-            .where(PortfolioSiteVersion.portfolio_session_id == session_id)
+            .where(PortfolioSiteVersion.portfolio_session_id == session_id, ~live_source_pin())
             .order_by(PortfolioSiteVersion.seq.desc())
             .offset(max(1, keep))
         )
@@ -398,6 +400,17 @@ class SiteVersionRepository:
                 PortfolioSiteVersion.id.in_(version_ids),
             )
             .values(restricted=True, updated_at=datetime.now(UTC))
+        )
+        from oryxenai.db.models.react_handoff import PENDING, ReactHandoff
+
+        await self._session.execute(
+            update(ReactHandoff)
+            .where(
+                ReactHandoff.portfolio_session_id == session_id,
+                ReactHandoff.source_version_id.in_(version_ids),
+                ReactHandoff.status.in_((*PENDING, "ready")),
+            )
+            .values(status="revoked", revoked_at=datetime.now(UTC))
         )
 
     async def ready_versions_with_content(
